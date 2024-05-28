@@ -1,7 +1,7 @@
 from gymnasium         import Env, spaces
 from einops            import rearrange
 from math              import floor
-from memory_addresses  import *
+from Addresses         import *
 from pathlib           import Path
 from pyboy             import PyBoy
 from pyboy.utils       import WindowEvent
@@ -77,18 +77,18 @@ class Gymnasium(Env):
             WindowEvent.RELEASE_BUTTON_B
         ]
 
-        self.output_shape = (36, 40, 3)
-        self.mem_padding = 2
+        self.output_shape  = (36, 40, 3)
+        self.mem_padding   = 2
         self.memory_height = 8
-        self.col_steps = 16
-        self.output_full = (
+        self.col_steps     = 16
+        self.output_full   = (
             self.output_shape[0] * self.frame_stacks + 2 * (self.mem_padding + self.memory_height),
-                            self.output_shape[1],
-                            self.output_shape[2]
+            self.output_shape[1],
+            self.output_shape[2]
         )
 
         # Set these in ALL subclasses
-        self.action_space = spaces.Discrete(len(self.valid_actions))
+        self.action_space      = spaces.Discrete(len(self.valid_actions))
         self.observation_space = spaces.Box(low=0, high=255, shape=self.output_full, dtype=np.uint8)
 
         head = 'headless' if config['headless'] else 'SDL2'
