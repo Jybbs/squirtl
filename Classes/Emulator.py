@@ -1,11 +1,11 @@
 from pyboy       import PyBoy
 from pyboy.utils import WindowEvent
-import time
 
 class Emulator:
     def __init__(self, rom_path):
 
         self.pyboy   = PyBoy(rom_path, window = "SDL2")
+        self.screen  = self.pyboy
         self.actions = {
             'UP'     : (WindowEvent.PRESS_ARROW_UP,      WindowEvent.RELEASE_ARROW_UP),
             'DOWN'   : (WindowEvent.PRESS_ARROW_DOWN,    WindowEvent.RELEASE_ARROW_DOWN),
@@ -21,19 +21,14 @@ class Emulator:
         self.pyboy.tick()
 
     def press_button(self, button):
-        press_event, release_event = self.actions[button]
-        self.pyboy.send_input(press_event)
-        self.step()
-        self.pyboy.send_input(release_event)
-        self.step()
-
-    def main_loop(self):
-        try:
-            while True:
-                self.step()
-                time.sleep(0.01)  # Adjust the sleep time as necessary
-        except KeyboardInterrupt:
-            self.close()
+        if button in self.actions:
+            press_event, release_event = self.actions[button]
+            self.pyboy.send_input(press_event)
+            self.step()
+            self.pyboy.send_input(release_event)
+            self.step()
+        else:
+            print(f"Invalid button: {button}")
 
     def close(self):
         self.pyboy.stop()

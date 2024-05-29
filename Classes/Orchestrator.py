@@ -12,7 +12,7 @@ class Orchestrator:
 
 # Usage example
 if __name__ == "__main__":
-    rom_path = "PokemonBlue.gb"
+    rom_path     = "PokemonBlue.gb"
     action_space = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'START', 'SELECT']
     orchestrator = Orchestrator(rom_path, action_space)
     
