@@ -3,7 +3,7 @@ import numpy as np
 class PPOAgent:
     def __init__(self, action_space):
         self.action_space = action_space
-        self.memory       = []  # Store transitions for learning
+        self.memory       = []    # Store transitions for learning
         self.gamma        = 0.99  # Discount factor for future rewards
 
     def select_action(self):
