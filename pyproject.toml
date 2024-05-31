@@ -8,13 +8,8 @@ version     = "0.1.0"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-stable-baselines3 = "^2.3.2"
 gymnasium = "^0.29.1"
 pyboy = "^2.1.0"
-einops = "^0.8.0"
-hnswlib = "^0.8.0"
-scikit-image = "^0.23.2"
-mediapy = "^1.2.0"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"

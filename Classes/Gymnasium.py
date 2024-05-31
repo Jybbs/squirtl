@@ -34,5 +34,5 @@ class Gymnasium:
                     self.ppo_agent.update_policy()
                     break
 
-        except KeyboardInterrupt:
+        finally:
             self.close()
