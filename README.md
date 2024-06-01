@@ -38,16 +38,16 @@ The TSP can be applied to find the shortest possible route that visits a set of 
 - **Chapter 35 (Approximation Algorithms):** Techniques for solving NP-complete problems like the TSP using approximation algorithms.
 
 ### Wildcard Algorithm
-*Reinforcement Learning with Proximal Policy Optimization (PPO)*
+*Reinforcement Learning with Deep Q-Network (DQN)*
 
 **Description:**
-Utilize the PPO algorithm to train an AI agent to play the game, focusing on exploration and reward optimization.
+Utilize a DQN algorithm to train an AI agent to play the game, focusing on exploration and reward optimization.
 
 **Steps:**
 1. **Environment Setup:** Use a Game Boy emulator to run the game and interact with it using a reinforcement learning framework.
 2. **State Representation:** Represent the game state using visual inputs and encode necessary game state information (e.g., current location, health points).
 3. **Reward Function:** Design a reward function that encourages exploration and game progression (e.g., reaching new areas, winning battles).
-4. **PPO Implementation:** Implement the PPO algorithm to train the AI, leveraging libraries such as TensorFlow.
+4. **DQN Implementation:** Implement the DQN algorithm to train the AI, leveraging libraries such as PyTorch.
 5. **Training and Evaluation:** Train the AI on multiple parallel game instances and evaluate its performance.
 
 **Research Reference:**

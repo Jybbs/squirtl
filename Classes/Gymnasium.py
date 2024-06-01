@@ -1,5 +1,5 @@
 from Emulator import Emulator
-from PPOAgent import PPOAgent
+from Classes.DQNAgent import PPOAgent
 import numpy as np
 
 class Gymnasium:
