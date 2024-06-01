@@ -1,4 +1,4 @@
-from Gymnasium import Gymnasium
+from Gymnasium       import Gymnasium
 from Hyperparameters import Hyperparameters
 
 class Orchestrator:
@@ -14,14 +14,17 @@ class Orchestrator:
 
 # Usage example
 if __name__ == "__main__":
-    rom_path = "PokemonBlue.gb"
-    action_space = ['a', 'b', 'select', 'start', 'left', 'right', 'up', 'down']
-    state_dim = (3, 160, 144)  # Assuming the state is a 3-channel image with dimensions (160, 144)
-    save_dir = "path/to/save/directory"
-    date = "YYYY-MM-DD"
-    orchestrator = Orchestrator(rom_path, action_space, state_dim, save_dir, date)
+
+    orchestrator = Orchestrator(
+        action_space = ['a', 'b', 'select', 'start', 'left', 'right', 'up', 'down'],
+        date         = "YYYY-MM-DD",
+        rom_path     = "PokemonBlue.gb",
+        save_dir     = "path/to/save/directory", 
+        state_dim    = (3, 160, 144)
+    )
 
     try:
         orchestrator.run(num_episodes = 100)
+        
     except KeyboardInterrupt:
         orchestrator.close()
