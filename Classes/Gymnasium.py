@@ -1,14 +1,8 @@
-from Agent        import Agent
-from Emulator     import Emulator
-from MetricLogger import MetricLogger
-
 class Gymnasium:
-    def __init__(self, rom_path, action_space, state_dim, save_dir, date, hyperparameters):
-        self.agent             = Agent(state_dim, action_space, save_dir, date, hyperparameters)
-        self.cumulative_reward = 0
-        self.emulator          = Emulator(rom_path)
-        self.metric_logger     = MetricLogger(save_dir)
-
+    def __init__(self, agent, emulator, metrics):
+        self.agent    = agent
+        self.emulator = emulator
+        self.metrics  = metrics
 
     def calculate_reward(self, state, next_state):
         # Implement reward calculation logic here
@@ -26,11 +20,11 @@ class Gymnasium:
 
             while not done:
                 action_idx = self.agent.act(state)
-                action     = self.agent.action_space[action_idx]
+                action = self.agent.action_space[action_idx]
                 self.emulator.press_button(action)
 
-                next_state      = self.emulator.get_screen_image()
-                reward          = self.calculate_reward(state, next_state)
+                next_state = self.emulator.get_screen_image()
+                reward = self.calculate_reward(state, next_state)
                 episode_reward += reward
                 done = False  # Update this based on your game logic
 
@@ -38,11 +32,11 @@ class Gymnasium:
                 q_value, loss = self.agent.learn()
                 lr = self.agent.optimizer.param_groups[0]['lr']
 
-                self.metric_logger.log_step(reward, loss, q_value, lr)
+                self.metrics.log_step(reward, loss, q_value, lr)
 
                 state = next_state
 
-            self.metric_logger.log_episode()
-            self.metric_logger.record(episode, self.agent.hyperparameters.exploration_rate, self.agent.curr_step)
+            self.metrics.log_episode()
+            self.metrics.record(episode, self.agent.hyperparameters.exploration_rate, self.agent.curr_step)
 
         self.close()

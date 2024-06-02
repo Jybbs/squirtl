@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 
-class MetricLogger:
+class Metrics:
     def __init__(self, save_dir):
         self.save_log = save_dir / "log.txt"
         with open(self.save_log, "w") as f:
@@ -72,10 +72,11 @@ class MetricLogger:
             self.curr_ep_lr.append(lr)
 
     def record(self, episode, epsilon, step):
-        mean_ep_reward = np.round(np.mean(self.ep_rewards[-100:]),    3)
-        mean_ep_length = np.round(np.mean(self.ep_lengths[-100:]),    3)
-        mean_ep_loss   = np.round(np.mean(self.ep_avg_losses[-100:]), 3)
-        mean_ep_q      = np.round(np.mean(self.ep_avg_qs[-100:]),     3)
+        mean_ep_reward = np.round(np.mean(self.ep_rewards[-100:]), 3)
+        mean_ep_length = np.round(np.mean(self.ep_lengths[-100:]), 3)
+        mean_ep_loss = np.round(np.mean(self.ep_avg_losses[-100:]), 3)
+        mean_ep_q = np.round(np.mean(self.ep_avg_qs[-100:]), 3)
+
         self.moving_avg_ep_rewards.append(mean_ep_reward)
         self.moving_avg_ep_lengths.append(mean_ep_length)
         self.moving_avg_ep_avg_losses.append(mean_ep_loss)
@@ -106,7 +107,17 @@ class MetricLogger:
                 f"{datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'):>20}\n"
             )
 
-        for metric in ["ep_rewards", "ep_lengths", "ep_avg_losses", "ep_avg_qs"]:
+        self.save_plots()
+
+    def save_plots(self):
+        metrics = [
+            ("ep_rewards",    self.ep_rewards_plot),
+            ("ep_lengths",    self.ep_lengths_plot),
+            ("ep_avg_losses", self.ep_avg_losses_plot),
+            ("ep_avg_qs",     self.ep_avg_qs_plot)
+        ]
+
+        for metric, plot_path in metrics:
             plt.plot(getattr(self, f"moving_avg_{metric}"))
-            plt.savefig(getattr(self, f"{metric}_plot"))
+            plt.savefig(plot_path)
             plt.clf()
