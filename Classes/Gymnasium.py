@@ -30,7 +30,6 @@ class Gymnasium:
                 episode_reward += reward
                 done = False  # Update this based on your game logic
 
-
                 self.agent.cache(Experience(action_idx, done, next_state, reward, state))
                 q_value, loss = self.agent.learn()
                 lr = self.agent.optimizer.param_groups[0]['lr']
