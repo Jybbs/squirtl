@@ -1,15 +1,15 @@
 from Experience import Experience
 
 class Gymnasium:
-    def __init__(self, agent, emulator, metrics):
+    def __init__(self, agent, emulator, metrics, reward):
         self.agent    = agent
         self.emulator = emulator
         self.metrics  = metrics
+        self.reward   = reward
 
     def calculate_reward(self, state, next_state):
-        # Implement reward calculation logic here
-        reward = 0
-        return reward
+        reward_value = self.reward.calculate_reward(state, next_state)
+        return reward_value
 
     def close(self):
         self.emulator.close()
@@ -28,7 +28,10 @@ class Gymnasium:
                 next_state = self.emulator.get_screen_image()
                 reward = self.calculate_reward(state, next_state)
                 episode_reward += reward
-                done = False  # Update this based on your game logic
+
+                # Check if the EVENT_GOT_STARTER event has been triggered
+                if self.reward.event_got_starter:
+                    done = True
 
                 self.agent.cache(Experience(action_idx, done, next_state, reward, state))
                 q_value, loss = self.agent.learn()

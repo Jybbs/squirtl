@@ -2,16 +2,19 @@ from Agent     import Agent
 from Emulator  import Emulator
 from Gymnasium import Gymnasium
 from Metrics   import Metrics
+from Reward    import Reward
 from Settings  import Settings
 
 class Orchestrator:
-    def __init__(self, rom_path):
-        self.settings = Settings()
+    def __init__(self, rom_path, run_date):
+        self.emulator = Emulator(rom_path)
+        self.settings = Settings(run_date)
         self.gym = Gymnasium \
             (
                 agent    = Agent(self.settings), 
-                emulator = Emulator(rom_path), 
-                metrics  = Metrics(self.settings.save_directory)
+                emulator = self.emulator, 
+                metrics  = Metrics(self.settings.save_directory),
+                reward   = Reward(self.emulator)
             )
 
     def run(self, num_episodes):
@@ -24,11 +27,8 @@ class Orchestrator:
 if __name__ == "__main__":
     orchestrator = Orchestrator \
         (
-            action_space = ['a', 'b', 'select', 'start', 'left', 'right', 'up', 'down'],
-            date         = "YYYY-MM-DD",
-            rom_path     = "PokemonBlue.gb",
-            save_dir     = "path/to/save/directory",
-            state_dim    = (3, 160, 144)
+            rom_path = "PokemonBlue.gb",
+            run_date = "2024-06-13",
         )
 
-    orchestrator.run(num_episodes = 100)
+    orchestrator.run(num_episodes = 1000)

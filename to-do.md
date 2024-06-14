@@ -1,1 +1,4 @@
 - Look into `boost` as a way to bind C++ to Python
+- Move check_event_flag into Gymnasium, so Reward doesn't also need emulator
+- Preprocessing: optimization on input data with PCA
+- NP-Complete: traveling salesman to major checkpoint
