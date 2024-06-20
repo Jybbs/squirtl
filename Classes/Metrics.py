@@ -1,123 +1,69 @@
-import datetime
 import matplotlib.pyplot as plt
-import numpy as np
 import time
 
 class Metrics:
-    def __init__(self, save_dir):
-        self.save_log = save_dir / "log.txt"
-        with open(self.save_log, "w") as f:
+    def __init__(self, save_directory):
+        self.save_directory = save_directory
+        self.log_file       = save_directory / "metrics_log.txt"
+        self.start_time     = time.time()
+
+        self.episode_metrics = {"lengths"  : [],
+                                "losses"   : [],
+                                "q_values" : [],
+                                "rewards"  : []}
+
+        self.current_episode_metrics = {"length"  : 0,
+                                        "loss"    : 0,
+                                        "q_value" : 0,
+                                        "reward"  : 0}
+
+        self.create_log_file()
+
+    def create_log_file(self):
+        with open(self.log_file, "w") as f:
             f.write(
-                f"{'Episode':>8}{'Step':>8}{'Epsilon':>10}{'MeanReward':>15}"
-                f"{'MeanLength':>15}{'MeanLoss':>15}{'MeanQValue':>15}"
-                f"{'TimeDelta':>15}{'Time':>20}\n"
+                f"{'Episode':>8}{'Elapsed Time':>15}{'Length':>10}"
+                f"{'Loss':>10}{'Q-Value':>10}{'Reward':>10}\n"
             )
-        self.ep_avg_losses_plot = save_dir / "loss_plot.jpg"
-        self.ep_avg_qs_plot     = save_dir / "q_plot.jpg"
-        self.ep_lengths_plot    = save_dir / "length_plot.jpg"
-        self.ep_rewards_plot    = save_dir / "reward_plot.jpg"
 
-        # History metrics
-        self.ep_avg_losses = []
-        self.ep_avg_qs     = []
-        self.ep_lengths    = []
-        self.ep_lr         = []
-        self.ep_rewards    = []
-
-        # Moving averages, added for every call to record()
-        self.moving_avg_ep_avg_losses = []
-        self.moving_avg_ep_avg_qs     = []
-        self.moving_avg_ep_lengths    = []
-        self.moving_avg_ep_rewards    = []
-
-        # Current episode metric
-        self.init_episode()
-
-        # Timing
-        self.record_time = time.time()
-
-    def init_episode(self):
-        self.curr_ep_length      = 0
-        self.curr_ep_loss        = 0.0
-        self.curr_ep_loss_length = 0
-        self.curr_ep_lr          = []
-        self.curr_ep_q           = 0.0
-        self.curr_ep_reward      = 0.0
+    def log_step(self, reward, loss, q_value):
+        self.current_episode_metrics["length"]  += 1
+        self.current_episode_metrics["loss"]    += loss
+        self.current_episode_metrics["q_value"] += q_value
+        self.current_episode_metrics["reward"]  += reward
 
     def log_episode(self):
-        "Mark end of episode"
-        self.ep_rewards.append(self.curr_ep_reward)
-        self.ep_lengths.append(self.curr_ep_length)
-        self.ep_lr.append(np.mean(self.curr_ep_lr))
+        for metric, value in self.current_episode_metrics.items():
 
-        if self.curr_ep_loss_length == 0:
-            ep_avg_loss = 0
-            ep_avg_q    = 0
-        else:
-            ep_avg_loss = np.round(self.curr_ep_loss / self.curr_ep_loss_length, 5)
-            ep_avg_q    = np.round(self.curr_ep_q    / self.curr_ep_loss_length, 5)
+            if metric in ["loss", "q_value"]:
+                value /= self.current_episode_metrics["length"]
 
-        self.ep_avg_losses.append(ep_avg_loss)
-        self.ep_avg_qs.append(ep_avg_q)
+            self.episode_metrics[metric + "s"].append(value)
+            self.current_episode_metrics[metric] = 0
 
-        self.init_episode()
-
-    def log_step(self, reward, loss, q, lr):
-        self.curr_ep_length += 1
-        self.curr_ep_reward += reward
-        if loss:
-            self.curr_ep_loss        += loss
-            self.curr_ep_q           += q
-            self.curr_ep_loss_length += 1
-            self.curr_ep_lr.append(lr)
-
-    def record(self, episode, epsilon, step):
-        mean_ep_reward = np.round(np.mean(self.ep_rewards[-100:]), 3)
-        mean_ep_length = np.round(np.mean(self.ep_lengths[-100:]), 3)
-        mean_ep_loss = np.round(np.mean(self.ep_avg_losses[-100:]), 3)
-        mean_ep_q = np.round(np.mean(self.ep_avg_qs[-100:]), 3)
-
-        self.moving_avg_ep_rewards.append(mean_ep_reward)
-        self.moving_avg_ep_lengths.append(mean_ep_length)
-        self.moving_avg_ep_avg_losses.append(mean_ep_loss)
-        self.moving_avg_ep_avg_qs.append(mean_ep_q)
-
-        last_record_time = self.record_time
-        self.record_time = time.time()
-        time_since_last_record = np.round(self.record_time - last_record_time, 3)
-
-        print(
-            f"Episode {episode} - "
-            f"Step {step} - "
-            f"Epsilon {epsilon} - "
-            f"Learning Rate {np.mean(self.curr_ep_lr):.5f} - "
-            f"Mean Reward {mean_ep_reward} - "
-            f"Mean Length {mean_ep_length} - "
-            f"Mean Loss {mean_ep_loss} - "
-            f"Mean Q Value {mean_ep_q} - "
-            f"Time Delta {time_since_last_record} - "
-            f"Time {datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}"
+    def record_episode(self, episode):
+        elapsed_time = time.time() - self.start_time
+        metrics      = [f"{m.capitalize()}: {v[-1]:8.2f}" for m, v in self.episode_metrics.items()]
+        log_entry    = \
+        (
+            f"Episode {episode:4d} - " + " - ".join(metrics) +
+            f" - Elapsed Time: {elapsed_time:10.2f}s"
         )
 
-        with open(self.save_log, "a") as f:
-            f.write(
-                f"{episode:8d}{step:8d}{epsilon:10.3f}"
-                f"{mean_ep_reward:15.3f}{mean_ep_length:15.3f}{mean_ep_loss:15.3f}{mean_ep_q:15.3f}"
-                f"{time_since_last_record:15.3f}"
-                f"{datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'):>20}\n"
-            )
+        print(log_entry)
 
-        self.save_plots()
+        with open(self.log_file, "a") as f:
+            f.write(log_entry.replace(" - ", "") + "\n")
 
-    def save_plots(self):
-        metrics = [
-            ("ep_rewards",    self.ep_rewards_plot),
-            ("ep_lengths",    self.ep_lengths_plot),
-            ("ep_avg_losses", self.ep_avg_losses_plot),
-            ("ep_avg_qs",     self.ep_avg_qs_plot)
-        ]
+    def plot_metrics(self):
+        _, axs = plt.subplots(2, 2, figsize = (12, 8))
+        axs    = axs.flatten()
 
-        for metric, plot_path in metrics:
-            plt.plot(getattr(self, f"moving_avg_{metric}"))
-            plt.savefig(plot_path)
-            plt.clf()
+        for i, (metric, values) in enumerate(self.episode_metrics.items()):
+            axs[i].plot(values)
+            axs[i].set_title(f"Episode {metric.capitalize()}")
+            axs[i].set_xlabel("Episode")
+            axs[i].set_ylabel(metric.capitalize()[:-1])
+        plt.tight_layout()
+        plt.savefig(self.save_directory / "metrics_plot.png")
+        plt.close()

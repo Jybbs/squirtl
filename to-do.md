@@ -1,4 +1,5 @@
 - Look into `boost` as a way to bind C++ to Python
-- Move check_event_flag into Gymnasium, so Reward doesn't also need emulator
+- Find a less verbose way to handle Settings, Hyperparameters, and their usage in Agent
+- Reward uses Emulator for one method;  if that can be fixed
 - Preprocessing: optimization on input data with PCA
 - NP-Complete: traveling salesman to major checkpoint

@@ -1,9 +1,11 @@
+from torch import device
+
 class Settings:
     def __init__(self, run_date):
         self.action_space     = ['a', 'b', 'select', 'start', 'left', 'right', 'up', 'down']
         self.run_date         = run_date
-        self.save_directory   = "path/to/save/directory"
         self.state_dimensions = (36, 40, 3)
+        self.device           = device("cpu")
         
         self.hyperparameters = {
             "batch_size"             : 64,

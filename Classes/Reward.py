@@ -1,31 +1,23 @@
-import numpy as np
-
 class Reward:
+    BACKTRACK_PENALTY         = -10
+    EVENT_GOT_STARTER_ADDRESS = (0xD74B, 2)
+    EVENT_GOT_STARTER_REWARD  = 1000
+    NEW_STATE_REWARD          = 10
+    STEP_PENALTY              = -1
+
     def __init__(self, emulator):
         self.emulator = emulator
-        self.event_got_starter = False
-        self.event_memory_addresses = {
-            'EVENT_GOT_STARTER': (0xD74B, 2)  # Memory address and bit position
-        }
         self.visited_states = set()
 
     def calculate_reward(self, state, next_state):
-        if self.check_event_flag('EVENT_GOT_STARTER'):
-            self.event_got_starter = True
-            return 1000  # Large positive reward for reaching the target event
+        if self.emulator.check_event_flag(*self.EVENT_GOT_STARTER_ADDRESS):
+            return self.EVENT_GOT_STARTER_REWARD, True
 
-        # Check if the next state has been visited before
         if next_state not in self.visited_states:
             self.visited_states.add(next_state)
-            return 10  # Small positive reward for visiting a new state
+            return self.NEW_STATE_REWARD, False
 
-        # Check if the agent has backtracked to a previously visited state
         if state in self.visited_states:
-            return -10  # Negative reward for backtracking
+            return self.BACKTRACK_PENALTY, False
 
-        return -1  # Small negative reward for each step
-
-    def check_event_flag(self, event_name):
-        event_address, bit_position = self.event_memory_addresses[event_name]
-        event_value = self.emulator.pyboy.get_memory_value(event_address)
-        return (event_value >> bit_position) & 1 == 1
+        return self.STEP_PENALTY, False

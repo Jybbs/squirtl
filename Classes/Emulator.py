@@ -5,6 +5,10 @@ class Emulator:
         self.pyboy  = PyBoy(rom_path, sound_emulated = True, window = "SDL2")
         self.screen = self.pyboy
 
+    def check_event_flag(self, event_address, bit_position):
+        event_value = self.pyboy.get_memory_value(event_address)
+        return (event_value >> bit_position) & 1 == 1
+
     def close(self):
         self.pyboy.stop()
 
@@ -13,5 +17,3 @@ class Emulator:
 
     def press_button(self, button, ticks = 1):
         self.pyboy.button(button, ticks)
-        self.pyboy.tick()
-        self.pyboy.tick()
