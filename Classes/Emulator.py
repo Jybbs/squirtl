@@ -6,7 +6,7 @@ class Emulator:
         self.rom_path       = rom_path
 
     def check_event_flag(self, event_address, bit_position):
-        event_value = self.pyboy_instance.get_memory_value(event_address)
+        event_value = self.pyboy_instance.memory[event_address]
         return (event_value >> bit_position) & 1 == 1
 
     def close_emulator(self):

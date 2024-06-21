@@ -2,3 +2,4 @@
 - Introduce chaos in Agent.act, so there are opportunities for "revelations"
 - Preprocessing: optimization on input data with PCA
 - NP-Complete: traveling salesman to major checkpoint
+- Refactor for conciseness in all Classes

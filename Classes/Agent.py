@@ -34,10 +34,10 @@ class Agent(nn.Module):
         self.action_space_size = len(settings.action_space)
         self.batch_size        = settings.batch_size
         self.device            = settings.device
-        self.lr_scheduler      = lr_scheduler.ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
         self.main_network      = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
         self.optimizer         = Adam(self.main_network.parameters(), lr=settings.learning_rate)
         self.replay_memory     = Memory(settings.memory_capacity)
+        self.scheduler         = lr_scheduler.ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
         self.settings          = settings
         self.steps_taken       = 0
         self.target_network    = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
@@ -74,7 +74,7 @@ class Agent(nn.Module):
             self.target_network.load_state_dict(self.main_network.state_dict())
 
         self.update_exploration_rate()
-        self.lr_scheduler.step()
+        self.scheduler.step()
 
         return loss.item(), current_q_values.mean().item()
 
@@ -84,7 +84,7 @@ class Agent(nn.Module):
         self.main_network.load_state_dict(checkpoint['main_network_state_dict'])
         self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+        self.scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
 
         self.settings.exploration_rate = checkpoint['exploration_rate']
         self.steps_taken = checkpoint['steps_taken']
@@ -96,7 +96,7 @@ class Agent(nn.Module):
                 'main_network_state_dict'   : self.main_network.state_dict(),
                 'target_network_state_dict' : self.target_network.state_dict(),
                 'optimizer_state_dict'      : self.optimizer.state_dict(),
-                'lr_scheduler_state_dict'   : self.lr_scheduler.state_dict(),
+                'lr_scheduler_state_dict'   : self.scheduler.state_dict(),
                 'exploration_rate'          : self.settings.exploration_rate,
                 'steps_taken'               : self.steps_taken,
             }, 

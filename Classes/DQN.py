@@ -1,29 +1,29 @@
-import torch
-import torch.nn as nn
+from torch    import prod, tensor, zeros
+from torch.nn import Conv2d, Linear, Module, ReLU, Sequential
 
-class DQN(nn.Module):
+class DQN(Module):
     def __init__(self, action_count, state_dimensions):
         super(DQN, self).__init__()
         self.action_count     = action_count
         self.state_dimensions = state_dimensions
 
-        self.convolutional_layers = nn.Sequential \
+        self.convolutional_layers = Sequential \
         (
-            nn.Conv2d(state_dimensions[0], 32, kernel_size = 8, stride = 4),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size = 4, stride = 2),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size = 3, stride = 1),
-            nn.ReLU()
+            Conv2d(state_dimensions[0], 32, kernel_size = 8, stride = 4),
+            ReLU(),
+            Conv2d(32, 64, kernel_size = 4, stride = 2),
+            ReLU(),
+            Conv2d(64, 64, kernel_size = 3, stride = 1),
+            ReLU()
         )
         
         convolution_output_size = self.get_convolution_output_size(state_dimensions)
         
-        self.fully_connected_layers = nn.Sequential \
+        self.fully_connected_layers = Sequential \
         (
-            nn.Linear(convolution_output_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, action_count)
+            Linear(convolution_output_size, 512),
+            ReLU(),
+            Linear(512, action_count)
         )
 
     def forward(self, state):
@@ -31,5 +31,5 @@ class DQN(nn.Module):
         return self.fully_connected_layers(convolution_output)
     
     def get_convolution_output_size(self, shape):
-        convolution_output = self.convolutional_layers(torch.zeros(1, *shape))
-        return int(torch.prod(torch.tensor(convolution_output.shape)))
+        convolution_output = self.convolutional_layers(zeros(1, *shape))
+        return int(prod(tensor(convolution_output.shape)))
