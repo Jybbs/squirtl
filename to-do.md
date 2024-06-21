@@ -1,5 +1,4 @@
 - Look into `boost` as a way to bind C++ to Python
-- Find a less verbose way to handle Settings, Hyperparameters, and their usage in Agent
-- Reward uses Emulator for one method;  if that can be fixed
+- Introduce chaos in Agent.act, so there are opportunities for "revelations"
 - Preprocessing: optimization on input data with PCA
 - NP-Complete: traveling salesman to major checkpoint

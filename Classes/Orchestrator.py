@@ -6,25 +6,29 @@ from Reward    import Reward
 from Settings  import Settings
 
 class Orchestrator:
-    def __init__(self, num_episodes, rom_path, run_date, save_directory):
-        self.emulator = Emulator(rom_path)
-        self.settings = Settings(run_date)
-        self.gym      = Gymnasium \
-            (
-                agent    = Agent(self.settings, save_directory), 
-                emulator = self.emulator, 
-                metrics  = Metrics(save_directory),
-                reward   = Reward(self.emulator)
-            )
+    def __init__(self, config):
+        self.config = config
+        self.setup_components()
 
-        self.gym.train(num_episodes)
+    def setup_components(self):
+        self.settings = Settings(self.config['run_date'])
+        self.emulator = Emulator(self.config['rom_path'])
+        self.agent    = Agent(self.settings)
+        self.metrics  = Metrics(self.settings, self.config['save_directory'])
+        self.reward   = Reward(self.settings, self.emulator)
+        self.gym      = Gymnasium(self.settings, self.agent, self.emulator, self.metrics, self.reward)
+
+    def train(self):
+        self.gym.train(self.config['num_episodes'])
 
 if __name__ == "__main__":
+    config = \
+    {
+        'num_episodes'   : 1000,
+        'rom_path'       : "PokemonBlue.gb",
+        'run_date'       : "2024-06-20",
+        'save_directory' : "saves"
+    }
     
-    Orchestrator \
-        (
-            num_episodes   = 1000,
-            rom_path       = "PokemonBlue.gb",
-            run_date       = "2024-06-13",
-            save_directory = "saves"
-        )
+    orchestrator = Orchestrator(config)
+    orchestrator.train()

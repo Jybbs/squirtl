@@ -1,111 +1,124 @@
-from collections         import deque
-from DQN                 import DQN
-from torch.nn.functional import smooth_l1_loss
-from torch.optim         import Adam, lr_scheduler
-
-import random
 import torch
+import torch.nn as nn
 
-class Agent:
-    def __init__(self, settings, save_directory):
-        self.action_dimensions = len(settings.action_space)
-        self.current_step      = 0
-        self.dqn               = DQN(self.action_dimensions, settings.state_dimensions).to(self.settings.device)
-        self.hyperparameters   = settings.hyperparameters
-        self.memory            = deque(maxlen = self.hyperparameters['deque_size'])
-        self.optimizer         = Adam(self.dqn.parameters(), lr = self.hyperparameters['learning_rate'])
-        self.scheduler         = lr_scheduler.ExponentialLR(self.optimizer, gamma = self.hyperparameters['learning_rate_decay'])
-        self.save_directory    = save_directory
+from DQN              import DQN
+from Experience       import Experience
+from torch.optim      import Adam, lr_scheduler
+from torch.utils.data import Dataset
+from random           import randint, random, sample
+
+class Memory(Dataset):
+    def __init__(self, capacity):
+        self.capacity        = capacity
+        self.experiences     = []
+        self.insertion_index = 0
+
+    def __getitem__(self, idx):
+        return self.experiences[idx]
+
+    def __len__(self):
+        return len(self.experiences)
+
+    def sample_batch(self, batch_size):
+        return random.sample(self.experiences, batch_size)
+
+    def store(self, experience):
+        if len(self.experiences) < self.capacity:
+            self.experiences.append(None)
+        self.experiences[self.insertion_index] = experience
+        self.insertion_index = (self.insertion_index + 1) % self.capacity
+
+class Agent(nn.Module):
+    def __init__(self, settings):
+        super(Agent, self).__init__()
+        self.action_space_size = len(settings.action_space)
+        self.batch_size        = settings.batch_size
+        self.device            = settings.device
+        self.lr_scheduler      = lr_scheduler.ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
+        self.main_network      = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
+        self.optimizer         = Adam(self.main_network.parameters(), lr=settings.learning_rate)
+        self.replay_memory     = Memory(settings.memory_capacity)
         self.settings          = settings
-        self.target_dqn        = DQN(self.action_dimensions, settings.state_dimensions).to(self.settings.device)
-        
-        self.initialize_target_dqn()
+        self.steps_taken       = 0
+        self.target_network    = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
 
-    def act(self, state):
-        if random.random() < self.hyperparameters['exploration_rate']:
-            action_idx = random.randint(0, self.action_dimensions - 1)
-        else:
-            state      = torch.tensor(state, dtype = torch.float32).unsqueeze(0).to(self.settings.device)
-            q_values   = self.dqn(state)
-            action_idx = torch.argmax(q_values, dim = 1).item()
+        self.target_network.load_state_dict(self.main_network.state_dict())
+        self.target_network.eval()
 
-        self.update_exploration_rate()
-        self.current_step += 1
-        return action_idx
+    def forward(self, state):
+        return self.main_network(state)
 
-    def cache(self, experience):
-        experience.to_device(self.settings.device)
-        self.memory.append(experience)
+    def learn_from_experience(self):
+        if len(self.replay_memory) < self.batch_size:
+            return 0, 0  # Return 0 for both loss and q_value if not learning
 
-    def calculate_loss(self, experiences):
-        q_values          = self.dqn(experiences['state']).gather(1, experiences['action'].unsqueeze(1)).squeeze(1)
-        next_q_values     = self.target_dqn(experiences['next_state']).max(1)[0]
-        expected_q_values = experiences['reward'] + self.hyperparameters['gamma'] * next_q_values * (1 - experiences['done'].float())
-        return smooth_l1_loss(q_values, expected_q_values.detach())
-    
-    def initialize_target_dqn(self):
-        self.target_dqn.load_state_dict(self.dqn.state_dict())
-        self.target_dqn.eval()
+        experiences = self.replay_memory.sample_batch(self.batch_size)
+        batch       = Experience.batch_to_tensor(experiences, self.device)
 
-    def learn(self, episode):
-        if not self.should_learn():
-            return None, None
+        current_q_values = self(batch.state).gather(1, batch.action.unsqueeze(1))
 
-        self.sync_target_dqn()
-        experiences = self.sample_experiences()
-        loss = self.calculate_loss(experiences)
-        self.optimize(loss)
+        next_q_values  = torch.zeros(self.batch_size, device=self.device)
+        non_final_mask = ~batch.done
+        next_q_values[non_final_mask] = self.target_network(batch.next_state[non_final_mask]).max(1)[0]
 
-        if self.should_save(episode):
-            self.save(episode + 1)
+        expected_q_values = batch.reward + (self.settings.discount_factor * next_q_values * (~batch.done).float())
 
-        return self.dqn(experiences['state']).mean().item(), loss.item()
+        loss = nn.functional.smooth_l1_loss(current_q_values, expected_q_values.unsqueeze(1))
 
-    def load_model(self, path):
-        checkpoint = torch.load(path, map_location = self.settings.device)
-        self.dqn.load_state_dict(checkpoint["model"])
-        self.hyperparameters['exploration_rate'] = checkpoint["exploration_rate"]
-
-        print(f"Loading model at {path} with exploration rate {self.hyperparameters['exploration_rate']}")
-
-    def optimize(self, loss):
         self.optimizer.zero_grad()
         loss.backward()
+        nn.utils.clip_grad_value_(self.main_network.parameters(), 100)
         self.optimizer.step()
-        self.scheduler.step()
 
-    def sample_experiences(self):
-        experiences = random.sample(self.memory, self.hyperparameters['batch_size'])
-        return self.stack_experiences(experiences)
-    
-    def save(self, episode):
-        save_path = f"{self.save_directory}/dqn_net_{episode}.chkpt"
-        torch.save({"model"            : self.dqn.state_dict(),
-                    "exploration_rate" : self.hyperparameters['exploration_rate']}, save_path)
-        
-        print(f"DQN Net saved to {save_path} at step {self.current_step}")
-    
-    def should_learn(self):
-        return \
+        if self.steps_taken % self.settings.target_update_frequency == 0:
+            self.target_network.load_state_dict(self.main_network.state_dict())
+
+        self.update_exploration_rate()
+        self.lr_scheduler.step()
+
+        return loss.item(), current_q_values.mean().item()
+
+    def load_checkpoint(self, path):
+        checkpoint = torch.load(path, map_location = self.device)
+
+        self.main_network.load_state_dict(checkpoint['main_network_state_dict'])
+        self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+
+        self.settings.exploration_rate = checkpoint['exploration_rate']
+        self.steps_taken = checkpoint['steps_taken']
+
+    def save_checkpoint(self, path):
+        torch.save \
         (
-            self.current_step >= self.hyperparameters['burnin'] and
-            self.current_step % self.hyperparameters['learn_every'] == 0
+            {
+                'main_network_state_dict'   : self.main_network.state_dict(),
+                'target_network_state_dict' : self.target_network.state_dict(),
+                'optimizer_state_dict'      : self.optimizer.state_dict(),
+                'lr_scheduler_state_dict'   : self.lr_scheduler.state_dict(),
+                'exploration_rate'          : self.settings.exploration_rate,
+                'steps_taken'               : self.steps_taken,
+            }, 
+            path
         )
-    
-    def should_save(self, episode):
-        return (episode + 1) % self.hyperparameters['save_every'] == 0
-    
-    def stack_experiences(self, experiences):
-        tensor_dicts = [e.to_tensor_dict() for e in experiences]
-        return {k: torch.stack([td[k] for td in tensor_dicts]) for k in tensor_dicts[0]}
 
-    def sync_target_dqn(self):
-        if self.current_step % self.hyperparameters['sync_every'] == 0:
-            self.target_dqn.load_state_dict(self.dqn.state_dict())
+    def select_action(self, state):
+        if random() < self.settings.exploration_rate:
+            return randint(0, self.action_space_size - 1)
+        
+        with torch.no_grad():
+            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            q_values     = self(state_tensor)
+            return q_values.argmax(dim = 1).item()
+
+    def store_experience(self, experience):
+        self.replay_memory.store(experience)
+        self.steps_taken += 1
 
     def update_exploration_rate(self):
-        self.hyperparameters['exploration_rate'] = max \
+        self.settings.exploration_rate = max \
         (
-            self.hyperparameters['exploration_rate_min'],
-            self.hyperparameters['exploration_rate'] * self.hyperparameters['exploration_rate_decay']
+            self.settings.exploration_rate_min,
+            self.settings.exploration_rate * self.settings.exploration_rate_decay
         )

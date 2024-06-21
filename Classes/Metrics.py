@@ -1,69 +1,31 @@
-import matplotlib.pyplot as plt
-import time
+from time import time
+from torch.utils.tensorboard import SummaryWriter
 
 class Metrics:
-    def __init__(self, save_directory):
-        self.save_directory = save_directory
-        self.log_file       = save_directory / "metrics_log.txt"
-        self.start_time     = time.time()
+    def __init__(self, settings, save_directory):
+        self.episode_count = 0
+        self.start_time    = time()
+        self.writer        = SummaryWriter(log_dir=save_directory)
 
-        self.episode_metrics = {"lengths"  : [],
-                                "losses"   : [],
-                                "q_values" : [],
-                                "rewards"  : []}
+    def close_writer(self):
+        self.writer.close()
 
-        self.current_episode_metrics = {"length"  : 0,
-                                        "loss"    : 0,
-                                        "q_value" : 0,
-                                        "reward"  : 0}
-
-        self.create_log_file()
-
-    def create_log_file(self):
-        with open(self.log_file, "w") as f:
-            f.write(
-                f"{'Episode':>8}{'Elapsed Time':>15}{'Length':>10}"
-                f"{'Loss':>10}{'Q-Value':>10}{'Reward':>10}\n"
-            )
-
-    def log_step(self, reward, loss, q_value):
-        self.current_episode_metrics["length"]  += 1
-        self.current_episode_metrics["loss"]    += loss
-        self.current_episode_metrics["q_value"] += q_value
-        self.current_episode_metrics["reward"]  += reward
-
-    def log_episode(self):
-        for metric, value in self.current_episode_metrics.items():
-
-            if metric in ["loss", "q_value"]:
-                value /= self.current_episode_metrics["length"]
-
-            self.episode_metrics[metric + "s"].append(value)
-            self.current_episode_metrics[metric] = 0
-
-    def record_episode(self, episode):
-        elapsed_time = time.time() - self.start_time
-        metrics      = [f"{m.capitalize()}: {v[-1]:8.2f}" for m, v in self.episode_metrics.items()]
-        log_entry    = \
+    def log_episode(self, episode_length, total_reward, average_loss, average_q_value):
+        elapsed_time = time() - self.start_time
+        self.writer.add_scalar('Episode Length',  episode_length,  self.episode_count)
+        self.writer.add_scalar('Total Reward',    total_reward,    self.episode_count)
+        self.writer.add_scalar('Average Loss',    average_loss,    self.episode_count)
+        self.writer.add_scalar('Average Q-value', average_q_value, self.episode_count)
+        self.writer.add_scalar('Elapsed Time',    elapsed_time,    self.episode_count)
+        
+        print \
         (
-            f"Episode {episode:4d} - " + " - ".join(metrics) +
-            f" - Elapsed Time: {elapsed_time:10.2f}s"
+            f"Episode {self.episode_count:4d}\n"
+            f"Length:  {episode_length}\n"
+            f"Reward:  {total_reward:.2f}\n"
+            f"Loss:    {average_loss:.4f}\n"
+            f"Q-Value: {average_q_value:.4f}\n"
+            f"Time:    {elapsed_time:.2f}s\n"
         )
-
-        print(log_entry)
-
-        with open(self.log_file, "a") as f:
-            f.write(log_entry.replace(" - ", "") + "\n")
-
-    def plot_metrics(self):
-        _, axs = plt.subplots(2, 2, figsize = (12, 8))
-        axs    = axs.flatten()
-
-        for i, (metric, values) in enumerate(self.episode_metrics.items()):
-            axs[i].plot(values)
-            axs[i].set_title(f"Episode {metric.capitalize()}")
-            axs[i].set_xlabel("Episode")
-            axs[i].set_ylabel(metric.capitalize()[:-1])
-        plt.tight_layout()
-        plt.savefig(self.save_directory / "metrics_plot.png")
-        plt.close()
+        
+        self.episode_count += 1

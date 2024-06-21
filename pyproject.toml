@@ -9,7 +9,6 @@ version     = "0.1.0"
 [tool.poetry.dependencies]
 python = "^3.12"
 
-gymnasium  = "^0.29.1"
 matplotlib = "^3.9.0"
 pyboy      = "^2.1.0"
 torch      = "^2.3.0"
