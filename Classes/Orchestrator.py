@@ -24,7 +24,7 @@ class Orchestrator:
 if __name__ == "__main__":
     config = \
     {
-        'num_episodes'   : 1000,
+        'num_episodes'   : 100,
         'rom_path'       : "PokemonBlue.gb",
         'run_date'       : "2024-06-20",
         'save_directory' : "saves"

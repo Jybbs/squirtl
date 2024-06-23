@@ -9,6 +9,7 @@ class Gymnasium:
         self.settings = settings
 
     def run_episode(self):
+        self.reward.reset() # Reset the visited states at the start of each episode
         current_state   = self.emulator.reset_emulator()
         episode_done    = False
         episode_length  = 0
@@ -22,7 +23,7 @@ class Gymnasium:
             
             self.emulator.press_button(action)
             next_state = self.emulator.get_screen_image()
-            reward, episode_done = self.reward.calculate_reward(current_state, next_state)
+            reward, episode_done = self.reward.evaluate_action(current_state, next_state)
 
             experience = Experience(current_state, action_index, next_state, reward, episode_done)
             self.agent.store_experience(experience)

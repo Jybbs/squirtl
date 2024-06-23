@@ -5,7 +5,7 @@ class Settings:
         self.action_space = ['a', 'b', 'down', 'left', 'right', 'select', 'start', 'up']
         self.device               = device("cuda" if cuda.is_available() else "cpu")
         self.run_date             = run_date
-        self.state_dimensions     = (4, 36, 40)  # (Channels, Height, Width)
+        self.state_dimensions     = (144, 160, 4)  # (height, width, channels)
 
         # Hyperparameters
         self.batch_size             = 32
@@ -20,11 +20,13 @@ class Settings:
         self.target_update_interval = 1000
 
         # Reward settings
-        self.BACKTRACK_PENALTY         = -10
-        self.EVENT_GOT_STARTER_ADDRESS = (0xD74B, 2)
-        self.EVENT_GOT_STARTER_REWARD  = 1000
-        self.NEW_STATE_REWARD          = 10
-        self.STEP_PENALTY              = -1
+        self.EVENT_GOT_STARTER_ADDRESS = (0xD74B, 2) # Address for the final event of each episode
+
+        self.BACKTRACK_PENALTY         = -5          # Constant penalty for backtracking
+        self.COMPLETION_BONUS          = 20000       # Outsized reward for reaching the final event
+        self.EXPLORATION_BONUS         = 10          # Moderate reward for exploring new states
+        self.MAX_STEPS                 = 1000        # Maximum number of steps allowed per episode
+        self.REVISIT_POINTS            = 1           # Small reward for returning to visited states without immediate backtracking
 
     def __getattr__(self, name):
         if name in self.__dict__:

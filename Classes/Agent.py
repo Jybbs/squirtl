@@ -20,7 +20,7 @@ class Memory(Dataset):
         return len(self.experiences)
 
     def sample_batch(self, batch_size):
-        return random.sample(self.experiences, batch_size)
+        return sample(self.experiences, batch_size)
 
     def store(self, experience):
         if len(self.experiences) < self.capacity:
@@ -53,11 +53,11 @@ class Agent(nn.Module):
             return 0, 0  # Return 0 for both loss and q_value if not learning
 
         experiences = self.replay_memory.sample_batch(self.batch_size)
-        batch       = Experience.batch_to_tensor(experiences, self.device)
+        batch = Experience.batch_to_tensor(experiences, self.device)
 
         current_q_values = self(batch.state).gather(1, batch.action.unsqueeze(1))
 
-        next_q_values  = torch.zeros(self.batch_size, device=self.device)
+        next_q_values  = torch.zeros(self.batch_size, device = self.device)
         non_final_mask = ~batch.done
         next_q_values[non_final_mask] = self.target_network(batch.next_state[non_final_mask]).max(1)[0]
 
@@ -70,7 +70,7 @@ class Agent(nn.Module):
         nn.utils.clip_grad_value_(self.main_network.parameters(), 100)
         self.optimizer.step()
 
-        if self.steps_taken % self.settings.target_update_frequency == 0:
+        if self.steps_taken % self.settings.target_update_interval == 0:
             self.target_network.load_state_dict(self.main_network.state_dict())
 
         self.update_exploration_rate()
