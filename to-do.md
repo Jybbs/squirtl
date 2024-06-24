@@ -6,6 +6,4 @@
 3. rcParams for final plot
 
 #### Conciseness
-1. Can we better handle common pathing, so that pathlib and os aren't needed in multiple classes? (e.g. can we just find the home path through settings and then reliably create subfolders off of it afterward?)
-2. Is there a better way to group all of the metrics together, so we're not passing 9 variables from class to class in so many places?
-3. Ineffective logic seems broken. We got 1000 ineffective actions in test run, when some of those should be considered "new" and effective
+1. Ineffective logic seems broken. We got 1000 ineffective actions in test run, when some of those should be considered "new" and effective

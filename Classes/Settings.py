@@ -1,10 +1,10 @@
+from pathlib import Path
 from torch import backends, device
 
 class Settings:
     def __init__(self, run_date):
         self.action_space = ['a', 'b', 'down', 'left', 'right', 'up']
         self.device               = device("mps" if backends.mps.is_available() else "cpu")
-        self.save_directory       = f"saves/{run_date}"
         self.state_dimensions     = (144, 160, 4)  # (height, width, channels)
 
         # Hyperparameters
@@ -28,6 +28,16 @@ class Settings:
         self.INEFFECTIVE_ACTION_PENALTY = -0.1       # Small penalty for actions that don't change the state
         self.MAX_STEPS                  = 1000        # Maximum number of steps allowed per episode
         self.REVISIT_POINTS             = 1           # Small reward for returning to visited states without immediate backtracking
+
+        # Path settings
+        self.base_directory        = Path(f"data/{run_date}")
+        self.checkpoints_directory = self.base_directory / "checkpoints"
+        self.metrics_directory     = self.base_directory / "metrics"
+
+        # Create directories
+        self.base_directory.mkdir(parents = True, exist_ok = True)
+        self.checkpoints_directory.mkdir(exist_ok = True)
+        self.metrics_directory.mkdir(exist_ok = True)
 
     def __getattr__(self, name):
         if name in self.__dict__:

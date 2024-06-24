@@ -1,14 +1,15 @@
 from Experience import Experience
-import os
-from pathlib import Path
+from Logging    import Metrics
+from time       import time
 
 class Gymnasium:
-    def __init__(self, settings, agent, emulator, metrics, reward):
-        self.agent    = agent
-        self.emulator = emulator
-        self.metrics  = metrics
-        self.reward   = reward
-        self.settings = settings
+    def __init__(self, settings, agent, emulator, logging, reward):
+        self.agent      = agent
+        self.emulator   = emulator
+        self.logging    = logging
+        self.reward     = reward
+        self.settings   = settings
+        self.start_time = time()
 
     def run_episode(self):
         self.reward.reset()
@@ -58,29 +59,32 @@ class Gymnasium:
             if episode_length >= self.settings.MAX_STEPS:
                 episode_done = True
 
-        average_loss = episode_loss / episode_length if episode_length > 0 else 0
+        average_loss    = episode_loss    / episode_length if episode_length > 0 else 0
         average_q_value = episode_q_value / episode_length if episode_length > 0 else 0
 
-        return (episode_length, total_reward, average_loss, average_q_value,
-                effective_actions, ineffective_actions, unexplored_actions, 
-                backtracking_actions, revisit_actions)
+        return Metrics \
+        (
+            backtracking_actions = backtracking_actions,
+            effective_actions    = effective_actions,
+            elapsed_time         = time() - self.start_time,
+            episode              = self.current_episode,
+            ineffective_actions  = ineffective_actions,
+            length               = episode_length,
+            loss                 = average_loss,
+            q_value              = average_q_value,
+            revisit_actions      = revisit_actions,
+            reward               = total_reward,
+            unexplored_actions   = unexplored_actions
+        )
 
     def train(self, num_episodes):
-        checkpoint_dir = Path(self.settings.save_directory) / "checkpoints"
-        os.makedirs(checkpoint_dir, exist_ok = True)
+        self.start_time = time()
+        for self.current_episode in range(num_episodes):
+            metrics = self.run_episode()
+            self.logging.log_episode(metrics)
 
-        for episode in range(num_episodes):
-            (length, reward, loss, q_value,
-             effective_actions, ineffective_actions, unexplored_actions,
-             backtracking_actions, revisit_actions) = self.run_episode()
+            if (self.current_episode + 1) % self.settings.save_interval == 0:
+                self.agent.save_checkpoint(self.settings.checkpoints_directory / f"checkpoint_episode_{self.current_episode+1}.pth")
 
-            self.metrics.log_episode(length, reward, loss, q_value,
-                                     effective_actions, ineffective_actions, unexplored_actions,
-                                     backtracking_actions, revisit_actions)
-
-            if (episode + 1) % self.settings.save_interval == 0:
-                checkpoint_path = checkpoint_dir / f"checkpoint_episode_{episode + 1}.pth"
-                self.agent.save_checkpoint(checkpoint_path)
-
-        self.metrics.close_writer()
+        self.logging.plot_metrics()
         self.emulator.close_emulator()
