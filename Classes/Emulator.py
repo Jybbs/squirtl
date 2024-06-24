@@ -1,3 +1,4 @@
+from numpy import array_equal
 from pyboy import PyBoy
 
 class Emulator:
@@ -17,12 +18,19 @@ class Emulator:
     def get_screen_image(self):
         return self.pyboy_instance.screen.ndarray
 
-    def press_button(self, button):
+    def press_button(self, button, frames = 1):
+        initial_state = self.get_screen_image()
         self.pyboy_instance.button(button)
-        self.pyboy_instance.tick()
-        self.pyboy_instance.tick()
+        self.pyboy_instance.tick(frames)        # Button pressed
+        self.pyboy_instance.tick(frames, False) # Button released
+        new_state = self.get_screen_image()
+        
+        return not array_equal(initial_state, new_state), new_state
 
     def reset_emulator(self):
         self.close_emulator()
-        self.pyboy_instance = PyBoy(self.rom_path, window = "SDL2")
-        return self.get_screen_image()
+
+        self.pyboy_instance       = PyBoy(self.rom_path, window = "SDL2")
+        initial_state             = self.get_screen_image()
+        self.last_effective_state = initial_state
+        return initial_state

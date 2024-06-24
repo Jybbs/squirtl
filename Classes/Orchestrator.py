@@ -14,7 +14,7 @@ class Orchestrator:
         self.settings = Settings(self.config['run_date'])
         self.emulator = Emulator(self.config['rom_path'])
         self.agent    = Agent(self.settings)
-        self.metrics  = Metrics(self.settings, self.config['save_directory'])
+        self.metrics  = Metrics(self.settings)
         self.reward   = Reward(self.settings, self.emulator)
         self.gym      = Gymnasium(self.settings, self.agent, self.emulator, self.metrics, self.reward)
 
@@ -26,8 +26,7 @@ if __name__ == "__main__":
     {
         'num_episodes'   : 1,
         'rom_path'       : "PokemonBlue.gb",
-        'run_date'       : "2024-06-20",
-        'save_directory' : "saves"
+        'run_date'       : "2024-06-24",
     }
     
     orchestrator = Orchestrator(config)

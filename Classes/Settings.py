@@ -4,7 +4,7 @@ class Settings:
     def __init__(self, run_date):
         self.action_space = ['a', 'b', 'down', 'left', 'right', 'up']
         self.device               = device("mps" if backends.mps.is_available() else "cpu")
-        self.run_date             = run_date
+        self.save_directory       = f"saves/{run_date}"
         self.state_dimensions     = (144, 160, 4)  # (height, width, channels)
 
         # Hyperparameters
@@ -22,11 +22,12 @@ class Settings:
         # Reward settings
         self.EVENT_GOT_STARTER_ADDRESS = (0xD74B, 2) # Address for the final event of each episode
 
-        self.BACKTRACK_PENALTY         = -5          # Constant penalty for backtracking
-        self.COMPLETION_BONUS          = 20000       # Outsized reward for reaching the final event
-        self.EXPLORATION_BONUS         = 10          # Moderate reward for exploring new states
-        self.MAX_STEPS                 = 1000        # Maximum number of steps allowed per episode
-        self.REVISIT_POINTS            = 1           # Small reward for returning to visited states without immediate backtracking
+        self.BACKTRACK_PENALTY          = -5          # Constant penalty for backtracking
+        self.COMPLETION_BONUS           = 20000       # Outsized reward for reaching the final event
+        self.EXPLORATION_BONUS          = 10          # Moderate reward for exploring new states
+        self.INEFFECTIVE_ACTION_PENALTY = -0.1       # Small penalty for actions that don't change the state
+        self.MAX_STEPS                  = 1000        # Maximum number of steps allowed per episode
+        self.REVISIT_POINTS             = 1           # Small reward for returning to visited states without immediate backtracking
 
     def __getattr__(self, name):
         if name in self.__dict__:

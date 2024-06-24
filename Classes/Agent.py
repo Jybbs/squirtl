@@ -35,7 +35,7 @@ class Agent(nn.Module):
         self.batch_size        = settings.batch_size
         self.device            = settings.device
         self.main_network      = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
-        self.optimizer         = Adam(self.main_network.parameters(), lr=settings.learning_rate)
+        self.optimizer         = Adam(self.main_network.parameters(), lr = settings.learning_rate)
         self.replay_memory     = Memory(settings.memory_capacity)
         self.scheduler         = lr_scheduler.ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
         self.settings          = settings
