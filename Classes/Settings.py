@@ -1,9 +1,9 @@
-from torch import cuda, device
+from torch import backends, device
 
 class Settings:
     def __init__(self, run_date):
-        self.action_space = ['a', 'b', 'down', 'left', 'right', 'select', 'start', 'up']
-        self.device               = device("cuda" if cuda.is_available() else "cpu")
+        self.action_space = ['a', 'b', 'down', 'left', 'right', 'up']
+        self.device               = device("mps" if backends.mps.is_available() else "cpu")
         self.run_date             = run_date
         self.state_dimensions     = (144, 160, 4)  # (height, width, channels)
 

@@ -1,22 +1,26 @@
-from numpy import array
-from torch import BoolTensor, FloatTensor, LongTensor
+from dataclasses import dataclass
+from numpy       import array
+from torch       import BoolTensor, FloatTensor, LongTensor
 
+@dataclass
 class Experience:
-    def __init__(self, state, action, next_state, reward, done):
-        self.state      = state
-        self.action     = action
-        self.next_state = next_state
-        self.reward     = reward
-        self.done       = done
+    state      : list
+    action     : int
+    next_state : list
+    reward     : float
+    done       : bool
+
+    def __iter__(self):
+        return iter((self.state, self.action, self.next_state, self.reward, self.done))
 
     @staticmethod
     def batch_to_tensor(experiences, device):
-        batch = Experience(*map(array, zip(*experiences)))
+        batch = zip(*experiences)
         return Experience \
         (
-            state      = FloatTensor(batch.state).to(device),
-            action     = LongTensor(batch.action).to(device),
-            next_state = FloatTensor(batch.next_state).to(device),
-            reward     = FloatTensor(batch.reward).to(device),
-            done       = BoolTensor(batch.done).to(device)
+            state      = FloatTensor(array(next(batch))).to(device),
+            action     = LongTensor(array(next(batch))).to(device),
+            next_state = FloatTensor(array(next(batch))).to(device),
+            reward     = FloatTensor(array(next(batch))).to(device),
+            done       = BoolTensor(array(next(batch))).to(device)
         )

@@ -119,6 +119,6 @@ class Agent(nn.Module):
     def update_exploration_rate(self):
         self.settings.exploration_rate = max \
         (
-            self.settings.exploration_rate_min,
-            self.settings.exploration_rate * self.settings.exploration_rate_decay
+            self.settings.exploration_min,
+            self.settings.exploration_rate * self.settings.exploration_decay
         )
