@@ -5,6 +5,7 @@
 2. Don't consider an empty screen "playable" ever
 3. After optimization with PCA (of ndarrays passed via PyBoy), introduce a more encompassing penalty for backtracking (e.g. a backtrack is not just a copy of an exact state, but a copy of a PCA-optimized state)
 4. rcParams for final plot
+5. Add an argument that starts the Agent at a given numeric checkpoint, if it exists
 
 #### Design
 Metal Squirtle as logo
