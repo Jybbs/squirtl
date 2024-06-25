@@ -1,5 +1,5 @@
-from hashlib import md5
-from pyboy   import PyBoy
+from numpy import array_equal
+from pyboy import PyBoy
 
 class Emulator:
     def __init__(self, rom_path):
@@ -15,24 +15,22 @@ class Emulator:
     def close_emulator(self):
         self.pyboy_instance.stop()
 
-    def get_screen_hash(self):
-        screen_data = self.pyboy_instance.screen.ndarray
-        return md5(screen_data.tobytes()).hexdigest()
+    def get_screen_data(self):
+        return self.pyboy_instance.screen.ndarray.flatten()
 
-    def press_button(self, button, frames = 10):
-        initial_state = self.get_screen_hash()
+    def press_button(self, button, frames = 2):
+        initial_state = self.get_screen_data()
 
         self.pyboy_instance.button(button, delay = frames)
         
-        # Tick to simulate the button press and release
         for _ in range(frames):
             self.pyboy_instance.tick()
         
-        new_state    = self.get_screen_hash()
-        is_effective = initial_state != new_state
+        new_state    = self.get_screen_data()
+        is_effective = not array_equal(initial_state, new_state)
         return is_effective, new_state
 
     def reset_emulator(self):
         self.close_emulator()
         self.pyboy_instance = PyBoy(self.rom_path, window = "SDL2")
-        return self.get_screen_hash()
+        return self.get_screen_data()

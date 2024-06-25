@@ -14,7 +14,7 @@ class Orchestrator:
         self.settings = Settings()
         self.emulator = Emulator(self.config['rom_path'])
         self.agent    = Agent(self.settings)
-        self.logging  = Logging(self.settings)
+        self.logging  = Logging(self.settings, debug = True)
         self.reward   = Reward(self.settings, self.emulator)
         self.gym      = Gymnasium(self.settings, self.agent, self.emulator, self.logging, self.reward)
 

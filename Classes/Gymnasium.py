@@ -35,48 +35,6 @@ class Gymnasium:
         self.reward   = reward
         self.settings = settings
 
-    def run_episode(self):
-        self.reward.reset()
-        start_time         = time()
-        current_state_hash = self.emulator.reset_emulator()
-        episode_done       = False
-        action_number      = 0
-        total_reward       = 0
-
-        while not episode_done and action_number < self.settings.MAX_ACTIONS:
-            action_index = self.agent.select_action(current_state_hash)
-            action       = self.settings.action_space[action_index]
-            
-            action_effective, next_state_hash = self.emulator.press_button(action)
-            action_reward, episode_done = self.reward.evaluate_action(current_state_hash, next_state_hash, action_effective)
-            
-            total_reward += action_reward
-
-            action_type = self.determine_action_type(action_effective, next_state_hash, current_state_hash)
-
-            experience = Experience(current_state_hash, action_index, next_state_hash, action_reward, episode_done)
-            self.agent.store_experience(experience)
-            action_loss, action_q_value = self.agent.learn_from_experience()
-
-            self.logging.log_action(self.current_episode, Metrics(
-                action_number = action_number,
-                action_index  = action_index,
-                action        = action,
-                is_effective  = action_effective,
-                action_type   = action_type,
-                reward        = action_reward,
-                total_reward  = total_reward,
-                loss          = action_loss,
-                q_value       = action_q_value,
-                elapsed_time  = time() - start_time
-            ))
-
-            current_state_hash = next_state_hash
-            action_number += 1
-
-        self.logging.print_episode_summary(self.current_episode)
-        return self.logging.calculate_episode_metrics(self.current_episode)
-
     def determine_action_type(self, action_effective, next_state_hash, current_state_hash):
         if not action_effective:
             return "ineffective"
@@ -85,6 +43,48 @@ class Gymnasium:
         if self.reward.is_backtracking(current_state_hash):
             return "backtracking"
         return "revisit"
+
+    def run_episode(self):
+        self.reward.reset()
+        action_number = 0
+        current_state = self.emulator.reset_emulator()
+        episode_done  = False
+        start_time    = time()
+        total_reward  = 0
+
+        while not episode_done and action_number < self.settings.MAX_ACTIONS:
+            action_index = self.agent.select_action(current_state)
+            action       = self.settings.action_space[action_index]
+            
+            is_effective, next_state = self.emulator.press_button(action)
+            action_reward, episode_done = self.reward.evaluate_action(current_state, next_state, is_effective)
+            
+            total_reward += action_reward
+            action_type   = self.determine_action_type(is_effective, next_state, current_state)
+            experience    = Experience(current_state, action_index, next_state, action_reward, episode_done)
+
+            self.agent.store_experience(experience)
+            action_loss, action_q_value = self.agent.learn_from_experience()
+
+            self.logging.log_action(self.current_episode, Metrics \
+            (
+                action        = action,
+                action_index  = action_index,
+                action_number = action_number,
+                action_type   = action_type,
+                elapsed_time  = time() - start_time,
+                is_effective  = is_effective,
+                loss          = action_loss,
+                q_value       = action_q_value,
+                reward        = action_reward,
+                total_reward  = total_reward
+            ))
+
+            current_state  = next_state
+            action_number += 1
+
+        self.logging.print_episode_summary(self.current_episode)
+        return self.logging.calculate_episode_metrics(self.current_episode)
 
     def train(self, num_episodes):
         for self.current_episode in range(num_episodes):

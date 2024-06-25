@@ -19,8 +19,7 @@ class DQN(nn.Module):
         
         convolution_output_size = self.get_convolution_output_size()
         
-        self.fully_connected_layers = nn.Sequential \
-        (
+        self.fully_connected_layers = nn.Sequential(
             nn.Linear(convolution_output_size, 512),
             nn.ReLU(),
             nn.Linear(512, action_count)
@@ -29,7 +28,7 @@ class DQN(nn.Module):
     def forward(self, state):
         state = self.preprocess_state(state)
         convolution_output = self.convolutional_layers(state)
-        flattened_output   = convolution_output.reshape(convolution_output.size(0), -1)
+        flattened_output   = convolution_output.view(convolution_output.size(0), -1)
         return self.fully_connected_layers(flattened_output)
 
     def get_convolution_output_size(self):

@@ -36,9 +36,9 @@ class Agent(nn.Module):
         self.batch_size        = settings.batch_size
         self.device            = settings.device
         self.main_network      = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
-        self.optimizer         = Adam(self.main_network.parameters(), lr = settings.learning_rate)
+        self.optimizer         = Adam(self.main_network.parameters(), lr=settings.learning_rate)
         self.replay_memory     = Memory(settings.memory_capacity)
-        self.scheduler         = lr_scheduler.ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
+        self.scheduler         = lr_scheduler.ExponentialLR(self.optimizer, gamma=settings.learning_rate_decay)
         self.settings          = settings
         self.target_network    = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
 
@@ -50,20 +50,16 @@ class Agent(nn.Module):
 
     def learn_from_experience(self):
         if len(self.replay_memory) < self.batch_size:
-            return 0, 0  # Return 0 for both loss and q_value if not learning
+            return 0, 0
 
-        experiences = self.replay_memory.sample_batch(self.batch_size)
-        batch = Experience.batch_to_tensor(experiences, self.device)
-
-        current_q_values = self(batch.state).gather(1, batch.action.unsqueeze(1))
-
-        next_q_values  = torch.zeros(self.batch_size, device = self.device)
-        non_final_mask = ~batch.done
+        experiences       = self.replay_memory.sample_batch(self.batch_size)
+        batch             = Experience.batch_to_tensor(experiences, self.device)
+        current_q_values  = self(batch.state).gather(1, batch.action.unsqueeze(1))
+        next_q_values     = torch.zeros(self.batch_size, device=self.device)
+        non_final_mask    = ~batch.done
         next_q_values[non_final_mask] = self.target_network(batch.next_state[non_final_mask]).max(1)[0]
-
         expected_q_values = batch.reward + (self.settings.discount_factor * next_q_values * (~batch.done).float())
-
-        loss = nn.functional.smooth_l1_loss(current_q_values, expected_q_values.unsqueeze(1))
+        loss              = nn.functional.smooth_l1_loss(current_q_values, expected_q_values.unsqueeze(1))
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -81,17 +77,16 @@ class Agent(nn.Module):
     def load_checkpoint(self, path):
         checkpoint = torch.load(path, map_location = self.device)
 
-        self.main_network.load_state_dict(checkpoint['main_networkac'])
-        self.target_network.load_state_dict(checkpoint['target_networkac'])
-        self.optimizer.load_state_dict(checkpoint['optimizerac'])
-        self.scheduler.load_state_dict(checkpoint['lr_schedulerac'])
+        self.main_network.load_state_dict(checkpoint['main_network'])
+        self.target_network.load_state_dict(checkpoint['target_network'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.scheduler.load_state_dict(checkpoint['lr_scheduler'])
 
         self.settings.exploration_rate = checkpoint['exploration_rate']
         self.actions_taken = checkpoint['actions_taken']
 
     def save_checkpoint(self, path):
-        torch.save \
-        (
+        torch.save(
             {
                 'actions_taken'    : self.actions_taken,
                 'exploration_rate' : self.settings.exploration_rate,
@@ -117,8 +112,7 @@ class Agent(nn.Module):
         self.actions_taken += 1
 
     def update_exploration_rate(self):
-        self.settings.exploration_rate = max \
-        (
+        self.settings.exploration_rate = max(
             self.settings.exploration_min,
             self.settings.exploration_rate * self.settings.exploration_decay
         )
