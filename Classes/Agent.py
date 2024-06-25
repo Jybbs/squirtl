@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from DQN              import DQN
-from Experience       import Experience
+from Gymnasium        import Experience
 from torch.optim      import Adam, lr_scheduler
 from torch.utils.data import Dataset
 from random           import randint, random, sample

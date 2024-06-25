@@ -34,8 +34,5 @@ class Emulator:
 
     def reset_emulator(self):
         self.close_emulator()
-
-        self.pyboy_instance       = PyBoy(self.rom_path, window = "SDL2")
-        initial_state             = self.get_screen_image()
-        self.last_effective_state = initial_state
-        return initial_state
+        self.pyboy_instance = PyBoy(self.rom_path, window = "SDL2")
+        return self.get_screen_hash()
