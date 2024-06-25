@@ -22,7 +22,7 @@ class Settings:
         self.EVENT_GOT_STARTER_ADDRESS = (0xD74B, 2) # Address for the final event of each episode
 
         self.BACKTRACK_PENALTY          = -10   # Constant penalty for backtracking
-        self.COMPLETION_BONUS           = 15000 # Outsized reward for reaching the final event
+        self.COMPLETION_BONUS           = 10000 # Outsized reward for reaching the final event
         self.NEW_STATE_BONUS            = 5     # Moderate reward for exploring new states
         self.INEFFECTIVE_ACTION_PENALTY = -1    # Small penalty for actions that don't change the state
         self.MAX_ACTIONS                = 1000  # Maximum number of actions allowed per episode

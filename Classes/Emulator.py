@@ -1,10 +1,10 @@
-from numpy import array_equal
+from numpy import array, array_equal
 from pyboy import PyBoy
 
 class Emulator:
     def __init__(self, frames, rom_path):
         self.frames         = frames
-        self.pyboy_instance = PyBoy(rom_path, window="SDL2")
+        self.pyboy_instance = PyBoy(rom_path, window = "SDL2")
         self.rom_path       = rom_path
 
         self.pyboy_instance.set_emulation_speed(0)
@@ -17,7 +17,7 @@ class Emulator:
         self.pyboy_instance.stop()
 
     def get_screen_data(self):
-        frame = self.pyboy_instance.screen.ndarray
+        frame = array(self.pyboy_instance.screen.ndarray, copy = True)
         self.frames.add(frame)
         return frame
 
@@ -28,7 +28,7 @@ class Emulator:
                 return current_frame
             self.pyboy_instance.tick()
 
-    def press_button(self, button, frames = 10):
+    def press_button(self, button, frames = 2):
         initial_frame = self.get_screen_data()
         self.pyboy_instance.button(button, delay = frames)
         
