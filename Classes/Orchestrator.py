@@ -1,5 +1,6 @@
 from Agent     import Agent
 from Emulator  import Emulator
+from Frames    import Frames
 from Gymnasium import Gymnasium
 from Logging   import Logging
 from Reward    import Reward
@@ -12,11 +13,12 @@ class Orchestrator:
 
     def setup_components(self):
         self.settings = Settings()
-        self.emulator = Emulator(self.config['rom_path'])
+        self.frames   = Frames()
+        self.emulator = Emulator(self.frames, self.config['rom_path'])
         self.agent    = Agent(self.settings)
-        self.logging  = Logging(self.settings, debug = True)
-        self.reward   = Reward(self.settings, self.emulator)
-        self.gym      = Gymnasium(self.settings, self.agent, self.emulator, self.logging, self.reward)
+        self.logging  = Logging(self.frames, self.settings, debug = True)
+        self.reward   = Reward(self.emulator, self.frames, self.settings)
+        self.gym      = Gymnasium(self.agent, self.emulator, self.frames, self.logging, self.reward, self.settings)
 
     def train(self):
         self.gym.train(self.config['num_episodes'])

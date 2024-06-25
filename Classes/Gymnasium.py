@@ -28,9 +28,10 @@ class Experience:
         )
     
 class Gymnasium:
-    def __init__(self, settings, agent, emulator, logging, reward):
+    def __init__(self, agent, emulator, frames, logging, reward, settings):
         self.agent    = agent
         self.emulator = emulator
+        self.frames   = frames
         self.logging  = logging
         self.reward   = reward
         self.settings = settings
@@ -38,21 +39,23 @@ class Gymnasium:
     def run_episode(self):
         self.reward.reset()
         action_number = 0
-        current_state = self.emulator.reset_emulator()
+        current_frame = self.emulator.reset_emulator()
         episode_done  = False
         start_time    = time()
         total_reward  = 0
 
         while not episode_done and action_number < self.settings.MAX_ACTIONS:
-            action_index = self.agent.select_action(current_state)
-            action       = self.settings.action_space[action_index]
+            current_frame = self.emulator.advance_until_playable()
             
-            is_effective, next_state = self.emulator.press_button(action)
-            action_reward, episode_done, action_type = self.reward.evaluate_action(current_state, next_state, is_effective)
+            action_index = self.agent.select_action(current_frame)
+            action = self.settings.action_space[action_index]
+            
+            is_effective, next_frame = self.emulator.press_button(action)
+            action_reward, episode_done, action_type = self.reward.evaluate_action(current_frame, next_frame, is_effective)
             
             total_reward += action_reward
-            experience    = Experience(current_state, action_index, next_state, action_reward, episode_done)
 
+            experience = Experience(current_frame, action_index, next_frame, action_reward, episode_done)
             self.agent.store_experience(experience)
             action_loss, action_q_value = self.agent.learn_from_experience()
 
@@ -69,18 +72,19 @@ class Gymnasium:
                 total_reward  = total_reward
             ))
 
-            current_state  = next_state
+            current_frame = next_frame
             action_number += 1
 
+        self.logging.save_episode_video(self.current_episode)
         self.logging.print_episode_summary(self.current_episode)
         return self.logging.calculate_episode_metrics(self.current_episode)
 
     def train(self, num_episodes):
         for self.current_episode in range(num_episodes):
             self.run_episode()
-
-            if (self.current_episode + 1) % self.settings.save_interval == 0:
-                self.agent.save_checkpoint(self.settings.checkpoints_directory / f"checkpoint_episode_{self.current_episode+1}.pth")
+            
+            # Save checkpoint at the end of each episode
+            self.agent.save_checkpoint(self.settings.checkpoints_directory / f"checkpoint_episode_{self.current_episode + 1}.pth")
 
         self.logging.plot_metrics()
         self.logging.save_metrics()

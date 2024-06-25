@@ -9,9 +9,10 @@ version     = "0.1.0"
 [tool.poetry.dependencies]
 python = "^3.12"
 
-matplotlib = "^3.9.0"
-pyboy      = "^2.1.0"
-torch      = "^2.3.0"
+matplotlib    = "^3.9.0"
+opencv-python = "^4.10.0.84"
+pyboy         = "^2.1.0"
+torch         = "^2.3.0"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"

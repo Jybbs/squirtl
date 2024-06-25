@@ -13,31 +13,32 @@ class Settings:
         self.exploration_decay      = 0.99995
         self.exploration_min        = 0.01
         self.discount_factor        = 0.99
-        self.learning_rate          = 0.0001
+        self.learning_rate          = 0.0005
         self.learning_rate_decay    = 0.999
-        self.memory_capacity        = 10000
-        self.save_interval          = 1000
-        self.target_update_interval = 1000
+        self.memory_capacity        = 100000
+        self.target_update_interval = 100
 
         # Reward settings
         self.EVENT_GOT_STARTER_ADDRESS = (0xD74B, 2) # Address for the final event of each episode
 
         self.BACKTRACK_PENALTY          = -10   # Constant penalty for backtracking
         self.COMPLETION_BONUS           = 15000 # Outsized reward for reaching the final event
-        self.EXPLORATION_BONUS          = 10    # Moderate reward for exploring new states
-        self.INEFFECTIVE_ACTION_PENALTY = -0.1  # Small penalty for actions that don't change the state
+        self.NEW_STATE_BONUS            = 5     # Moderate reward for exploring new states
+        self.INEFFECTIVE_ACTION_PENALTY = -1    # Small penalty for actions that don't change the state
         self.MAX_ACTIONS                = 1000  # Maximum number of actions allowed per episode
-        self.REVISIT_POINTS             = 0.1   # Small reward for returning to visited states without immediate backtracking
+        self.REVISIT_POINTS             = 0.1   # Very small reward for returning to visited states without immediate backtracking
 
         # Path settings
         self.base_directory        = Path('data')
         self.checkpoints_directory = self.base_directory / "checkpoints"
         self.metrics_directory     = self.base_directory / "metrics"
+        self.video_directory       = self.base_directory / "videos"
 
         # Create directories
         self.base_directory.mkdir(parents = True, exist_ok = True)
         self.checkpoints_directory.mkdir(exist_ok = True)
         self.metrics_directory.mkdir(exist_ok = True)
+        self.video_directory.mkdir(exist_ok=True)
 
     def __getattr__(self, name):
         if name in self.__dict__:

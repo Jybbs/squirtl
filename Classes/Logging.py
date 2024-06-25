@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 
 from collections import Counter
+from cv2         import COLOR_RGB2BGR, cvtColor, VideoWriter, VideoWriter_fourcc
 from dataclasses import dataclass, asdict
 from json        import dump
 from time        import time
@@ -21,16 +22,18 @@ class Metrics:
         return asdict(self)
 
 class Logging:
-    def __init__(self, settings, debug = False):
+    def __init__(self, frames, settings, debug = False):
         self.action_metrics = {}
+        self.debug          = debug
+        self.frames         = frames
         self.settings       = settings
         self.start_time     = time()
-        self.debug          = debug
 
-    def log_action(self, episode: int, metrics: Metrics):
+    def log_action(self, episode, metrics: Metrics):
         if episode not in self.action_metrics:
             self.action_metrics[episode] = []
         self.action_metrics[episode].append(metrics)
+
         if self.debug:
             self.print_action_debug(episode, metrics)
 
@@ -48,7 +51,7 @@ class Logging:
             "average_loss"         : sum(m.loss         for m in episode_metrics) / total_actions,
             "average_q_value"      : sum(m.q_value      for m in episode_metrics) / total_actions,
             "effective_actions"    : sum(m.is_effective for m in episode_metrics),
-            "unexplored_actions"   : action_type_counts["unexplored"],
+            "new_actions"          : action_type_counts["new"],
             "backtracking_actions" : action_type_counts["backtracking"],
             "revisit_actions"      : action_type_counts["revisit"],
             "elapsed_time"         : episode_metrics[-1].elapsed_time - episode_metrics[0].elapsed_time
@@ -78,7 +81,7 @@ class Logging:
               f"Time: {summary['elapsed_time']:6.2f}s")
         print(f"Effective: {summary['effective_actions']:4d} | " +
               f"Ineffective: {summary['total_actions'] - summary['effective_actions']:4d} | " +
-              f"Unexplored: {summary['unexplored_actions']:4d} | " +
+              f"New: {summary['new_actions']:4d} | " +
               f"Backtracking: {summary['backtracking_actions']:4d} | " +
               f"Revisit: {summary['revisit_actions']:4d}")
         print("-" * 100) # Separator line for legibility
@@ -87,7 +90,7 @@ class Logging:
         episode_summaries = [self.calculate_episode_metrics(episode) for episode in sorted(self.action_metrics.keys())]
         
         metrics_to_plot = ["total_actions", "total_reward", "average_loss", "average_q_value", "effective_actions", 
-                           "unexplored_actions", "backtracking_actions", "revisit_actions", "elapsed_time"]
+                           "new_actions", "backtracking_actions", "revisit_actions", "elapsed_time"]
         
         fig, axes = plt.subplots(3, 3, figsize = (18, 18))
         for metric, ax in zip(metrics_to_plot, axes.flatten()):
@@ -101,10 +104,26 @@ class Logging:
         plt.savefig(self.settings.metrics_directory / "metrics_plot.png")
         plt.close(fig)
 
+    def save_episode_video(self, episode: int):
+        episode_frames = self.frames.get_episode_frames()
+        if not episode_frames:
+            return
+        
+        fourcc       = VideoWriter_fourcc(*'mp4v')
+        video_writer = VideoWriter(str(self.settings.video_directory / f"episode_{episode}.mp4"), 
+                                   fourcc, 
+                                   30, 
+                                   episode_frames[0].shape[:2][::-1])
+
+        for frame in episode_frames:
+            video_writer.write(cvtColor(frame, COLOR_RGB2BGR))
+
+        video_writer.release()
+
     def save_metrics(self):
         with open(self.settings.metrics_directory / "action_metrics.json", "w") as file:
-            dump({episode: [m.to_dict() for m in metrics] for episode, metrics in self.action_metrics.items()}, file, indent=4)
+            dump({episode: [m.to_dict() for m in metrics] for episode, metrics in self.action_metrics.items()}, file, indent = 4)
 
         episode_summaries = {episode: self.calculate_episode_metrics(episode) for episode in self.action_metrics.keys()}
         with open(self.settings.metrics_directory / "episode_summaries.json", "w") as file:
-            dump(episode_summaries, file, indent=4)
+            dump(episode_summaries, file, indent = 4)
