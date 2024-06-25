@@ -7,4 +7,4 @@
 
 #### Conciseness
 1. Ineffective logic seems broken. We got 1000 ineffective actions in test run, when some of those should be considered "new" and effective
-2. Elapsed Time is the total of all time, not just the current episode
+2. All `array_equal` usages with the supposed nparray from PyBoy are broken
