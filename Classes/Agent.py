@@ -32,6 +32,7 @@ class Agent(nn.Module):
     def __init__(self, settings):
         super(Agent, self).__init__()
         self.action_space_size = len(settings.action_space)
+        self.actions_taken     = 0
         self.batch_size        = settings.batch_size
         self.device            = settings.device
         self.main_network      = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
@@ -39,7 +40,6 @@ class Agent(nn.Module):
         self.replay_memory     = Memory(settings.memory_capacity)
         self.scheduler         = lr_scheduler.ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
         self.settings          = settings
-        self.steps_taken       = 0
         self.target_network    = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
 
         self.target_network.load_state_dict(self.main_network.state_dict())
@@ -70,7 +70,7 @@ class Agent(nn.Module):
         nn.utils.clip_grad_value_(self.main_network.parameters(), 100)
         self.optimizer.step()
 
-        if self.steps_taken % self.settings.target_update_interval == 0:
+        if self.actions_taken % self.settings.target_update_interval == 0:
             self.target_network.load_state_dict(self.main_network.state_dict())
 
         self.update_exploration_rate()
@@ -81,24 +81,24 @@ class Agent(nn.Module):
     def load_checkpoint(self, path):
         checkpoint = torch.load(path, map_location = self.device)
 
-        self.main_network.load_state_dict(checkpoint['main_network_state_dict'])
-        self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+        self.main_network.load_state_dict(checkpoint['main_networkac'])
+        self.target_network.load_state_dict(checkpoint['target_networkac'])
+        self.optimizer.load_state_dict(checkpoint['optimizerac'])
+        self.scheduler.load_state_dict(checkpoint['lr_schedulerac'])
 
         self.settings.exploration_rate = checkpoint['exploration_rate']
-        self.steps_taken = checkpoint['steps_taken']
+        self.actions_taken = checkpoint['actions_taken']
 
     def save_checkpoint(self, path):
         torch.save \
         (
             {
-                'main_network_state_dict'   : self.main_network.state_dict(),
-                'target_network_state_dict' : self.target_network.state_dict(),
-                'optimizer_state_dict'      : self.optimizer.state_dict(),
-                'lr_scheduler_state_dict'   : self.scheduler.state_dict(),
-                'exploration_rate'          : self.settings.exploration_rate,
-                'steps_taken'               : self.steps_taken,
+                'actions_taken'    : self.actions_taken,
+                'exploration_rate' : self.settings.exploration_rate,
+                'lr_scheduler'     : self.scheduler.state_dict(),
+                'main_network'     : self.main_network.state_dict(),
+                'optimizer'        : self.optimizer.state_dict(),
+                'target_network'   : self.target_network.state_dict()
             }, 
             path
         )
@@ -114,7 +114,7 @@ class Agent(nn.Module):
 
     def store_experience(self, experience):
         self.replay_memory.store(experience)
-        self.steps_taken += 1
+        self.actions_taken += 1
 
     def update_exploration_rate(self):
         self.settings.exploration_rate = max \

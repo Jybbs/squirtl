@@ -12,13 +12,13 @@ class Gymnasium:
 
     def run_episode(self):
         self.reward.reset()
-        start_time      = time()
-        current_state   = self.emulator.reset_emulator()
-        episode_done    = False
-        episode_length  = 0
-        episode_loss    = 0
-        episode_q_value = 0
-        total_reward    = 0
+        start_time         = time()
+        current_state_hash = self.emulator.reset_emulator()
+        episode_done       = False
+        episode_length     = 0
+        episode_loss       = 0
+        episode_q_value    = 0
+        total_reward       = 0
 
         effective_actions    = 0
         ineffective_actions  = 0
@@ -27,36 +27,36 @@ class Gymnasium:
         revisit_actions      = 0
 
         while not episode_done:
-            action_index = self.agent.select_action(current_state)
-            action = self.settings.action_space[action_index]
+            action_index = self.agent.select_action(current_state_hash)
+            action       = self.settings.action_space[action_index]
             
-            action_effective, next_state = self.emulator.press_button(action)
+            is_effective, next_state_hash = self.emulator.press_button(action)
             
-            reward, episode_done = self.reward.evaluate_action(current_state, next_state, action_effective)
+            reward, episode_done = self.reward.evaluate_action(current_state_hash, next_state_hash, is_effective)
 
             # Update action counters
-            if action_effective:
+            if is_effective:
                 effective_actions += 1
-                if self.reward.is_unexplored_state(next_state):
+                if self.reward.is_unexplored_state(next_state_hash):
                     unexplored_actions += 1
-                elif self.reward.is_backtracking(current_state):
+                elif self.reward.is_backtracking(current_state_hash):
                     backtracking_actions += 1
                 else:
                     revisit_actions += 1
             else:
                 ineffective_actions += 1
 
-            experience = Experience(current_state, action_index, next_state, reward, episode_done)
+            experience = Experience(current_state_hash, action_index, next_state_hash, reward, episode_done)
             self.agent.store_experience(experience)
-            step_loss, step_q_value = self.agent.learn_from_experience()
+            action_loss, action_q_value = self.agent.learn_from_experience()
 
-            current_state    = next_state
-            total_reward    += reward
-            episode_length  += 1
-            episode_loss    += step_loss
-            episode_q_value += step_q_value
+            current_state_hash = next_state_hash
+            total_reward      += reward
+            episode_length    += 1
+            episode_loss      += action_loss
+            episode_q_value   += action_q_value
 
-            if episode_length >= self.settings.MAX_STEPS:
+            if episode_length >= self.settings.MAX_ACTIONS:
                 episode_done = True
 
         average_loss    = episode_loss    / episode_length if episode_length > 0 else 0

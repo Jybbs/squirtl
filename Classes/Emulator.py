@@ -1,5 +1,5 @@
-from numpy import array_equal
-from pyboy import PyBoy
+from hashlib import md5
+from pyboy   import PyBoy
 
 class Emulator:
     def __init__(self, rom_path):
@@ -15,16 +15,12 @@ class Emulator:
     def close_emulator(self):
         self.pyboy_instance.stop()
 
-    def get_screen_image(self):
-        return self.pyboy_instance.screen.ndarray
-    
-    def hash_state(self, state):
-        import hashlib
-        return hashlib.sha256(state).hexdigest()
+    def get_screen_hash(self):
+        screen_data = self.pyboy_instance.screen.ndarray
+        return md5(screen_data.tobytes()).hexdigest()
 
-    def press_button(self, button, frames = 2):
-        initial_state = self.get_screen_image()
-        initial_state_hash = self.hash_state(initial_state)
+    def press_button(self, button, frames = 10):
+        initial_state = self.get_screen_hash()
 
         self.pyboy_instance.button(button, delay = frames)
         
@@ -32,11 +28,8 @@ class Emulator:
         for _ in range(frames):
             self.pyboy_instance.tick()
         
-        new_state = self.get_screen_image()
-        new_state_hash = self.hash_state(new_state)
-        
-        is_effective = initial_state_hash != new_state_hash
-        
+        new_state    = self.get_screen_hash()
+        is_effective = initial_state != new_state
         return is_effective, new_state
 
     def reset_emulator(self):

@@ -1,0 +1,15 @@
+[
+    {
+        "backtracking_actions": 674,
+        "effective_actions": 733,
+        "elapsed_time": 219.8064169883728,
+        "episode": 0,
+        "ineffective_actions": 267,
+        "length": 1000,
+        "loss": 2.6128567687273025,
+        "q_value": 10.376309739112854,
+        "revisit_actions": 59,
+        "reward": 5155.30000000001,
+        "unexplored_actions": 0
+    }
+]
