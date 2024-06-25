@@ -8,7 +8,6 @@ from time        import time
 @dataclass
 class Metrics:
     action_number : int
-    action_index  : int
     action        : str
     is_effective  : bool
     action_type   : str
@@ -59,8 +58,7 @@ class Logging:
         print(f"Episode {episode:4d} | " +
               f"Action {metrics.action_number:4d} | " +
               f"Button: {metrics.action:10s} | " +
-              f"Index: {metrics.action_index:2d} | " +
-              f"Type: {metrics.action_type:11s} | " +
+              f"Type: {metrics.action_type:12s} | " +
               f"Effective: {str(metrics.is_effective):5s} | " +
               f"Reward: {metrics.reward:6.2f} | " +
               f"Total Reward: {metrics.total_reward:8.2f} | " +

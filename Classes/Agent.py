@@ -104,7 +104,7 @@ class Agent(nn.Module):
         
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-            q_values     = self(state_tensor)
+            q_values = self(state_tensor)
             return q_values.argmax(dim = 1).item()
 
     def store_experience(self, experience):

@@ -1,4 +1,4 @@
-from numpy import array_equal
+from numpy import array, array_equal
 from pyboy import PyBoy
 
 class Emulator:
@@ -16,9 +16,9 @@ class Emulator:
         self.pyboy_instance.stop()
 
     def get_screen_data(self):
-        return self.pyboy_instance.screen.ndarray.flatten()
+        return array(self.pyboy_instance.screen.ndarray, copy = True)
 
-    def press_button(self, button, frames = 2):
+    def press_button(self, button, frames = 10):
         initial_state = self.get_screen_data()
 
         self.pyboy_instance.button(button, delay = frames)
@@ -26,7 +26,7 @@ class Emulator:
         for _ in range(frames):
             self.pyboy_instance.tick()
         
-        new_state    = self.get_screen_data()
+        new_state = self.get_screen_data()
         is_effective = not array_equal(initial_state, new_state)
         return is_effective, new_state
 

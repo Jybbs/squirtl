@@ -20,24 +20,25 @@ class Reward:
         if self.emulator.check_event_flag(*self.settings.EVENT_GOT_STARTER_ADDRESS):
             completion_bonus = self.calculate_completion_bonus()
             self.cumulative_score += completion_bonus
-            return completion_bonus, True
+            return completion_bonus, True, "completion"
 
         if not action_effective:
             points = self.settings.INEFFECTIVE_ACTION_PENALTY
-
+            action_type = "ineffective"
         elif self.is_unexplored_state(next_state):
             self.explored_states.append(next_state)
-            self.recent_states.append(next_state)
             points = self.settings.EXPLORATION_BONUS
-
+            action_type = "unexplored"
         elif self.is_backtracking(current_state):
             points = self.settings.BACKTRACK_PENALTY
-
+            action_type = "backtracking"
         else:
             points = self.settings.REVISIT_POINTS
+            action_type = "revisit"
 
+        self.recent_states.append(next_state)
         self.cumulative_score += points
-        return points, False
+        return points, False, action_type
 
     def is_unexplored_state(self, state):
         return not any(array_equal(state, explored_state) for explored_state in self.explored_states)

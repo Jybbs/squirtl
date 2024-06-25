@@ -35,15 +35,6 @@ class Gymnasium:
         self.reward   = reward
         self.settings = settings
 
-    def determine_action_type(self, action_effective, next_state_hash, current_state_hash):
-        if not action_effective:
-            return "ineffective"
-        if self.reward.is_unexplored_state(next_state_hash):
-            return "unexplored"
-        if self.reward.is_backtracking(current_state_hash):
-            return "backtracking"
-        return "revisit"
-
     def run_episode(self):
         self.reward.reset()
         action_number = 0
@@ -57,10 +48,9 @@ class Gymnasium:
             action       = self.settings.action_space[action_index]
             
             is_effective, next_state = self.emulator.press_button(action)
-            action_reward, episode_done = self.reward.evaluate_action(current_state, next_state, is_effective)
+            action_reward, episode_done, action_type = self.reward.evaluate_action(current_state, next_state, is_effective)
             
             total_reward += action_reward
-            action_type   = self.determine_action_type(is_effective, next_state, current_state)
             experience    = Experience(current_state, action_index, next_state, action_reward, episode_done)
 
             self.agent.store_experience(experience)
@@ -69,7 +59,6 @@ class Gymnasium:
             self.logging.log_action(self.current_episode, Metrics \
             (
                 action        = action,
-                action_index  = action_index,
                 action_number = action_number,
                 action_type   = action_type,
                 elapsed_time  = time() - start_time,
