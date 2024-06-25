@@ -3,4 +3,3 @@
 #### Ideas
 1. After optimization with PCA (of ndarrays passed via PyBoy), introduce a more encompassing penalty for backtracking (e.g. a backtrack is not just a copy of an exact state, but a copy of a PCA-optimized state)
 2. rcParams for final plot
-3. Save video clips per run
