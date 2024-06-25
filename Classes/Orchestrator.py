@@ -11,7 +11,7 @@ class Orchestrator:
         self.setup_components()
 
     def setup_components(self):
-        self.settings = Settings(self.config['run_date'])
+        self.settings = Settings()
         self.emulator = Emulator(self.config['rom_path'])
         self.agent    = Agent(self.settings)
         self.logging  = Logging(self.settings)
@@ -24,9 +24,8 @@ class Orchestrator:
 if __name__ == "__main__":
     config = \
     {
-        'num_episodes'   : 1,
-        'rom_path'       : "PokemonBlue.gb",
-        'run_date'       : "2024-06-24",
+        'num_episodes' : 1,
+        'rom_path'     : "PokemonBlue.gb",
     }
     
     orchestrator = Orchestrator(config)

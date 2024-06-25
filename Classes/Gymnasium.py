@@ -9,10 +9,10 @@ class Gymnasium:
         self.logging    = logging
         self.reward     = reward
         self.settings   = settings
-        self.start_time = time()
 
     def run_episode(self):
         self.reward.reset()
+        start_time      = time()
         current_state   = self.emulator.reset_emulator()
         episode_done    = False
         episode_length  = 0
@@ -66,7 +66,7 @@ class Gymnasium:
         (
             backtracking_actions = backtracking_actions,
             effective_actions    = effective_actions,
-            elapsed_time         = time() - self.start_time,
+            elapsed_time         = time() - start_time,
             episode              = self.current_episode,
             ineffective_actions  = ineffective_actions,
             length               = episode_length,
@@ -78,7 +78,6 @@ class Gymnasium:
         )
 
     def train(self, num_episodes):
-        self.start_time = time()
         for self.current_episode in range(num_episodes):
             metrics = self.run_episode()
             self.logging.log_episode(metrics)

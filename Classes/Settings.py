@@ -2,7 +2,7 @@ from pathlib import Path
 from torch import backends, device
 
 class Settings:
-    def __init__(self, run_date):
+    def __init__(self):
         self.action_space = ['a', 'b', 'down', 'left', 'right', 'up']
         self.device               = device("mps" if backends.mps.is_available() else "cpu")
         self.state_dimensions     = (144, 160, 4)  # (height, width, channels)
@@ -30,7 +30,7 @@ class Settings:
         self.REVISIT_POINTS             = 1           # Small reward for returning to visited states without immediate backtracking
 
         # Path settings
-        self.base_directory        = Path(f"data/{run_date}")
+        self.base_directory        = Path('data')
         self.checkpoints_directory = self.base_directory / "checkpoints"
         self.metrics_directory     = self.base_directory / "metrics"
 
