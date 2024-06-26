@@ -51,7 +51,7 @@ class Gymnasium:
             action = self.settings.action_space[action_index]
 
             if action == 'wait':
-                next_frame    = self.emulator.wait()
+                next_frame    = self.emulator.advance_frame()
                 experience    = Experience(current_frame, action_index, next_frame, 0, False)
                 self.agent.store_experience(experience)
                 current_frame = next_frame

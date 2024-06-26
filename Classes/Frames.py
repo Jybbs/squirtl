@@ -18,8 +18,8 @@ class Frames:
     
     def is_backtracking(self, frame):
         return any(array_equal(frame, f) for f in islice(self.recent_frames, 
-                                                            max(0, len(self.recent_frames) - self.settings.backtrack_window), 
-                                                            None))
+                                                         max(0, len(self.recent_frames) - self.settings.backtrack_window), 
+                                                         None))
 
     def is_new_state(self, frame):
         return not any(array_equal(frame, f) for f in self.explored_frames)
