@@ -53,13 +53,13 @@ class Settings:
         self.video_directory       = self.base_directory / "videos"
 
     def setup_reward_settings(self):
-        self.BACKTRACK_PENALTY   = -10  # Constant penalty for backtracking
-        self.COMPLETION_BONUS    = 1000 # Outsized reward for reaching the final event
-        self.INEFFECTIVE_PENALTY = -1   # Small penalty for actions that don't change the state
-        self.INTRO_BONUS         = 100  # Large reward for completing the naming process in the intro
-        self.MAX_ACTIONS         = 1000 # Maximum number of actions allowed per episode
-        self.NEW_STATE_BONUS     = 5    # Moderate reward for exploring new states
-        self.REVISIT_POINTS      = 0.1  # Very small reward for returning to visited states without immediate backtracking
+        self.BACKTRACK_PENALTY   = -10   # Constant penalty for backtracking
+        self.COMPLETION_BONUS    = 10000 # Outsized reward for reaching the final event
+        self.INEFFECTIVE_PENALTY = -1    # Small penalty for actions that don't change the state
+        self.INTRO_BONUS         = 1000  # Large reward for completing the naming process in the intro
+        self.MAX_ACTIONS         = 1000  # Maximum number of actions allowed per episode
+        self.NEW_STATE_BONUS     = 5     # Moderate reward for exploring new states
+        self.REVISIT_POINTS      = 0.1   # Very small reward for returning to visited states without immediate backtracking
 
     def setup_state_dimensions(self):
         self.state_dimensions = (144, 160, 4)  # (height, width, channels)
