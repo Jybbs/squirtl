@@ -46,6 +46,6 @@ class Emulator:
 
     def reset(self):
         self.close_emulator()
-        self.frames.reset_all()
+        self.frames.reset()
         self.pyboy = self.initialize_pyboy()
         return self.get_screen_data()

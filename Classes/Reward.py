@@ -36,4 +36,3 @@ class Reward:
     def reset(self):
         self.action_count     = 0
         self.cumulative_score = 0
-        self.frames.reset_episode()

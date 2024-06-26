@@ -105,7 +105,7 @@ class Logging:
         plt.close(fig)
 
     def save_episode_video(self, episode: int):
-        episode_frames = self.frames.get_episode_frames()
+        episode_frames = self.frames.episode_frames
         if not episode_frames:
             return
         
