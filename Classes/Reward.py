@@ -28,6 +28,9 @@ class Reward:
 
         if self.is_game_completed():
             return self.process_game_completion()
+        
+        if self.is_intro_completed():
+            return self.process_intro_completion()
 
         return self.calculate_action_reward(current_frame, next_frame, is_effective)
 
@@ -35,12 +38,20 @@ class Reward:
         return self.cumulative_score
 
     def is_game_completed(self):
-        return self.emulator.check_event_flag(*self.settings.GOT_STARTER_ADDRESS)
+        return self.emulator.check_event_flag(*self.settings.GOT_STARTER)
+    
+    def is_intro_completed(self):
+        player_name = self.emulator.check_event_flag(self.settings.PLAYER_NAME)
+        return False
 
     def process_game_completion(self):
         completion_bonus = self.calculate_completion_bonus()
         self.cumulative_score += completion_bonus
         return completion_bonus, True, "completion"
+    
+    def process_intro_completion(self):
+        self.cumulative_score += self.settings.INTRO_COMPLETE_BONUS
+        return self.settings.INTRO_COMPLETE_BONUS, False, "intro_complete"
 
     def reset(self):
         self.action_count     = 0

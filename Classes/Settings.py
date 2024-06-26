@@ -6,6 +6,7 @@ class Settings:
         self.setup_path_settings()
         self.create_directories()
         self.setup_action_space()
+        self.setup_addresses()
         self.setup_device()
         self.setup_frame_settings()
         self.setup_hyperparameters()
@@ -20,6 +21,10 @@ class Settings:
 
     def setup_action_space(self):
         self.action_space = ['a', 'b', 'down', 'left', 'right', 'up', 'wait']
+
+    def setup_addresses(self):
+        self.GOT_STARTER = (0xD74B, 2)
+        self.PLAYER_NAME = 0x2605
 
     def setup_device(self):
         self.device = device("mps" if backends.mps.is_available() else "cpu")
@@ -50,8 +55,8 @@ class Settings:
     def setup_reward_settings(self):
         self.BACKTRACK_PENALTY   = -10         # Constant penalty for backtracking
         self.COMPLETION_BONUS    = 10000       # Outsized reward for reaching the final event
-        self.GOT_STARTER_ADDRESS = (0xD74B, 2) # Address for the final event of each episode
         self.INEFFECTIVE_PENALTY = -1          # Small penalty for actions that don't change the state
+        self.INTRO_COMPLETE      = 1000        # Large reward for completing the naming process in the intro
         self.MAX_ACTIONS         = 1000        # Maximum number of actions allowed per episode
         self.NEW_STATE_BONUS     = 5           # Moderate reward for exploring new states
         self.REVISIT_POINTS      = 0.1         # Very small reward for returning to visited states without immediate backtracking
