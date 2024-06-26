@@ -79,8 +79,8 @@ class Logging:
 
     def print_debug(self, episode, m):
         print(f"Episode {episode:4d} | Action {m.action_number:4d} | Button: {m.action:10s} | "
-              f"Type: {m.action_type:12s} | Effective: {str(m.is_effective):5s} | "
-              f"Reward: {m.reward:6.2f} | Total Reward: {m.total_reward:8.2f} | "
+              f"Type: {m.action_type:14s} | Effective: {str(m.is_effective):5s} | "
+              f"Reward: {m.reward:10.2f} | Total Reward: {m.total_reward:10.2f} | "
               f"Loss: {m.loss:8.4f} | Q-Value: {m.q_value:8.4f} | Time: {m.elapsed_time:6.2f}s")
 
     def print_episode_summary(self, episode):
