@@ -39,14 +39,15 @@ class Logging:
         return {
             "average_loss"         : np.mean([m.loss for m in episode_metrics]),
             "average_q_value"      : np.mean([m.q_value for m in episode_metrics]),
-            "backtracking_actions" : action_type_counts["backtracking"],
+            "backtracking_actions" : action_type_counts["backtrack"],
             "effective_actions"    : sum(m.is_effective for m in episode_metrics),
             "elapsed_time"         : episode_metrics[-1].elapsed_time - episode_metrics[0].elapsed_time,
             "episode"              : episode,
             "new_actions"          : action_type_counts["new"],
             "revisit_actions"      : action_type_counts["revisit"],
             "total_actions"        : total_actions,
-            "total_reward"         : episode_metrics[-1].total_reward
+            "total_reward"         : episode_metrics[-1].total_reward,
+            "wait_actions"         : action_type_counts["wait"],
         }
 
     def log_action(self, metrics):
@@ -64,7 +65,7 @@ class Logging:
     def plot_metrics(self):
         episode_summaries = [self.calculate_episode_metrics(episode) for episode in sorted(self.action_metrics.keys())]
         metrics_to_plot   = ["total_actions", "total_reward", "average_loss", "average_q_value", "effective_actions", 
-                             "new_actions", "backtracking_actions", "revisit_actions", "elapsed_time"]
+                             "new_actions", "backtracking_actions", "wait_actions", "elapsed_time"]
         
         fig, axes = plt.subplots(3, 3, figsize = (18, 18))
         for metric, ax in zip(metrics_to_plot, axes.flatten()):
@@ -91,8 +92,8 @@ class Logging:
               f"Avg Q-Value: {s['average_q_value']:8.4f} | Time: {s['elapsed_time']:6.2f}s")
         print(f"Effective: {s['effective_actions']:4d} | "
               f"Ineffective: {s['total_actions'] - s['effective_actions']:4d} | "
-              f"New: {s['new_actions']:4d} | Backtracking: {s['backtracking_actions']:4d} | "
-              f"Revisit: {s['revisit_actions']:4d}")
+              f"New: {s['new_actions']:4d} | Backtrack: {s['backtracking_actions']:4d} | "
+              f"Wait: {s['wait_actions']:4d}")
         print("-" * 100)
 
     def save_data(self):
