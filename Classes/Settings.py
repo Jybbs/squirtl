@@ -19,9 +19,10 @@ class Settings:
         self.target_update_interval = 1000
 
         # Frame settings
+        self.backtrack_window     = 50
         self.blank_threshold      = 0.99
         self.playable_threshold   = 5
-        self.recent_frames_pool   = 50
+        self.recent_frames_pool   = 500
 
         # Path settings
         self.base_directory        = Path('data')

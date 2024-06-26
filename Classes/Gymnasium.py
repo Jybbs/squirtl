@@ -28,11 +28,10 @@ class Experience:
         )
     
 class Gymnasium:
-    def __init__(self, agent, debug, emulator, frames, logging, reward, settings):
+    def __init__(self, agent, debug, emulator, logging, reward, settings):
         self.agent    = agent
         self.debug    = debug
         self.emulator = emulator
-        self.frames   = frames
         self.logging  = logging
         self.reward   = reward
         self.settings = settings

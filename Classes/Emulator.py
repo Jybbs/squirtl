@@ -42,7 +42,7 @@ class Emulator:
     def reset(self):
         self.close_emulator()
         self.pyboy = PyBoy(self.rom_path, window = "SDL2")
-        self.frames.reset()
+        self.frames.reset_all()
         return self.get_screen_data()
     
     def wait(self, frames = 1):

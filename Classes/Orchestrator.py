@@ -24,7 +24,6 @@ class Orchestrator:
                 self.agent, 
                 self.config['debug'], 
                 self.emulator, 
-                self.frames, 
                 self.logging, 
                 self.reward, 
                 self.settings
