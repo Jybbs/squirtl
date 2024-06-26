@@ -28,11 +28,11 @@ class DQN(nn.Module):
     def forward(self, state):
         state = self.preprocess_state(state)
         convolution_output = self.convolutional_layers(state)
-        flattened_output = convolution_output.view(convolution_output.size(0), -1)
+        flattened_output   = convolution_output.view(convolution_output.size(0), -1)
         return self.fully_connected_layers(flattened_output)
 
     def get_convolution_output_size(self):
-        sample_input = torch.zeros(1, self.state_dimensions[2], self.state_dimensions[0], self.state_dimensions[1])
+        sample_input       = torch.zeros(1, self.state_dimensions[2], self.state_dimensions[0], self.state_dimensions[1])
         convolution_output = self.convolutional_layers(sample_input)
         return int(torch.prod(torch.tensor(convolution_output.size())))
 

@@ -19,20 +19,19 @@ class Reward:
             return completion_bonus, True, "completion"
 
         if not is_effective:
-            points      = self.settings.INEFFECTIVE_PENALTY
+            points = self.settings.INEFFECTIVE_PENALTY
             action_type = "ineffective"
 
         elif not self.frames.has_been_seen(next_frame):
-            self.frames.add_seen(next_frame)
-            points      = self.settings.NEW_STATE_BONUS
+            points = self.settings.NEW_STATE_BONUS
             action_type = "new"
 
         elif self.frames.is_backtracking(current_frame):
-            points      = self.settings.BACKTRACK_PENALTY
+            points = self.settings.BACKTRACK_PENALTY
             action_type = "backtrack"
 
         else:
-            points      = self.settings.REVISIT_POINTS
+            points = self.settings.REVISIT_POINTS
             action_type = "revisit"
 
         self.cumulative_score += points
