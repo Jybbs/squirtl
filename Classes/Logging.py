@@ -5,6 +5,8 @@ from collections import Counter, defaultdict
 from cv2         import COLOR_RGB2BGR, cvtColor, VideoWriter, VideoWriter_fourcc
 from dataclasses import dataclass, asdict
 from json        import dump
+from pandas      import DataFrame
+from seaborn     import regplot, scatterplot
 from time        import time
 
 @dataclass
@@ -63,16 +65,27 @@ class Logging:
         return metrics
 
     def plot_metrics(self):
+        self.setup_plot_params()
         episode_summaries = [self.calculate_episode_metrics(episode) for episode in sorted(self.action_metrics.keys())]
-        metrics_to_plot   = ["total_actions", "total_reward", "average_loss", "average_q_value", "effective_actions", 
-                             "new_actions", "backtracking_actions", "wait_actions", "elapsed_time"]
+        df = DataFrame(episode_summaries)
         
-        fig, axes = plt.subplots(3, 3, figsize = (18, 18))
-        for metric, ax in zip(metrics_to_plot, axes.flatten()):
-            ax.plot([summary[metric] for summary in episode_summaries])
+        metrics = ["total_actions", "total_reward", "average_loss", "average_q_value",
+                "effective_actions", "new_actions", "backtracking_actions", "wait_actions", "elapsed_time"]
+        
+        fig, axes = plt.subplots(3, 3, figsize = (15, 10), sharex = True)
+        colors = plt.cm.viridis(np.linspace(0.1, 1, len(metrics)))
+        
+        for metric, ax, color in zip(metrics, axes.flatten(), colors):
+            regplot(x = 'episode', y = metric, data = df, ax = ax, scatter = False, 
+                    lowess = True, line_kws = {'color': color})
+            scatterplot(x = 'episode', y = metric, data = df, ax = ax, alpha = 0.3, color = color)
+            
             ax.set_title(metric.replace('_', ' ').title())
-            ax.set_xlabel("Episode")
-            ax.set_ylabel(metric.replace('_', ' ').title())
+            ax.set_ylabel('')
+            ax.set_xlabel('Episode' if ax == axes[2, 1] else '')
+            
+            if ax.get_ylim()[0] <= 0 <= ax.get_ylim()[1]:
+                ax.axhline(y = 0, color = 'white', linestyle = '--', linewidth = 1, alpha = 0.5)
         
         plt.tight_layout()
         plt.savefig(self.settings.metrics_directory / "metrics_plot.png")
@@ -122,3 +135,28 @@ class Logging:
         episode_summaries = {episode: self.calculate_episode_metrics(episode) for episode in self.action_metrics.keys()}
         with open(self.settings.metrics_directory / "episode_summaries.json", "w") as file:
             dump(episode_summaries, file, indent = 4)
+
+    def setup_plot_params(self):
+        plt.rcParams.update({# Axes parameters                            # Tick parameters
+                             'axes.facecolor'     : '.05',                'xtick.labelsize'    : 8,
+                             'axes.grid'          : True,                 'xtick.color'        : '1',
+                             'axes.labelcolor'    : 'white',              'xtick.major.size'   : 0,
+                             'axes.spines.left'   : False,                'ytick.labelsize'    : 8,
+                             'axes.spines.right'  : False,                'ytick.color'        : '1',
+                             'axes.spines.top'    : False,                'ytick.major.size'   : 0,
+                             'axes.labelsize'     : 10,
+                             'axes.labelweight'   : 'bold',               # Figure parameters
+                             'axes.titlesize'     : 13,                   'figure.facecolor'   : 'black',
+                             'axes.titleweight'   : 'bold',               'figure.figsize'     : (15, 10),
+                             'axes.labelpad'      : 15,                   'figure.autolayout'  : True,
+                             'axes.titlepad'      : 15,
+
+                             # Font and text parameters                   # Legend parameters
+                             'font.family'        : 'DejaVu Sans Mono',   'legend.facecolor'   : '0.3',
+                             'font.size'          : 8,                    'legend.edgecolor'   : '0.3',
+                             'font.style'         : 'normal',             'legend.borderpad'   : 0.75,
+                             'text.color'         : 'white',              'legend.framealpha'  : '0.5',
+
+                             # Grid parameters
+                             'grid.linestyle'     : ':',
+                             'grid.color'         : '0.2'})
