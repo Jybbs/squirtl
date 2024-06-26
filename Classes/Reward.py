@@ -13,26 +13,26 @@ class Reward:
     def evaluate_action(self, current_frame, next_frame, is_effective):
         self.action_count += 1
 
-        if self.emulator.check_event_flag(*self.settings.EVENT_GOT_STARTER_ADDRESS):
+        if self.emulator.check_event_flag(*self.settings.GOT_STARTER_ADDRESS):
             completion_bonus       = self.calculate_completion_bonus()
             self.cumulative_score += completion_bonus
             return completion_bonus, True, "completion"
 
         if not is_effective:
-            points = self.settings.INEFFECTIVE_ACTION_PENALTY
+            points      = self.settings.INEFFECTIVE_PENALTY
             action_type = "ineffective"
 
-        elif self.frames.is_new_state(next_frame):
-            self.frames.add_explored(next_frame)
-            points = self.settings.NEW_STATE_BONUS
+        elif not self.frames.has_been_seen(next_frame):
+            self.frames.add_seen(next_frame)
+            points      = self.settings.NEW_STATE_BONUS
             action_type = "new"
 
         elif self.frames.is_backtracking(current_frame):
-            points = self.settings.BACKTRACK_PENALTY
+            points      = self.settings.BACKTRACK_PENALTY
             action_type = "backtrack"
 
         else:
-            points = self.settings.REVISIT_POINTS
+            points      = self.settings.REVISIT_POINTS
             action_type = "revisit"
 
         self.cumulative_score += points
@@ -44,4 +44,4 @@ class Reward:
     def reset(self):
         self.action_count     = 0
         self.cumulative_score = 0
-        self.frames.reset_episode()
+        self.frames.reset()

@@ -36,9 +36,9 @@ class Agent(nn.Module):
         self.batch_size        = settings.batch_size
         self.device            = settings.device
         self.main_network      = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
-        self.optimizer         = Adam(self.main_network.parameters(), lr=settings.learning_rate)
+        self.optimizer         = Adam(self.main_network.parameters(), lr = settings.learning_rate)
         self.replay_memory     = Memory(settings.memory_capacity)
-        self.scheduler         = lr_scheduler.ExponentialLR(self.optimizer, gamma=settings.learning_rate_decay)
+        self.scheduler         = lr_scheduler.ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
         self.settings          = settings
         self.target_network    = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
 
@@ -55,7 +55,7 @@ class Agent(nn.Module):
         experiences       = self.replay_memory.sample_batch(self.batch_size)
         batch             = Experience.batch_to_tensor(experiences, self.device)
         current_q_values  = self(batch.state).gather(1, batch.action.unsqueeze(1))
-        next_q_values     = torch.zeros(self.batch_size, device=self.device)
+        next_q_values     = torch.zeros(self.batch_size, device = self.device)
         non_final_mask    = ~batch.done
         next_q_values[non_final_mask] = self.target_network(batch.next_state[non_final_mask]).max(1)[0]
         expected_q_values = batch.reward + (self.settings.discount_factor * next_q_values * (~batch.done).float())

@@ -28,8 +28,9 @@ class Experience:
         )
     
 class Gymnasium:
-    def __init__(self, agent, emulator, frames, logging, reward, settings):
+    def __init__(self, agent, debug, emulator, frames, logging, reward, settings):
         self.agent    = agent
+        self.debug    = debug
         self.emulator = emulator
         self.frames   = frames
         self.logging  = logging
@@ -39,7 +40,7 @@ class Gymnasium:
     def run_episode(self):
         self.reward.reset()
         action_number = 0
-        current_frame = self.emulator.reset_emulator()
+        current_frame = self.emulator.reset()
         episode_done  = False
         start_time    = time()
         total_reward  = 0
@@ -49,6 +50,16 @@ class Gymnasium:
             
             action_index = self.agent.select_action(current_frame)
             action = self.settings.action_space[action_index]
+
+            if action == 'wait':
+                next_frame    = self.emulator.wait()
+                experience    = Experience(current_frame, action_index, next_frame, 0, False)
+                self.agent.store_experience(experience)
+                current_frame = next_frame
+
+                if self.debug:
+                    print("Waiting 1 tick.")
+                continue
             
             is_effective, next_frame = self.emulator.press_button(action)
             action_reward, episode_done, action_type = self.reward.evaluate_action(current_frame, next_frame, is_effective)

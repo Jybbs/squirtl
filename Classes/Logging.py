@@ -22,7 +22,7 @@ class Metrics:
         return asdict(self)
 
 class Logging:
-    def __init__(self, frames, settings, debug = False):
+    def __init__(self, debug, frames, settings):
         self.action_metrics = {}
         self.debug          = debug
         self.frames         = frames
@@ -84,7 +84,7 @@ class Logging:
               f"New: {summary['new_actions']:4d} | " +
               f"Backtracking: {summary['backtracking_actions']:4d} | " +
               f"Revisit: {summary['revisit_actions']:4d}")
-        print("-" * 100) # Separator line for legibility
+        print("-" * 100)
 
     def plot_metrics(self):
         episode_summaries = [self.calculate_episode_metrics(episode) for episode in sorted(self.action_metrics.keys())]

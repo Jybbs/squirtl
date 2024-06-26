@@ -3,36 +3,42 @@ from torch import backends, device
 
 class Settings:
     def __init__(self):
-        self.action_space = ['a', 'b', 'down', 'left', 'right', 'up']
+        self.action_space = ['wait', 'a', 'b', 'down', 'left', 'right', 'up']
         self.device               = device("mps" if backends.mps.is_available() else "cpu")
         self.state_dimensions     = (144, 160, 4)  # (height, width, channels)
 
         # Hyperparameters
-        self.batch_size             = 32
+        self.batch_size             = 64
         self.exploration_rate       = 1.0
-        self.exploration_decay      = 0.99995
-        self.exploration_min        = 0.01
+        self.exploration_decay      = 0.9995
+        self.exploration_min        = 0.05
         self.discount_factor        = 0.99
-        self.learning_rate          = 0.0005
-        self.learning_rate_decay    = 0.999
+        self.learning_rate          = 0.001
+        self.learning_rate_decay    = 0.9995
         self.memory_capacity        = 100000
-        self.target_update_interval = 100
+        self.target_update_interval = 1000
 
-        # Reward settings
-        self.EVENT_GOT_STARTER_ADDRESS = (0xD74B, 2) # Address for the final event of each episode
-
-        self.BACKTRACK_PENALTY          = -10   # Constant penalty for backtracking
-        self.COMPLETION_BONUS           = 10000 # Outsized reward for reaching the final event
-        self.NEW_STATE_BONUS            = 5     # Moderate reward for exploring new states
-        self.INEFFECTIVE_ACTION_PENALTY = -1    # Small penalty for actions that don't change the state
-        self.MAX_ACTIONS                = 1000  # Maximum number of actions allowed per episode
-        self.REVISIT_POINTS             = 0.1   # Very small reward for returning to visited states without immediate backtracking
+        # Frame settings
+        self.backtrack_window     = 50
+        self.blank_threshold      = 0.99
+        self.playable_threshold   = 5
+        self.recent_frames_pool   = 500
 
         # Path settings
         self.base_directory        = Path('data')
         self.checkpoints_directory = self.base_directory / "checkpoints"
         self.metrics_directory     = self.base_directory / "metrics"
         self.video_directory       = self.base_directory / "videos"
+
+        # Reward settings
+        self.GOT_STARTER_ADDRESS = (0xD74B, 2) # Address for the final event of each episode
+
+        self.BACKTRACK_PENALTY      = -10   # Constant penalty for backtracking
+        self.COMPLETION_BONUS       = 10000 # Outsized reward for reaching the final event
+        self.INEFFECTIVE_PENALTY    = -1    # Small penalty for actions that don't change the state
+        self.MAX_ACTIONS            = 1000  # Maximum number of actions allowed per episode
+        self.NEW_STATE_BONUS        = 5     # Moderate reward for exploring new states
+        self.REVISIT_POINTS         = 0.1   # Very small reward for returning to visited states without immediate backtracking
 
         # Create directories
         self.base_directory.mkdir(parents = True, exist_ok = True)
