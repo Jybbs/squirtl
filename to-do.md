@@ -5,6 +5,3 @@
 
 #### Design
 Metal Squirtle as logo
-
-#### Extra
-1. Build out a TSP implementation in C++ even if it isn't used
