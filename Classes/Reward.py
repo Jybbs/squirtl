@@ -4,6 +4,7 @@ class Reward:
         self.cumulative_score = 0
         self.emulator         = emulator
         self.frames           = frames
+        self.intro_completed  = False
         self.settings         = settings
 
     def calculate_action_reward(self, current_frame, next_frame, is_effective):
@@ -29,7 +30,7 @@ class Reward:
         if self.is_game_completed():
             return self.process_game_completion()
         
-        if self.is_intro_completed():
+        if not self.intro_completed and self.is_intro_completed():
             return self.process_intro_completion()
 
         return self.calculate_action_reward(current_frame, next_frame, is_effective)
@@ -50,8 +51,10 @@ class Reward:
     
     def process_intro_completion(self):
         self.cumulative_score += self.settings.INTRO_BONUS
+        self.intro_completed   = True
         return self.settings.INTRO_BONUS, False, "intro_complete"
 
     def reset(self):
         self.action_count     = 0
         self.cumulative_score = 0
+        self.intro_completed  = False
