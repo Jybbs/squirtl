@@ -2,7 +2,8 @@ from numpy import array, array_equal
 from pyboy import PyBoy
 
 class Emulator:
-    def __init__(self, frames, rom_path):
+    def __init__(self, debug, frames, rom_path):
+        self.debug    = debug
         self.frames   = frames
         self.rom_path = rom_path
         self.pyboy    = self.initialize_pyboy()
@@ -30,7 +31,8 @@ class Emulator:
         return frame
 
     def initialize_pyboy(self):
-        pyboy = PyBoy(self.rom_path, window = "SDL2")
+        pyboy = PyBoy(self.rom_path, 
+                      window = "SDL2" if self.debug else "null")
         pyboy.set_emulation_speed(0)
         return pyboy
 

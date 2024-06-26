@@ -14,7 +14,7 @@ class Orchestrator:
     def setup_components(self):
         self.settings = Settings()
         self.frames   = Frames(self.settings)
-        self.emulator = Emulator(self.frames, self.config['rom_path'])
+        self.emulator = Emulator(self.config['debug'], self.frames, self.config['rom_path'])
         self.agent    = Agent(self.settings)
         self.logging  = Logging(self.config['debug'], self.frames, self.settings)
         self.reward   = Reward(self.emulator, self.frames, self.settings)
@@ -22,7 +22,6 @@ class Orchestrator:
         self.gym = Gymnasium \
             (
                 self.agent, 
-                self.config['debug'], 
                 self.emulator, 
                 self.logging, 
                 self.reward, 
@@ -36,7 +35,7 @@ if __name__ == "__main__":
     config = \
     {
         'debug'        : True,
-        'num_episodes' : 5,
+        'num_episodes' : 3,
         'rom_path'     : "PokemonBlue.gb",
     }
     

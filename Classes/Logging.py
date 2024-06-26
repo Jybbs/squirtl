@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
+import numpy as np
 
-from collections import Counter
+from collections import Counter, defaultdict
 from cv2         import COLOR_RGB2BGR, cvtColor, VideoWriter, VideoWriter_fourcc
 from dataclasses import dataclass, asdict
 from json        import dump
@@ -8,112 +9,105 @@ from time        import time
 
 @dataclass
 class Metrics:
-    action_number : int
     action        : str
-    is_effective  : bool
+    action_number : int
     action_type   : str
-    reward        : float
-    total_reward  : float
+    elapsed_time  : float
+    is_effective  : bool
     loss          : float
     q_value       : float
-    elapsed_time  : float
+    reward        : float
+    total_reward  : float
 
     def to_dict(self):
         return asdict(self)
 
 class Logging:
     def __init__(self, debug, frames, settings):
-        self.action_metrics = {}
-        self.debug          = debug
-        self.frames         = frames
-        self.settings       = settings
-        self.start_time     = time()
-
-    def log_action(self, episode, metrics: Metrics):
-        if episode not in self.action_metrics:
-            self.action_metrics[episode] = []
-        self.action_metrics[episode].append(metrics)
-
-        if self.debug:
-            self.print_action_debug(episode, metrics)
+        self.action_metrics  = defaultdict(list)
+        self.current_episode = 1
+        self.debug           = debug
+        self.frames          = frames
+        self.settings        = settings
+        self.start_time      = time()
 
     def calculate_episode_metrics(self, episode):
-        episode_metrics = self.action_metrics[episode]
-        total_actions   = len(episode_metrics)
-        
+        episode_metrics    = self.action_metrics[episode]
+        total_actions      = len(episode_metrics)
         action_type_counts = Counter(m.action_type for m in episode_metrics)
         
-        return \
-        {
-            "episode"              : episode,
-            "total_actions"        : total_actions,
-            "total_reward"         : episode_metrics[-1].total_reward,
-            "average_loss"         : sum(m.loss         for m in episode_metrics) / total_actions,
-            "average_q_value"      : sum(m.q_value      for m in episode_metrics) / total_actions,
-            "effective_actions"    : sum(m.is_effective for m in episode_metrics),
-            "new_actions"          : action_type_counts["new"],
+        return {
+            "average_loss"         : np.mean([m.loss for m in episode_metrics]),
+            "average_q_value"      : np.mean([m.q_value for m in episode_metrics]),
             "backtracking_actions" : action_type_counts["backtracking"],
+            "effective_actions"    : sum(m.is_effective for m in episode_metrics),
+            "elapsed_time"         : episode_metrics[-1].elapsed_time - episode_metrics[0].elapsed_time,
+            "episode"              : episode,
+            "new_actions"          : action_type_counts["new"],
             "revisit_actions"      : action_type_counts["revisit"],
-            "elapsed_time"         : episode_metrics[-1].elapsed_time - episode_metrics[0].elapsed_time
+            "total_actions"        : total_actions,
+            "total_reward"         : episode_metrics[-1].total_reward
         }
-    
-    def print_action_debug(self, episode, metrics: Metrics):
-        print(f"Episode {episode:4d} | " +
-              f"Action {metrics.action_number:4d} | " +
-              f"Button: {metrics.action:10s} | " +
-              f"Type: {metrics.action_type:12s} | " +
-              f"Effective: {str(metrics.is_effective):5s} | " +
-              f"Reward: {metrics.reward:6.2f} | " +
-              f"Total Reward: {metrics.total_reward:8.2f} | " +
-              f"Loss: {metrics.loss:8.4f} | " +
-              f"Q-Value: {metrics.q_value:8.4f} | " +
-              f"Time: {metrics.elapsed_time:6.2f}s")
 
-    def print_episode_summary(self, episode):
-        summary = self.calculate_episode_metrics(episode)
-        
-        print("\nEpisode Summary:")
-        print(f"Episode: {summary['episode']:4d} | " +
-              f"Actions: {summary['total_actions']:4d} | " +
-              f"Total Reward: {summary['total_reward']:8.2f} | " +
-              f"Avg Loss: {summary['average_loss']:8.4f} | " +
-              f"Avg Q-Value: {summary['average_q_value']:8.4f} | " +
-              f"Time: {summary['elapsed_time']:6.2f}s")
-        print(f"Effective: {summary['effective_actions']:4d} | " +
-              f"Ineffective: {summary['total_actions'] - summary['effective_actions']:4d} | " +
-              f"New: {summary['new_actions']:4d} | " +
-              f"Backtracking: {summary['backtracking_actions']:4d} | " +
-              f"Revisit: {summary['revisit_actions']:4d}")
-        print("-" * 100)
+    def log_action(self, metrics):
+        self.action_metrics[self.current_episode].append(metrics)
+        if self.debug:
+            self.print_debug(self.current_episode, metrics)
+
+    def log_episode(self):
+        self.save_episode_video(self.current_episode)
+        self.print_episode_summary(self.current_episode)
+        metrics = self.calculate_episode_metrics(self.current_episode)
+        self.current_episode += 1
+        return metrics
 
     def plot_metrics(self):
         episode_summaries = [self.calculate_episode_metrics(episode) for episode in sorted(self.action_metrics.keys())]
-        
-        metrics_to_plot = ["total_actions", "total_reward", "average_loss", "average_q_value", "effective_actions", 
-                           "new_actions", "backtracking_actions", "revisit_actions", "elapsed_time"]
+        metrics_to_plot   = ["total_actions", "total_reward", "average_loss", "average_q_value", "effective_actions", 
+                             "new_actions", "backtracking_actions", "revisit_actions", "elapsed_time"]
         
         fig, axes = plt.subplots(3, 3, figsize = (18, 18))
         for metric, ax in zip(metrics_to_plot, axes.flatten()):
-            values = [summary[metric] for summary in episode_summaries]
-            ax.plot(values)
-            ax.set_title(f"{metric.replace('_', ' ').capitalize()}")
+            ax.plot([summary[metric] for summary in episode_summaries])
+            ax.set_title(metric.replace('_', ' ').title())
             ax.set_xlabel("Episode")
-            ax.set_ylabel(metric.replace('_', ' ').capitalize())
+            ax.set_ylabel(metric.replace('_', ' ').title())
         
         plt.tight_layout()
         plt.savefig(self.settings.metrics_directory / "metrics_plot.png")
         plt.close(fig)
 
-    def save_episode_video(self, episode: int):
+    def print_debug(self, episode, m):
+        print(f"Episode {episode:4d} | Action {m.action_number:4d} | Button: {m.action:10s} | "
+              f"Type: {m.action_type:12s} | Effective: {str(m.is_effective):5s} | "
+              f"Reward: {m.reward:6.2f} | Total Reward: {m.total_reward:8.2f} | "
+              f"Loss: {m.loss:8.4f} | Q-Value: {m.q_value:8.4f} | Time: {m.elapsed_time:6.2f}s")
+
+    def print_episode_summary(self, episode):
+        s = self.calculate_episode_metrics(episode)
+        print("\nEpisode Summary:")
+        print(f"Episode: {s['episode']:4d} | Actions: {s['total_actions']:4d} | "
+              f"Total Reward: {s['total_reward']:8.2f} | Avg Loss: {s['average_loss']:8.4f} | "
+              f"Avg Q-Value: {s['average_q_value']:8.4f} | Time: {s['elapsed_time']:6.2f}s")
+        print(f"Effective: {s['effective_actions']:4d} | "
+              f"Ineffective: {s['total_actions'] - s['effective_actions']:4d} | "
+              f"New: {s['new_actions']:4d} | Backtracking: {s['backtracking_actions']:4d} | "
+              f"Revisit: {s['revisit_actions']:4d}")
+        print("-" * 100)
+
+    def save_data(self):
+        self.plot_metrics()
+        self.save_metrics()
+
+    def save_episode_video(self, episode):
         episode_frames = self.frames.episode_frames
         if not episode_frames:
             return
         
         fourcc       = VideoWriter_fourcc(*'mp4v')
-        video_writer = VideoWriter(str(self.settings.video_directory / f"episode_{episode}.mp4"), 
-                                   fourcc, 
-                                   30, 
-                                   episode_frames[0].shape[:2][::-1])
+        frame_shape  = episode_frames[0].shape[:2][::-1]
+        video_path   = self.settings.video_directory / f"episode_{episode}.mp4"
+        video_writer = VideoWriter(str(video_path), fourcc, 60, frame_shape)
 
         for frame in episode_frames:
             video_writer.write(cvtColor(frame, COLOR_RGB2BGR))
