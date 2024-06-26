@@ -7,7 +7,7 @@ class Emulator:
         self.rom_path = rom_path
         self.pyboy    = self.initialize_pyboy()
 
-    def advance_frame(self, frames = 1):
+    def advance_frame(self, frames = 4):
         for _ in range(frames):
             self.pyboy.tick()
         return self.get_screen_data()
