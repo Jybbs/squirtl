@@ -36,15 +36,15 @@ class Settings:
         self.recent_frames_pool = 500
 
     def setup_hyperparameters(self):
-        self.batch_size             = 64
+        self.batch_size             = 128
         self.discount_factor        = 0.99
-        self.exploration_decay      = 0.9995
+        self.exploration_decay      = 0.9999
         self.exploration_min        = 0.05
         self.exploration_rate       = 1.0
-        self.learning_rate          = 0.001
-        self.learning_rate_decay    = 0.9995
+        self.learning_rate          = 0.0005
+        self.learning_rate_decay    = 0.9999
         self.memory_capacity        = 100000
-        self.target_update_interval = 500
+        self.target_update_interval = 1000
 
     def setup_path_settings(self):
         self.base_directory        = Path('data')

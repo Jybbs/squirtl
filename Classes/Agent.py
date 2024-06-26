@@ -42,9 +42,13 @@ class Agent(nn.Module):
         return current_q_values.mean(), loss
 
     def compute_next_q_values(self, batch):
-        next_q_values  = torch.zeros(self.batch_size, device = self.device)
+        next_q_values = torch.zeros(self.batch_size, device=self.device)
         non_final_mask = ~batch.done
-        next_q_values[non_final_mask] = self.target_network(batch.next_state[non_final_mask]).max(1)[0]
+
+        # Double Q-Learning
+        next_actions = self.main_network(batch.next_state[non_final_mask]).max(1)[1]
+        next_q_values[non_final_mask] = self.target_network(batch.next_state[non_final_mask]).gather(1, next_actions.unsqueeze(1)).squeeze(1)
+
         return next_q_values
 
     def forward(self, state):
@@ -103,7 +107,7 @@ class Agent(nn.Module):
 
     def update_networks(self, loss):
         loss.backward()
-        nn.utils.clip_grad_value_(self.main_network.parameters(), 100)
+        nn.utils.clip_grad_value_(self.main_network.parameters(), 10)
         self.optimizer.step()
         self.optimizer.zero_grad()
 
