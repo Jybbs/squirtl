@@ -46,6 +46,9 @@ class Agent(nn.Module):
         self.actions_taken     = 0
         self.batch_size        = settings.batch_size
         self.device            = settings.device
+        self.exploration_rate  = settings.exploration_rate
+        self.exploration_decay = settings.exploration_decay
+        self.exploration_min   = settings.exploration_min
         self.main_network      = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
         self.optimizer         = Adam(self.main_network.parameters(), lr = settings.learning_rate)
         self.replay_memory     = Memory(settings.memory_capacity)
@@ -117,7 +120,9 @@ class Agent(nn.Module):
         )
 
     def select_action(self, state):
-        if random() < self.settings.exploration_rate:
+        self.exploration_rate = max(self.exploration_rate * self.exploration_decay, self.exploration_min)
+        
+        if random() < self.exploration_rate:
             return randint(0, self.action_space_size - 1)
         
         with torch.no_grad():
