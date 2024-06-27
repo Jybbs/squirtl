@@ -6,7 +6,6 @@ from collections import Counter, defaultdict
 from cv2         import COLOR_RGB2BGR, cvtColor, VideoWriter, VideoWriter_fourcc
 from dataclasses import dataclass, asdict
 from pandas      import DataFrame
-from pathlib     import Path
 from seaborn     import regplot, scatterplot
 from time        import time
 
