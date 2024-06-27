@@ -121,12 +121,21 @@ class Gymnasium:
         )
 
     def train(self, num_episodes, start_episode = 1):
+        print(f"\n{'='*50}")
+        print(f"Starting training from episode {start_episode}")
+        print(f"{'='*50}\n")
+
         if start_episode > 1:
             checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{start_episode - 1}.pth"
             self.agent.load_checkpoint(checkpoint_path)
-        
+
         for episode in range(start_episode, start_episode + num_episodes):
+            print(f"\nRunning episode {episode}...")
             self.run_episode()
             self.agent.save_checkpoint(self.settings.checkpoints_directory / f"checkpoint_episode_{episode}.pth")
+
+        print(f"\n{'='*50}")
+        print(f"Training completed. Total episodes: {start_episode + num_episodes - 1}")
+        print(f"{'='*50}\n")
 
         self.emulator.close_emulator()
