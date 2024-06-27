@@ -1,5 +1,5 @@
 import numpy as np
-from BPCA import BPCA
+from BPCA import CythonBPCA
 
 # Define parameters
 frame_height = 144
@@ -9,7 +9,7 @@ num_components = 10
 num_frames = 5
 
 # Create a BPCA instance
-bpca = BPCA(block_size, num_components, frame_height, frame_width)
+bpca = CythonBPCA(block_size, num_components, frame_height, frame_width)
 
 # Generate some random frame data
 frames = [np.random.rand(frame_height, frame_width) for _ in range(num_frames)]
