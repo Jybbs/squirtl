@@ -1,119 +1,154 @@
-#include <iostream>
-#include <vector>
-#include <cmath>
 #include <algorithm>
-#include <stdexcept>
+#include <chrono>
+#include <cmath>
+#include <iostream>
+#include <random>
+#include <vector>
 
 using namespace std;
 
-class PCA
+class BlockwisePCA
 {
 private:
+    int blockSize;
     int numComponents;
-    vector<vector<double>> principalComponents;
+    int numBlocksX, numBlocksY;
+    vector<vector<vector<double>>> principalComponentsPerBlock;
+    vector<vector<double>> meanVectorsPerBlock;
 
-    vector<vector<double>> centerData(const vector<vector<double>>& data)
+    // Extract a block from a frame
+    vector<vector<double>> extractBlock(const vector<vector<double>> &frame, int startX, int startY)
     {
-        int numSamples = data.size();
+        /*
+        This function extracts a square block from the larger frame.
+        It's crucial for the block-wise approach, allowing us to apply PCA locally.
+        This local application is based on the assumption that nearby pixels are more correlated,
+        */
+        vector<vector<double>> block(blockSize, vector<double>(blockSize));
+        for (int i = 0; i < blockSize; ++i)
+        {
+            for (int j = 0; j < blockSize; ++j)
+            {
+                block[i][j] = frame[startY + i][startX + j];
+            }
+        }
+        return block;
+    }
+
+    // Flatten a 2D block into a 1D vector
+    vector<double> flattenBlock(const vector<vector<double>> &block)
+    {
+        /*
+        Flattening is necessary because PCA typically operates on 1D data vectors.
+        This step transforms our 2D image block into a point in a high-dimensional space.
+        Each pixel becomes a dimension in this space.
+
+        Mathematically, we're performing a reshaping operation:
+        v = vec(B), where v is a vector of length blockSize²
+        This operation is reversible, which is crucial for later reconstruction.
+        */
+        vector<double> flatBlock;
+        for (const auto &row : block)
+        {
+            flatBlock.insert(flatBlock.end(), row.begin(), row.end());
+        }
+        return flatBlock;
+    }
+
+    // Compute mean of a set of vectors
+    vector<double> computeMean(const vector<vector<double>> &data)
+    {
+        /*
+        Computing the mean is a crucial step in PCA. It allows us to center the data,
+        which is necessary for computing the covariance matrix correctly.
+
+        The mean μ for each dimension j is computed as:
+        μⱼ = (1/N) * Σᵢ xᵢⱼ
+        where N is the number of samples and xᵢⱼ is the j-th feature of the i-th sample.
+        */
         int numFeatures = data[0].size();
-        vector<double> featureMeans(numFeatures, 0.0);
-
-        // Calculate the mean of each feature
-        // Centering is crucial because PCA is sensitive to the relative scaling of the original variables
-        for (const auto& sample : data)
-        {
-            for (int i = 0; i < numFeatures; ++i)
-            {
-                featureMeans[i] += sample[i];
-            }
-        }
-        for (int i = 0; i < numFeatures; ++i)
-        {
-            featureMeans[i] /= numSamples;
-        }
-
-        // Subtract the mean from each data point
-        // This step ensures that the first principal component corresponds to the direction of maximum variance
-        // Without centering, the first component might be dominated by the mean of the data
-        vector<vector<double>> centeredData(numSamples, vector<double>(numFeatures, 0.0));
-        for (int i = 0; i < numSamples; ++i)
+        vector<double> mean(numFeatures, 0.0);
+        for (const auto &sample : data)
         {
             for (int j = 0; j < numFeatures; ++j)
             {
-                centeredData[i][j] = data[i][j] - featureMeans[j];
+                mean[j] += sample[j];
             }
         }
-        return centeredData;
+        for (double &m : mean)
+        {
+            m /= data.size();
+        }
+        return mean;
     }
 
-    vector<vector<double>> computeCovarianceMatrix(const vector<vector<double>>& centeredData)
+    // Compute covariance matrix
+    vector<vector<double>> computeCovarianceMatrix(const vector<vector<double>> &centeredData)
     {
-        int numSamples = centeredData.size();
+        /*
+        The covariance matrix is central to PCA. It captures the pairwise correlations
+        between all dimensions in our data.
+
+        For centered data, the covariance matrix C is computed as:
+        C = (1/(N-1)) * X^T * X
+        where X is the matrix of centered data (each row is a sample, each column a feature),
+        and N is the number of samples.
+
+        Each element C_{ij} represents the covariance between features i and j.
+        */
         int numFeatures = centeredData[0].size();
-        vector<vector<double>> covarianceMatrix(numFeatures, vector<double>(numFeatures, 0.0));
-
-        // Calculate covariance between each pair of features
-        // The covariance matrix is symmetric, so we could optimize by only computing half
-        // Covariance measures how much two variables change together
-        // High absolute values indicate strong relationships (positive or negative)
+        vector<vector<double>> cov(numFeatures, vector<double>(numFeatures, 0.0));
         for (int i = 0; i < numFeatures; ++i)
         {
             for (int j = 0; j < numFeatures; ++j)
             {
-                for (int k = 0; k < numSamples; ++k)
+                for (const auto &sample : centeredData)
                 {
-                    covarianceMatrix[i][j] += centeredData[k][i] * centeredData[k][j];
+                    cov[i][j] += sample[i] * sample[j];
                 }
-                
-                // Divide by (n-1) for sample covariance (unbiased estimator)
-                // This correction is important for small sample sizes
-                covarianceMatrix[i][j] /= (numSamples - 1);
+                cov[i][j] /= (centeredData.size() - 1);
             }
         }
-        return covarianceMatrix;
+        return cov;
     }
 
-    pair<vector<double>, vector<vector<double>>> computeEigenvectors(const vector<vector<double>>& originalCovarianceMatrix)
+    vector<vector<double>> computeEigenvectors(const vector<vector<double>>& originalCov, int numComponents)
     {
-        int numFeatures = originalCovarianceMatrix.size();
-        vector<vector<double>> eigenvectors(numFeatures, vector<double>(numFeatures, 0.0));
-        vector<double> eigenvalues(numFeatures, 0.0);
+        /*
+        This function computes the top eigenvectors of the covariance matrix using the power iteration method.
+        These eigenvectors form the principal components of our data.
 
-        // Make a mutable copy of the covariance matrix
-        // We'll modify this copy during the deflation process
-        vector<vector<double>> covarianceMatrix = originalCovarianceMatrix;
+        The power iteration method works as follows:
+        1. Start with a random vector v
+        2. Repeatedly compute v' = Av and normalize v'
+        3. v will converge to the eigenvector corresponding to the largest eigenvalue
 
-        for (int k = 0; k < numFeatures; ++k)
+        We then use deflation to find subsequent eigenvectors:
+        After finding an eigenvector v with eigenvalue λ, we update A as:
+        A = A - λvv^T
+
+        This process is repeated to find the top K eigenvectors.
+        */
+        int numFeatures = originalCov.size();
+        vector<vector<double>> eigenvectors(numComponents, vector<double>(numFeatures));
+        
+        // Create a mutable copy of the covariance matrix
+        vector<vector<double>> cov = originalCov;
+
+        for (int k = 0; k < numComponents; ++k)
         {
-            // Initialize a random vector for power iteration
-            // The choice of initial vector can affect convergence speed, but any non-zero vector will work
             vector<double> eigenvector(numFeatures, 1.0);
-            
-            // Power Iteration method to find eigenvector
-            // This method is simple but can be slow for finding all eigenvectors
-            // More advanced methods like QR decomposition are faster for a complete eigendecomposition
-            for (int iteration = 0; iteration < 1000; ++iteration)
+            for (int iter = 0; iter < 100; ++iter)
             {
                 vector<double> newEigenvector(numFeatures, 0.0);
-                
-                // Matrix-vector multiplication: Av
-                // This operation "stretches" the vector along the direction of the dominant eigenvector
                 for (int i = 0; i < numFeatures; ++i)
                 {
                     for (int j = 0; j < numFeatures; ++j)
                     {
-                        newEigenvector[i] += covarianceMatrix[i][j] * eigenvector[j];
+                        newEigenvector[i] += cov[i][j] * eigenvector[j];
                     }
                 }
-                
-                // Normalize the resulting vector
-                // Normalization prevents numerical overflow and keeps the vector pointing in the right direction
-                double norm = 0.0;
-                for (int i = 0; i < numFeatures; ++i)
-                {
-                    norm += newEigenvector[i] * newEigenvector[i];
-                }
-                norm = sqrt(norm);  // L2 norm
+                double norm = sqrt(inner_product(newEigenvector.begin(), newEigenvector.end(), newEigenvector.begin(), 0.0));
                 for (int i = 0; i < numFeatures; ++i)
                 {
                     eigenvector[i] = newEigenvector[i] / norm;
@@ -121,154 +156,218 @@ private:
             }
             eigenvectors[k] = eigenvector;
 
-            // Compute eigenvalue using Rayleigh quotient: λ = (v^T * A * v) / (v^T * v)
-            // The Rayleigh quotient gives us the scale factor by which the eigenvector is stretched
-            // It represents the amount of variance captured by this principal component
+            // Compute the eigenvalue (Rayleigh quotient)
             double eigenvalue = 0.0;
             for (int i = 0; i < numFeatures; ++i)
             {
                 for (int j = 0; j < numFeatures; ++j)
                 {
-                    eigenvalue += eigenvector[i] * covarianceMatrix[i][j] * eigenvector[j];
+                    eigenvalue += eigenvector[i] * cov[i][j] * eigenvector[j];
                 }
             }
-            eigenvalues[k] = eigenvalue;
 
-            // Deflate the matrix: A = A - λvv^T
-            // Deflation removes the contribution of the found eigenvector from the matrix
-            // This allows us to find the next eigenvector in the next iteration
-            // Note: Accumulation of numerical errors can make later eigenvectors less accurate
+            // Deflate the covariance matrix
             for (int i = 0; i < numFeatures; ++i)
             {
                 for (int j = 0; j < numFeatures; ++j)
                 {
-                    covarianceMatrix[i][j] -= eigenvalue * eigenvector[i] * eigenvector[j];
+                    cov[i][j] -= eigenvalue * eigenvector[i] * eigenvector[j];
+                }
+            }
+        }
+        return eigenvectors;
+    }
+
+public:
+    BlockwisePCA(int blockSize, int numComponents, int frameHeight, int frameWidth)
+        : blockSize(blockSize), numComponents(numComponents)
+    {
+        numBlocksX = frameWidth / blockSize;
+        numBlocksY = frameHeight / blockSize;
+        principalComponentsPerBlock.resize(numBlocksX * numBlocksY);
+        meanVectorsPerBlock.resize(numBlocksX * numBlocksY);
+    }
+
+    void fitFrames(const vector<vector<vector<double>>> &frames)
+    {
+        /*
+        This method trains our BlockwisePCA model on a set of frames.
+        It's based on the idea that similar spatial locations across frames
+        will have similar statistical properties.
+
+        For each block location (bx, by):
+        1. We collect data from the same block across all frames.
+        2. We compute the mean and center the data.
+        3. We compute the covariance matrix.
+        4. We find the principal components (top eigenvectors of the covariance matrix).
+
+        This approach allows us to capture the most important patterns
+        for each spatial location in our frames.
+
+        Foreach block, we find the eigenvectors of the covariance matrix:
+        C = (1/M) Σ(xᵢ · xᵢᵀ) for i = 1 to M, where M is the number of frames
+        and xᵢ are the flattened blocks from each frame.
+        */
+        for (int by = 0; by < numBlocksY; ++by)
+        {
+            for (int bx = 0; bx < numBlocksX; ++bx)
+            {
+                vector<vector<double>> blockDataAcrossFrames;
+                for (const auto &frame : frames)
+                {
+                    auto block = extractBlock(frame, bx * blockSize, by * blockSize);
+                    blockDataAcrossFrames.push_back(flattenBlock(block));
+                }
+
+                int blockIndex = by * numBlocksX + bx;
+
+                // Compute mean for this block
+                meanVectorsPerBlock[blockIndex] = computeMean(blockDataAcrossFrames);
+
+                // Center the data
+                for (auto &blockData : blockDataAcrossFrames)
+                {
+                    for (int j = 0; j < blockData.size(); ++j)
+                    {
+                        blockData[j] -= meanVectorsPerBlock[blockIndex][j];
+                    }
+                }
+
+                // Compute covariance matrix
+                auto covMatrix = computeCovarianceMatrix(blockDataAcrossFrames);
+
+                // Compute principal components
+                principalComponentsPerBlock[blockIndex] = computeEigenvectors(covMatrix, numComponents);
+            }
+        }
+    }
+
+    vector<vector<double>> transformFrame(const vector<vector<double>> &frame)
+    {
+        /*
+        This method applies our trained BlockwisePCA model to a new frame.
+        For each block:
+        1. We extract and flatten the block.
+        2. We center the block by subtracting the mean.
+        3. We project it onto the principal components learned for that block location.
+        4. We reconstruct the block, effectively reducing its information content.
+        5. We add back the mean to restore the original scale.
+
+        The transformation for each block can be expressed as:
+        y = Wᵀ · (x - μ)
+        where W is the matrix of top K eigenvectors, x is our flattened block,
+        and μ is the mean of the training data for this block.
+
+        The reconstruction then is:
+        x' = W · y + μ
+
+        By keeping only K components, we're approximating x with x', reducing information.
+        This process maintains the original frame size while reducing the effective
+        dimensionality of each block.
+        */
+        vector<vector<double>> transformedFrame = frame; // Start with a copy of the original frame
+
+        for (int by = 0; by < numBlocksY; ++by)
+        {
+            for (int bx = 0; bx < numBlocksX; ++bx)
+            {
+                auto block = extractBlock(frame, bx * blockSize, by * blockSize);
+                auto flatBlock = flattenBlock(block);
+
+                int blockIndex = by * numBlocksX + bx;
+
+                // Center the block
+                for (int j = 0; j < flatBlock.size(); ++j)
+                {
+                    flatBlock[j] -= meanVectorsPerBlock[blockIndex][j];
+                }
+
+                // Project onto principal components
+                vector<double> transformedBlock(numComponents, 0.0);
+                for (int i = 0; i < numComponents; ++i)
+                {
+                    for (int j = 0; j < flatBlock.size(); ++j)
+                    {
+                        transformedBlock[i] += flatBlock[j] * principalComponentsPerBlock[blockIndex][i][j];
+                    }
+                }
+
+                // Reconstruct the block
+                vector<double> reconstructedBlock(blockSize * blockSize, 0.0);
+                for (int i = 0; i < numComponents; ++i)
+                {
+                    for (int j = 0; j < flatBlock.size(); ++j)
+                    {
+                        reconstructedBlock[j] += transformedBlock[i] * principalComponentsPerBlock[blockIndex][i][j];
+                    }
+                }
+
+                // Add back the mean and reshape
+                for (int i = 0; i < blockSize; ++i)
+                {
+                    for (int j = 0; j < blockSize; ++j)
+                    {
+                        int index = i * blockSize + j;
+                        transformedFrame[by * blockSize + i][bx * blockSize + j] =
+                            reconstructedBlock[index] + meanVectorsPerBlock[blockIndex][index];
+                    }
                 }
             }
         }
 
-        return {eigenvalues, eigenvectors};
-    }
-
-    void sortEigenvectors(vector<double>& eigenvalues, vector<vector<double>>& eigenvectors)
-    {
-        // Pair eigenvalues with their corresponding eigenvectors
-        // This allows us to sort both simultaneously
-        vector<pair<double, vector<double>>> eigenPairs;
-        for (int i = 0; i < eigenvalues.size(); ++i)
-        {
-            eigenPairs.emplace_back(eigenvalues[i], eigenvectors[i]);
-        }
-
-        // Sort pairs in descending order of eigenvalues
-        // This gives us the principal components in order of importance (amount of variance explained)
-        sort(eigenPairs.begin(), eigenPairs.end(), 
-             [](const auto& a, const auto& b) { return a.first > b.first; });
-
-        // Separate sorted eigenvalues and eigenvectors
-        for (int i = 0; i < eigenPairs.size(); ++i)
-        {
-            eigenvalues[i] = eigenPairs[i].first;
-            eigenvectors[i] = eigenPairs[i].second;
-        }
-    }
-
-    vector<vector<double>> selectTopComponents(const vector<vector<double>>& eigenvectors)
-    {
-        // Select the first 'numComponents' eigenvectors
-        // These top components capture the most significant patterns in the data
-        // The number of components to keep is a trade-off between dimensionality reduction and information retention
-        vector<vector<double>> topComponents(numComponents, vector<double>(eigenvectors[0].size()));
-        for (int i = 0; i < numComponents; ++i)
-        {
-            topComponents[i] = eigenvectors[i];
-        }
-        return topComponents;
-    }
-
-public:
-    PCA(int components) : numComponents(components) {}
-
-    void performPCA(const vector<vector<double>>& inputData)
-    {
-        if (inputData.empty() || inputData[0].empty())
-        {
-            throw invalid_argument("Input data is empty");
-        }
-
-        // Step 1: Center the data
-        // Centering is crucial for PCA to work correctly
-        vector<vector<double>> centeredData = centerData(inputData);
-        
-        // Step 2: Compute the covariance matrix
-        // The covariance matrix captures the linear relationships between all pairs of features
-        vector<vector<double>> covarianceMatrix = computeCovarianceMatrix(centeredData);
-        
-        // Step 3: Compute eigenvectors and eigenvalues
-        // Eigenvectors are the principal components, eigenvalues indicate their importance
-        auto [eigenvalues, eigenvectors] = computeEigenvectors(covarianceMatrix);
-        
-        // Step 4: Sort eigenvectors by descending eigenvalues
-        // This ensures we keep the most important components
-        sortEigenvectors(eigenvalues, eigenvectors);
-        
-        // Step 5: Select the top components
-        // These components form a new basis for our reduced-dimensional space
-        principalComponents = selectTopComponents(eigenvectors);
-    }
-
-    vector<double> projectData(const vector<double>& dataPoint)
-    {
-        if (dataPoint.size() != principalComponents[0].size())
-        {
-            throw invalid_argument("Data point dimension does not match PCA dimensions");
-        }
-
-        vector<double> projectedPoint(numComponents, 0.0);
-        // Project data point onto each principal component
-        // This transforms the data point from the original space to the PCA space
-        // The resulting coordinates represent the data point's position along each principal component
-        for (int i = 0; i < numComponents; ++i)
-        {
-            for (int j = 0; j < dataPoint.size(); ++j)
-            {
-                projectedPoint[i] += dataPoint[j] * principalComponents[i][j];  // Dot product
-            }
-        }
-        return projectedPoint;
-    }
-
-    int getNumComponents() const
-    {
-        return numComponents;
-    }
-
-    const vector<vector<double>>& getPrincipalComponents() const
-    {
-        return principalComponents;
+        return transformedFrame;
     }
 };
 
 int main()
 {
-    // Example usage of the PCA class
-    vector<vector<double>> data = {{1.0, 2.0, 3.0},
-                                   {4.0, 5.0, 6.0},
-                                   {7.0, 8.0, 9.0}};
-    
-    PCA pca(2);
-    
-    pca.performPCA(data);
-    
-    vector<double> newDataPoint = {2.0, 3.0, 4.0};
-    vector<double> projectedPoint = pca.projectData(newDataPoint);
+    const int frameHeight = 144;
+    const int frameWidth = 160;
+    const int blockSize = 16;
+    const int numComponents = 5;
+    const int numFrames = 100;
 
-    cout << "Projected point: ";
-    for (double val : projectedPoint)
+    BlockwisePCA bpca(blockSize, numComponents, frameHeight, frameWidth);
+
+    // Set up random number generation
+    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine generator(seed);
+    std::uniform_int_distribution<int> distribution(0, 255);
+
+    // Generate random frame data for demonstration
+    std::vector<std::vector<std::vector<double>>> frames;
+    for (int f = 0; f < numFrames; ++f)
     {
-        cout << val << " ";
+        std::vector<std::vector<double>> frame(frameHeight, std::vector<double>(frameWidth));
+        for (int i = 0; i < frameHeight; ++i)
+        {
+            for (int j = 0; j < frameWidth; ++j)
+            {
+                frame[i][j] = static_cast<double>(distribution(generator));
+            }
+        }
+        frames.push_back(frame);
     }
-    cout << endl;
+
+    std::cout << "Fitting BlockwisePCA model..." << std::endl;
+    bpca.fitFrames(frames);
+
+    std::cout << "Transforming a new frame..." << std::endl;
+    std::vector<std::vector<double>> newFrame(frameHeight, std::vector<double>(frameWidth));
+    for (int i = 0; i < frameHeight; ++i)
+    {
+        for (int j = 0; j < frameWidth; ++j)
+        {
+            newFrame[i][j] = static_cast<double>(distribution(generator));
+        }
+    }
+
+    auto transformedFrame = bpca.transformFrame(newFrame);
+
+    std::cout << "Original frame size: " << frameHeight << "x" << frameWidth << std::endl;
+    std::cout << "Transformed frame size: " << transformedFrame.size() << "x" << transformedFrame[0].size() << std::endl;
+    std::cout << "Number of blocks: " << (frameHeight / blockSize) * (frameWidth / blockSize) << std::endl;
+    std::cout << "Components retained per block: " << numComponents << std::endl;
 
     return 0;
 }

@@ -35,9 +35,9 @@ if __name__ == "__main__":
     config = \
     {
         'debug'         : False,
-        'num_episodes'  : 1,
+        'num_episodes'  : 2,
         'rom_path'      : "PokemonBlue.gb",
-        'start_episode' : 12
+        'start_episode' : 9
     }
     
     orchestrator = Orchestrator(config)
