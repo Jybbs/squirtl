@@ -53,7 +53,7 @@ class Settings:
         self.video_directory       = self.base_directory / "videos"
 
     def setup_reward_settings(self):
-        self.BACKTRACK_PENALTY   = -10   # Constant penalty for backtracking
+        self.BACKTRACK_PENALTY   = -10   # Moderate penalty for backtracking
         self.COMPLETION_BONUS    = 10000 # Outsized reward for reaching the final event
         self.INEFFECTIVE_PENALTY = -1    # Small penalty for actions that don't change the state
         self.INTRO_BONUS         = 1000  # Large reward for completing the naming process in the intro
