@@ -25,18 +25,19 @@ class Orchestrator:
                 self.emulator, 
                 self.logging, 
                 self.reward, 
-                self.settings
+                self.settings,
             )
 
     def train(self):
-        self.gym.train(self.config['num_episodes'])
+        self.gym.train(self.config['num_episodes'], self.config['start_episode'])
 
 if __name__ == "__main__":
     config = \
     {
-        'debug'        : False,
-        'num_episodes' : 30,
-        'rom_path'     : "PokemonBlue.gb",
+        'debug'         : False,
+        'num_episodes'  : 50,
+        'rom_path'      : "PokemonBlue.gb",
+        'start_episode' : 1
     }
     
     orchestrator = Orchestrator(config)

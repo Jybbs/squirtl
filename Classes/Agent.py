@@ -1,22 +1,43 @@
-import torch
+import numpy    as np
 import torch.nn as nn
+import torch
 
-from collections     import deque
-from DQN             import DQN
-from Gymnasium       import Experience
-from random          import randint, random, sample
-from torch.optim     import Adam, lr_scheduler
+from collections import deque
+from DQN         import DQN
+from Gymnasium   import Experience
+from random      import randint, random
+from torch.optim import Adam, lr_scheduler
 
 class Memory:
     def __init__(self, capacity):
         self.capacity    = capacity
-        self.experiences = deque(maxlen = capacity)
+        self.experiences = deque(maxlen=capacity)
+        self.priorities  = np.ones(capacity, dtype=np.float32)
+        self.position    = 0
 
     def sample_batch(self, batch_size):
-        return sample(self.experiences, min(batch_size, len(self.experiences)))
+        if len(self.experiences) < batch_size:
+            return list(self.experiences), np.arange(len(self.experiences))
 
-    def store(self, experience):
-        self.experiences.append(experience)
+        probabilities = self.priorities[:len(self.experiences)] / np.sum(self.priorities[:len(self.experiences)])
+        indices = np.random.choice(len(self.experiences), batch_size, p = probabilities, replace = False)
+        samples = [self.experiences[idx] for idx in indices]
+        return samples, indices
+
+    def store(self, experience, priority=None):
+        if len(self.experiences) < self.capacity:
+            self.experiences.append(experience)
+        else:
+            self.experiences[self.position] = experience
+        
+        if priority is None:
+            priority = np.max(self.priorities) if len(self.experiences) > 0 else 1.0
+        
+        self.priorities[self.position] = priority
+        self.position = (self.position + 1) % self.capacity
+
+    def update_priority(self, indices, priorities):
+        self.priorities[indices] = priorities + 1e-5  # Add small constant to avoid zero probability
 
 class Agent(nn.Module):
     def __init__(self, settings):
@@ -58,8 +79,16 @@ class Agent(nn.Module):
         if len(self.replay_memory.experiences) < self.batch_size:
             return 0, 0
 
-        batch       = Experience.batch_to_tensor(self.replay_memory.sample_batch(self.batch_size), self.device)
+        # Sample a batch of experiences with priorities
+        batch_experiences, batch_indices = self.replay_memory.sample_batch(self.batch_size)
+        batch = Experience.batch_to_tensor(batch_experiences, self.device)
+
         q_mean, loss = self.compute_loss(batch)
+        
+        # Update priorities based on loss
+        priorities = loss.detach().abs().cpu().numpy()
+        self.replay_memory.update_priority(batch_indices, priorities)
+        
         self.update_networks(loss)
         
         return loss.item(), q_mean.item()
@@ -67,7 +96,7 @@ class Agent(nn.Module):
     def load_checkpoint(self, path):
         checkpoint = torch.load(path, map_location = self.device)
 
-        self.actions_taken             = checkpoint['actions_taken']
+        self.actions_taken = checkpoint['actions_taken']
         self.main_network.load_state_dict(checkpoint['main_network'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
         self.scheduler.load_state_dict(checkpoint['lr_scheduler'])
@@ -97,7 +126,8 @@ class Agent(nn.Module):
 
     def store_experience(self, experience):
         self.actions_taken += 1
-        self.replay_memory.store(experience)
+        initial_priority = abs(experience.reward) + 1e-5 # Use absolute reward as initial priority
+        self.replay_memory.store(experience, initial_priority)
 
     def update_exploration_rate(self):
         self.settings.exploration_rate = max(

@@ -1,8 +1,9 @@
 from contextlib  import contextmanager
-from dataclasses import astuple, dataclass
+from dataclasses import dataclass
+from gc          import collect
 from Logging     import Metrics
 from time        import time
-from torch       import BoolTensor, FloatTensor, LongTensor, stack
+from torch       import backends, BoolTensor, FloatTensor, LongTensor, mps, stack
 
 @contextmanager
 def timer():
@@ -11,6 +12,7 @@ def timer():
 
 @dataclass
 class Experience:
+    id         : int
     action     : int
     done       : bool
     next_state : FloatTensor
@@ -18,18 +20,19 @@ class Experience:
     state      : FloatTensor
 
     def __iter__(self):
-        return iter(astuple(self))
+        return iter((self.id, self.action, self.done, self.next_state, self.reward, self.state))
 
     @staticmethod
     def batch_to_tensor(experiences, device):
         batch = list(zip(*experiences))
         return Experience \
         (
-            action     = LongTensor(batch[0]).to(device),
-            done       = BoolTensor(batch[1]).to(device),
-            next_state = stack(batch[2]).to(device),
-            reward     = FloatTensor(batch[3]).to(device),
-            state      = stack(batch[4]).to(device)
+            id         = batch[0],
+            action     = LongTensor(batch[1]).to(device),
+            done       = BoolTensor(batch[2]).to(device),
+            next_state = stack(batch[3]).to(device),
+            reward     = FloatTensor(batch[4]).to(device),
+            state      = stack(batch[5]).to(device)
         )
 
 class Gymnasium:
@@ -47,10 +50,10 @@ class Gymnasium:
 
     def handle_action(self, get_elapsed_time):
         if self.action == 'wait':
-            action_type    = 'wait'
-            done           = False
-            is_effective   = False
-            reward         = 0
+            action_type     = 'wait'
+            done            = False
+            is_effective    = False
+            reward          = 0
             self.next_frame = self.emulator.advance_frame()
         else:
             is_effective, self.next_frame = self.emulator.press_button(self.action)
@@ -66,6 +69,11 @@ class Gymnasium:
             reward           = reward
         )
         self.current_frame = self.next_frame
+
+    def manage_memory(self):
+        collect()
+        if backends.mps.is_available():
+            mps.empty_cache()
 
     def reset_episode_state(self):
         self.action        = None
@@ -96,6 +104,7 @@ class Gymnasium:
         self.agent.store_experience(
             Experience \
             (
+                id         = int(time()),
                 action     = self.action_index,
                 done       = done,
                 next_state = FloatTensor(self.next_frame).to(self.device),
@@ -121,10 +130,18 @@ class Gymnasium:
             )
         )
 
-    def train(self, num_episodes):
-        for _ in range(num_episodes):
-            episode_metrics = self.run_episode()
-            self.agent.save_checkpoint(self.settings.checkpoints_directory / f"checkpoint_episode_{episode_metrics['episode']}.pth")
+    def train(self, num_episodes, start_episode = 1):
+        if start_episode > 1:
+            checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{start_episode - 1}.pth"
+            self.agent.load_checkpoint(checkpoint_path)
+        
+        for episode in range(start_episode, start_episode + num_episodes):
+            self.run_episode()
+            
+            self.agent.save_checkpoint(self.settings.checkpoints_directory / f"checkpoint_episode_{episode}.pth")
+            
+            if episode % 5 == 0:
+                self.manage_memory()
 
         self.emulator.close_emulator()
         self.logging.save_data()
