@@ -50,18 +50,17 @@ class Gymnasium:
 
     def handle_action(self, get_elapsed_time):
         if self.action == 'wait':
-            action_type     = 'wait'
-            done            = False
             is_effective    = False
-            reward          = 0
             self.next_frame = self.emulator.advance_frame()
         else:
             is_effective, self.next_frame = self.emulator.press_button(self.action)
-            reward, done, action_type = self.reward.evaluate_action(self.current_frame, self.next_frame, is_effective)
-            self.episode_done  = done
-            self.total_reward += reward
 
-        self.store_and_learn(
+        reward, done, action_type = self.reward.evaluate_action(self.current_frame, self.next_frame, is_effective, self.action)
+        self.episode_done  = done
+        self.total_reward += reward
+
+        self.store_and_learn \
+        (
             action_type      = action_type,
             done             = done,
             get_elapsed_time = get_elapsed_time,

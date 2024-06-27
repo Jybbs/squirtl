@@ -1,11 +1,12 @@
 class Reward:
     def __init__(self, emulator, frames, settings):
-        self.action_count     = 0
-        self.cumulative_score = 0
-        self.emulator         = emulator
-        self.frames           = frames
-        self.intro_completed  = False
-        self.settings         = settings
+        self.action_count      = 0
+        self.consecutive_waits = 0
+        self.cumulative_score  = 0
+        self.emulator          = emulator
+        self.frames            = frames
+        self.intro_completed   = False
+        self.settings          = settings
 
     def calculate_action_reward(self, current_frame, next_frame, is_effective):
         if not is_effective:
@@ -24,7 +25,7 @@ class Reward:
         speed_bonus = max(0, self.settings.MAX_ACTIONS - self.action_count)
         return self.settings.COMPLETION_BONUS + speed_bonus
 
-    def evaluate_action(self, current_frame, next_frame, is_effective):
+    def evaluate_action(self, current_frame, next_frame, is_effective, action):
         self.action_count += 1
 
         if self.is_game_completed():
@@ -33,7 +34,17 @@ class Reward:
         if not self.intro_completed and self.is_intro_completed():
             return self.process_intro_completion()
 
-        return self.calculate_action_reward(current_frame, next_frame, is_effective)
+        reward, done, action_type = self.calculate_action_reward(current_frame, next_frame, is_effective)
+
+        if action == 'wait':
+            self.consecutive_waits += 1
+            wait_penalty = self.settings.WAIT_PENALTY * self.consecutive_waits
+            reward      += wait_penalty
+            action_type  = 'wait'
+        else:
+            self.consecutive_waits = 0
+
+        return reward, done, action_type
 
     def get_episode_score(self):
         return self.cumulative_score
