@@ -123,7 +123,7 @@ class Gymnasium:
     def train(self, num_episodes, start_episode = 1):
         print(f"\n{'='*50}")
         print(f"Starting training from episode {start_episode}")
-        print(f"{'='*50}\n")
+        print(f"{'='*50}")
 
         if start_episode > 1:
             checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{start_episode - 1}.pth"
@@ -136,6 +136,6 @@ class Gymnasium:
 
         print(f"\n{'='*50}")
         print(f"Training completed. Total episodes: {start_episode + num_episodes - 1}")
-        print(f"{'='*50}\n")
+        print(f"{'='*50}")
 
         self.emulator.close_emulator()
