@@ -37,7 +37,9 @@ class Memory:
         self.position = (self.position + 1) % self.capacity
 
     def update_priority(self, indices, priorities):
-        self.priorities[indices] = priorities + 1e-5  # Add small constant to avoid zero probability
+        scaled_priorities = priorities + 1e-5
+        self.priorities[indices] = scaled_priorities / np.max(scaled_priorities)
+
 
 class Agent(nn.Module):
     def __init__(self, settings):

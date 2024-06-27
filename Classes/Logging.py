@@ -1,11 +1,12 @@
+import json
 import matplotlib.pyplot as plt
 import numpy as np
 
 from collections import Counter, defaultdict
 from cv2         import COLOR_RGB2BGR, cvtColor, VideoWriter, VideoWriter_fourcc
 from dataclasses import dataclass, asdict
-from json        import dump
 from pandas      import DataFrame
+from pathlib     import Path
 from seaborn     import regplot, scatterplot
 from time        import time
 
@@ -52,25 +53,36 @@ class Logging:
             "wait_actions"         : action_type_counts["wait"],
         }
 
+    def load_all_episode_metrics(self):
+        all_metrics = []
+        for episode in range(1, self.current_episode + 1):
+            metrics_path = self.settings.metrics_directory / f"episode_{episode}_metrics.json"
+            if metrics_path.exists():
+                with open(metrics_path, 'r') as file:
+                    all_metrics.append(json.load(file))
+        return all_metrics
+
     def log_action(self, metrics):
         self.action_metrics[self.current_episode].append(metrics)
         if self.debug:
             self.print_debug(self.current_episode, metrics)
 
     def log_episode(self):
+        metrics = self.calculate_episode_metrics(self.current_episode)
+        self.save_episode_data(self.current_episode, metrics)
         self.save_episode_video(self.current_episode)
         self.print_episode_summary(self.current_episode)
-        metrics = self.calculate_episode_metrics(self.current_episode)
+        self.plot_metrics()
         self.current_episode += 1
         return metrics
 
     def plot_metrics(self):
         self.setup_plot_params()
-        episode_summaries = [self.calculate_episode_metrics(episode) for episode in sorted(self.action_metrics.keys())]
+        episode_summaries = self.load_all_episode_metrics()
         df = DataFrame(episode_summaries)
         
         metrics = ["total_actions", "total_reward", "average_loss", "average_q_value",
-                "effective_actions", "new_actions", "backtracking_actions", "wait_actions", "elapsed_time"]
+                   "effective_actions", "new_actions", "backtracking_actions", "wait_actions", "elapsed_time"]
         
         fig, axes = plt.subplots(3, 3, figsize = (15, 10), sharex = True)
         colors = plt.cm.viridis(np.linspace(0.1, 1, len(metrics)))
@@ -88,7 +100,7 @@ class Logging:
                 ax.axhline(y = 0, color = 'white', linestyle = '--', linewidth = 1, alpha = 0.5)
         
         plt.tight_layout()
-        plt.savefig(self.settings.metrics_directory / "metrics_plot.png")
+        plt.savefig(self.settings.metrics_directory / f"plot_episode_{self.current_episode}.png")
         plt.close(fig)
 
     def print_debug(self, episode, m):
@@ -109,9 +121,14 @@ class Logging:
               f"Wait: {s['wait_actions']:4d}")
         print("-" * 100)
 
-    def save_data(self):
-        self.plot_metrics()
-        self.save_metrics()
+    def save_episode_data(self, episode, metrics):
+        metrics_path = self.settings.metrics_directory / f"episode_{episode}_metrics.json"
+        with open(metrics_path, 'w') as file:
+            json.dump(metrics, file, indent = 4)
+
+        actions_path = self.settings.metrics_directory / f"episode_{episode}_actions.json"
+        with open(actions_path, 'w') as file:
+            json.dump([m.to_dict() for m in self.action_metrics[episode]], file, indent = 4)
 
     def save_episode_video(self, episode):
         episode_frames = self.frames.episode_frames
@@ -127,14 +144,6 @@ class Logging:
             video_writer.write(cvtColor(frame, COLOR_RGB2BGR))
 
         video_writer.release()
-
-    def save_metrics(self):
-        with open(self.settings.metrics_directory / "action_metrics.json", "w") as file:
-            dump({episode: [m.to_dict() for m in metrics] for episode, metrics in self.action_metrics.items()}, file, indent = 4)
-
-        episode_summaries = {episode: self.calculate_episode_metrics(episode) for episode in self.action_metrics.keys()}
-        with open(self.settings.metrics_directory / "episode_summaries.json", "w") as file:
-            dump(episode_summaries, file, indent = 4)
 
     def setup_plot_params(self):
         plt.rcParams.update({# Axes parameters                            # Tick parameters

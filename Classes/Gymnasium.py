@@ -1,9 +1,8 @@
 from contextlib  import contextmanager
 from dataclasses import dataclass
-from gc          import collect
 from Logging     import Metrics
 from time        import time
-from torch       import backends, BoolTensor, FloatTensor, LongTensor, mps, stack
+from torch       import BoolTensor, FloatTensor, LongTensor, stack
 
 @contextmanager
 def timer():
@@ -69,11 +68,6 @@ class Gymnasium:
         )
         self.current_frame = self.next_frame
 
-    def manage_memory(self):
-        collect()
-        if backends.mps.is_available():
-            mps.empty_cache()
-
     def reset_episode_state(self):
         self.action        = None
         self.action_index  = None
@@ -136,11 +130,6 @@ class Gymnasium:
         
         for episode in range(start_episode, start_episode + num_episodes):
             self.run_episode()
-            
             self.agent.save_checkpoint(self.settings.checkpoints_directory / f"checkpoint_episode_{episode}.pth")
-            
-            if episode % 5 == 0:
-                self.manage_memory()
 
         self.emulator.close_emulator()
-        self.logging.save_data()

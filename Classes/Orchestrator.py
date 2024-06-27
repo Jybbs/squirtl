@@ -35,7 +35,7 @@ if __name__ == "__main__":
     config = \
     {
         'debug'         : False,
-        'num_episodes'  : 50,
+        'num_episodes'  : 10,
         'rom_path'      : "PokemonBlue.gb",
         'start_episode' : 1
     }
