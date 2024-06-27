@@ -16,17 +16,17 @@ class Orchestrator:
         self.frames   = Frames(self.settings)
         self.emulator = Emulator(self.config['debug'], self.frames, self.config['rom_path'])
         self.agent    = Agent(self.settings)
-        self.logging  = Logging(self.config['debug'], self.frames, self.settings)
+        self.logging  = Logging(self.config['debug'], self.frames, self.settings, self.config['start_episode'])
         self.reward   = Reward(self.emulator, self.frames, self.settings)
 
         self.gym = Gymnasium \
-            (
-                self.agent, 
-                self.emulator, 
-                self.logging, 
-                self.reward, 
-                self.settings,
-            )
+        (
+            self.agent, 
+            self.emulator, 
+            self.logging, 
+            self.reward, 
+            self.settings,
+        )
 
     def train(self):
         self.gym.train(self.config['num_episodes'], self.config['start_episode'])

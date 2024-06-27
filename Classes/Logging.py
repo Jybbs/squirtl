@@ -26,9 +26,9 @@ class Metrics:
         return asdict(self)
 
 class Logging:
-    def __init__(self, debug, frames, settings):
+    def __init__(self, debug, frames, settings, start_episode):
         self.action_metrics  = defaultdict(list)
-        self.current_episode = 1
+        self.current_episode = start_episode
         self.debug           = debug
         self.frames          = frames
         self.settings        = settings
