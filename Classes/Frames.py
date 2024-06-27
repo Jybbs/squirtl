@@ -2,15 +2,25 @@ from collections import deque
 from numpy       import array, bincount, all, any, sum
 
 class Frames:
-    def __init__(self, settings):
-        self.episode_frames  = []
-        self.explored_frames = []
-        self.recent_frames   = deque(maxlen = settings.recent_frames_pool)
-        self.settings        = settings
+    def __init__(self, settings, bpca = None):
+        self.bpca             = bpca
+        self.bpca_fitted      = False
+        self.episode_frames   = []
+        self.explored_frames  = []
+        self.optimized_frames = []
+        self.recent_frames    = deque(maxlen = settings.recent_frames_pool)
+        self.settings         = settings
 
     def add(self, frame):
         self.episode_frames.append(frame)
         self.recent_frames.append(frame)
+
+        if self.bpca:
+            if not self.bpca_fitted:
+                self.bpca.fit_frames([frame[:,:,:3].tolist()])  # Use only the first 3 channels (RGB)
+                self.bpca_fitted = True
+            optimized_frame = self.bpca.transform_frame(frame[:,:,:3].tolist())
+            self.optimized_frames.append(array(optimized_frame))
 
     def add_explored(self, frame):
         self.explored_frames.append(frame)

@@ -51,6 +51,20 @@ class Logging:
             "total_reward"         : episode_metrics[-1].total_reward,
             "wait_actions"         : action_type_counts["wait"],
         }
+    
+    def get_frames_for_video(self, frames, filename):
+        if not frames:
+            return
+        
+        fourcc       = VideoWriter_fourcc(*'mp4v')
+        frame_shape  = frames[0].shape[:2][::-1]
+        video_path   = self.settings.video_directory / filename
+        video_writer = VideoWriter(str(video_path), fourcc, 60, frame_shape)
+
+        for frame in frames:
+            video_writer.write(cvtColor(frame, COLOR_RGB2BGR))
+
+        video_writer.release()
 
     def load_all_episode_metrics(self):
         all_metrics = []
@@ -69,7 +83,7 @@ class Logging:
     def log_episode(self):
         metrics = self.calculate_episode_metrics(self.current_episode)
         self.save_episode_data(self.current_episode, metrics)
-        self.save_episode_video(self.current_episode)
+        self.save_episode_videos(self.current_episode)
         self.print_episode_summary(self.current_episode)
         self.plot_metrics()
         self.current_episode += 1
@@ -129,20 +143,13 @@ class Logging:
         with open(actions_path, 'w') as file:
             json.dump([m.to_dict() for m in self.action_metrics[episode]], file, indent = 4)
 
-    def save_episode_video(self, episode):
-        episode_frames = self.frames.episode_frames
-        if not episode_frames:
-            return
+    def save_episode_videos(self, episode):
+        self._save_video(self.frames.get_episode_frames(), f"episode_{episode}.mp4")
         
-        fourcc       = VideoWriter_fourcc(*'mp4v')
-        frame_shape  = episode_frames[0].shape[:2][::-1]
-        video_path   = self.settings.video_directory / f"episode_{episode}.mp4"
-        video_writer = VideoWriter(str(video_path), fourcc, 60, frame_shape)
-
-        for frame in episode_frames:
-            video_writer.write(cvtColor(frame, COLOR_RGB2BGR))
-
-        video_writer.release()
+        # Save optimized video only if BPCA is enabled
+        optimized_frames = self.frames.get_optimized_frames()
+        if optimized_frames:
+            self._save_video(optimized_frames, f"episode_{episode}_optimized.mp4")
 
     def setup_plot_params(self):
         plt.rcParams.update({# Axes parameters                            # Tick parameters

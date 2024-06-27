@@ -7,6 +7,7 @@ class Settings:
         self.create_directories()
         self.setup_action_space()
         self.setup_addresses()
+        self.setup_bpca_settings()
         self.setup_device()
         self.setup_frame_settings()
         self.setup_hyperparameters()
@@ -25,6 +26,10 @@ class Settings:
     def setup_addresses(self):
         self.GOT_STARTER    = (0xD74B, 2)
         self.INTRO_COMPLETE = 0xC20D
+
+    def setup_bpca_settings(self):
+        self.bpca_block_size     = 16
+        self.bpca_num_components = 10
 
     def setup_device(self):
         self.device = device("mps" if backends.mps.is_available() else "cpu")
