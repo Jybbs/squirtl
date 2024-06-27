@@ -225,9 +225,9 @@ public:
                 meanVectorsPerBlock[blockIndex] = computeMean(blockDataAcrossFrames);
 
                 // Center the data
-                for (auto &blockData : blockDataAcrossFrames)
+                for (auto& blockData : blockDataAcrossFrames)
                 {
-                    for (int j = 0; j < blockData.size(); ++j)
+                    for (size_t j = 0; j < blockData.size(); ++j)
                     {
                         blockData[j] -= meanVectorsPerBlock[blockIndex][j];
                     }
@@ -277,7 +277,7 @@ public:
                 int blockIndex = by * numBlocksX + bx;
 
                 // Center the block
-                for (int j = 0; j < flatBlock.size(); ++j)
+                for (size_t j = 0; j < flatBlock.size(); ++j)
                 {
                     flatBlock[j] -= meanVectorsPerBlock[blockIndex][j];
                 }
@@ -286,7 +286,7 @@ public:
                 vector<double> transformedBlock(numComponents, 0.0);
                 for (int i = 0; i < numComponents; ++i)
                 {
-                    for (int j = 0; j < flatBlock.size(); ++j)
+                    for (size_t j = 0; j < flatBlock.size(); ++j)
                     {
                         transformedBlock[i] += flatBlock[j] * principalComponentsPerBlock[blockIndex][i][j];
                     }
@@ -296,7 +296,7 @@ public:
                 vector<double> reconstructedBlock(blockSize * blockSize, 0.0);
                 for (int i = 0; i < numComponents; ++i)
                 {
-                    for (int j = 0; j < flatBlock.size(); ++j)
+                    for (size_t j = 0; j < flatBlock.size(); ++j)
                     {
                         reconstructedBlock[j] += transformedBlock[i] * principalComponentsPerBlock[blockIndex][i][j];
                     }
@@ -318,56 +318,3 @@ public:
         return transformedFrame;
     }
 };
-
-int main()
-{
-    const int frameHeight = 144;
-    const int frameWidth = 160;
-    const int blockSize = 16;
-    const int numComponents = 5;
-    const int numFrames = 100;
-
-    BlockwisePCA bpca(blockSize, numComponents, frameHeight, frameWidth);
-
-    // Set up random number generation
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::default_random_engine generator(seed);
-    std::uniform_int_distribution<int> distribution(0, 255);
-
-    // Generate random frame data for demonstration
-    std::vector<std::vector<std::vector<double>>> frames;
-    for (int f = 0; f < numFrames; ++f)
-    {
-        std::vector<std::vector<double>> frame(frameHeight, std::vector<double>(frameWidth));
-        for (int i = 0; i < frameHeight; ++i)
-        {
-            for (int j = 0; j < frameWidth; ++j)
-            {
-                frame[i][j] = static_cast<double>(distribution(generator));
-            }
-        }
-        frames.push_back(frame);
-    }
-
-    std::cout << "Fitting BlockwisePCA model..." << std::endl;
-    bpca.fitFrames(frames);
-
-    std::cout << "Transforming a new frame..." << std::endl;
-    std::vector<std::vector<double>> newFrame(frameHeight, std::vector<double>(frameWidth));
-    for (int i = 0; i < frameHeight; ++i)
-    {
-        for (int j = 0; j < frameWidth; ++j)
-        {
-            newFrame[i][j] = static_cast<double>(distribution(generator));
-        }
-    }
-
-    auto transformedFrame = bpca.transformFrame(newFrame);
-
-    std::cout << "Original frame size: " << frameHeight << "x" << frameWidth << std::endl;
-    std::cout << "Transformed frame size: " << transformedFrame.size() << "x" << transformedFrame[0].size() << std::endl;
-    std::cout << "Number of blocks: " << (frameHeight / blockSize) * (frameWidth / blockSize) << std::endl;
-    std::cout << "Components retained per block: " << numComponents << std::endl;
-
-    return 0;
-}
