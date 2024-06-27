@@ -90,7 +90,7 @@ private:
         between all dimensions in our data.
 
         For centered data, the covariance matrix C is computed as:
-        C = (1/(N-1)) * X^T * X
+        C = (1/(N-1)) * X^T *Find X
         where X is the matrix of centered data (each row is a sample, each column a feature),
         and N is the number of samples.
 

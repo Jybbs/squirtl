@@ -1,5 +1,5 @@
 import numpy as np
-from BPCA import CythonBPCA
+from BPCA.CythonBPCA import CythonBPCA
 
 # Define parameters
 frame_height = 144

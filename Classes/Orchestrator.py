@@ -1,11 +1,11 @@
-from Agent      import Agent
-from BPCA       import CythonBPCA
-from Emulator   import Emulator
-from Frames     import Frames
-from Gymnasium  import Gymnasium
-from Logging    import Logging
-from Reward     import Reward
-from Settings   import Settings
+from Agent           import Agent
+from BPCA.CythonBPCA import CythonBPCA
+from Emulator        import Emulator
+from Frames          import Frames
+from Gymnasium       import Gymnasium
+from Logging         import Logging
+from Reward          import Reward
+from Settings        import Settings
 
 class Orchestrator:
     def __init__(self, config):
@@ -46,7 +46,7 @@ class Orchestrator:
 
 if __name__ == "__main__":
     config = {
-        'bpca'          : True,
+        'bpca'          : False,
         'debug'         : False,
         'num_episodes'  : 1,
         'rom_path'      : "PokemonBlue.gb",
