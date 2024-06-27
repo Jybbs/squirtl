@@ -1,5 +1,5 @@
 from contextlib  import contextmanager
-from dataclasses import dataclass
+from dataclasses import astuple, dataclass
 from Logging     import Metrics
 from time        import time
 from torch       import BoolTensor, FloatTensor, LongTensor, stack
@@ -11,7 +11,6 @@ def timer():
 
 @dataclass
 class Experience:
-    id         : int
     action     : int
     done       : bool
     next_state : FloatTensor
@@ -19,19 +18,18 @@ class Experience:
     state      : FloatTensor
 
     def __iter__(self):
-        return iter((self.id, self.action, self.done, self.next_state, self.reward, self.state))
+        return iter(astuple(self))
 
     @staticmethod
     def batch_to_tensor(experiences, device):
         batch = list(zip(*experiences))
         return Experience \
         (
-            id         = batch[0],
-            action     = LongTensor(batch[1]).to(device),
-            done       = BoolTensor(batch[2]).to(device),
-            next_state = stack(batch[3]).to(device),
-            reward     = FloatTensor(batch[4]).to(device),
-            state      = stack(batch[5]).to(device)
+            action     = LongTensor(batch[0]).to(device),
+            done       = BoolTensor(batch[1]).to(device),
+            next_state = stack(batch[2]).to(device),
+            reward     = FloatTensor(batch[3]).to(device),
+            state      = stack(batch[4]).to(device)
         )
 
 class Gymnasium:
@@ -97,7 +95,6 @@ class Gymnasium:
         self.agent.store_experience(
             Experience \
             (
-                id         = int(time()),
                 action     = self.action_index,
                 done       = done,
                 next_state = FloatTensor(self.next_frame).to(self.device),

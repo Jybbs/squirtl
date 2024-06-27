@@ -38,7 +38,7 @@ class Settings:
     def setup_hyperparameters(self):
         self.batch_size             = 128
         self.discount_factor        = 0.99
-        self.exploration_decay      = 0.999
+        self.exploration_decay      = 0.99995
         self.exploration_min        = 0.1
         self.exploration_rate       = 1.0
         self.learning_rate          = 0.0001
