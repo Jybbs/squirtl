@@ -104,7 +104,7 @@ class Agent(nn.Module):
 
     def update_networks(self, loss):
         loss.backward()
-        nn.utils.clip_grad_value_(self.main_network.parameters(), 100)
+        nn.utils.clip_grad_norm_(self.main_network.parameters(), max_norm = 1.0)  # Clipping by norm
         self.optimizer.step()
         self.optimizer.zero_grad()
 
