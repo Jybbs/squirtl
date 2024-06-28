@@ -1,10 +1,10 @@
-from Agent           import Agent
-from Emulator        import Emulator
-from Frames          import Frames
-from Gymnasium       import Gymnasium
-from Logging         import Logging
-from Reward          import Reward
-from Settings        import Settings
+from Agent     import Agent
+from Emulator  import Emulator
+from Frames    import Frames
+from Gymnasium import Gymnasium
+from Logging   import Logging
+from Reward    import Reward
+from Settings  import Settings
 
 class Orchestrator:
     def __init__(self, config):

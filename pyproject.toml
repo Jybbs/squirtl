@@ -1,20 +1,22 @@
 [tool.poetry]
-authors     = ["James Parkington <pongs.acreage.0o@icloud.com>"]
-description = "Aims to explore and implement various algorithms within a game environment, specifically focusing on Pokémon Blue pathfinding and optimal early gameplay."
-license     = "LICENSE.md"
-name        = "squirtl"
-readme      = "README.md"
-version     = "0.1.0"
+authors      = ["James Parkington <pongs.acreage.0o@icloud.com>"]
+description  = "Aims to explore and implement various algorithms within a game environment, specifically focusing on Pokémon Blue pathfinding and optimal early gameplay."
+license      = "LICENSE.md"
+name         = "squirtl"
+package-mode = false
+readme       = "README.md"
+version      = "0.1.0"
 
 [tool.poetry.dependencies]
 python = "^3.12"
 
-matplotlib    = "^3.9.0"
-opencv-python = "^4.10.0.84"
-pyboy         = "^2.1.0"
-seaborn       = "^0.13.2"
-statsmodels   = "^0.14.2"
-torch         = "^2.3.0"
+matplotlib    = "*"
+numpy         = "1.26.4"
+opencv-python = "*"
+pyboy         = "*"
+seaborn       = "*"
+statsmodels   = "*"
+torch         = "*"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"

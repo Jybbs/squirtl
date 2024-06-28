@@ -7,7 +7,6 @@ class Settings:
         self.create_directories()
         self.setup_action_space()
         self.setup_addresses()
-        self.setup_bpca_settings()
         self.setup_device()
         self.setup_frame_settings()
         self.setup_hyperparameters()
