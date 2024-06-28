@@ -1,36 +1,39 @@
-#include <iostream>
-#include <vector>
 #include <algorithm>
+#include <chrono>
 #include <climits>
+#include <iomanip>
+#include <iostream>
+#include <random>
+#include <vector>
 
 using namespace std;
 
 #define INF INT_MAX
 
 /*
- * This function solves the Traveling Salesman Problem using Dynamic Programming and Bit Masking.
- * It calculates the minimum cost of visiting all event addresses starting from a given address
- * with a given mask of visited addresses.
- *
- * The function works as follows:
- * 1. If all addresses have been visited (base case), it returns the distance from the current
- *    address back to the starting address. This is necessary to complete the tour and return to the start.
- * 2. If the subproblem has already been solved, it returns the stored result from the memoization table.
- *    This avoids redundant calculations and improves efficiency.
- * 3. Otherwise, it iterates through all unvisited addresses, calculates the cost of visiting each,
- *    and updates the minimum cost. This explores all possible paths to find the optimal solution.
- *
- * Parameters:
- * - mask: Bitmask representing the set of visited addresses. This helps keep track of which addresses
- *   have been visited in the current state of the problem.
- * - pos: Current address position. This is required to know from where we are calculating the next step.
- * - dist: Distance matrix between addresses. This contains the distances between all pairs of addresses
- *   and is essential for calculating the cost of traveling between them.
- * - dp: Memoization table. This stores results of subproblems to avoid redundant calculations and improve efficiency.
- * - n: Total number of addresses. This is required to iterate through all addresses and manage the bitmask.
- *
- * Returns:
- * - The minimum cost of visiting all addresses and returning to the start.
+ * Traveling Salesman Problem (TSP) using Dynamic Programming
+ * 
+ * Problem Classification:
+ * - This implementation solves the symmetric Traveling Salesman Problem (TSP), which is classified as NP-hard.
+ * - It implements the Held-Karp algorithm, a dynamic programming solution to the TSP.
+ * 
+ * Held-Karp Algorithm:
+ * - An exacting algorithm that solves the TSP in O(n^2 * 2^n) time, which is significantly faster than 
+ *   the naive O(n!) approach but still exponential.
+ * 
+ * Dynamic Programming Approach:
+ * - The algorithm uses dynamic programming with bitmasks to solve subproblems and build up to the final solution.
+ * - This approach allows for memoization of intermediate results, significantly reducing redundant computations.
+ * - This implementation assumes a symmetric TSP, where the distance from point A to B is the same as from B to A.
+ * 
+ * Space Complexity:
+ * - The space complexity is O(n * 2^n) due to the memoization table used in the dynamic programming approach.
+ * 
+ * Limitations:
+ * - While this algorithm finds the optimal solution, its exponential time complexity makes it impractical 
+ *   for very large instances (typically more than 20-25 cities).
+ * - For larger instances, approximation algorithms or heuristics are often used instead.
+ * 
  */
 int tsp(int mask, int pos, const vector<vector<int>> &dist, vector<vector<int>> &dp, int n)
 {
@@ -121,48 +124,62 @@ void printResult(int result)
     cout << "The minimum cost of visiting all addresses and returning to the start is: " << result << endl;
 }
 
-int main()
-{
+int main() {
     /*
-     * Example scenario:
-     * Suppose we have 4 event addresses in the game, represented as follows:
-     * Address 0: Starting point
-     * Address 1: Event 1
-     * Address 2: Event 2
-     * Address 3: Event 3
-     *
-     * Distance matrix representation (using INF for unreachable paths):
-     *      0    1    2    3
-     * 0 [  0,  10,  15,  20 ]
-     * 1 [ 10,   0,  35,  25 ]
-     * 2 [ 15,  35,   0,  30 ]
-     * 3 [ 20,  25,  30,   0 ]
-     *
-     * This example helps to illustrate the functionality of the TSP algorithm
-     * with a concrete set of distances between addresses.
+     * Traveling Salesman Problem (TSP) Solver using Dynamic Programming
+     * 
+     * This implementation solves the symmetric Traveling Salesman Problem (TSP) using the Held-Karp algorithm.
+     * The TSP is NP-hard, meaning no known polynomial-time algorithm exists to solve it optimally for all instances.
+     * 
+     * Problem Description:
+     * - We have 10 cities, numbered from 0 to 9.
+     * - The goal is to find the shortest possible route that visits each city exactly once and returns to the starting city.
+     * - The distances between cities are randomly generated to simulate real-world variability.
+     * 
+     * Algorithm:
+     * - Uses dynamic programming with bitmasks to solve subproblems and build up to the final solution.
+     * - Time complexity: O(n^2 * 2^n), where n is the number of cities.
+     * - Space complexity: O(n * 2^n) due to the memoization table.
+     * 
+     * This approach is suitable for small to medium-sized instances (up to about 20-25 cities) where finding 
+     * the exact optimal solution is crucial. For larger instances, heuristic methods are often preferred.
      */
 
-    int n = 4; // Number of addresses
+    int n = 10; // Number of cities
 
-    // Distance matrix
-    vector<vector<int>> dist = {
-        {0, 10, 15, 20},
-        {10, 0, 35, 25},
-        {15, 35, 0, 30},
-        {20, 25, 30, 0}};
+    // Generate a random distance matrix
+    vector<vector<int>> dist(n, vector<int>(n, 0));
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_int_distribution<> distrib(10, 100); // Distances between 10 and 100 units
+
+    for (int i = 0; i < n; ++i) {
+        for (int j = i + 1; j < n; ++j) {
+            int distance = distrib(gen);
+            dist[i][j] = distance;
+            dist[j][i] = distance; // Ensure symmetry
+        }
+    }
 
     // Initialize DP table
-    vector<vector<int>> dp(1 << n, vector<int>(n));
-    initializeDPTable(dp, n);
+    vector<vector<int>> dp(1 << n, vector<int>(n, -1));
 
     // Print the distance matrix
+    cout << "Distance Matrix for 10 Cities\n" << endl;
     printDistanceMatrix(dist, n);
 
-    // Solve the TSP problem
+    // Solve the TSP problem and measure execution time
+    auto start = chrono::high_resolution_clock::now();
     int result = tsp(1, 0, dist, dp, n);
+    auto end = chrono::high_resolution_clock::now();
 
     // Print the result
+    cout << "\nTSP Solution:" << endl;
     printResult(result);
+
+    // Print execution time
+    chrono::duration<double> duration = end - start;
+    cout << "Execution time: " << fixed << setprecision(6) << duration.count() << " seconds" << endl;
 
     return 0;
 }
