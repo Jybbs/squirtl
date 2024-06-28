@@ -1,5 +1,6 @@
+import numpy as np
+
 from collections import deque
-from numpy       import array, bincount, all, any, sum
 
 class Frames:
     def __init__(self, settings, bpca = None):
@@ -11,16 +12,16 @@ class Frames:
         self.recent_frames    = deque(maxlen = settings.recent_frames_pool)
         self.settings         = settings
 
+        self.frame_count = 0
+        self.debug_frame_number = 250  # Capture debug info at this frame number
+
     def add(self, frame):
         self.episode_frames.append(frame)
         self.recent_frames.append(frame)
-
+        
         if self.bpca:
-            if not self.bpca_fitted:
-                self.bpca.fit_frames([frame[:,:,:3].tolist()])  # Use only the first 3 channels (RGB)
-                self.bpca_fitted = True
-            optimized_frame = self.bpca.transform_frame(frame[:,:,:3].tolist())
-            self.optimized_frames.append(array(optimized_frame))
+            optimized_frame = self.process_frame_with_bpca(frame)
+            self.optimized_frames.append(optimized_frame)
 
     def add_explored(self, frame):
         self.explored_frames.append(frame)
@@ -35,26 +36,38 @@ class Frames:
         if not self.recent_frames:
             return False
         start         = max(0, len(self.recent_frames) - self.settings.backtrack_window)
-        recent_window = array(list(self.recent_frames)[start:])
-        return any(all(frame == recent_window, axis = (1, 2, 3)))
+        recent_window = np.array(list(self.recent_frames)[start:])
+        return np.any(np.all(frame == recent_window, axis = (1, 2, 3)))
 
     def is_new_state(self, frame):
         if not self.explored_frames:
             return True
-        explored_array = array(self.explored_frames)
-        return not any(all(frame == explored_array, axis = (1, 2, 3)))
+        explored_array = np.array(self.explored_frames)
+        return not np.any(np.all(frame == explored_array, axis = (1, 2, 3)))
 
     def is_blank_screen(self, frame):
         flat_frame        = frame.flatten()
-        most_common_pixel = bincount(flat_frame).argmax()
+        most_common_pixel = np.bincount(flat_frame).argmax()
         return sum(flat_frame == most_common_pixel) / flat_frame.size > self.settings.blank_threshold
 
     def is_playable_state(self, frame):
         if self.is_blank_screen(frame) or not self.recent_frames:
             return False
-        recent_array = array(self.recent_frames)
-        return sum(all(frame == recent_array, axis = (1, 2, 3))) >= self.settings.playable_threshold
-
+        recent_array = np.array(self.recent_frames)
+        return sum(np.all(frame == recent_array, axis = (1, 2, 3))) >= self.settings.playable_threshold
+    
+    def process_frame_with_bpca(self, frame):
+        
+        if not self.bpca_fitted:
+            self.bpca.fit_frames([frame])
+            self.bpca_fitted = True
+        
+        optimized_frame = self.bpca.transform_frame(frame)
+        optimized_frame_np = np.array(optimized_frame)
+        optimized_frame_np = np.clip(optimized_frame_np, 0, 255).astype(np.uint8)
+        
+        return optimized_frame_np
+        
     def reset(self):
         self.episode_frames.clear()
         self.explored_frames.clear()

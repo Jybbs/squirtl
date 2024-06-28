@@ -20,8 +20,7 @@ class Orchestrator:
             (
                 self.settings.bpca_block_size, 
                 self.settings.bpca_num_components, 
-                self.settings.state_dimensions[0], 
-                self.settings.state_dimensions[1]
+                *self.settings.state_dimensions
             )
         return None
 
@@ -47,10 +46,10 @@ class Orchestrator:
 if __name__ == "__main__":
     config = {
         'bpca'          : False,
-        'debug'         : False,
+        'debug'         : True,
         'num_episodes'  : 1,
         'rom_path'      : "PokemonBlue.gb",
-        'start_episode' : 1
+        'start_episode' : 7
     }
     
     orchestrator = Orchestrator(config)
