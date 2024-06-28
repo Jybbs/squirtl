@@ -27,10 +27,6 @@ class Settings:
         self.GOT_STARTER    = (0xD74B, 2)
         self.INTRO_COMPLETE = 0xC20D
 
-    def setup_bpca_settings(self):
-        self.bpca_block_size     = 16
-        self.bpca_num_components = 5
-
     def setup_device(self):
         self.device = device("mps" if backends.mps.is_available() else "cpu")
 

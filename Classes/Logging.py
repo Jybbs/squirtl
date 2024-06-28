@@ -145,11 +145,6 @@ class Logging:
 
     def save_episode_videos(self, episode):
         self.get_frames_for_video(self.frames.get_episode_frames(), f"episode_{episode}.mp4")
-        
-        # Save optimized video only if BPCA is enabled
-        optimized_frames = self.frames.get_optimized_frames()
-        if optimized_frames:
-            self.get_frames_for_video(optimized_frames, f"episode_{episode}_optimized.mp4")
 
     def setup_plot_params(self):
         plt.rcParams.update({# Axes parameters                            # Tick parameters

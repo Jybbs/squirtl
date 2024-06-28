@@ -3,9 +3,7 @@ import numpy as np
 from collections import deque
 
 class Frames:
-    def __init__(self, settings, bpca = None):
-        self.bpca             = bpca
-        self.bpca_fitted      = False
+    def __init__(self, settings):
         self.episode_frames   = []
         self.explored_frames  = []
         self.optimized_frames = []
@@ -18,10 +16,6 @@ class Frames:
     def add(self, frame):
         self.episode_frames.append(frame)
         self.recent_frames.append(frame)
-        
-        if self.bpca:
-            optimized_frame = self.process_frame_with_bpca(frame)
-            self.optimized_frames.append(optimized_frame)
 
     def add_explored(self, frame):
         self.explored_frames.append(frame)
@@ -55,18 +49,6 @@ class Frames:
             return False
         recent_array = np.array(self.recent_frames)
         return sum(np.all(frame == recent_array, axis = (1, 2, 3))) >= self.settings.playable_threshold
-    
-    def process_frame_with_bpca(self, frame):
-        
-        if not self.bpca_fitted:
-            self.bpca.fit_frames([frame])
-            self.bpca_fitted = True
-        
-        optimized_frame = self.bpca.transform_frame(frame)
-        optimized_frame_np = np.array(optimized_frame)
-        optimized_frame_np = np.clip(optimized_frame_np, 0, 255).astype(np.uint8)
-        
-        return optimized_frame_np
         
     def reset(self):
         self.episode_frames.clear()
