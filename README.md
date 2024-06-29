@@ -123,7 +123,7 @@ This gradient form allows for stochastic gradient descent, connecting our DQN im
 
 In SquiRtL, we use an epsilon-greedy policy for action selection:
 
-$\hspace{0.5cm} \displaystyle \pi(a|s) = \begin{cases} 
+$\hspace{0.5cm} \pi(a|s) = \begin{cases} 
 \epsilon / |A| + (1-\epsilon), & \text{if } a = \argmax_{a'} Q(s, a'; \theta) \\
 \epsilon / |A|, & \text{otherwise}
 \end{cases}$
@@ -314,16 +314,16 @@ The total space complexity, likewise to **Time Complexity**, is $$\mathcal{O}(L 
 3. **Novelty Detection**: As $m$ grows, the $\mathcal{O}(m wh)$ novelty check becomes a significant bottleneck. Potential optimizations include:
 
    - Using tree-based structures could reduce this to $\mathcal{O}(\log m)$ on average, at the cost of increased complexity in insertions.
-- 
+  
    - Locality-sensitive hashing (**LSH**) could provide approximate nearest neighbor search in sublinear time.
-- 
+  
    - Bloom filters could offer constant-time novelty checking with a small false positive rate.
 
-1. **Batch Processing**: The batch size $b$ presents a trade-off between computation time and learning stability. Larger batches provide more stable gradient estimates but increase per-step computation time.
+4. **Batch Processing**: The batch size $b$ presents a trade-off between computation time and learning stability. Larger batches provide more stable gradient estimates but increase per-step computation time.
 
-2. **Network Architecture**: The number of layers $L$ and neurons $n$ significantly impacts both time and space complexity. Techniques like pruning or quantization could reduce these at the cost of potential reduction in model capacity.
+5. **Network Architecture**: The number of layers $L$ and neurons $n$ significantly impacts both time and space complexity. Techniques like pruning or quantization could reduce these at the cost of potential reduction in model capacity.
 
-3. **GPU Acceleration**: While not changing asymptotic complexity, GPU usage can significantly reduce practical computation time for neural network operations, as was often the case in my initial training.
+6. **GPU Acceleration**: While not changing asymptotic complexity, GPU usage can significantly reduce practical computation time for neural network operations, as was often the case in my initial training.
 
 In conclusion, SquiRtL's complexity is primarily driven by the neural network operations, the size of the game state, and the number of explored states. As the agent explores more of the game, optimizations in state representation and novelty detection will become crucial for maintaining efficiency in long training runs.
 
