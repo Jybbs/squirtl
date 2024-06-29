@@ -1,7 +1,9 @@
 # SquiRtL
 *Exploring reinforcement learning and its core algorithms through Pokémon Blue*
 
-SquiRtL is a project that explores the application of reinforcement learning techniques to play Pokémon Blue. The project aims to create an AI agent capable of learning and optimizing gameplay strategies through interaction with the game environment. With the support of deep Q-learning networks (DQN), SquiRtL demonstrates how machine learning can be applied to complex game environments, offering insights into AI decision-making processes and optimization techniques.
+SquiRtL is a project that explores the application of reinforcement learning techniques to play Pokémon Blue. The project aims to create an AI agent capable of learning and optimizing gameplay strategies through interaction with the game environment. 
+
+With the support of deep Q-learning networks (DQN), SquiRtL demonstrates how machine learning can be applied to complex game environments, offering insights into AI decision-making processes and optimization techniques.
 
 ## Installation
 
@@ -43,13 +45,13 @@ This will set up a virtual environment with all necessary dependencies as specif
 
 ## Reinforcement Learning Overview
 
-Reinforcement Learning (RL) is a paradigm of machine learning where an agent learns to make decisions by interacting with an environment. In the context of Pokémon Blue, RL is particularly interesting due to the game's complex state space, delayed rewards, and sequential decision-making nature.
+Reinforcement Learning (**RL**) is a paradigm of machine learning where an agent learns to make decisions by interacting with an environment. In the context of Pokémon Blue, RL is particularly interesting due to the game's complex state space, delayed rewards, and sequential decision-making nature.
 
-### Key RL Concepts in SquiRtL:
+### Key RL Concepts in SquiRtL
 
-1. **State Space**: Represented by the game screen pixels (144x160x4 tensor). This representation is crucial as it allows the agent to learn directly from raw pixel data, mimicking human visual input. It presents a challenge in processing high-dimensional input and extracting relevant features for decision-making.
+1. **State Space**: Represented by the game screen pixels (*144x160x4 tensor*). This representation is crucial as it allows the agent to learn directly from raw pixel data, mimicking human visual input. It presents a challenge in processing high-dimensional input and extracting relevant features for decision-making.
 
-2. **Action Space**: Discrete set of possible game controls ('a', 'b', 'up', 'down', 'left', 'right', 'wait'). This limited, discrete action space reflects the actual game controls available to a human player. It simplifies the decision-making process compared to continuous action spaces, but still requires the agent to learn complex sequences of actions to achieve goals with nuance, like waiting for the opportune time to take an action.
+2. **Action Space**: Discrete set of possible game controls (*'a', 'b', 'up', 'down', 'left', 'right', 'wait'*). This limited, discrete action space reflects the actual game controls available to a human player. It simplifies the decision-making process compared to continuous action spaces, but still requires the agent to learn complex sequences of actions to achieve goals with nuance, like waiting for the opportune time to take an action.
 
 3. **Reward Function**: Designed to encourage exploration, progress, and optimal gameplay. The reward function is critical as it shapes the agent's behavior. In this project, it's particularly interesting because it needs to guide the agent through the complex, multi-step process of starting the game and choosing a starter Pokémon, without direct instruction.
 
@@ -61,7 +63,7 @@ Reinforcement Learning (RL) is a paradigm of machine learning where an agent lea
 
 ### Deep Q-Networks (DQN)
 
-SquiRtL utilizes Deep Q-Networks (DQN), a groundbreaking reinforcement learning algorithm that combines Q-learning with deep neural networks. Introduced by **DeepMind** in 2013, DQN represented a significant leap forward in RL's ability to handle complex, high-dimensional state spaces.
+SquiRtL utilizes Deep Q-Networks (**DQN**), a groundbreaking reinforcement learning algorithm that combines Q-learning with deep neural networks. Introduced by **DeepMind** in 2013, DQN represented a significant leap forward in RL's ability to handle complex, high-dimensional state spaces.
 
 Q-learning, a foundational RL technique, had long been effective for small, discrete state spaces, but it struggled with the curse of dimensionality in larger environments. The key innovation of DQN was to approximate the Q-function using a deep neural network, allowing it to generalize across vast state spaces. This combination is particularly powerful for tasks with visual inputs, like Atari games or, in our case, Pokémon Blue. The convolutional layers in the neural network can automatically learn to extract relevant features from raw pixel data, mimicking the human visual system's ability to understand game states from screen images.
 
@@ -83,9 +85,10 @@ The Q-function, $Q(s, a)$, represents the expected cumulative reward of taking a
 
 The **Bellman equation**, fundamental to many areas of dynamic programming, forms the basis of the Q-learning update:
 
-$\hspace{0.5cm} \displaystyle Q(s, a) = \mathbb{E}[R + \gamma \max_{a'} Q(s', a')]$  
+$\hspace{0.5cm} \displaystyle Q(s, a) = \mathbb{E}[R(s, a) + \gamma \max_{a'} Q(s', a')]$  
 
 Where:
+
 - $R$ is the immediate reward
 
 - $\gamma \in [0, 1]$ is the discount factor, analogous to the role of weights in weighted graph algorithms
@@ -98,19 +101,23 @@ This equation represents a contraction mapping in the space of value functions, 
 
 In practice, we use a neural network $Q(s, a; \theta)$ to approximate $Q(s, a)$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network is trained to minimize the loss:
 
-$\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}[(y - Q(s, a; \theta))^2]$
+$\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}[(r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta))^2]$
 
 Where:
+
 - $y = r + \gamma \max_{a'} Q(s', a'; \theta^-)$ is the target Q-value
+
 - $\theta$ are the parameters of the online network
+
 - $\theta^-$ are the parameters of the target network
+
 - $U(D)$ is a uniform distribution over the replay buffer D
 
 This loss function is a form of temporal difference learning, where we bootstrap our current estimates to form the targets. The use of a separate target network $\theta^-$ is analogous to the concept of "relaxation" in approximation algorithms, where we temporarily fix part of the solution to make the optimization problem more tractable.
 
 The gradient of the loss with respect to the network parameters is:
 
-$\nabla_\theta L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}[(r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta)) \nabla_\theta Q(s, a; \theta)]$
+$\hspace{0.5cm} \displaystyle \nabla_{\theta} L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}[(r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta)) \nabla_\theta Q(s, a; \theta)]$$
 
 This gradient form allows for stochastic gradient descent, connecting our DQN implementation to the broader family of iterative improvement algorithms.
 
@@ -125,7 +132,7 @@ Where $|A|$ is the size of the action space.
 
 The exploration rate $\epsilon$ decays over time:
 
-$\hspace{0.5cm} \displaystyle \epsilon_t = \max(\epsilon_{\text{min}}, \epsilon_0 \cdot \epsilon_{\text{decay}}^t)$
+$\hspace{0.5cm} \displaystyle \epsilon_{t} = \max(\epsilon_{\text{min}}, \epsilon_0 \cdot \epsilon_{\text{decay}}^t)$
 
 This decay schedule is most analogous to the cooling schedule in simulated annealing, gradually shifting from exploration to exploitation as the agent gains more knowledge about the environment.
 
@@ -141,7 +148,7 @@ In the context of Pokémon Blue, the state $s$ is represented by a tensor of sha
 
 The reward function $R(s, a, s')$ is designed to encourage exploration and progress:
 
-$\hspace{0.5cm} \displaystyle R(s, a, s') = \begin{cases}
+$\hspace{0.5cm} R(s, a, s') = \begin{cases}
 10, & \text{if } s' \text{ is a new state} \\
 -10, & \text{if } s' \text{ is a recent backtrack} \\
 -1, & \text{if } a \text{ is ineffective} \\
@@ -157,44 +164,44 @@ This reward structure, combined with the DQN algorithm, allows SquiRtL to learn 
 SquiRtL is composed of several interconnected classes:
 
 1. **Orchestrator**: The main class that initializes and coordinates all components.
-- Initializes all other components
-- Manages the training process
+    - Initializes all other components
+    - Manages the training process
 
 2. **Agent**: Implements the DQN algorithm, including action selection and learning.
-- Selects actions using an epsilon-greedy strategy
-- Stores experiences in replay memory
-- Performs learning updates on the DQN
+    - Selects actions using an epsilon-greedy strategy
+    - Stores experiences in replay memory
+    - Performs learning updates on the DQN
 
 3. **DQN**: Defines the neural network architecture for Q-value prediction.
-- Implements the deep neural network structure
-- Performs forward passes to predict Q-values
+    - Implements the deep neural network structure
+    - Performs forward passes to predict Q-values
 
 4. **Emulator**: Interfaces with the Pokémon Blue game using PyBoy.
-- Manages the game state
-- Executes actions in the game environment
-- Provides observations (screen states)
+    - Manages the game state
+    - Executes actions in the game environment
+    - Provides observations (screen states)
 
 5. **Frames**: Manages game frames, including state representation and novelty detection.
-- Processes and stores game frames
-- Detects new game states
-- Checks for backtracking
+    - Processes and stores game frames
+    - Detects new game states
+    - Checks for backtracking
 
 6. **Gymnasium**: Coordinates the interaction between the agent and the environment.
-- Manages episodes
-- Handles action execution and reward calculation
-- Facilitates the agent-environment loop
+    - Manages episodes
+    - Handles action execution and reward calculation
+    - Facilitates the agent-environment loop
 
 7. **Logging**: Handles metrics logging and visualization.
-- Collects performance metrics
-- Generates visualizations and progress reports
+    - Collects performance metrics
+    - Generates visualizations and progress reports
 
 8. **Reward**: Defines the reward structure for the agent.
-- Calculates rewards based on game events and agent actions
-- Implements the reward shaping strategy
+    - Calculates rewards based on game events and agent actions
+    - Implements the reward shaping strategy
 
 9. **Settings**: Centralizes all configuration parameters.
-- Stores hyperparameters and game settings
-- Provides a single point of configuration for the entire system
+    - Stores hyperparameters and game settings
+    - Provides a single point of configuration for the entire system
 
 These components work together to create a complete reinforcement learning system. The **Orchestrator** initializes the process, the **Agent** interacts with the **Gymnasium**, which uses the **Emulator** to execute actions and observe states. The **Frames** class assists in state processing, while the **Reward** class provides feedback. The **DQN** is used by the **Agent** for action selection and learning as it borrows hyperparameters from **Settings**, and the **Logging** class tracks the overall performance.
 
@@ -247,7 +254,7 @@ Taking a moment to contextualize the SquiRtL implementation through the lens of 
 
    The expected number of reservoir updates is:
 
-   $\sum_{i=b+1}^n \frac{b}{i} \approx b \ln(\frac{n}{b})$
+   $\hspace{0.5cm} \displaystyle \sum_{i=b+1}^n \frac{b}{i} \approx b \ln(\frac{n}{b})$
 
    where $n$ is the total number of experiences. However, as we only need ever $b$ samples, the time complexity remains $\mathcal{O}(b)$.
 
@@ -267,7 +274,7 @@ Taking a moment to contextualize the SquiRtL implementation through the lens of 
 
    The forward pass and backpropagation are performed for each of the $b$ samples in the batch. Therefore, the total complexity is:
 
-   $\mathcal{O}(b) * (\mathcal{O}(L n^2) + \mathcal{O}(L n^2)) = \mathcal{O}(b L n^2)$
+   $\hspace{0.5cm} \displaystyle \mathcal{O}(b) * (\mathcal{O}(L n^2) + \mathcal{O}(L n^2)) = \mathcal{O}(b L n^2)$
 
    It's worth noting that this is a worst-case analysis assuming fully connected layers. In practice, convolutional layers and optimization techniques can affect the actual runtime, but this represents the upper bound of the complexity.
 
@@ -302,13 +309,13 @@ The total space complexity, likewise to **Time Complexity**, is $$\mathcal{O}(L 
 
 1. **Experience Replay**: This introduces a trade-off between space complexity and sample efficiency. While it increases space requirements by a non-dominant term of $\mathcal{O}(k wh)$, it significantly improves sample efficiency by allowing reuse of experiences.
 
-2. **State Representation**: The current pixel-based state representation ($wh$ pixels) is memory-intensive. Dimensionality reduction techniques could potentially reduce this, trading off some information for improved space efficiency.
+2. **State Representation**: The current pixel-based state representation (*$wh$ pixels*) is memory-intensive. Dimensionality reduction techniques could potentially reduce this, trading off some information for improved space efficiency.
 
 3. **Novelty Detection**: As $m$ grows, the $\mathcal{O}(m wh)$ novelty check becomes a significant bottleneck. Potential optimizations include:
 
    - Using tree-based structures could reduce this to $\mathcal{O}(\log m)$ on average, at the cost of increased complexity in insertions.
 - 
-   - Locality-sensitive hashing (LSH) could provide approximate nearest neighbor search in sublinear time.
+   - Locality-sensitive hashing (**LSH**) could provide approximate nearest neighbor search in sublinear time.
 - 
    - Bloom filters could offer constant-time novelty checking with a small false positive rate.
 
