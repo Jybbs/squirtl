@@ -101,7 +101,7 @@ This equation represents a contraction mapping in the space of value functions, 
 
 In practice, we use a neural network $Q(s, a; \theta)$ to approximate $Q(s, a)$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network is trained to minimize the loss:
 
-$\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} - \left((Q(s, a; \theta))^2\right)$
+$\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} \left((r + \gamma \text{max}_{a'} Q(s', a' \rightarrow \theta^{-}) - Q(s, a \rightarrow \theta))^2\right)$
 
 Where:
 
