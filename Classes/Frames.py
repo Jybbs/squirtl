@@ -10,9 +10,6 @@ class Frames:
         self.recent_frames    = deque(maxlen = settings.recent_frames_pool)
         self.settings         = settings
 
-        self.frame_count = 0
-        self.debug_frame_number = 250  # Capture debug info at this frame number
-
     def add(self, frame):
         self.episode_frames.append(frame)
         self.recent_frames.append(frame)
