@@ -343,4 +343,6 @@ In conclusion, SquiRtL's complexity is primarily driven by the neural network op
 
 ## Acknowledgements
 
-This project was developed under the supervision and thoughtful direction of [Professor Weston Viles](https://roux.northeastern.edu/people/weston-viles/) during class *5800 - Algorithms* at the **Roux Institute of Northeastern University**. Wes has been an incredible supporter of me and my work for multiple summers now, and I'm thrilled to have had the opportunity to both learn from and get to know someone who's so passionate about this space. I also would be remiss if I didn't thank Sean Sullivan for constantly helping me contextualize my thoughts and for his advocacy of my work and capabilities in all things technology. Thank you, Wes and Sean!
+This project was developed under the supervision and thoughtful direction of [Professor Weston Viles](https://roux.northeastern.edu/people/weston-viles/) during class *5800 - Algorithms* at the **Roux Institute of Northeastern University**. Wes has been an incredible supporter of me and my work for multiple summers now, and I'm thrilled to have had the opportunity to both learn from and get to know someone who's so passionate about this space. 
+
+I also would be remiss if I didn't thank Sean Sullivan for constantly helping me contextualize my thoughts and for his advocacy of my work and capabilities in all things technology. Thank you, Wes and Sean!
