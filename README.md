@@ -124,8 +124,8 @@ This gradient form allows for stochastic gradient descent, connecting our DQN im
 In SquiRtL, we use an epsilon-greedy policy for action selection:
 
 $\hspace{0.5cm} \pi(a|s) = \begin{cases} 
-\epsilon / |A| + (1-\epsilon), & \text{if } a = \argmax_{a'} Q(s, a'; \theta) \\
-\epsilon / |A|, & \text{otherwise}
+\frac{\epsilon}{|A|} + (1-\epsilon), & \text{if } a = \argmax_{a'} Q(s, a'; \theta) \\
+\frac{\epsilon}{|A|}, & \text{otherwise}
 \end{cases}$
 
 Where $|A|$ is the size of the action space.
@@ -340,3 +340,7 @@ In conclusion, SquiRtL's complexity is primarily driven by the neural network op
 9. Sutton, R. S., & Barto, A. G. (2018). *Reinforcement Learning: An Introduction*, 2nd edition. MIT Press.
 10. Viles, W. D. (2024, Jun 26). *CS5800: Algorithms Course Notes*. Northeastern University.
 11. Viles, W. D. (2024, Jun 26). *CS5800: Algorithms Homework Solutions*. Northeastern University.
+
+## Acknowledgements
+
+This project was developed under the supervision and thoughtful direction of [Professor Weston Viles](https://roux.northeastern.edu/people/weston-viles/) during class *5800 - Algorithms* at the **Roux Institute of Northeastern University**. Wes has been an incredible supporter of me and my work for multiple summers now, and I'm thrilled to have had the opportunity to both learn from and get to know someone who's so passionate about this space. I also would be remiss if I didn't thank Sean Sullivan for constantly helping me contextualize my thoughts and for his advocacy of my work and capabilities in all things technology. Thank you, Wes and Sean!
