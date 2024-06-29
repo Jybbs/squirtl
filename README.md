@@ -101,9 +101,7 @@ This equation represents a contraction mapping in the space of value functions, 
 
 In practice, we use a neural network $Q(s, a; \theta)$ to approximate $Q(s, a)$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network is trained to minimize the loss:
 
-$\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}$
-
-$[(r + \gamma \text{max}_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta))^2]$
+$\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} \left((r + \gamma \text{max}_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta))^2\right)$
 
 Where:
 
@@ -119,15 +117,15 @@ This loss function is a form of temporal difference learning, where we bootstrap
 
 The gradient of the loss with respect to the network parameters is:
 
-$\hspace{0.5cm} \displaystyle \nabla_{\theta} L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}[(r + \gamma \text{max}_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta)) \nabla_\theta Q(s, a; \theta)]$
+$\hspace{0.5cm} \displaystyle \nabla_{\theta} L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} \left((r + \gamma \text{max}_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta)) \nabla_\theta Q(s, a; \theta)\right)$
 
 This gradient form allows for stochastic gradient descent, connecting our DQN implementation to the broader family of iterative improvement algorithms.
 
 In SquiRtL, we use an epsilon-greedy policy for action selection:
 
 $\hspace{0.5cm} \displaystyle \pi(a|s) = \begin{cases} 
-\epsilon/|A| + (1-\epsilon), & \text{if } a = \argmax_{a'} Q(s, a'; \theta) \\
-\epsilon/|A|, & \text{otherwise}
+\epsilon / |A| + (1-\epsilon), & \text{if } a = \argmax_{a'} Q(s, a'; \theta) \\
+\epsilon / |A|, & \text{otherwise}
 \end{cases}$
 
 Where $|A|$ is the size of the action space.
