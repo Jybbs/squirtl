@@ -85,7 +85,7 @@ The Q-function, $Q(s, a)$, represents the expected cumulative reward of taking a
 
 The **Bellman equation**, fundamental to many areas of dynamic programming, forms the basis of the Q-learning update:
 
-$\hspace{0.5cm} \displaystyle Q(s, a) = \mathbb{E}[R(s, a) + \gamma \max_{a'} Q(s', a')]$  
+$\hspace{0.5cm} \displaystyle Q(s, a) = \mathbb{E}[R(s, a) + \gamma \text{max}_{a'} Q(s', a')]$  
 
 Where:
 
@@ -101,11 +101,11 @@ This equation represents a contraction mapping in the space of value functions, 
 
 In practice, we use a neural network $Q(s, a; \theta)$ to approximate $Q(s, a)$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network is trained to minimize the loss:
 
-$\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}[(r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta))^2]$
+$\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}[(r + \gamma \text{max}_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta))^2]$
 
 Where:
 
-- $y = r + \gamma \max_{a'} Q(s', a'; \theta^-)$ is the target Q-value
+- $y = r + \gamma \text{max}_{a'} Q(s', a'; \theta^-)$ is the target Q-value
 
 - $\theta$ are the parameters of the online network
 
@@ -117,7 +117,7 @@ This loss function is a form of temporal difference learning, where we bootstrap
 
 The gradient of the loss with respect to the network parameters is:
 
-$\hspace{0.5cm} \displaystyle \nabla_{\theta} L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}[(r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta)) \nabla_\theta Q(s, a; \theta)]$$
+$\hspace{0.5cm} \displaystyle \nabla_{\theta} L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}[(r + \gamma \text{max}_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta)) \nabla_\theta Q(s, a; \theta)]$
 
 This gradient form allows for stochastic gradient descent, connecting our DQN implementation to the broader family of iterative improvement algorithms.
 
@@ -132,7 +132,7 @@ Where $|A|$ is the size of the action space.
 
 The exploration rate $\epsilon$ decays over time:
 
-$\hspace{0.5cm} \displaystyle \epsilon_{t} = \max(\epsilon_{\text{min}}, \epsilon_0 \cdot \epsilon_{\text{decay}}^t)$
+$\hspace{0.5cm} \displaystyle \epsilon_{t} = \text{max}(\epsilon_{\text{min}}, \epsilon_0 \cdot \epsilon_{\text{decay}}^t)$
 
 This decay schedule is most analogous to the cooling schedule in simulated annealing, gradually shifting from exploration to exploitation as the agent gains more knowledge about the environment.
 
