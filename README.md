@@ -1,9 +1,8 @@
 # SquiRtL
-*Exploring reinforcement learning and its core algorithms through Pokémon Blue*
 
-SquiRtL is a project that explores the application of reinforcement learning techniques to play Pokémon Blue. The project aims to create an AI agent capable of learning and optimizing gameplay strategies through interaction with the game environment. 
+SquiRtL is a project that explores the application of reinforcement learning techniques to play Pokémon Blue. It creates an AI agent capable of learning and optimizing gameplay strategies through interaction with its surrounding Game Boy environment. 
 
-With the support of deep Q-learning networks (DQN), SquiRtL demonstrates how machine learning can be applied to complex game environments, offering insights into AI decision-making processes and optimization techniques.
+With the support of deep Q-learning networks (**DQN**), SquiRtL demonstrates how machine learning can be applied to complex game environments, offering insights into AI decision-making processes and optimization techniques.
 
 ## Installation
 
@@ -43,11 +42,11 @@ This will set up a virtual environment with all necessary dependencies as specif
   - Used in: `Logging.py`
   - Purpose: Video generation of gameplay episodes.
 
-## Reinforcement Learning Overview
+## Reinforcement Learning
 
 Reinforcement Learning (**RL**) is a paradigm of machine learning where an agent learns to make decisions by interacting with an environment. In the context of Pokémon Blue, RL is particularly interesting due to the game's complex state space, delayed rewards, and sequential decision-making nature.
 
-### Key RL Concepts in SquiRtL
+### Key Implemented Concepts
 
 1. **State Space**: Represented by the game screen pixels (*144x160x4 tensor*). This representation is crucial as it allows the agent to learn directly from raw pixel data, mimicking human visual input. It presents a challenge in processing high-dimensional input and extracting relevant features for decision-making.
 
@@ -81,85 +80,79 @@ The success of DQN in these diverse domains stems from its ability to learn effe
 
 ### In Mathematical Terms
 
-The Q-function, $Q(s, a)$, represents the expected cumulative reward of taking action $a$ in state $s$ and then following the optimal policy thereafter. This function embodies the principle of **optimal substructure**, an important concept in dynamic programming approaches, as the optimal solution can be constructed from optimal solutions of subproblems.
+The Q-function, $`Q(s, a)`$, represents the expected cumulative reward of taking action $`a`$ in state $`s`$ and then following the optimal policy thereafter. This function embodies the principle of **optimal substructure**, an important concept in dynamic programming approaches, as the optimal solution can be constructed from optimal solutions of subproblems.
 
 The **Bellman equation**, fundamental to many areas of dynamic programming, forms the basis of the Q-learning update:
 
-$\hspace{0.5cm} \displaystyle Q(s, a) = \mathbb{E}[R(s, a) + \gamma \text{max}_{a'} Q(s', a')]$  
+$`\hspace{0.5cm} \displaystyle Q(s, a) = \mathbb{E}[R(s, a) + \gamma \max_{a'} Q(s', a')]`$
 
 Where:
 
-- $R$ is the immediate reward
+- $`R`$ is the immediate reward
+- $`\gamma \in [0, 1]`$ is the discount factor, analogous to the role of weights in weighted graph algorithms
+- $`s'`$ is the next state
+- $`a'`$ is the action in the next state
 
-- $\gamma \in [0, 1]$ is the discount factor, analogous to the role of weights in weighted graph algorithms
+This equation represents a contraction mapping in the space of value functions, guaranteeing convergence to a unique fixed point (the optimal Q-function) under certain conditions. Interestingly enough, this is reminiscent of the convergence properties of other iterative algorithms in Bellman's purview, like the Bellman-Ford algorithm for finding shortest paths.
 
-- $s'$ is the next state
+In practice, we use a neural network $`Q(s, a; \theta)`$ to approximate $`Q(s, a)`$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network is trained to minimize the loss:
 
-- $a'$ is the action in the next state
-
-This equation represents a contraction mapping in the space of value functions, guaranteeing convergence to a unique fixed point (*the optimal Q-function*) under certain conditions. Interestingly enough, this is reminiscent of the convergence properties of other iterative algorithms in Bellman's purview, like the Bellman-Ford algorithm for finding shortest paths.
-
-In practice, we use a neural network $Q(s, a; \theta)$ to approximate $Q(s, a)$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network is trained to minimize the loss:
-
-$\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} \left((r + \gamma \max_{a'} Q(s', a' \rightarrow \theta^{-}) - Q(s, a \rightarrow \theta))^2\right)$
+$`\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} [(r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta))^2]`$
 
 Where:
 
-- $y = r + \gamma \text{max}_{a'} Q(s', a'; \theta^-)$ is the target Q-value
+- $`r + \gamma \max_{a'} Q(s', a'; \theta^-)`$ is the target Q-value
+- $`\theta`$ are the parameters of the online network
+- $`\theta^-`$ are the parameters of the target network
+- $`U(D)`$ is a uniform distribution over the replay buffer D
 
-- $\theta$ are the parameters of the online network
-
-- $\theta^-$ are the parameters of the target network
-
-- $U(D)$ is a uniform distribution over the replay buffer D
-
-This loss function is a form of temporal difference learning, where we bootstrap our current estimates to form the targets. The use of a separate target network $\theta^-$ is analogous to the concept of "relaxation" in approximation algorithms, where we temporarily fix part of the solution to make the optimization problem more tractable.
+This loss function is a form of temporal difference learning, where we bootstrap our current estimates to form the targets. The use of a separate target network $`\theta^-`$ is analogous to the concept of "relaxation" in approximation algorithms, where we temporarily fix part of the solution to make the optimization problem more tractable.
 
 The gradient of the loss with respect to the network parameters is:
 
-$\hspace{0.5cm} \displaystyle \nabla_{\theta} L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}\left((r + \gamma \text{max}_{a'} Q(s', a'; \theta^{-}) - Q(s, a; \theta)) \nabla_{\theta} Q(s, a; \theta)\right)$
+$`\hspace{0.5cm} \displaystyle \nabla_\theta L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}[(r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta)) \nabla_\theta Q(s, a; \theta)]`$
 
 This gradient form allows for stochastic gradient descent, connecting our DQN implementation to the broader family of iterative improvement algorithms.
 
 In SquiRtL, we use an epsilon-greedy policy for action selection:
 
-$\hspace{0.5cm} \pi(a|s) = \begin{cases} 
-\frac{\epsilon}{|A|} + (1-\epsilon), & \text{if } a = \argmax_{a'} Q(s, a'; \theta) \\
-\frac{\epsilon}{|A|}, & \text{otherwise}
-\end{cases}$
+$`\hspace{0.5cm} \pi(a|s) = \begin{cases} 
+1 - \epsilon + \frac{\epsilon}{|A|}, & \text{if } a = \arg\max_{a'} Q(s, a'; \theta) \\ 
+\frac{\epsilon}{|A|}, & \text{otherwise} 
+\end{cases}`$
 
-Where $|A|$ is the size of the action space.
+Where $`|A|`$ is the size of the action space.
 
-The exploration rate $\epsilon$ decays over time:
+The exploration rate $`\epsilon`$ decays over time:
 
-$\hspace{0.5cm} \displaystyle \epsilon_{t} = \text{max}(\epsilon_{\text{min}}, \epsilon_0 \cdot \epsilon_{\text{decay}}^t)$
+$`\hspace{0.5cm} \displaystyle \epsilon_t = \max(\epsilon_{\min}, \epsilon_0 \cdot \epsilon_{\text{decay}}^t)`$
 
 This decay schedule is most analogous to the cooling schedule in simulated annealing, gradually shifting from exploration to exploitation as the agent gains more knowledge about the environment.
 
-Within this framework, the DQN algorithm employs a separate target network $Q(s, a; \theta^-)$ which is periodically updated:
+Within this framework, the DQN algorithm employs a separate target network $`Q(s, a; \theta^-)`$ which is periodically updated:
 
-$\hspace{0.5cm} \displaystyle \theta^- \leftarrow \theta \text{ every } N \text{ steps}$
+$`\hspace{0.5cm} \displaystyle \theta^- \leftarrow \theta \text{ every } N \text{ steps}`$
 
-This periodic update is reminiscent of the concept of "batching" in amortized analysis, where we perform expensive operations (*updating the target network*) less frequently to reduce overall computational cost while maintaining performance guarantees.
+This periodic update is reminiscent of the concept of "batching" in amortized analysis, where we perform expensive operations (updating the target network) less frequently to reduce overall computational cost while maintaining performance guarantees.
 
 ### Application to Pokémon Blue
 
-In the context of Pokémon Blue, the state $s$ is represented by a tensor of shape (144, 160, 4), corresponding to the game screen pixels. The action space $A$ consists of 7 discrete actions: 'a', 'b', 'up', 'down', 'left', 'right', and 'wait'.
+In the context of Pokémon Blue, the state $`s`$ is represented by a tensor of shape (144, 160, 4), corresponding to the game screen pixels. The action space $`A`$ consists of 7 discrete actions: 'a', 'b', 'up', 'down', 'left', 'right', and 'wait'.
 
-The reward function $R(s, a, s')$ is designed to encourage exploration and progress:
+The reward function $`R(s, a, s')`$ is designed to encourage exploration and progress:
 
-$\hspace{0.5cm} R(s, a, s') = \begin{cases}
+$`\hspace{0.5cm} R(s, a, s') = \begin{cases}
 10, & \text{if } s' \text{ is a new state} \\
 -10, & \text{if } s' \text{ is a recent backtrack} \\
 -1, & \text{if } a \text{ is ineffective} \\
 0.1, & \text{if } s' \text{ is a revisited state} \\
 1000, & \text{if intro is completed} \\
 10000, & \text{if starter is chosen}
-\end{cases}$
+\end{cases}`$
 
 This reward structure, combined with the DQN algorithm, allows SquiRtL to learn a policy that can navigate the complex, partially observable environment of Pokémon Blue, dealing with delayed rewards and a large state space.
 
-## Class Structure and Components
+## Class Structure & Components
 
 SquiRtL is composed of several interconnected classes:
 
@@ -205,7 +198,7 @@ SquiRtL is composed of several interconnected classes:
 
 These components work together to create a complete reinforcement learning system. The **Orchestrator** initializes the process, the **Agent** interacts with the **Gymnasium**, which uses the **Emulator** to execute actions and observe states. The **Frames** class assists in state processing, while the **Reward** class provides feedback. The **DQN** is used by the **Agent** for action selection and learning as it borrows hyperparameters from **Settings**, and the **Logging** class tracks the overall performance.
 
-## Metrics and Analysis
+## Metrics & Analysis
 
 ![Training Metrics Over 10 Episodes](https://i.ibb.co/hR0hrYk/plot-episode-10.png)
 *Figure 1: Performance metrics for the first 10 training episodes of the SquiRtL agent*
@@ -236,92 +229,92 @@ Based on the provided chart for these first 10 training episodes, we can observe
 
 These trends suggest that while the agent is showing signs of learning (*increasing Q-values, more effective actions initially*), it's also facing challenges in consistently improving its performance. The rising loss and increased wait actions in later episodes indicate that there might be room for improvement in the learning algorithm or reward structure.
 
-## Computational Complexity Analysis
+## Computational Complexity
 
 Taking a moment to contextualize the SquiRtL implementation through the lens of asymptotic analysis, we'll examine both time and space complexity, providing insights into the scalability and efficiency of our reinforcement learning system.
 
 ### Time Complexity
 
-1. **Neural Network Forward Pass**: $\mathcal{O}(L n^2)$, where $L$ is the number of layers and $n$ is the maximum number of neurons in any layer.
+1. **Neural Network Forward Pass**: $`\mathcal{O}(L n^2)`$, where $`L`$ is the number of layers and $`n`$ is the maximum number of neurons in any layer.
 
-   For a fully connected layer, the complexity is $\mathcal{O}(n_in_o)$, where $n_i$ and $n_o$ are the number of input and output neurons respectively. For convolutional layers, it's $\mathcal{O}(d^2 k n_i n_o)$, where $d$ is the filter size and $k$ is the number of filters.
+   For a fully connected layer, the complexity is $`\mathcal{O}(n_in_o)`$, where $n_i$ and $n_o$ are the number of input and output neurons respectively. For convolutional layers, it's $`\mathcal{O}(d^2 k n_i n_o)`$, where $`d`$ is the filter size and $`k`$ is the number of filters.
 
-   Summing over $L$ layers, we get $\mathcal{O}(L n^2)$ in the worst case, where $n$ is the maximum of $n_i$ and $n_o$ across all layers.
+   Summing over $`L`$ layers, we get $`\mathcal{O}(L n^2)`$ in the worst case, where $`n`$ is the maximum of $`n_i`$ and $`n_o`$ across all layers.
 
-2. **Experience Replay Sampling**: $\mathcal{O}(b)$, where $b$ is the batch size.
+2. **Experience Replay Sampling**: $`\mathcal{O}(b)`$, where $`b`$ is the batch size.
 
-   We employ reservoir sampling to achieve uniform sampling in constant time per sample. The algorithm maintains a reservoir of size $b$ and processes the stream of experiences in a single pass. For each experience, it is selected for the reservoir with probability $b/i$, where $i$ is the index of the current experience.
+   We employ reservoir sampling to achieve uniform sampling in constant time per sample. The algorithm maintains a reservoir of size $`b`$ and processes the stream of experiences in a single pass. For each experience, it is selected for the reservoir with probability $`\frac{b}{i}`$, where $`i`$ is the index of the current experience.
 
    The expected number of reservoir updates is:
 
-   $\hspace{0.5cm} \displaystyle \sum_{i=b+1}^n \frac{b}{i} \approx b \ln(\frac{n}{b})$
+   $`\hspace{0.5cm} \displaystyle \sum_{i=b+1}^n \frac{b}{i} \approx b \ln(\frac{n}{b})`$
 
-   where $n$ is the total number of experiences. However, as we only need ever $b$ samples, the time complexity remains $\mathcal{O}(b)$.
+   where $`n`$ is the total number of experiences. However, as we only need ever $`b`$ samples, the time complexity remains $`\mathcal{O}(b)`$.
 
-3. **Q-Value Update**: $\mathcal{O}(b L n^2)$ for a batch of experiences.
+3. **Q-Value Update**: $`\mathcal{O}(b L n^2)`$ for a batch of experiences.
 
    This operation involves updating the Q-values for a batch of b experiences. For each experience in the batch, we perform two main steps:
 
-   **Forward Pass**: $\mathcal{O}(L n^2)$
-      - For each of the L layers, we perform matrix multiplication between the input (size n) and the weights (size n x n in the worst case).
-      - This results in $\mathcal{O}(n^2)$ operations per layer.
-      - Across L layers, this sums to $\mathcal{O}(L n^2)$.
+   **Forward Pass**: $`\mathcal{O}(L n^2)`$
+      - For each of the $`L`$ layers, we perform matrix multiplication between the input (*size $`n`$*) and the weights (*size $`n \times n`$ in the worst case*).
+      - This results in $`\mathcal{O}(n^2)`$ operations per layer.
+      - Across $`L`$ layers, this sums to $`\mathcal{O}(L n^2`)$.
 
-   **Backpropagation**: $\mathcal{O}(L n^2)$
+   **Backpropagation**: $`\mathcal{O}(L n^2)`$
       - We compute gradients starting from the output layer back to the input.
       - For each layer, we perform matrix multiplications similar to the forward pass.
-      - This again results in $\mathcal{O}(L n^2)$ operations.
+      - This again results in $`\mathcal{O}(L n^2)`$ operations.
 
-   The forward pass and backpropagation are performed for each of the $b$ samples in the batch. Therefore, the total complexity is:
+   The forward pass and backpropagation are performed for each of the $`b`$ samples in the batch. Therefore, the total complexity is:
 
-   $\hspace{0.5cm} \displaystyle \mathcal{O}(b) * (\mathcal{O}(L n^2) + \mathcal{O}(L n^2)) = \mathcal{O}(b L n^2)$
+   $`\hspace{0.5cm} \displaystyle \mathcal{O}(b) \cdot (\mathcal{O}(L n^2) + \mathcal{O}(L n^2)) = \mathcal{O}(b L n^2)`$
 
    It's worth noting that this is a worst-case analysis assuming fully connected layers. In practice, convolutional layers and optimization techniques can affect the actual runtime, but this represents the upper bound of the complexity.
 
-4. **Frame Processing**: $\mathcal{O}(wh)$, where $w$ and $h$ are the width and height of the game screen.
+4. **Frame Processing**: $`\mathcal{O}(wh)`$, where $`w`$ and $`h`$ are the width and height of the game screen.
 
    This complexity arises from the need to process each pixel of the input frame. Operations like convolution or simple transformations typically require touching each pixel at least once, leading to this linear complexity in the number of pixels. Therefore, this is constant for each state.
 
-5. **State Novelty Check**: $\mathcal{O}(m wh)$ in the worst case, where $m$ is the number of explored states.
+5. **State Novelty Check**: $`\mathcal{O}(m wh)`$ in the worst case, where $`m`$ is the number of explored states.
 
-   We need to compare the current state (*of size $wh$*) with all $m$ previously seen states. Each comparison takes $\mathcal{O}(wh)$ time, leading to a total complexity of essentially $\mathcal{O}(m)$, since $wh$ is a constant.
+   We need to compare the current state (*of size $`wh`$*) with all $`m`$ previously seen states. Each comparison takes $`\mathcal{O}(wh)`$ time, leading to a total complexity of essentially $`\mathcal{O}(m)`$, since $`wh`$ is a constant.
 
-6. **Action Selection**: $\mathcal{O}(L n^2 + |A|)$, where $|A|$ is the size of the action space.
+6. **Action Selection**: $`\mathcal{O}(L n^2 + |A|)`$, where $`|A|`$ is the size of the action space.
 
-   This involves a forward pass through the network ($\mathcal{O}(L n^2)$) followed by selecting the maximum Q-value ($\mathcal{O}(|A|)$).
+   This involves a forward pass through the network ($`\mathcal{O}(L n^2)`$) followed by selecting the maximum Q-value ($`\mathcal{O}(|A|)`$).
 
-The overall time complexity per step, expressed in terms of the dominant term, therefore, is $\mathcal{O}(b L n^2)$. This is because the batch processing of the neural network operations (**Q-Value Update**) typically dominates the computation time, especially as the network grows in size and complexity.
+The overall time complexity per step, expressed in terms of the dominant term, therefore, is $`\mathcal{O}(b L n^2)`$. This is because the batch processing of the neural network operations (**Q-Value Update**) typically dominates the computation time, especially as the network grows in size and complexity.
 
 ### Space Complexity
 
-- **Experience Replay Buffer**: $\mathcal{O}(k wh)$, where k is the buffer capacity.
+- **Experience Replay Buffer**: $`\mathcal{O}(k wh)`$, where k is the buffer capacity.
   This fixed-size buffer stores experiences as (state, action, reward, next_state) tuples, where each state is of size wh.
 
-- **Neural Network Parameters**: $\mathcal{O}(L n^2)$
+- **Neural Network Parameters**: $`\mathcal{O}(L n^2)`$
   This accounts for storing all weights and biases of the network across L layers.
 
-- **Explored States**: $\mathcal{O}(m wh)$
+- **Explored States**: $`\mathcal{O}(m wh)`$
   We maintain a record of all unique states encountered, each of size wh, growing with exploration.
 
-The total space complexity, likewise to **Time Complexity**, is $$\mathcal{O}(L n^2)$. This is because the storage of explored states typically becomes the dominant factor as the agent explores more of the game environment, especially for high-resolution game screens.
+The total space complexity, likewise to **Time Complexity**, is $`\mathcal{O}(L n^2)`$. This is because the storage of explored states typically becomes the dominant factor as the agent explores more of the game environment, especially for high-resolution game screens.
 
-### Trade-offs and Optimizations
+### Trade-offs & Optimizations
 
-1. **Experience Replay**: This introduces a trade-off between space complexity and sample efficiency. While it increases space requirements by a non-dominant term of $\mathcal{O}(k wh)$, it significantly improves sample efficiency by allowing reuse of experiences.
+1. **Experience Replay**: This introduces a trade-off between space complexity and sample efficiency. While it increases space requirements by a non-dominant term of $`\mathcal{O}(k wh)`$, it significantly improves sample efficiency by allowing reuse of experiences.
 
-2. **State Representation**: The current pixel-based state representation (*$wh$ pixels*) is memory-intensive. Dimensionality reduction techniques could potentially reduce this, trading off some information for improved space efficiency.
+2. **State Representation**: The current pixel-based state representation (*$`wh`$ pixels*) is memory-intensive. Dimensionality reduction techniques could potentially reduce this, trading off some information for improved space efficiency.
 
-3. **Novelty Detection**: As $m$ grows, the $\mathcal{O}(m wh)$ novelty check becomes a significant bottleneck. Potential optimizations include:
+3. **Novelty Detection**: As $`m`$ grows, the $`\mathcal{O}(m wh)`$ novelty check becomes a significant bottleneck. Potential optimizations include:
 
-   - Using tree-based structures could reduce this to $\mathcal{O}(\log m)$ on average, at the cost of increased complexity in insertions.
+   - Using tree-based structures could reduce this to $`\mathcal{O}(\log m)`$ on average, at the cost of increased complexity in insertions.
   
    - Locality-sensitive hashing (**LSH**) could provide approximate nearest neighbor search in sublinear time.
   
    - Bloom filters could offer constant-time novelty checking with a small false positive rate.
 
-4. **Batch Processing**: The batch size $b$ presents a trade-off between computation time and learning stability. Larger batches provide more stable gradient estimates but increase per-step computation time.
+4. **Batch Processing**: The batch size $`b`$ presents a trade-off between computation time and learning stability. Larger batches provide more stable gradient estimates but increase per-step computation time.
 
-5. **Network Architecture**: The number of layers $L$ and neurons $n$ significantly impacts both time and space complexity. Techniques like pruning or quantization could reduce these at the cost of potential reduction in model capacity.
+5. **Network Architecture**: The number of layers $`L`$ and neurons $`n`$ significantly impacts both time and space complexity. Techniques like pruning or quantization could reduce these at the cost of potential reduction in model capacity.
 
 6. **GPU Acceleration**: While not changing asymptotic complexity, GPU usage can significantly reduce practical computation time for neural network operations, as was often the case in my initial training.
 
@@ -334,7 +327,7 @@ In conclusion, SquiRtL's complexity is primarily driven by the neural network op
 3. GeeksforGeeks. (2016, Oct 26). *Dynamic Programming | Algorithms & Data Structures* [Playlist of Videos]. YouTube. Available at: [https://www.youtube.com/playlist?list=PLqM7alHXFySGbXhWx7sBJEwY2DnhDjmxm](https://www.youtube.com/playlist?list=PLqM7alHXFySGbXhWx7sBJEwY2DnhDjmxm).
 4. Kreutzer, S. (2006). [DAG-Width and Parity Games](http://web.comlab.ox.ac.uk/people/Stephan.Kreutzer/Publications/stacs06.pdf).
 5. Mnih, V., Kavukcuoglu, K., Silver, D., Graves, A., Antonoglou, I., Wierstra, D., & Riedmiller, M. (2013). [Playing Atari with Deep Reinforcement Learning](https://arxiv.org/abs/1312.5602). arXiv preprint arXiv:1312.5602.
-6. OpenAI. (2018). [OpenAI Baselines: high-quality implementations of reinforcement learning algorithms](https://github.com/openai/baselines). GitHub repository. Available at: [https://github.com/openai/baselines](https://github.com/openai/baselines).
+6. OpenAI Baselines. GitHub repository. Available at: [https://github.com/openai/baselines](https://github.com/openai/baselines).
 7. PWhiddy. *Pokemon Red Experiments*. GitHub repository. Available at: [https://github.com/PWhiddy/PokemonRedExperiments](https://github.com/PWhiddy/PokemonRedExperiments).
 8. PyBoy. GitHub repository. Available at: [https://github.com/Baekalfen/PyBoy](https://github.com/Baekalfen/PyBoy).
 9. Sutton, R. S., & Barto, A. G. (2018). *Reinforcement Learning: An Introduction*, 2nd edition. MIT Press.
@@ -345,4 +338,4 @@ In conclusion, SquiRtL's complexity is primarily driven by the neural network op
 
 This project was developed under the supervision and thoughtful direction of [Professor Weston Viles](https://roux.northeastern.edu/people/weston-viles/) during class *5800 - Algorithms* at the **Roux Institute of Northeastern University**. Wes has been an incredible supporter of me and my work for multiple summers now, and I'm thrilled to have had the opportunity to both learn from and get to know someone who's so passionate about this space. 
 
-I also would be remiss if I didn't thank Sean Sullivan for constantly helping me contextualize my thoughts and for his advocacy of my work and capabilities in all things technology. Thank you, Wes and Sean!
+I also would be remiss if I didn't thank **Sean Sullivan** for constantly helping me contextualize my thoughts and for his advocacy of my work and capabilities in all things technology. Thank you, Wes and Sean!
