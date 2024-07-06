@@ -99,20 +99,12 @@ class Gymnasium:
         self.is_effective, self.next_state = self.emulator.press_button(self.action)
 
     def train(self, num_episodes, start_episode = 1):
-        print(f"\n{'='*50}")
-        print(f"Starting training from episode {start_episode}")
-        print(f"{'='*50}")
-
         if start_episode > 1:
             self.load_checkpoint(start_episode)
 
         for episode in range(start_episode, start_episode + num_episodes):
-            print(f"\nRunning episode {episode}...")
+            print(f"\nRunning episode {episode}.")
             self.run_episode()
             self.save_checkpoint(episode)
-
-        print(f"\n{'='*50}")
-        print(f"Training completed. Total episodes: {start_episode + num_episodes - 1}")
-        print(f"{'='*50}")
 
         self.emulator.close_emulator()
