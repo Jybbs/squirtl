@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+from collections              import deque
 from torch.jit                import script
 from torch.optim              import Adam
 from torch.optim.lr_scheduler import ExponentialLR
@@ -8,15 +9,10 @@ from torch.utils.data         import Dataset, DataLoader
 
 class Memory(Dataset):
     def __init__(self, capacity):
-        self.capacity = capacity
-        self.memory   = []
-        self.position = 0
+        self.memory = deque(maxlen = capacity)
 
     def push(self, state, action, next_state, reward, done):
-        if len(self.memory) < self.capacity:
-            self.memory.append(None)
-        self.memory[self.position] = (state, action, next_state, reward, done)
-        self.position = (self.position + 1) % self.capacity
+        self.memory.append((state, action, next_state, reward, done))
 
     def __len__(self):
         return len(self.memory)
@@ -36,7 +32,7 @@ class DQN(nn.Module):
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.Flatten(),
-            nn.LazyLinear(256),
+            nn.Linear(64 * 10 * 9, 256),
             nn.ReLU(),
             nn.Linear(256, action_count)
         )
@@ -52,6 +48,7 @@ class Agent(nn.Module):
         self.actions_taken     = 0
         self.batch_size        = settings.batch_size
         self.device            = settings.device
+        self.memory            = Memory(settings.memory_capacity)
 
         # Network initialization
         self.main_network   = script(DQN(self.action_space_size)).to(self.device)
@@ -63,19 +60,17 @@ class Agent(nn.Module):
         self.optimizer     = Adam(self.main_network.parameters(), lr = settings.learning_rate)
         self.loss_function = nn.HuberLoss()
         self.scheduler     = ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
-
-        # Memory and data loading
-        self.memory     = Memory(settings.memory_capacity)
-        self.dataloader = DataLoader(self.memory, 
-                                     batch_size  = self.batch_size, 
-                                     shuffle     = True,
-                                     pin_memory  = True if self.device == 'mps' else False)
     
     def learn_from_experience(self):
         if len(self.memory) < self.batch_size:
             return 0, 0
 
-        batch = next(iter(self.dataloader))
+        dataloader = DataLoader(self.memory, 
+                                batch_size  = self.batch_size, 
+                                shuffle     = True,
+                                pin_memory  = True if self.device == 'mps' else False)
+
+        batch = next(iter(dataloader))
         states, actions, next_states, rewards, dones = [b.to(self.device) for b in batch]
 
         current_q_values = self.main_network(states).gather(1, actions.unsqueeze(-1))
