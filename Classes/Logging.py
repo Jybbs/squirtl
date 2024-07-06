@@ -1,11 +1,25 @@
 import json
 import matplotlib.pyplot as plt
-import numpy as np
+import numpy             as np
 
-from collections import Counter, defaultdict
-from cv2         import COLOR_RGB2BGR, cvtColor, VideoWriter, VideoWriter_fourcc
-from pandas      import DataFrame
-from seaborn     import regplot, scatterplot
+from alive_progress import alive_bar
+from collections    import Counter, defaultdict
+from cv2            import COLOR_RGB2BGR, VideoWriter, VideoWriter_fourcc, cvtColor
+from dataclasses    import dataclass
+from pandas         import DataFrame
+from seaborn        import regplot, scatterplot
+
+@dataclass
+class Metrics:
+    action        : str
+    action_number : int
+    action_type   : str
+    elapsed_time  : float
+    is_effective  : bool
+    loss          : float
+    q_value       : float
+    reward        : float
+    total_reward  : float
 
 class Logging:
     def __init__(self, debug, frames, settings, start_episode):
@@ -60,10 +74,24 @@ class Logging:
 
         return all_metrics
 
-    def log_action(self, metrics):
+    def log_action(self, action, action_number, action_type, elapsed_time, 
+                   is_effective, loss, q_value, reward, total_reward):
+        metrics = Metrics \
+        (
+            action        = action,
+            action_number = action_number,
+            action_type   = action_type,
+            elapsed_time  = elapsed_time,
+            is_effective  = is_effective,
+            loss          = loss,
+            q_value       = q_value,
+            reward        = reward,
+            total_reward  = total_reward
+        )
         self.action_metrics[self.current_episode].append(metrics)
         if self.debug:
             self.print_debug(self.current_episode, metrics)
+            self.update_progress_bar()
 
     def log_episode(self):
         metrics = self.calculate_episode_metrics(self.current_episode)
@@ -79,12 +107,21 @@ class Logging:
         episode_summaries = self.load_metrics()
         df = DataFrame(episode_summaries)
         
-        metrics = ["average_loss", "average_q_value", "backtracking_actions", 
-                   "effective_actions", "elapsed_time", "new_actions", 
-                   "total_actions", "total_reward", "wait_actions"]
+        metrics = \
+        [
+            "average_loss", 
+            "average_q_value", 
+            "backtracking_actions", 
+            "effective_actions", 
+            "elapsed_time", 
+            "new_actions", 
+            "total_actions", 
+            "total_reward", 
+            "wait_actions"
+        ]
         
         fig, axes = plt.subplots(3, 3, figsize = (15, 10), sharex = True)
-        colors = plt.cm.viridis(np.linspace(0.1, 1, len(metrics)))
+        colors    = plt.cm.viridis(np.linspace(0.1, 1, len(metrics)))
         
         for metric, ax, color in zip(metrics, axes.flatten(), colors):
             regplot(x = 'episode', y = metric, data = df, ax = ax, scatter = False, 

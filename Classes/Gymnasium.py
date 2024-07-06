@@ -1,110 +1,138 @@
-from contextlib  import contextmanager
-from dataclasses import dataclass
-from time        import time
-
-@contextmanager
-def timer():
-    start = time()
-    yield lambda: time() - start
+from dataclasses import dataclass, field
+from gym         import Env
+from gym.spaces  import Box, Discrete
+from numpy       import uint8
+from time        import perf_counter
 
 @dataclass
-class Metrics:
-    action        : str
-    action_number : int
-    action_type   : str
-    elapsed_time  : float
-    is_effective  : bool
-    loss          : float
-    q_value       : float
-    reward        : float
-    total_reward  : float
+class Outcome:
+    action_type  : str
+    is_effective : bool
+    loss         : float
+    next_state   : list
+    q_value      : float
+    reward       : float
 
-class Gymnasium:
+@dataclass
+class State:
+    action_number : int   = field(default = 0)
+    episode_done  : bool  = field(default = False)
+    start_time    : float = field(default_factory = perf_counter)
+    state         : list  = field(default_factory = list)
+    total_reward  : float = field(default = 0.0)
+
+    def reset(self, initial_state):
+        self.action_number = 0
+        self.episode_done  = False
+        self.start_time    = perf_counter()
+        self.state         = initial_state
+        self.total_reward  = 0.0
+
+    def update(self, outcome):
+        self.action_number += 1
+        self.state          = outcome.next_state
+        self.total_reward  += outcome.reward
+
+class Gymnasium(Env):
     def __init__(self, agent, emulator, logging, reward, settings):
-        self.agent    = agent
-        self.emulator = emulator
-        self.logging  = logging
-        self.reward   = reward
-        self.settings = settings
+        super().__init__()
+        self.action_space      = Discrete(len(settings.action_space))
+        self.agent             = agent
+        self.emulator          = emulator
+        self.logging           = logging
+        self.observation_space = Box(low = 0, high = 255, shape = (144, 160, 4), dtype = uint8)
+        self.reward            = reward
+        self.settings          = settings
+        self.state             = State()
+
+    def __call__(self):
+        self.reset()
+        while not self.state.episode_done and self.state.action_number < self.settings.MAX_ACTIONS:
+            action = self.agent.select_action(self.state.state)
+            self.step(action)
+        return self.logging.log_episode()
+
+    def evaluate_action(self, action_str, current_state, is_effective, next_state):
+        return self.reward.evaluate_action \
+        (
+            action       = action_str,
+            is_effective = is_effective,
+            next_state   = next_state,
+            state        = current_state
+        )
+
+    def learn(self):
+        return self.agent.learn_from_experience()
 
     def load_checkpoint(self, start_episode):
         checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{start_episode - 1}.pth"
         self.agent.load_checkpoint(checkpoint_path)
 
-    def log_action_metrics(self, action_type, get_elapsed_time, loss, q_value, reward):
-        metrics = Metrics \
-        (
-            action        = self.action,
-            action_number = self.action_number,
-            action_type   = action_type,
-            elapsed_time  = get_elapsed_time(),
-            is_effective  = self.is_effective,
-            loss          = loss,
-            q_value       = q_value,
-            reward        = reward,
-            total_reward  = self.total_reward
-        )
-        self.logging.log_action(metrics)
+    def perform_action(self, action):
+        action_str    = self.settings.action_space[action]
+        current_state = self.emulator.advance_until_playable()
+        is_effective, next_state = self.emulator.press_button(action_str)
+        return action_str, is_effective, current_state, next_state
 
-    def process_action_results(self, get_elapsed_time):
-        reward, self.episode_done, action_type = self.reward.evaluate_action \
-        (
-            self.action,
-            self.is_effective,
-            self.next_state,
-            self.state
-        )
-
-        self.total_reward += reward
-        self.agent.store_experience \
-        (
-            action     = self.action_index,
-            done       = self.episode_done,
-            next_state = self.next_state,
-            reward     = reward,
-            state      = self.state
-        )
-
-        loss, q_value = self.agent.learn_from_experience()
-        self.log_action_metrics(action_type, get_elapsed_time, loss, q_value, reward)
-        self.state = self.next_state
-
-    def reset_episode_state(self):
-        self.action_number = 0
-        self.episode_done  = False
+    def reset(self):
+        initial_state = self.emulator.reset()
+        self.state.reset(initial_state)
         self.reward.reset()
-        self.state         = self.emulator.reset()
-        self.total_reward  = 0
+        return self.state.state
 
-    def run_episode(self):
-        self.reset_episode_state()
-        
-        with timer() as get_elapsed_time:
-            while not self.episode_done and self.action_number < self.settings.MAX_ACTIONS:
-                self.select_and_perform_action()
-                self.process_action_results(get_elapsed_time)
-                self.action_number += 1
+    def run_training_session(self, num_episodes, start_episode = 1):
+        if start_episode > 1:
+            self.load_checkpoint(start_episode)
 
-        return self.logging.log_episode()
+        for episode in range(start_episode, start_episode + num_episodes):
+            print(f"\nRunning episode {episode} of {start_episode + num_episodes - 1}")
+            self()
+            self.save_checkpoint(episode)
+
+        self.emulator.close_emulator()
 
     def save_checkpoint(self, episode):
         checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{episode}.pth"
         self.agent.save_checkpoint(checkpoint_path)
 
-    def select_and_perform_action(self):
-        self.action_index = self.agent.select_action(self.state)
-        self.action       = self.settings.action_space[self.action_index]
-        
-        self.state = self.emulator.advance_until_playable()
-        self.is_effective, self.next_state = self.emulator.press_button(self.action)
+    def step(self, action):
+        action_str, is_effective, current_state, next_state = self.perform_action(action)
+        reward, done, action_type = self.evaluate_action(action_str, current_state, is_effective, next_state)
+        self.store_experience(action, current_state, next_state, reward, done)
+        loss, q_value = self.learn()
 
-    def train(self, num_episodes, start_episode = 1):
-        if start_episode > 1:
-            self.load_checkpoint(start_episode)
+        outcome = Outcome \
+        (
+            action_type  = action_type,
+            is_effective = is_effective,
+            loss         = loss,
+            next_state   = next_state,
+            q_value      = q_value,
+            reward       = reward
+        )
+        self.state.update(outcome)
 
-        for episode in range(start_episode, start_episode + num_episodes):
-            print(f"\nRunning episode {episode}.")
-            self.run_episode()
-            self.save_checkpoint(episode)
+        self.logging.log_action \
+        (
+            action        = action_str,
+            action_number = self.state.action_number,
+            action_type   = action_type,
+            elapsed_time  = perf_counter() - self.state.start_time,
+            is_effective  = is_effective,
+            loss          = loss,
+            q_value       = q_value,
+            reward        = reward,
+            total_reward  = self.state.total_reward
+        )
 
-        self.emulator.close_emulator()
+        return next_state, reward, done, {}
+
+    def store_experience(self, action, current_state, next_state, reward, done):
+        self.agent.store_experience \
+        (
+            action     = action,
+            done       = done,
+            next_state = next_state,
+            reward     = reward,
+            state      = current_state
+        )

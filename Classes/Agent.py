@@ -11,14 +11,15 @@ class Memory(Dataset):
     def __init__(self, capacity):
         self.memory = deque(maxlen = capacity)
 
-    def push(self, state, action, next_state, reward, done):
-        self.memory.append((state, action, next_state, reward, done))
-
     def __len__(self):
         return len(self.memory)
 
     def __getitem__(self, idx):
         return self.memory[idx]
+
+
+    def push(self, state, action, next_state, reward, done):
+        self.memory.append((state, action, next_state, reward, done))
 
 class DQN(nn.Module):
     def __init__(self, action_count):
