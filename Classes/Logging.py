@@ -4,41 +4,24 @@ import numpy as np
 
 from collections import Counter, defaultdict
 from cv2         import COLOR_RGB2BGR, cvtColor, VideoWriter, VideoWriter_fourcc
-from dataclasses import dataclass, asdict
 from pandas      import DataFrame
 from seaborn     import regplot, scatterplot
-from time        import time
-
-@dataclass
-class Metrics:
-    action        : str
-    action_number : int
-    action_type   : str
-    elapsed_time  : float
-    is_effective  : bool
-    loss          : float
-    q_value       : float
-    reward        : float
-    total_reward  : float
-
-    def to_dict(self):
-        return asdict(self)
 
 class Logging:
     def __init__(self, debug, frames, settings, start_episode):
-        self.settings        = settings
         self.action_metrics  = defaultdict(list)
         self.current_episode = start_episode
         self.debug           = debug
         self.frames          = frames
-        self.start_time      = time()
+        self.settings        = settings
 
     def calculate_episode_metrics(self, episode):
         episode_metrics    = self.action_metrics[episode]
         total_actions      = len(episode_metrics)
         action_type_counts = Counter(m.action_type for m in episode_metrics)
         
-        return {
+        return \
+        {
             "average_loss"         : np.mean([m.loss for m in episode_metrics]),
             "average_q_value"      : np.mean([m.q_value for m in episode_metrics]),
             "backtracking_actions" : action_type_counts["backtrack"],
@@ -51,7 +34,7 @@ class Logging:
             "total_reward"         : episode_metrics[-1].total_reward,
             "wait_actions"         : action_type_counts["wait"],
         }
-    
+
     def get_frames_for_video(self, frames, filename):
         if not frames:
             return
@@ -66,13 +49,15 @@ class Logging:
 
         video_writer.release()
 
-    def load_all_episode_metrics(self):
+    def load_metrics(self):
         all_metrics = []
         for episode in range(1, self.current_episode + 1):
             metrics_path = self.settings.metrics_directory / f"episode_{episode}_metrics.json"
+
             if metrics_path.exists():
                 with open(metrics_path, 'r') as file:
                     all_metrics.append(json.load(file))
+
         return all_metrics
 
     def log_action(self, metrics):
@@ -91,11 +76,12 @@ class Logging:
 
     def plot_metrics(self):
         self.setup_plot_params()
-        episode_summaries = self.load_all_episode_metrics()
+        episode_summaries = self.load_metrics()
         df = DataFrame(episode_summaries)
         
-        metrics = ["total_actions", "total_reward", "average_loss", "average_q_value",
-                   "effective_actions", "new_actions", "backtracking_actions", "wait_actions", "elapsed_time"]
+        metrics = ["average_loss", "average_q_value", "backtracking_actions", 
+                   "effective_actions", "elapsed_time", "new_actions", 
+                   "total_actions", "total_reward", "wait_actions"]
         
         fig, axes = plt.subplots(3, 3, figsize = (15, 10), sharex = True)
         colors = plt.cm.viridis(np.linspace(0.1, 1, len(metrics)))
@@ -141,32 +127,37 @@ class Logging:
 
         actions_path = self.settings.metrics_directory / f"episode_{episode}_actions.json"
         with open(actions_path, 'w') as file:
-            json.dump([m.to_dict() for m in self.action_metrics[episode]], file, indent = 4)
+            json.dump([m.__dict__ for m in self.action_metrics[episode]], file, indent = 4)
 
     def save_episode_videos(self, episode):
         self.get_frames_for_video(self.frames.get_episode_frames(), f"episode_{episode}.mp4")
 
     def setup_plot_params(self):
-        plt.rcParams.update({# Axes parameters                            # Tick parameters
-                             'axes.facecolor'     : '.05',                'xtick.labelsize'    : 8,
-                             'axes.grid'          : True,                 'xtick.color'        : '1',
-                             'axes.labelcolor'    : 'white',              'xtick.major.size'   : 0,
-                             'axes.spines.left'   : False,                'ytick.labelsize'    : 8,
-                             'axes.spines.right'  : False,                'ytick.color'        : '1',
-                             'axes.spines.top'    : False,                'ytick.major.size'   : 0,
-                             'axes.labelsize'     : 10,
-                             'axes.labelweight'   : 'bold',               # Figure parameters
-                             'axes.titlesize'     : 13,                   'figure.facecolor'   : 'black',
-                             'axes.titleweight'   : 'bold',               'figure.figsize'     : (15, 10),
-                             'axes.labelpad'      : 15,                   'figure.autolayout'  : True,
-                             'axes.titlepad'      : 15,
+        plt.rcParams.update \
+        (
+            {
+                # Axes parameters                            # Tick parameters
+                'axes.facecolor'     : '.05',                'xtick.labelsize'    : 8,
+                'axes.grid'          : True,                 'xtick.color'        : '1',
+                'axes.labelcolor'    : 'white',              'xtick.major.size'   : 0,
+                'axes.spines.left'   : False,                'ytick.labelsize'    : 8,
+                'axes.spines.right'  : False,                'ytick.color'        : '1',
+                'axes.spines.top'    : False,                'ytick.major.size'   : 0,
+                'axes.labelsize'     : 10,
+                'axes.labelweight'   : 'bold',               # Figure parameters
+                'axes.titlesize'     : 13,                   'figure.facecolor'   : 'black',
+                'axes.titleweight'   : 'bold',               'figure.figsize'     : (15, 10),
+                'axes.labelpad'      : 15,                   'figure.autolayout'  : True,
+                'axes.titlepad'      : 15,
 
-                             # Font and text parameters                   # Legend parameters
-                             'font.family'        : 'DejaVu Sans Mono',   'legend.facecolor'   : '0.3',
-                             'font.size'          : 8,                    'legend.edgecolor'   : '0.3',
-                             'font.style'         : 'normal',             'legend.borderpad'   : 0.75,
-                             'text.color'         : 'white',              'legend.framealpha'  : '0.5',
+                # Font and text parameters                   # Legend parameters
+                'font.family'        : 'DejaVu Sans Mono',   'legend.facecolor'   : '0.3',
+                'font.size'          : 8,                    'legend.edgecolor'   : '0.3',
+                'font.style'         : 'normal',             'legend.borderpad'   : 0.75,
+                'text.color'         : 'white',              'legend.framealpha'  : '0.5',
 
-                             # Grid parameters
-                             'grid.linestyle'     : ':',
-                             'grid.color'         : '0.2'})
+                # Grid parameters
+                'grid.linestyle'     : ':',
+                'grid.color'         : '0.2'
+            }
+        )

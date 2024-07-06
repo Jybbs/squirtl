@@ -1,8 +1,6 @@
 from contextlib  import contextmanager
-from dataclasses import astuple, dataclass
-from Logging     import Metrics
+from dataclasses import dataclass
 from time        import time
-from torch       import BoolTensor, FloatTensor, LongTensor, stack
 
 @contextmanager
 def timer():
@@ -10,115 +8,95 @@ def timer():
     yield lambda: time() - start
 
 @dataclass
-class Experience:
-    action     : int
-    done       : bool
-    next_state : FloatTensor
-    reward     : float
-    state      : FloatTensor
-
-    def __iter__(self):
-        return iter(astuple(self))
-
-    @staticmethod
-    def batch_to_tensor(experiences, device):
-        batch = list(zip(*experiences))
-        return Experience \
-        (
-            action     = LongTensor(batch[0]).to(device),
-            done       = BoolTensor(batch[1]).to(device),
-            next_state = stack(batch[2]).to(device),
-            reward     = FloatTensor(batch[3]).to(device),
-            state      = stack(batch[4]).to(device)
-        )
+class Metrics:
+    action        : str
+    action_number : int
+    action_type   : str
+    elapsed_time  : float
+    is_effective  : bool
+    loss          : float
+    q_value       : float
+    reward        : float
+    total_reward  : float
 
 class Gymnasium:
     def __init__(self, agent, emulator, logging, reward, settings):
-        self.settings = settings
         self.agent    = agent
-        self.device   = settings.device
         self.emulator = emulator
         self.logging  = logging
         self.reward   = reward
-        self.reset_episode_state()
+        self.settings = settings
 
-    def finalize_episode(self):
-        return self.logging.log_episode()
+    def load_checkpoint(self, start_episode):
+        checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{start_episode - 1}.pth"
+        self.agent.load_checkpoint(checkpoint_path)
 
-    def handle_action(self, get_elapsed_time):
-        if self.action == 'wait':
-            is_effective    = False
-            self.next_frame = self.emulator.advance_frame()
-        else:
-            is_effective, self.next_frame = self.emulator.press_button(self.action)
-
-        reward, done, action_type = self.reward.evaluate_action(self.current_frame, self.next_frame, is_effective, self.action)
-        self.episode_done  = done
-        self.total_reward += reward
-
-        self.store_and_learn \
+    def log_action_metrics(self, action_type, get_elapsed_time, loss, q_value, reward):
+        metrics = Metrics \
         (
-            action_type      = action_type,
-            done             = done,
-            get_elapsed_time = get_elapsed_time,
-            is_effective     = is_effective,
-            reward           = reward
+            action        = self.action,
+            action_number = self.action_number,
+            action_type   = action_type,
+            elapsed_time  = get_elapsed_time(),
+            is_effective  = self.is_effective,
+            loss          = loss,
+            q_value       = q_value,
+            reward        = reward,
+            total_reward  = self.total_reward
         )
-        self.current_frame = self.next_frame
+        self.logging.log_action(metrics)
+
+    def process_action_results(self, get_elapsed_time):
+        reward, self.episode_done, action_type = self.reward.evaluate_action \
+        (
+            self.action,
+            self.is_effective,
+            self.next_state,
+            self.state
+        )
+
+        self.total_reward += reward
+        self.agent.store_experience \
+        (
+            action     = self.action_index,
+            done       = self.episode_done,
+            next_state = self.next_state,
+            reward     = reward,
+            state      = self.state
+        )
+
+        loss, q_value = self.agent.learn_from_experience()
+        self.log_action_metrics(action_type, get_elapsed_time, loss, q_value, reward)
+        self.state = self.next_state
 
     def reset_episode_state(self):
-        self.action        = None
-        self.action_index  = None
         self.action_number = 0
-        self.current_frame = None
         self.episode_done  = False
-        self.next_frame    = None
+        self.reward.reset()
+        self.state         = self.emulator.reset()
         self.total_reward  = 0
 
     def run_episode(self):
         self.reset_episode_state()
-        self.current_frame = self.emulator.reset()
-        self.reward.reset()
-
+        
         with timer() as get_elapsed_time:
             while not self.episode_done and self.action_number < self.settings.MAX_ACTIONS:
-                self.action_index  = self.agent.select_action(self.current_frame)
-                self.action        = self.settings.action_space[self.action_index]
-                self.current_frame = self.emulator.advance_until_playable()
-                
-                self.handle_action(get_elapsed_time)
+                self.select_and_perform_action()
+                self.process_action_results(get_elapsed_time)
                 self.action_number += 1
 
-        return self.finalize_episode()
+        return self.logging.log_episode()
 
-    def store_and_learn(self, action_type, done, get_elapsed_time, is_effective, reward):
-        self.agent.store_experience(
-            Experience \
-            (
-                action     = self.action_index,
-                done       = done,
-                next_state = FloatTensor(self.next_frame).to(self.device),
-                reward     = reward,
-                state      = FloatTensor(self.current_frame).to(self.device)
-            )
-        )
+    def save_checkpoint(self, episode):
+        checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{episode}.pth"
+        self.agent.save_checkpoint(checkpoint_path)
+
+    def select_and_perform_action(self):
+        self.action_index = self.agent.select_action(self.state)
+        self.action       = self.settings.action_space[self.action_index]
         
-        action_loss, action_q_value = self.agent.learn_from_experience()
-        
-        self.logging.log_action(
-            Metrics \
-            (
-                action        = self.action,
-                action_number = self.action_number,
-                action_type   = action_type,
-                elapsed_time  = get_elapsed_time(),
-                is_effective  = is_effective,
-                loss          = action_loss,
-                q_value       = action_q_value,
-                reward        = reward,
-                total_reward  = self.total_reward
-            )
-        )
+        self.state = self.emulator.advance_until_playable()
+        self.is_effective, self.next_state = self.emulator.press_button(self.action)
 
     def train(self, num_episodes, start_episode = 1):
         print(f"\n{'='*50}")
@@ -126,13 +104,12 @@ class Gymnasium:
         print(f"{'='*50}")
 
         if start_episode > 1:
-            checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{start_episode - 1}.pth"
-            self.agent.load_checkpoint(checkpoint_path)
+            self.load_checkpoint(start_episode)
 
         for episode in range(start_episode, start_episode + num_episodes):
             print(f"\nRunning episode {episode}...")
             self.run_episode()
-            self.agent.save_checkpoint(self.settings.checkpoints_directory / f"checkpoint_episode_{episode}.pth")
+            self.save_checkpoint(episode)
 
         print(f"\n{'='*50}")
         print(f"Training completed. Total episodes: {start_episode + num_episodes - 1}")

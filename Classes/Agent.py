@@ -43,12 +43,12 @@ class DQN(nn.Module):
 class Agent(nn.Module):
     def __init__(self, settings):
         super().__init__()
-        self.settings          = settings
         self.action_space_size = len(settings.action_space)
         self.actions_taken     = 0
         self.batch_size        = settings.batch_size
         self.device            = settings.device
         self.memory            = Memory(settings.memory_capacity)
+        self.settings          = settings
 
         # Network initialization
         self.main_network   = script(DQN(self.action_space_size)).to(self.device)
