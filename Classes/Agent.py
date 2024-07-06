@@ -24,7 +24,6 @@ class Memory(Dataset):
     def __getitem__(self, idx):
         return self.memory[idx]
 
-@script
 class DQN(nn.Module):
     def __init__(self, action_count):
         super().__init__()
@@ -55,8 +54,8 @@ class Agent(nn.Module):
         self.device            = settings.device
 
         # Network initialization
-        self.main_network   = DQN(self.action_space_size).to(self.device)
-        self.target_network = DQN(self.action_space_size).to(self.device)
+        self.main_network   = script(DQN(self.action_space_size)).to(self.device)
+        self.target_network = script(DQN(self.action_space_size)).to(self.device)
         self.target_network.load_state_dict(self.main_network.state_dict())
         self.target_network.eval()
 
