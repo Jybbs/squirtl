@@ -26,11 +26,11 @@ class Metrics:
 
 class Logging:
     def __init__(self, debug, frames, settings, start_episode):
+        self.settings        = settings
         self.action_metrics  = defaultdict(list)
         self.current_episode = start_episode
         self.debug           = debug
         self.frames          = frames
-        self.settings        = settings
         self.start_time      = time()
 
     def calculate_episode_metrics(self, episode):

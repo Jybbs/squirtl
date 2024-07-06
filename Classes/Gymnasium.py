@@ -34,12 +34,12 @@ class Experience:
 
 class Gymnasium:
     def __init__(self, agent, emulator, logging, reward, settings):
+        self.settings = settings
         self.agent    = agent
         self.device   = settings.device
         self.emulator = emulator
         self.logging  = logging
         self.reward   = reward
-        self.settings = settings
         self.reset_episode_state()
 
     def finalize_episode(self):

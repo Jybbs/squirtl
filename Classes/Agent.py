@@ -2,16 +2,34 @@ import torch
 import torch.nn as nn
 
 from torch.jit                import script
-from torch.nn.functional      import smooth_l1_loss
 from torch.optim              import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data         import ReplayMemory
+from torch.utils.data         import Dataset, DataLoader
+
+class Memory(Dataset):
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.memory   = []
+        self.position = 0
+
+    def push(self, state, action, next_state, reward, done):
+        if len(self.memory) < self.capacity:
+            self.memory.append(None)
+        self.memory[self.position] = (state, action, next_state, reward, done)
+        self.position = (self.position + 1) % self.capacity
+
+    def __len__(self):
+        return len(self.memory)
+
+    def __getitem__(self, idx):
+        return self.memory[idx]
 
 @script
 class DQN(nn.Module):
     def __init__(self, action_count):
         super().__init__()
-        self.network = nn.Sequential(
+        self.network = nn.Sequential \
+        (
             nn.Conv2d(4, 32, kernel_size = 8, stride = 4),
             nn.BatchNorm2d(32),
             nn.ReLU(),
@@ -30,55 +48,72 @@ class DQN(nn.Module):
 class Agent(nn.Module):
     def __init__(self, settings):
         super().__init__()
+        self.settings          = settings
         self.action_space_size = len(settings.action_space)
         self.actions_taken     = 0
         self.batch_size        = settings.batch_size
         self.device            = settings.device
-        self.experience_fields = settings.experience_fields
-        self.main_network      = DQN(self.action_space_size).to(self.device)
-        self.target_network    = DQN(self.action_space_size).to(self.device)
-        self.optimizer         = Adam(self.main_network.parameters(), lr = settings.learning_rate)
-        self.scheduler         = ReduceLROnPlateau(self.optimizer, 
-                                                   mode     = 'min', 
-                                                   factor   = settings.scheduler_factor, 
-                                                   patience = settings.scheduler_patience)
-        self.replay_memory     = ReplayMemory(settings.memory_capacity)
-        self.settings          = settings
 
+        # Network initialization
+        self.main_network   = DQN(self.action_space_size).to(self.device)
+        self.target_network = DQN(self.action_space_size).to(self.device)
         self.target_network.load_state_dict(self.main_network.state_dict())
         self.target_network.eval()
 
+        # Optimizer and loss function
+        self.optimizer     = Adam(self.main_network.parameters(), lr = settings.learning_rate)
+        self.loss_function = nn.HuberLoss()
+        self.scheduler     = ReduceLROnPlateau(self.optimizer, 
+                                               mode     = 'min', 
+                                               factor   = settings.scheduler_factor, 
+                                               patience = settings.scheduler_patience)
+
+        # Memory and data loading
+        self.memory     = Memory(settings.memory_capacity)
+        self.dataloader = DataLoader(self.memory, 
+                                     batch_size  = self.batch_size, 
+                                     shuffle     = True,
+                                     pin_memory  = True if self.device == 'mps' else False)
+
     def learn_from_experience(self):
-        if len(self.replay_memory) < self.batch_size:
+        if len(self.memory) < self.batch_size:
             return 0, 0
 
-        batch = self.prepare_batch()
-        loss, q_values = self.update_network(batch)
+        batch = next(iter(self.dataloader))
+        states, actions, next_states, rewards, dones = [b.to(self.device) for b in batch]
+
+        current_q_values = self.main_network(states).gather(1, actions.unsqueeze(-1))
+        with torch.no_grad():
+            next_q_values   = self.target_network(next_states).max(1)[0]
+            target_q_values = rewards + (1 - dones.float()) * self.settings.discount_factor * next_q_values
+        loss = self.loss_function(current_q_values, target_q_values.unsqueeze(1))
+
+        self.optimizer.zero_grad(set_to_none = True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.main_network.parameters(), max_norm = 1.0)
+        self.optimizer.step()
         self.update_target_network()
         self.update_learning_parameters(loss)
         
-        return loss.item(), q_values.mean().item()
+        return loss.item(), current_q_values.mean().item()
 
     def load_checkpoint(self, path):
         checkpoint = torch.load(path, map_location = self.device)
-        self.actions_taken = checkpoint['actions_taken']
+        self.actions_taken             = checkpoint['actions_taken']
         self.settings.exploration_rate = checkpoint['exploration_rate']
-        self.load_state_dict(checkpoint['model'])
+        self.main_network              = torch.jit.load(checkpoint['model_path'], map_location = self.device)
         self.optimizer.load_state_dict(checkpoint['optimizer'])
         self.scheduler.load_state_dict(checkpoint['scheduler'])
 
-    def prepare_batch(self):
-        transitions = self.replay_memory.sample(self.batch_size)
-        return {f : torch.cat([getattr(t, f) for t in transitions]).to(self.device)
-                for f in self.experience_fields}
-
     def save_checkpoint(self, path):
+        model_path = path.with_suffix('.pt')
+        torch.jit.save(self.main_network, model_path)
         torch.save \
         (
             {
                 'actions_taken'    : self.actions_taken,
                 'exploration_rate' : self.settings.exploration_rate,
-                'model'            : self.state_dict(),
+                'model_path'       : str(model_path),
                 'optimizer'        : self.optimizer.state_dict(),
                 'scheduler'        : self.scheduler.state_dict(),
             }, 
@@ -94,15 +129,14 @@ class Agent(nn.Module):
 
     def store_experience(self, state, action, next_state, reward, done):
         self.actions_taken += 1
-        experience = \
-        {
-            'state'      : torch.FloatTensor(state),
-            'action'     : torch.tensor([action]),
-            'next_state' : torch.FloatTensor(next_state),
-            'reward'     : torch.tensor([reward]),
-            'done'       : torch.tensor([done])
-        }
-        self.replay_memory.push(*[experience[f] for f in self.experience_fields])
+        self.memory.push \
+        (
+            torch.FloatTensor(state),
+            torch.tensor(action),
+            torch.FloatTensor(next_state),
+            torch.tensor(reward),
+            torch.tensor(done)
+        )
 
     def update_learning_parameters(self, loss):
         self.scheduler.step(loss)
@@ -112,29 +146,6 @@ class Agent(nn.Module):
             self.settings.exploration_rate * self.settings.exploration_decay
         )
 
-    def update_network(self, batch):
-        current_q_values = self.main_network(batch['state']).gather(1, batch['action'])
-        target_q_values = self.compute_target_values(batch)
-        loss = smooth_l1_loss(current_q_values, target_q_values)
-        
-        self.optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_value_(self.main_network.parameters(), 100)
-        self.optimizer.step()
-
-        return loss, current_q_values
-
     def update_target_network(self):
         if self.actions_taken % self.settings.target_update_interval == 0:
             self.target_network.load_state_dict(self.main_network.state_dict())
-
-    @torch.no_grad()
-    def compute_target_values(self, batch):
-        next_q_values = self.target_network(batch['next_state']).max(1)[0]
-        return \
-        (
-            batch['reward'] + 
-            (1 - batch['done'].float())   * 
-            self.settings.discount_factor * 
-            next_q_values
-        ).unsqueeze(1)

@@ -1,12 +1,12 @@
 class Reward:
     def __init__(self, emulator, frames, settings):
+        self.settings          = settings
         self.action_count      = 0
         self.consecutive_waits = 0
         self.cumulative_score  = 0
         self.emulator          = emulator
         self.frames            = frames
         self.intro_completed   = False
-        self.settings          = settings
 
     def calculate_action_reward(self, current_frame, next_frame, is_effective):
         if not is_effective:

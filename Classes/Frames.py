@@ -4,11 +4,11 @@ from collections import deque
 
 class Frames:
     def __init__(self, settings):
+        self.settings         = settings
         self.episode_frames   = []
         self.explored_frames  = []
         self.optimized_frames = []
         self.recent_frames    = deque(maxlen = settings.recent_frames_pool)
-        self.settings         = settings
 
     def add(self, frame):
         self.episode_frames.append(frame)
