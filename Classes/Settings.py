@@ -40,9 +40,9 @@ class Settings:
         self.exploration_min        = 0.1
         self.exploration_rate       = 1.0
         self.learning_rate          = 0.0001
+        self.learning_rate_decay    = 0.9999
+        self.max_norm               = 1.0
         self.memory_capacity        = 100000
-        self.scheduler_factor       = 0.1
-        self.scheduler_patience     = 10
         self.target_update_interval = 500
 
     def setup_reward_settings(self):

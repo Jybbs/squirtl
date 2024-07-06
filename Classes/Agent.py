@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from torch.jit                import script
 from torch.optim              import Adam
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data         import Dataset, DataLoader
 
 class Memory(Dataset):
@@ -63,10 +63,7 @@ class Agent(nn.Module):
         # Optimizer and loss function
         self.optimizer     = Adam(self.main_network.parameters(), lr = settings.learning_rate)
         self.loss_function = nn.HuberLoss()
-        self.scheduler     = ReduceLROnPlateau(self.optimizer, 
-                                               mode     = 'min', 
-                                               factor   = settings.scheduler_factor, 
-                                               patience = settings.scheduler_patience)
+        self.scheduler     = ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
 
         # Memory and data loading
         self.memory     = Memory(settings.memory_capacity)
@@ -74,7 +71,7 @@ class Agent(nn.Module):
                                      batch_size  = self.batch_size, 
                                      shuffle     = True,
                                      pin_memory  = True if self.device == 'mps' else False)
-
+    
     def learn_from_experience(self):
         if len(self.memory) < self.batch_size:
             return 0, 0
@@ -83,14 +80,17 @@ class Agent(nn.Module):
         states, actions, next_states, rewards, dones = [b.to(self.device) for b in batch]
 
         current_q_values = self.main_network(states).gather(1, actions.unsqueeze(-1))
+
         with torch.no_grad():
-            next_q_values   = self.target_network(next_states).max(1)[0]
+            next_actions    = self.main_network(next_states).max(1)[1].unsqueeze(-1)
+            next_q_values   = self.target_network(next_states).gather(1, next_actions)
             target_q_values = rewards + (1 - dones.float()) * self.settings.discount_factor * next_q_values
-        loss = self.loss_function(current_q_values, target_q_values.unsqueeze(1))
+
+        loss = self.loss_function(current_q_values, target_q_values)
 
         self.optimizer.zero_grad(set_to_none = True)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.main_network.parameters(), max_norm = 1.0)
+        torch.nn.utils.clip_grad_norm_(self.main_network.parameters(), max_norm = self.settings.max_norm)
         self.optimizer.step()
         self.update_target_network()
         self.update_learning_parameters(loss)
@@ -138,8 +138,8 @@ class Agent(nn.Module):
             torch.tensor(done)
         )
 
-    def update_learning_parameters(self, loss):
-        self.scheduler.step(loss)
+    def update_learning_parameters(self):
+        self.scheduler.step()
         self.settings.exploration_rate = max \
         (
             self.settings.exploration_min,
