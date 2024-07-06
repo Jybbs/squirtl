@@ -2,10 +2,31 @@ import torch
 import torch.nn as nn
 
 from collections     import deque
-from DQN             import DQN
 from Gymnasium       import Experience
 from random          import randint, random, sample
 from torch.optim     import Adam, lr_scheduler
+
+class DQN(nn.Module):
+    def __init__(self, action_count):
+        super().__init__()
+        self.network = nn.Sequential \
+        (
+            nn.Conv2d(4, 32, kernel_size = 8, stride = 4),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size = 4, stride = 2),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.LazyLinear(256), # LazyLinear will automatically determine the input size
+            nn.ReLU(),
+            nn.Linear(256, action_count)
+        )
+
+    def forward(self, state):
+        if state.dim() == 3:
+            state = state.unsqueeze(0)
+        return self.network(state.permute(0, 3, 1, 2))
 
 class Memory:
     def __init__(self, capacity):
@@ -25,12 +46,12 @@ class Agent(nn.Module):
         self.actions_taken     = 0
         self.batch_size        = settings.batch_size
         self.device            = settings.device
-        self.main_network      = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
+        self.main_network      = DQN(self.action_space_size).to(self.device)
         self.optimizer         = Adam(self.main_network.parameters(), lr = settings.learning_rate)
         self.replay_memory     = Memory(settings.memory_capacity)
         self.scheduler         = lr_scheduler.ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
         self.settings          = settings
-        self.target_network    = DQN(self.action_space_size, settings.state_dimensions).to(self.device)
+        self.target_network    = DQN(self.action_space_size).to(self.device)
 
         self.target_network.load_state_dict(self.main_network.state_dict())
         self.target_network.eval()
@@ -63,7 +84,7 @@ class Agent(nn.Module):
     def load_checkpoint(self, path):
         checkpoint = torch.load(path, map_location = self.device)
 
-        self.actions_taken             = checkpoint['actions_taken']
+        self.actions_taken = checkpoint['actions_taken']
         self.main_network.load_state_dict(checkpoint['main_network'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
         self.scheduler.load_state_dict(checkpoint['lr_scheduler'])

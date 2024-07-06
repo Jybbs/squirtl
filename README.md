@@ -163,40 +163,36 @@ SquiRtL is composed of several interconnected classes:
 2. **Agent**: Implements the DQN algorithm, including action selection and learning.
     - Selects actions using an epsilon-greedy strategy
     - Stores experiences in replay memory
-    - Performs learning updates on the DQN
+    - Performs learning updates on the DQN by using forward passes to predict Q-values
 
-3. **DQN**: Defines the neural network architecture for Q-value prediction.
-    - Implements the deep neural network structure
-    - Performs forward passes to predict Q-values
-
-4. **Emulator**: Interfaces with the Pokémon Blue game using PyBoy.
+3. **Emulator**: Interfaces with the Pokémon Blue game using PyBoy.
     - Manages the game state
     - Executes actions in the game environment
     - Provides observations (screen states)
 
-5. **Frames**: Manages game frames, including state representation and novelty detection.
+4. **Frames**: Manages game frames, including state representation and novelty detection.
     - Processes and stores game frames
     - Detects new game states
     - Checks for backtracking
 
-6. **Gymnasium**: Coordinates the interaction between the agent and the environment.
+5. **Gymnasium**: Coordinates the interaction between the agent and the environment.
     - Manages episodes
     - Handles action execution and reward calculation
     - Facilitates the agent-environment loop
 
-7. **Logging**: Handles metrics logging and visualization.
+6. **Logging**: Handles metrics logging and visualization.
     - Collects performance metrics
     - Generates visualizations and progress reports
 
-8. **Reward**: Defines the reward structure for the agent.
+7. **Reward**: Defines the reward structure for the agent.
     - Calculates rewards based on game events and agent actions
     - Implements the reward shaping strategy
 
-9. **Settings**: Centralizes all configuration parameters.
+8. **Settings**: Centralizes all configuration parameters.
     - Stores hyperparameters and game settings
     - Provides a single point of configuration for the entire system
 
-These components work together to create a complete reinforcement learning system. The **Orchestrator** initializes the process, the **Agent** interacts with the **Gymnasium**, which uses the **Emulator** to execute actions and observe states. The **Frames** class assists in state processing, while the **Reward** class provides feedback. The **DQN** is used by the **Agent** for action selection and learning as it borrows hyperparameters from **Settings**, and the **Logging** class tracks the overall performance.
+These components work together to create a complete reinforcement learning system. The **Orchestrator** initializes the process, the **Agent** interacts with the **Gymnasium**, which uses the **Emulator** to execute actions and observe states. The **Frames** class assists in state processing, while the **Reward** class provides feedback. The DQN is initialized and used by the **Agent** for action selection and learning as it borrows hyperparameters from **Settings**, and the **Logging** class tracks the overall performance.
 
 ## Metrics & Analysis
 
