@@ -1,3 +1,4 @@
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from gym         import Env
 from gym.spaces  import Box, Discrete
@@ -19,14 +20,22 @@ class Action:
     timestamp     : float   = field(default_factory = perf_counter)
     total_reward  : float   = field(default = 0.0)
 
+@dataclass
 class Episode:
-    def __init__(self):
-        self.actions = []
-        self.reset()
+    actions        : list = field(default_factory = list)
+    episode_number : int  = field(default = 0)
 
     @property
-    def action_count(self):
-        return len(self.actions)
+    def action_type_counts(self):
+        return Counter(a.action_type for a in self.actions)
+
+    @property
+    def average_loss(self):
+        return sum(a.loss for a in self.actions) / self.total_actions if self.actions else 0.0
+
+    @property
+    def average_q_value(self):
+        return sum(a.q_value for a in self.actions) / self.total_actions if self.actions else 0.0
 
     @property
     def current_frame(self):
@@ -37,15 +46,27 @@ class Episode:
         return self.actions[-1].done if self.actions else False
 
     @property
+    def effective_actions(self):
+        return sum(a.is_effective for a in self.actions)
+
+    @property
+    def elapsed_time(self):
+        return self.actions[-1].timestamp - self.actions[0].timestamp if self.actions else 0.0
+
+    @property
+    def total_actions(self):
+        return len(self.actions)
+
+    @property
     def total_reward(self):
         return self.actions[-1].total_reward if self.actions else 0.0
 
     def add_action(self, action):
         self.actions.append(action)
 
-    def reset(self):
+    def reset(self, episode_number):
         self.actions.clear()
-        self.add_action(Action())
+        self.episode_number = episode_number
 
 class Gymnasium(Env):
     def __init__(self, agent, emulator, logging, reward, settings):
@@ -66,9 +87,6 @@ class Gymnasium(Env):
             action_index = self.agent.select_action(self.episode.current_frame)
             self.step(action_index)
         return self.logging.log_episode()
-    
-    def get_last_action(self):
-        return self.last_action
 
     def load_checkpoint(self, start_episode):
         checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{start_episode - 1}.pth"
@@ -96,32 +114,21 @@ class Gymnasium(Env):
         self.agent.save_checkpoint(checkpoint_path)
 
     def step(self, action_index):
-        action_name               = self.settings.action_space[action_index]
-        current_frame             = self.emulator.advance_until_playable()
-        is_effective, next_frame  = self.emulator.press_button(action_name)
-        reward, done, action_type = self.reward.evaluate_action(action_name, current_frame, next_frame, is_effective)
-        total_reward              = self.episode.total_reward + reward
-        
         action = Action \
         (
             action_index  = action_index,
-            action_name   = action_name,
-            action_type   = action_type,
-            current_frame = current_frame,
-            done          = done,
-            is_effective  = is_effective,
-            next_frame    = next_frame,
-            reward        = reward,
-            total_reward  = total_reward
+            action_name   = self.settings.action_space[action_index],
+            current_frame = self.emulator.advance_until_playable()
         )
         
-        self.last_action = action
+        self.emulator.press_button(action)
+        self.reward.evaluate_action(action)
+        action.total_reward = self.episode.total_reward + action.reward
+        
         self.agent.store_action(action)
+        self.agent.learn(action)
+        
         self.episode.add_action(action)
         self.logging.log_action(action)
-
-        loss, q_value  = self.agent.learn()
-        action.loss    = loss
-        action.q_value = q_value
         
-        return next_frame, reward, done, asdict(action)
+        return action.next_frame, action.reward, action.done, asdict(action)

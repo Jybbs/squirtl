@@ -26,7 +26,7 @@ class Memory(Dataset):
         {
             'actions'        : torch.tensor([a.action_index for a in actions], dtype = torch.long, device = device),
             'current_frames' : torch.stack([torch.FloatTensor(a.current_frame) for a in actions]).to(device),
-            'dones'          : torch.tensor([not a.is_effective for a in actions], dtype = torch.bool, device = device),
+            'dones'          : torch.tensor([a.done for a in actions], dtype = torch.bool, device = device),
             'next_frames'    : torch.stack([torch.FloatTensor(a.next_frame) for a in actions]).to(device),
             'rewards'        : torch.tensor([a.reward for a in actions], dtype = torch.float, device = device),
         }
@@ -72,9 +72,11 @@ class Agent(nn.Module):
         self.loss_function = nn.HuberLoss()
         self.scheduler     = ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
     
-    def learn(self):
+    def learn(self, action):
         if len(self.memory) < self.batch_size:
-            return 0, 0
+            action.loss = 0
+            action.q_value = 0
+            return
 
         dataloader = DataLoader(self.memory, 
                                 batch_size  = self.batch_size, 
@@ -98,31 +100,9 @@ class Agent(nn.Module):
         self.update_target_network()
         self.update_learning_parameters()
         
-        return loss.item(), current_q_values.mean().item()
+        action.loss = loss.item()
+        action.q_value = current_q_values.mean().item()
 
-    def load_checkpoint(self, path):
-        checkpoint = torch.load(path, map_location = self.device)
-        self.actions_taken             = checkpoint['actions_taken']
-        self.settings.exploration_rate = checkpoint['exploration_rate']
-        self.main_network              = torch.jit.load(checkpoint['model_path'], map_location = self.device)
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.scheduler.load_state_dict(checkpoint['scheduler'])
-
-    def save_checkpoint(self, path):
-        model_path = path.with_suffix('.pt')
-        torch.jit.save(self.main_network, model_path)
-        torch.save \
-        (
-            {
-                'actions_taken'    : self.actions_taken,
-                'exploration_rate' : self.settings.exploration_rate,
-                'model_path'       : str(model_path),
-                'optimizer'        : self.optimizer.state_dict(),
-                'scheduler'        : self.scheduler.state_dict(),
-            }, 
-        path)
-
-    @torch.no_grad()
     def select_action(self, current_frame):
         if torch.rand(1).item() < self.settings.exploration_rate:
             return torch.randint(self.action_space_size, (1,)).item()
@@ -145,3 +125,25 @@ class Agent(nn.Module):
     def update_target_network(self):
         if self.actions_taken % self.settings.target_update_interval == 0:
             self.target_network.load_state_dict(self.main_network.state_dict())
+
+    def load_checkpoint(self, path):
+        checkpoint = torch.load(path, map_location = self.device)
+        self.actions_taken             = checkpoint['actions_taken']
+        self.settings.exploration_rate = checkpoint['exploration_rate']
+        self.main_network              = torch.jit.load(checkpoint['model_path'], map_location = self.device)
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.scheduler.load_state_dict(checkpoint['scheduler'])
+
+    def save_checkpoint(self, path):
+        model_path = path.with_suffix('.pt')
+        torch.jit.save(self.main_network, model_path)
+        torch.save \
+        (
+            {
+                'actions_taken'    : self.actions_taken,
+                'exploration_rate' : self.settings.exploration_rate,
+                'model_path'       : str(model_path),
+                'optimizer'        : self.optimizer.state_dict(),
+                'scheduler'        : self.scheduler.state_dict(),
+            }, 
+        path)

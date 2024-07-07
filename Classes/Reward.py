@@ -8,43 +8,42 @@ class Reward:
         self.intro_completed   = False
         self.settings          = settings
 
-    def calculate_action_reward(self, current_frame, next_frame, is_effective):
-        if not is_effective:
-            return self.settings.INEFFECTIVE_PENALTY, False, "ineffective"
-
-        if self.frames.is_new_state(next_frame):
-            self.frames.add_explored(next_frame)
-            return self.settings.NEW_STATE_BONUS, False, "new"
-
-        if self.frames.is_backtracking(current_frame):
-            return self.settings.BACKTRACK_PENALTY, False, "backtrack"
-
-        return self.settings.REVISIT_POINTS, False, "revisit"
-
-    def calculate_completion_bonus(self):
-        speed_bonus = max(0, self.settings.MAX_ACTIONS - self.action_count)
-        return self.settings.COMPLETION_BONUS + speed_bonus
-
-    def evaluate_action(self, action, current_frame, is_effective, next_frame):
+    def evaluate_action(self, action):
         self.action_count += 1
 
         if self.is_game_completed():
-            return self.process_game_completion()
+            return self.process_game_completion(action)
         
         if not self.intro_completed and self.is_intro_completed():
-            return self.process_intro_completion()
+            return self.process_intro_completion(action)
 
-        reward, done, action_type = self.calculate_action_reward(current_frame, next_frame, is_effective)
+        self.calculate_action_reward(action)
 
-        if action == 'wait':
+        if action.action_name == 'wait':
             self.consecutive_waits += 1
-            wait_penalty = self.settings.WAIT_PENALTY * self.consecutive_waits
-            reward      += wait_penalty
-            action_type  = 'wait'
+            wait_penalty            = self.settings.WAIT_PENALTY * self.consecutive_waits
+            action.action_type      = 'wait'
+            action.reward          += wait_penalty
         else:
             self.consecutive_waits = 0
 
-        return reward, done, action_type
+    def calculate_action_reward(self, action):
+        if not action.is_effective:
+            action.action_type = "ineffective"
+            action.reward      = self.settings.INEFFECTIVE_PENALTY
+
+        elif self.frames.is_new_state(action.next_frame):
+            self.frames.add_explored(action.next_frame)
+            action.action_type = "new"
+            action.reward      = self.settings.NEW_STATE_BONUS
+
+        elif self.frames.is_backtracking(action.current_frame):
+            action.action_type = "backtrack"
+            action.reward      = self.settings.BACKTRACK_PENALTY
+
+        else:
+            action.action_type = "revisit"
+            action.reward      = self.settings.REVISIT_POINTS
 
     def get_episode_score(self):
         return self.cumulative_score
@@ -55,15 +54,17 @@ class Reward:
     def is_intro_completed(self):
         return self.emulator.check_event_flag(self.settings.INTRO_COMPLETE)
 
-    def process_game_completion(self):
-        completion_bonus = self.calculate_completion_bonus()
-        self.cumulative_score += completion_bonus
-        return completion_bonus, True, "completion"
+    def process_game_completion(self, action):
+        action.action_type     = "completion"
+        action.done            = True
+        action.reward          = self.settings.COMPLETION_BONUS + max(0, self.settings.MAX_ACTIONS - self.action_count)
+        self.cumulative_score += action.reward
     
-    def process_intro_completion(self):
-        self.cumulative_score += self.settings.INTRO_BONUS
+    def process_intro_completion(self, action):
+        action.action_type     = "intro_complete"
         self.intro_completed   = True
-        return self.settings.INTRO_BONUS, False, "intro_complete"
+        action.reward          = self.settings.INTRO_BONUS
+        self.cumulative_score += action.reward
 
     def reset(self):
         self.action_count     = 0

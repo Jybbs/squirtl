@@ -3,50 +3,33 @@ import matplotlib.pyplot as plt
 import numpy             as np
 
 from alive_progress import alive_bar
-from collections    import Counter, defaultdict
 from cv2            import COLOR_RGB2BGR, VideoWriter, VideoWriter_fourcc, cvtColor
-from dataclasses    import dataclass
 from pandas         import DataFrame
 from seaborn        import regplot, scatterplot
 
-@dataclass
-class Metrics:
-    action        : str
-    action_number : int
-    action_type   : str
-    elapsed_time  : float
-    is_effective  : bool
-    loss          : float
-    q_value       : float
-    reward        : float
-    total_reward  : float
-
 class Logging:
-    def __init__(self, debug, frames, settings, start_episode):
-        self.action_metrics  = defaultdict(list)
-        self.current_episode = start_episode
+    def __init__(self, debug, frames, settings):
         self.debug           = debug
         self.frames          = frames
         self.settings        = settings
+        self.current_episode = None
+        self.progress_bar    = None
+        self.episode_metrics = []
 
-    def calculate_episode_metrics(self, episode):
-        episode_metrics    = self.action_metrics[episode]
-        total_actions      = len(episode_metrics)
-        action_type_counts = Counter(m.action_type for m in episode_metrics)
-        
-        return \
-        {
-            "average_loss"         : np.mean([m.loss for m in episode_metrics]),
-            "average_q_value"      : np.mean([m.q_value for m in episode_metrics]),
-            "backtracking_actions" : action_type_counts["backtrack"],
-            "effective_actions"    : sum(m.is_effective for m in episode_metrics),
-            "elapsed_time"         : episode_metrics[-1].elapsed_time - episode_metrics[0].elapsed_time,
-            "episode"              : episode,
-            "new_actions"          : action_type_counts["new"],
-            "revisit_actions"      : action_type_counts["revisit"],
-            "total_actions"        : total_actions,
-            "total_reward"         : episode_metrics[-1].total_reward,
-            "wait_actions"         : action_type_counts["wait"],
+    def get_episode_metrics(self):
+        e = self.current_episode
+        return {
+            "average_loss"         : e.average_loss,
+            "average_q_value"      : e.average_q_value,
+            "backtracking_actions" : e.action_type_counts["backtrack"],
+            "effective_actions"    : e.effective_actions,
+            "elapsed_time"         : e.elapsed_time,
+            "episode"              : e.episode_number,
+            "new_actions"          : e.action_type_counts["new"],
+            "revisit_actions"      : e.action_type_counts["revisit"],
+            "total_actions"        : e.total_actions,
+            "total_reward"         : e.total_reward,
+            "wait_actions"         : e.action_type_counts["wait"],
         }
 
     def get_frames_for_video(self, frames, filename):
@@ -63,51 +46,25 @@ class Logging:
 
         video_writer.release()
 
-    def load_metrics(self):
-        all_metrics = []
-        for episode in range(1, self.current_episode + 1):
-            metrics_path = self.settings.metrics_directory / f"episode_{episode}_metrics.json"
-
-            if metrics_path.exists():
-                with open(metrics_path, 'r') as file:
-                    all_metrics.append(json.load(file))
-
-        return all_metrics
-
-    def log_action(self, action, action_number, action_type, elapsed_time, 
-                   is_effective, loss, q_value, reward, total_reward):
-        metrics = Metrics \
-        (
-            action        = action,
-            action_number = action_number,
-            action_type   = action_type,
-            elapsed_time  = elapsed_time,
-            is_effective  = is_effective,
-            loss          = loss,
-            q_value       = q_value,
-            reward        = reward,
-            total_reward  = total_reward
-        )
-        self.action_metrics[self.current_episode].append(metrics)
+    def log_action(self, action):
         if self.debug:
-            self.print_debug(self.current_episode, metrics)
+            self.print_debug(action)
             self.update_progress_bar()
 
     def log_episode(self):
-        metrics = self.calculate_episode_metrics(self.current_episode)
-        self.save_episode_data(self.current_episode, metrics)
-        self.save_episode_videos(self.current_episode)
-        self.print_episode_summary(self.current_episode)
+        metrics = self.get_episode_metrics()
+        self.episode_metrics.append(metrics)
+        self.save_episode_data(metrics)
+        self.save_episode_video()
+        self.print_episode_summary(metrics)
         self.plot_metrics()
-        self.current_episode += 1
         return metrics
 
     def plot_metrics(self):
         self.setup_plot_params()
-        episode_summaries = self.load_metrics()
-        df = DataFrame(episode_summaries)
+        df = DataFrame(self.episode_metrics)
         
-        metrics = \
+        values = \
         [
             "average_loss", 
             "average_q_value", 
@@ -121,9 +78,9 @@ class Logging:
         ]
         
         fig, axes = plt.subplots(3, 3, figsize = (15, 10), sharex = True)
-        colors    = plt.cm.viridis(np.linspace(0.1, 1, len(metrics)))
+        colors    = plt.cm.viridis(np.linspace(0.1, 1, len(values)))
         
-        for metric, ax, color in zip(metrics, axes.flatten(), colors):
+        for metric, ax, color in zip(values, axes.flatten(), colors):
             regplot(x = 'episode', y = metric, data = df, ax = ax, scatter = False, 
                     lowess = True, line_kws = {'color': color})
             scatterplot(x = 'episode', y = metric, data = df, ax = ax, alpha = 0.3, color = color)
@@ -136,38 +93,41 @@ class Logging:
                 ax.axhline(y = 0, color = 'white', linestyle = '--', linewidth = 1, alpha = 0.5)
         
         plt.tight_layout()
-        plt.savefig(self.settings.metrics_directory / f"plot_episode_{self.current_episode}.png")
+        plt.savefig(self.settings.metrics_directory / f"plot_episode_{self.current_episode.episode_number}.png")
         plt.close(fig)
 
-    def print_debug(self, episode, m):
-        print(f"Episode {episode:4d} | Action {m.action_number:4d} | Button: {m.action:10s} | "
-              f"Type: {m.action_type:14s} | Effective: {str(m.is_effective):5s} | "
-              f"Reward: {m.reward:10.2f} | Total Reward: {m.total_reward:10.2f} | "
-              f"Loss: {m.loss:8.4f} | Q-Value: {m.q_value:8.4f} | Time: {m.elapsed_time:6.2f}s")
+    def print_debug(self, action):
+        e = self.current_episode
+        print(f"Episode {e.episode_number:4d} | Action {e.total_actions:4d} | Button: {action.action_name:10s} | "
+              f"Type: {action.action_type:14s} | Effective: {str(action.is_effective):5s} | "
+              f"Reward: {action.reward:10.2f} | Total Reward: {e.total_reward:10.2f} | "
+              f"Loss: {action.loss:8.4f} | Q-Value: {action.q_value:8.4f} | "
+              f"Time: {e.elapsed_time:6.2f}s")
 
-    def print_episode_summary(self, episode):
-        s = self.calculate_episode_metrics(episode)
+    def print_episode_summary(self, metrics):
         print("\nEpisode Summary:")
-        print(f"Episode: {s['episode']:4d} | Actions: {s['total_actions']:4d} | "
-              f"Total Reward: {s['total_reward']:8.2f} | Avg Loss: {s['average_loss']:8.4f} | "
-              f"Avg Q-Value: {s['average_q_value']:8.4f} | Time: {s['elapsed_time']:6.2f}s")
-        print(f"Effective: {s['effective_actions']:4d} | "
-              f"Ineffective: {s['total_actions'] - s['effective_actions']:4d} | "
-              f"New: {s['new_actions']:4d} | Backtrack: {s['backtracking_actions']:4d} | "
-              f"Wait: {s['wait_actions']:4d}")
+        print(f"Episode: {metrics['episode']:4d} | Actions: {metrics['total_actions']:4d} | "
+              f"Total Reward: {metrics['total_reward']:8.2f} | Avg Loss: {metrics['average_loss']:8.4f} | "
+              f"Avg Q-Value: {metrics['average_q_value']:8.4f} | Time: {metrics['elapsed_time']:6.2f}s")
+        print(f"Effective: {metrics['effective_actions']:4d} | "
+              f"Ineffective: {metrics['total_actions'] - metrics['effective_actions']:4d} | "
+              f"New: {metrics['new_actions']:4d} | Backtrack: {metrics['backtracking_actions']:4d} | "
+              f"Wait: {metrics['wait_actions']:4d}")
         print("-" * 100)
 
-    def save_episode_data(self, episode, metrics):
-        metrics_path = self.settings.metrics_directory / f"episode_{episode}_metrics.json"
+    def save_episode_data(self, metrics):
+        episode_number = self.current_episode.episode_number
+        metrics_path = self.settings.metrics_directory / f"episode_{episode_number}_metrics.json"
         with open(metrics_path, 'w') as file:
             json.dump(metrics, file, indent = 4)
 
-        actions_path = self.settings.metrics_directory / f"episode_{episode}_actions.json"
+        actions_path = self.settings.metrics_directory / f"episode_{episode_number}_actions.json"
         with open(actions_path, 'w') as file:
-            json.dump([m.__dict__ for m in self.action_metrics[episode]], file, indent = 4)
+            json.dump([vars(a) for a in self.current_episode.actions], file, indent = 4)
 
-    def save_episode_videos(self, episode):
-        self.get_frames_for_video(self.frames.get_episode_frames(), f"episode_{episode}.mp4")
+    def save_episode_video(self):
+        episode_number = self.current_episode.episode_number
+        self.get_frames_for_video(self.frames.get_episode_frames(), f"episode_{episode_number}.mp4")
 
     def setup_plot_params(self):
         plt.rcParams.update \
@@ -198,3 +158,12 @@ class Logging:
                 'grid.color'         : '0.2'
             }
         )
+
+    def start_episode(self, episode):
+        self.current_episode = episode
+        if self.debug:
+            self.progress_bar = alive_bar(self.settings.MAX_ACTIONS)
+
+    def update_progress_bar(self):
+        if self.progress_bar:
+            self.progress_bar()
