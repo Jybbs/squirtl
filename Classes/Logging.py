@@ -8,10 +8,9 @@ from pandas         import DataFrame
 from seaborn        import regplot, scatterplot
 
 class Logging:
-    def __init__(self, debug, frames, settings):
+    def __init__(self, debug, settings):
         self.debug        = debug
         self.episode      = None
-        self.frames       = frames
         self.progress_bar = None
         self.settings     = settings
 
@@ -115,16 +114,16 @@ class Logging:
         with open(actions_path, 'w') as file:
             json.dump([vars(a) for a in self.episode.actions], file, indent = 4)
 
-    def save_episode_video(self, metrics):
-        frames = self.frames.get_episode_frames()
-        if not frames:
+    def save_episode_video(self):
+        if not self.episode.frames:
             return
         
-        frame_shape  = frames[0].shape[:2][::-1]
-        video_path   = self.settings.video_directory / f"episode_{metrics['episode']}.mp4"
-        video_writer = VideoWriter(str(video_path), VideoWriter_fourcc(*'mp4v'), 60, frame_shape)
+        episode_number = self.episode.episode_number
+        frame_shape    = self.episode.frames[0].shape[:2][::-1]
+        video_path     = self.settings.video_directory / f"episode_{episode_number}.mp4"
+        video_writer   = VideoWriter(str(video_path), VideoWriter_fourcc(*'mp4v'), 60, frame_shape)
 
-        for frame in frames:
+        for frame in self.episode.frames:
             video_writer.write(cvtColor(frame, COLOR_RGB2BGR))
 
         video_writer.release()

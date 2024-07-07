@@ -4,6 +4,7 @@ from gym         import Env
 from gym.spaces  import Box, Discrete
 from numpy       import empty, ndarray, uint8
 from time        import perf_counter
+from typing      import List
 
 @dataclass
 class Action:
@@ -22,8 +23,9 @@ class Action:
 
 @dataclass
 class Episode:
-    actions        : list = field(default_factory = list)
-    episode_number : int  = field(default = 0)
+    actions        : List[Action]  = field(default_factory = list)
+    frames         : List[ndarray] = field(default_factory = list)
+    episode_number : int           = field(default = 0)
 
     @property
     def action_type_counts(self):
@@ -64,9 +66,13 @@ class Episode:
     def add_action(self, action):
         self.actions.append(action)
 
+    def add_frame(self, frame):
+        self.frames.append(frame)
+
     def reset(self, episode_number):
         self.actions.clear()
         self.episode_number = episode_number
+        self.frames.clear()
 
 class Gymnasium(Env):
     def __init__(self, agent, emulator, logging, reward, settings):

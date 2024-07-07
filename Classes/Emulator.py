@@ -45,7 +45,7 @@ class Emulator:
         pyboy.set_emulation_speed(0)
         return pyboy
 
-    def press_button(self, action):
+    def press_button(self, action, episode):
         action.current_frame = self.get_screen_data()
         self.pyboy.button(action.action_name, delay = 2)
         
@@ -53,6 +53,8 @@ class Emulator:
         
         action.next_frame   = self.get_screen_data()
         action.is_effective = not array_equal(action.current_frame, action.next_frame)
+
+        self.frames.add(action.next_frame, episode)
 
     def reset(self):
         self.close_emulator()
