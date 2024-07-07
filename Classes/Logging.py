@@ -94,8 +94,10 @@ class Logging:
             ax.set_ylabel('')
             ax.set_xlabel('Episode' if ax == axes[2, 1] else '')
             
-            regplot(x = df.index, y = data, ax = ax, scatter = False, lowess = True, line_kws = {'color': color})
-            scatterplot(x = df.index, y = data, ax = ax, alpha = 0.3, color = color)
+            regplot \
+                (x = df.index, y = data, ax = ax, scatter = False, lowess = True, line_kws = {'color': color})
+            scatterplot \
+                (x = df.index, y = data, ax = ax, alpha = 0.3, color = color)
             
             if ax.get_ylim()[0] <= 0 <= ax.get_ylim()[1]:
                 ax.axhline(y = 0, color = 'white', linestyle = '--', linewidth = 1, alpha = 0.5)

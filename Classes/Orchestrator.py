@@ -16,7 +16,7 @@ class Orchestrator:
         self.frames   = Frames(self.settings)
         self.agent    = Agent(self.settings)
         self.emulator = Emulator(self.config['debug'], self.frames, self.config['rom_path'])
-        self.logging  = Logging(self.config['debug'], self.settings, self.config['start_episode'])
+        self.logging  = Logging(self.config['debug'], self.settings)
         self.reward   = Reward(self.emulator, self.frames, self.settings)
 
         self.gym = Gymnasium \
