@@ -9,16 +9,27 @@ from torch.utils.data         import Dataset, DataLoader
 
 class Memory(Dataset):
     def __init__(self, capacity):
-        self.transitions = deque(maxlen = capacity)
+        self.actions = deque(maxlen = capacity)
 
     def __len__(self):
-        return len(self.transitions)
+        return len(self.actions)
 
     def __getitem__(self, idx):
-        return self.transitions[idx]
+        return self.actions[idx]
 
-    def add_transition(self, current_frame, action, next_frame, reward, done):
-        self.transitions.append((current_frame, action, next_frame, reward, done))
+    def add_action(self, action):
+        self.actions.append(action)
+
+    @staticmethod
+    def batch_actions(actions, device):
+        return \
+        {
+            'actions'        : torch.tensor([a.action_index for a in actions], dtype = torch.long, device = device),
+            'current_frames' : torch.stack([torch.FloatTensor(a.current_frame) for a in actions]).to(device),
+            'dones'          : torch.tensor([not a.is_effective for a in actions], dtype = torch.bool, device = device),
+            'next_frames'    : torch.stack([torch.FloatTensor(a.next_frame) for a in actions]).to(device),
+            'rewards'        : torch.tensor([a.reward for a in actions], dtype = torch.float, device = device),
+        }
 
 class DQN(nn.Module):
     def __init__(self, action_count):
@@ -70,15 +81,13 @@ class Agent(nn.Module):
                                 shuffle     = True,
                                 pin_memory  = True if self.device == 'mps' else False)
 
-        batch = next(iter(dataloader))
-        current_frames, actions, next_frames, rewards, dones = [b.to(self.device) for b in batch]
-
-        current_q_values = self.main_network(current_frames).gather(1, actions.unsqueeze(-1))
+        batched_actions  = Memory.batch_actions(next(iter(dataloader)), self.device)
+        current_q_values = self.main_network(batched_actions['current_frames']).gather(1, batched_actions['actions'].unsqueeze(-1))
 
         with torch.no_grad():
-            next_actions    = self.main_network(next_frames).max(1)[1].unsqueeze(-1)
-            next_q_values   = self.target_network(next_frames).gather(1, next_actions)
-            target_q_values = rewards + (1 - dones.float()) * self.settings.discount_factor * next_q_values
+            next_actions    = self.main_network(batched_actions['next_frames']).max(1)[1].unsqueeze(-1)
+            next_q_values   = self.target_network(batched_actions['next_frames']).gather(1, next_actions)
+            target_q_values = batched_actions['rewards'] + (1 - batched_actions['dones'].float()) * self.settings.discount_factor * next_q_values
 
         loss = self.loss_function(current_q_values, target_q_values)
 
@@ -121,16 +130,9 @@ class Agent(nn.Module):
         frame_tensor = torch.FloatTensor(current_frame).unsqueeze(0).to(self.device)
         return self.main_network(frame_tensor).argmax().item()
 
-    def store_transition(self, current_frame, action, next_frame, reward, done):
+    def store_action(self, action):
         self.actions_taken += 1
-        self.memory.add_transition \
-        (
-            torch.FloatTensor(current_frame),
-            torch.tensor(action),
-            torch.FloatTensor(next_frame),
-            torch.tensor(reward),
-            torch.tensor(done)
-        )
+        self.memory.add_action(action)
 
     def update_learning_parameters(self):
         self.scheduler.step()
