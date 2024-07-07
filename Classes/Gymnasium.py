@@ -5,33 +5,33 @@ from numpy       import uint8
 from time        import perf_counter
 
 @dataclass
-class Outcome:
+class Result:
     action_type  : str
     is_effective : bool
     loss         : float
-    next_state   : list
+    next_frame   : list
     q_value      : float
     reward       : float
 
 @dataclass
-class State:
+class Episode:
     action_number : int   = field(default = 0)
-    episode_done  : bool  = field(default = False)
+    done          : bool  = field(default = False)
     start_time    : float = field(default_factory = perf_counter)
-    state         : list  = field(default_factory = list)
+    current_frame : list  = field(default_factory = list)
     total_reward  : float = field(default = 0.0)
 
-    def reset(self, initial_state):
+    def reset(self, initial_frame):
         self.action_number = 0
-        self.episode_done  = False
+        self.done          = False
         self.start_time    = perf_counter()
-        self.state         = initial_state
+        self.current_frame = initial_frame
         self.total_reward  = 0.0
 
-    def update(self, outcome):
+    def update(self, result):
         self.action_number += 1
-        self.state          = outcome.next_state
-        self.total_reward  += outcome.reward
+        self.current_frame  = result.next_frame
+        self.total_reward  += result.reward
 
 class Gymnasium(Env):
     def __init__(self, agent, emulator, logging, reward, settings):
@@ -43,42 +43,36 @@ class Gymnasium(Env):
         self.observation_space = Box(low = 0, high = 255, shape = (144, 160, 4), dtype = uint8)
         self.reward            = reward
         self.settings          = settings
-        self.state             = State()
+        self.episode           = Episode()
 
     def __call__(self):
         self.reset()
-        while not self.state.episode_done and self.state.action_number < self.settings.MAX_ACTIONS:
-            action = self.agent.select_action(self.state.state)
+        while not self.episode.done and self.episode.action_number < self.settings.MAX_ACTIONS:
+            action = self.agent.select_action(self.episode.current_frame)
             self.step(action)
         return self.logging.log_episode()
 
-    def evaluate_action(self, action_str, current_state, is_effective, next_state):
-        return self.reward.evaluate_action \
-        (
-            action       = action_str,
-            is_effective = is_effective,
-            next_state   = next_state,
-            state        = current_state
-        )
+    def evaluate_action(self, action, current_frame, next_frame, is_effective):
+        return self.reward.evaluate_action(current_frame, next_frame, is_effective, action)
 
     def learn(self):
-        return self.agent.learn_from_experience()
+        return self.agent.learn()
 
     def load_checkpoint(self, start_episode):
         checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{start_episode - 1}.pth"
         self.agent.load_checkpoint(checkpoint_path)
 
     def perform_action(self, action):
-        action_str    = self.settings.action_space[action]
-        current_state = self.emulator.advance_until_playable()
-        is_effective, next_state = self.emulator.press_button(action_str)
-        return action_str, is_effective, current_state, next_state
+        action         = self.settings.action_space[action]
+        current_frame  = self.emulator.advance_until_playable()
+        is_effective, next_frame = self.emulator.press_button(action)
+        return action, current_frame, next_frame, is_effective
 
     def reset(self):
-        initial_state = self.emulator.reset()
-        self.state.reset(initial_state)
+        initial_frame = self.emulator.reset()
+        self.episode.reset(initial_frame)
         self.reward.reset()
-        return self.state.state
+        return self.episode.current_frame
 
     def run_training_session(self, num_episodes, start_episode = 1):
         if start_episode > 1:
@@ -96,43 +90,33 @@ class Gymnasium(Env):
         self.agent.save_checkpoint(checkpoint_path)
 
     def step(self, action):
-        action_str, is_effective, current_state, next_state = self.perform_action(action)
-        reward, done, action_type = self.evaluate_action(action_str, current_state, is_effective, next_state)
-        self.store_experience(action, current_state, next_state, reward, done)
+        action, current_frame, next_frame, is_effective = self.perform_action(action)
+        reward, done, action_type = self.evaluate_action(action, current_frame, next_frame, is_effective)
+        self.agent.add_transition(current_frame, action, next_frame, reward, done)
         loss, q_value = self.learn()
 
-        outcome = Outcome \
+        result = Result \
         (
             action_type  = action_type,
             is_effective = is_effective,
             loss         = loss,
-            next_state   = next_state,
+            next_frame   = next_frame,
             q_value      = q_value,
             reward       = reward
         )
-        self.state.update(outcome)
+        self.episode.update(result)
 
         self.logging.log_action \
         (
-            action        = action_str,
-            action_number = self.state.action_number,
+            action        = action,
+            action_number = self.episode.action_number,
             action_type   = action_type,
-            elapsed_time  = perf_counter() - self.state.start_time,
+            elapsed_time  = perf_counter() - self.episode.start_time,
             is_effective  = is_effective,
             loss          = loss,
             q_value       = q_value,
             reward        = reward,
-            total_reward  = self.state.total_reward
+            total_reward  = self.episode.total_reward
         )
 
-        return next_state, reward, done, {}
-
-    def store_experience(self, action, current_state, next_state, reward, done):
-        self.agent.store_experience \
-        (
-            action     = action,
-            done       = done,
-            next_state = next_state,
-            reward     = reward,
-            state      = current_state
-        )
+        return next_frame, reward, done, {}

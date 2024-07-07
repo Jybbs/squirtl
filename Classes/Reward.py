@@ -25,7 +25,7 @@ class Reward:
         speed_bonus = max(0, self.settings.MAX_ACTIONS - self.action_count)
         return self.settings.COMPLETION_BONUS + speed_bonus
 
-    def evaluate_action(self, current_frame, next_frame, is_effective, action):
+    def evaluate_action(self, action, current_frame, is_effective, next_frame):
         self.action_count += 1
 
         if self.is_game_completed():

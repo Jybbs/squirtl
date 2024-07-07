@@ -29,7 +29,7 @@ class Orchestrator:
         )
 
     def train(self):
-        self.gym.train(self.config['num_episodes'], self.config['start_episode'])
+        self.gym.run_training_session(self.config['num_episodes'], self.config['start_episode'])
 
 if __name__ == "__main__":
     config = \

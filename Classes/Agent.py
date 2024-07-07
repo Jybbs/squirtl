@@ -9,17 +9,16 @@ from torch.utils.data         import Dataset, DataLoader
 
 class Memory(Dataset):
     def __init__(self, capacity):
-        self.memory = deque(maxlen = capacity)
+        self.transitions = deque(maxlen = capacity)
 
     def __len__(self):
-        return len(self.memory)
+        return len(self.transitions)
 
     def __getitem__(self, idx):
-        return self.memory[idx]
+        return self.transitions[idx]
 
-
-    def push(self, state, action, next_state, reward, done):
-        self.memory.append((state, action, next_state, reward, done))
+    def add_transition(self, current_frame, action, next_frame, reward, done):
+        self.transitions.append((current_frame, action, next_frame, reward, done))
 
 class DQN(nn.Module):
     def __init__(self, action_count):
@@ -38,8 +37,8 @@ class DQN(nn.Module):
             nn.Linear(256, action_count)
         )
 
-    def forward(self, state):
-        return self.network(state.permute(0, 3, 1, 2))
+    def forward(self, frame):
+        return self.network(frame.permute(0, 3, 1, 2))
 
 class Agent(nn.Module):
     def __init__(self, settings):
@@ -62,7 +61,7 @@ class Agent(nn.Module):
         self.loss_function = nn.HuberLoss()
         self.scheduler     = ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
     
-    def learn_from_experience(self):
+    def learn(self):
         if len(self.memory) < self.batch_size:
             return 0, 0
 
@@ -72,13 +71,13 @@ class Agent(nn.Module):
                                 pin_memory  = True if self.device == 'mps' else False)
 
         batch = next(iter(dataloader))
-        states, actions, next_states, rewards, dones = [b.to(self.device) for b in batch]
+        current_frames, actions, next_frames, rewards, dones = [b.to(self.device) for b in batch]
 
-        current_q_values = self.main_network(states).gather(1, actions.unsqueeze(-1))
+        current_q_values = self.main_network(current_frames).gather(1, actions.unsqueeze(-1))
 
         with torch.no_grad():
-            next_actions    = self.main_network(next_states).max(1)[1].unsqueeze(-1)
-            next_q_values   = self.target_network(next_states).gather(1, next_actions)
+            next_actions    = self.main_network(next_frames).max(1)[1].unsqueeze(-1)
+            next_q_values   = self.target_network(next_frames).gather(1, next_actions)
             target_q_values = rewards + (1 - dones.float()) * self.settings.discount_factor * next_q_values
 
         loss = self.loss_function(current_q_values, target_q_values)
@@ -88,7 +87,7 @@ class Agent(nn.Module):
         torch.nn.utils.clip_grad_norm_(self.main_network.parameters(), max_norm = self.settings.max_norm)
         self.optimizer.step()
         self.update_target_network()
-        self.update_learning_parameters(loss)
+        self.update_learning_parameters()
         
         return loss.item(), current_q_values.mean().item()
 
@@ -115,20 +114,20 @@ class Agent(nn.Module):
         path)
 
     @torch.no_grad()
-    def select_action(self, state):
+    def select_action(self, current_frame):
         if torch.rand(1).item() < self.settings.exploration_rate:
             return torch.randint(self.action_space_size, (1,)).item()
         
-        state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-        return self.main_network(state_tensor).argmax().item()
+        frame_tensor = torch.FloatTensor(current_frame).unsqueeze(0).to(self.device)
+        return self.main_network(frame_tensor).argmax().item()
 
-    def store_experience(self, state, action, next_state, reward, done):
+    def store_transition(self, current_frame, action, next_frame, reward, done):
         self.actions_taken += 1
-        self.memory.push \
+        self.memory.add_transition \
         (
-            torch.FloatTensor(state),
+            torch.FloatTensor(current_frame),
             torch.tensor(action),
-            torch.FloatTensor(next_state),
+            torch.FloatTensor(next_frame),
             torch.tensor(reward),
             torch.tensor(done)
         )

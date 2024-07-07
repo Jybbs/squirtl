@@ -18,9 +18,6 @@ class Frames:
 
     def get_episode_frames(self):
         return self.episode_frames
-    
-    def get_optimized_frames(self):
-        return self.optimized_frames
 
     def is_backtracking(self, frame):
         if not self.recent_frames:
