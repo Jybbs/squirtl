@@ -55,26 +55,21 @@ class Agent(nn.Module):
     def __init__(self, settings):
         super().__init__()
         self.action_space_size = len(settings.action_space)
-        self.actions_taken     = 0
         self.batch_size        = settings.batch_size
         self.device            = settings.device
+        self.loss_function     = nn.HuberLoss()
+        self.main_network      = script(DQN(self.action_space_size)).to(self.device)
         self.memory            = Memory(settings.memory_capacity)
+        self.optimizer         = Adam(self.main_network.parameters(), lr = settings.learning_rate)
+        self.scheduler         = ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
         self.settings          = settings
-
-        # Network initialization
-        self.main_network   = script(DQN(self.action_space_size)).to(self.device)
-        self.target_network = script(DQN(self.action_space_size)).to(self.device)
+        self.target_network    = script(DQN(self.action_space_size)).to(self.device)
         self.target_network.load_state_dict(self.main_network.state_dict())
         self.target_network.eval()
 
-        # Optimizer and loss function
-        self.optimizer     = Adam(self.main_network.parameters(), lr = settings.learning_rate)
-        self.loss_function = nn.HuberLoss()
-        self.scheduler     = ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
-    
     def learn(self, action):
         if len(self.memory) < self.batch_size:
-            action.loss = 0
+            action.loss    = 0
             action.q_value = 0
             return
 
@@ -97,11 +92,31 @@ class Agent(nn.Module):
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.main_network.parameters(), max_norm = self.settings.max_norm)
         self.optimizer.step()
-        self.update_target_network()
         self.update_learning_parameters()
         
-        action.loss = loss.item()
+        action.loss    = loss.item()
         action.q_value = current_q_values.mean().item()
+
+    def load_checkpoint(self, path):
+        checkpoint = torch.load(path, map_location = self.device)
+        self.settings.exploration_rate = checkpoint['exploration_rate']
+        self.main_network = torch.jit.load(checkpoint['model_path'], map_location = self.device)
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.scheduler.load_state_dict(checkpoint['scheduler'])
+
+    def save_checkpoint(self, path, total_actions):
+        model_path = path.with_suffix('.pt')
+        torch.jit.save(self.main_network, model_path)
+        torch.save \
+        (
+            {
+                'exploration_rate' : self.settings.exploration_rate,
+                'model_path'       : str(model_path),
+                'optimizer'        : self.optimizer.state_dict(),
+                'scheduler'        : self.scheduler.state_dict(),
+                'total_actions'    : total_actions,
+            }, 
+        path)
 
     def select_action(self, current_frame):
         if torch.rand(1).item() < self.settings.exploration_rate:
@@ -111,7 +126,6 @@ class Agent(nn.Module):
         return self.main_network(frame_tensor).argmax().item()
 
     def store_action(self, action):
-        self.actions_taken += 1
         self.memory.add_action(action)
 
     def update_learning_parameters(self):
@@ -122,28 +136,6 @@ class Agent(nn.Module):
             self.settings.exploration_rate * self.settings.exploration_decay
         )
 
-    def update_target_network(self):
-        if self.actions_taken % self.settings.target_update_interval == 0:
+    def update_target_network(self, total_actions):
+        if total_actions % self.settings.target_update_interval == 0:
             self.target_network.load_state_dict(self.main_network.state_dict())
-
-    def load_checkpoint(self, path):
-        checkpoint = torch.load(path, map_location = self.device)
-        self.actions_taken             = checkpoint['actions_taken']
-        self.settings.exploration_rate = checkpoint['exploration_rate']
-        self.main_network              = torch.jit.load(checkpoint['model_path'], map_location = self.device)
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.scheduler.load_state_dict(checkpoint['scheduler'])
-
-    def save_checkpoint(self, path):
-        model_path = path.with_suffix('.pt')
-        torch.jit.save(self.main_network, model_path)
-        torch.save \
-        (
-            {
-                'actions_taken'    : self.actions_taken,
-                'exploration_rate' : self.settings.exploration_rate,
-                'model_path'       : str(model_path),
-                'optimizer'        : self.optimizer.state_dict(),
-                'scheduler'        : self.scheduler.state_dict(),
-            }, 
-        path)

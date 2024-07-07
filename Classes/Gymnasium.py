@@ -111,7 +111,7 @@ class Gymnasium(Env):
 
     def save_checkpoint(self, episode):
         checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{episode}.pth"
-        self.agent.save_checkpoint(checkpoint_path)
+        self.agent.save_checkpoint(checkpoint_path, self.episode.total_actions)
 
     def step(self, action_index):
         action = Action \
@@ -122,11 +122,12 @@ class Gymnasium(Env):
         )
         
         self.emulator.press_button(action)
-        self.reward.evaluate_action(action)
+        self.reward.evaluate_action(action, self.episode.total_actions)
         action.total_reward = self.episode.total_reward + action.reward
         
         self.agent.store_action(action)
         self.agent.learn(action)
+        self.agent.update_target_network(self.episode.total_actions)
         
         self.episode.add_action(action)
         self.logging.log_action(action)
