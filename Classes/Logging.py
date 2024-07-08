@@ -2,18 +2,15 @@ import json
 import matplotlib.pyplot as plt
 import numpy             as np
 
-from alive_progress import alive_bar
 from cv2            import COLOR_RGB2BGR, VideoWriter, VideoWriter_fourcc, cvtColor
 from pandas         import DataFrame
 from seaborn        import regplot, scatterplot
 
 class Logging:
     def __init__(self, debug, settings):
-        self.debug           = debug
-        self.episode         = None
-        self.settings        = settings
-        self.progress_bar    = None
-        self.progress_update = None
+        self.debug    = debug
+        self.episode  = None
+        self.settings = settings
 
     @property
     def episode_metrics(self):
@@ -33,13 +30,6 @@ class Logging:
 
     def __call__(self, episode):
         self.episode = episode
-        if self.debug:
-            self.progress_bar    = alive_bar(self.settings.MAX_ACTIONS)
-            self.progress_update = self.progress_bar.__enter__()
-
-    def __del__(self):
-        if self.progress_bar:
-            self.progress_bar.__exit__(None, None, None)
 
     def __str__(self):
         metrics = self.episode_metrics
@@ -77,15 +67,8 @@ class Logging:
     def log_action(self, action):
         if self.debug:
             print(self.action_summary(action))
-            if self.progress_update:
-                self.progress_update()
 
     def log_episode(self):
-        if self.progress_bar:
-            self.progress_bar.__exit__(None, None, None)
-            self.progress_bar    = None
-            self.progress_update = None
-        
         metrics = self.episode_metrics
         self.save_episode_data(metrics)
         self.save_episode_video()

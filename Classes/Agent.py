@@ -15,41 +15,51 @@ class Memory(Dataset):
         return len(self.actions)
 
     def __getitem__(self, idx):
-        return self.actions[idx]
+        action = self.actions[idx]
+        return \
+        {
+            'action_index'  : torch.tensor(action.action_index, dtype = torch.long),
+            'current_frame' : torch.FloatTensor(action.current_frame),
+            'next_frame'    : torch.FloatTensor(action.next_frame),
+            'reward'        : torch.tensor(action.reward,       dtype = torch.float),
+            'done'          : torch.tensor(float(action.done),  dtype = torch.float)
+        }
 
     def add_action(self, action):
         self.actions.append(action)
 
-    @staticmethod
-    def batch_actions(actions, device):
-        return \
-        {
-            'actions'        : torch.tensor([a.action_index for a in actions], dtype = torch.long, device = device),
-            'current_frames' : torch.stack([torch.FloatTensor(a.current_frame) for a in actions]).to(device),
-            'dones'          : torch.tensor([a.done for a in actions], dtype = torch.bool, device = device),
-            'next_frames'    : torch.stack([torch.FloatTensor(a.next_frame) for a in actions]).to(device),
-            'rewards'        : torch.tensor([a.reward for a in actions], dtype = torch.float, device = device),
-        }
-
 class DQN(nn.Module):
     def __init__(self, action_count):
         super().__init__()
-        self.network = nn.Sequential \
-        (
+        self.features = nn.Sequential(
             nn.Conv2d(4, 32, kernel_size = 8, stride = 4),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size = 4, stride = 2),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Flatten(),
-            nn.Linear(64 * 10 * 9, 256),
+            nn.Conv2d(64, 64, kernel_size = 3, stride = 1),
+            nn.BatchNorm2d(64),
+            nn.ReLU()
+        )
+
+        with torch.no_grad():
+            sample_input = torch.zeros(1, 4, 144, 160)
+            sample_output = self.features(sample_input)
+            self.feature_size = sample_output.view(1, -1).size(1)
+        
+        self.fc = nn.Sequential(
+            nn.Linear(self.feature_size, 512),
             nn.ReLU(),
-            nn.Linear(256, action_count)
+            nn.Linear(512, action_count)
         )
 
     def forward(self, frame):
-        return self.network(frame.permute(0, 3, 1, 2))
+        x = frame.permute(0, 3, 1, 2)
+        x = self.features(x)
+        x = x.view(x.size(0), -1) 
+        x = self.fc(x)
+        return x
 
 class Agent(nn.Module):
     def __init__(self, settings):
@@ -78,14 +88,20 @@ class Agent(nn.Module):
                                 shuffle     = True,
                                 pin_memory  = True if self.device == 'mps' else False)
 
-        batched_actions  = Memory.batch_actions(next(iter(dataloader)), self.device)
-        current_q_values = self.main_network(batched_actions['current_frames']).gather(1, batched_actions['actions'].unsqueeze(-1))
+        batch = next(iter(dataloader))
+        
+        current_frames   = batch['current_frame'].to(self.device)
+        next_frames      = batch['next_frame'].to(self.device)
+        actions          = batch['action_index'].long().to(self.device)
+        rewards          = batch['reward'].to(self.device)
+        dones            = batch['done'].to(self.device)
+        current_q_values = self.main_network(current_frames).gather(1, actions.unsqueeze(-1))
 
         with torch.no_grad():
-            next_actions    = self.main_network(batched_actions['next_frames']).max(1)[1].unsqueeze(-1)
-            next_q_values   = self.target_network(batched_actions['next_frames']).gather(1, next_actions)
-            target_q_values = batched_actions['rewards'] + (1 - batched_actions['dones'].float()) * self.settings.discount_factor * next_q_values
+            next_q_values   = self.target_network(next_frames).max(1)[0]
+            target_q_values = rewards + (1 - dones) * self.settings.discount_factor * next_q_values
 
+        target_q_values = target_q_values.unsqueeze(1)
         loss = self.loss_function(current_q_values, target_q_values)
 
         self.optimizer.zero_grad(set_to_none = True)

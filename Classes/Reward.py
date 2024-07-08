@@ -13,8 +13,6 @@ class Reward:
         if not self.intro_completed and self.is_intro_completed():
             return self.process_intro_completion(action)
 
-        self.calculate_action_reward(action)
-
         if action.action_index == 0:
             self.consecutive_waits += 1
             wait_penalty            = self.settings.WAIT_PENALTY * self.consecutive_waits
@@ -22,6 +20,7 @@ class Reward:
             action.reward          += wait_penalty
         else:
             self.consecutive_waits = 0
+            self.calculate_action_reward(action)
 
     def calculate_action_reward(self, action):
         if not action.is_effective:
