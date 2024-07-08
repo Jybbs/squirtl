@@ -37,6 +37,10 @@ class Episode:
     @property
     def average_q_value(self):
         return sum(a.q_value for a in self.actions) / self.total_actions if self.actions else 0.0
+    
+    @property
+    def average_reward(self):
+        return sum(a.reward for a in self.actions) / self.total_actions if self.actions else 0.0
 
     @property
     def current_frame(self):
@@ -99,7 +103,7 @@ class Gymnasium(Env):
         self.logging.log_episode()
 
     def load_checkpoint(self, start_episode):
-        checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{start_episode - 1}.pth"
+        checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_{(start_episode - 1):04d}.pth"
         self.agent.load_checkpoint(checkpoint_path)
 
     def reset(self):
@@ -122,7 +126,7 @@ class Gymnasium(Env):
         self.emulator.close_emulator()
 
     def save_checkpoint(self, episode):
-        checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{episode}.pth"
+        checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_{episode:04d}.pth"
         self.agent.save_checkpoint(checkpoint_path, self.episode.total_actions)
 
     def step(self, action_index):

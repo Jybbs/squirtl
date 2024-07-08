@@ -51,7 +51,7 @@ class Emulator:
         action.current_frame = self.get_screen_data()
         
         if action.action_index != 0:
-            self.pyboy.button(self.settings.action_space[action.action_index])
+            self.pyboy.button(self.settings.action_space[action.action_index], delay = 2)
         else:
             pass
 

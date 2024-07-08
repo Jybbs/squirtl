@@ -50,7 +50,7 @@ class Settings:
         self.COMPLETION_BONUS    = 10000 # Outsized reward for reaching the final event
         self.INEFFECTIVE_PENALTY = -1    # Small penalty for actions that don't change the state
         self.INTRO_BONUS         = 1000  # Large reward for completing the naming process in the intro
-        self.MAX_ACTIONS         = 2000  # Maximum number of actions allowed per episode
+        self.MAX_ACTIONS         = 10000 # Maximum number of actions allowed per episode
         self.NEW_STATE_BONUS     = 10    # Moderate reward for exploring new states
         self.REVISIT_POINTS      = 0.1   # Very small reward for returning to visited states without immediate backtracking
         self.WAIT_PENALTY        = -0.01 # Very small penalty for not acting that will dynamically increase with consecutive actions
