@@ -34,16 +34,16 @@ class Settings:
         self.recent_frames_pool = 500
 
     def setup_hyperparameters(self):
-        self.batch_size             = 128
+        self.batch_size             = 32
         self.discount_factor        = 0.99
-        self.exploration_decay      = 0.99995
+        self.exploration_decay      = 0.99999975
         self.exploration_min        = 0.1
         self.exploration_rate       = 1.0
         self.learning_rate          = 0.0001
-        self.learning_rate_decay    = 0.9999
+        self.learning_rate_decay    = 0.9
         self.max_norm               = 1.0
         self.memory_capacity        = 100000
-        self.target_update_interval = 500
+        self.target_update_interval = 1000
 
     def setup_reward_settings(self):
         self.BACKTRACK_PENALTY   = -10   # Moderate penalty for backtracking
