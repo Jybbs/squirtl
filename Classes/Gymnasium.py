@@ -10,11 +10,11 @@ from typing      import List
 class Action:
     action_index  : int     = field(default = -1)
     action_type   : str     = field(default = "initial")
-    current_frame : ndarray = field(default_factory = empty((144, 160, 4), dtype = uint8))
+    current_frame : ndarray = field(default_factory = lambda: empty((144, 160, 4), dtype = uint8))
     done          : bool    = field(default = False)
     is_effective  : bool    = field(default = True)
     loss          : float   = field(default = 0.0)
-    next_frame    : ndarray = field(default_factory = empty((144, 160, 4), dtype = uint8))
+    next_frame    : ndarray = field(default_factory = lambda: empty((144, 160, 4), dtype = uint8))
     q_value       : float   = field(default = 0.0)
     reward        : float   = field(default = 0.0)
     timestamp     : float   = field(default_factory = perf_counter)
@@ -73,6 +73,10 @@ class Episode:
         self.episode_number = episode_number
         self.frames.clear()
 
+from gym        import Env
+from gym.spaces import Box, Discrete
+from numpy      import uint8
+
 class Gymnasium(Env):
     def __init__(self, agent, emulator, logging, reward, settings):
         super().__init__()
@@ -88,18 +92,21 @@ class Gymnasium(Env):
 
     def __call__(self):
         self.reset()
-        while not self.episode.done and self.episode.action_count < self.settings.MAX_ACTIONS:
+        self.logging(self.episode)
+        while not self.episode.done:
             action_index = self.agent.select_action(self.episode.current_frame)
             self.step(action_index)
-        return self.logging.log_episode()
+        self.logging.log_episode()
 
     def load_checkpoint(self, start_episode):
         checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_episode_{start_episode - 1}.pth"
         self.agent.load_checkpoint(checkpoint_path)
 
     def reset(self):
+        self.episode.reset(self.episode.episode_number + 1)
+        self.emulator.set_episode(self.episode)
         initial_frame = self.emulator.reset()
-        self.episode.reset(initial_frame)
+        self.episode.add_frame(initial_frame)
         self.reward.reset()
         return self.episode.current_frame
 
@@ -119,11 +126,7 @@ class Gymnasium(Env):
         self.agent.save_checkpoint(checkpoint_path, self.episode.total_actions)
 
     def step(self, action_index):
-        action = Action \
-        (
-            action_index  = action_index,
-            current_frame = self.emulator.advance_until_playable()
-        )
+        action = Action(action_index = action_index, current_frame = self.emulator.advance_until_playable())
         
         self.emulator.press_button(action)
         self.reward.evaluate_action(action, self.episode.total_actions)
@@ -135,5 +138,8 @@ class Gymnasium(Env):
         
         self.episode.add_action(action)
         self.logging.log_action(action)
-        
-        return action.next_frame, action.reward, action.done, asdict(action)
+
+        if self.episode.total_actions >= self.settings.MAX_ACTIONS:
+            action.done = True
+
+        return action.next_frame, action.reward, action.done, vars(action)
