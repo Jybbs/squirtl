@@ -2,12 +2,14 @@ from numpy import array, array_equal
 from pyboy import PyBoy
 
 class Emulator:
-    def __init__(self, debug, frames, rom_path):
+    def __init__(self, debug, frames, rom_path, settings, episode):
         self.debug           = debug
         self.frames          = frames
         self.previous_values = {}
         self.rom_path        = rom_path
+        self.settings        = settings
         self.pyboy           = self.initialize_pyboy()
+        self.episode         = episode
 
     def advance_frame(self, frames = 4):
         for _ in range(frames):
@@ -36,7 +38,7 @@ class Emulator:
 
     def get_screen_data(self):
         frame = array(self.pyboy.screen.ndarray, copy = True)
-        self.frames.add(frame)
+        self.frames.add(frame, self.episode)
         return frame
 
     def initialize_pyboy(self):
@@ -45,18 +47,24 @@ class Emulator:
         pyboy.set_emulation_speed(0)
         return pyboy
 
-    def press_button(self, button, frames = 2):
-        initial_frame = self.get_screen_data()
-        self.pyboy.button(button, delay = frames)
+    def press_button(self, action):
+        action.current_frame = self.get_screen_data()
         
-        self.advance_frame(frames)
+        if action.action_index != 0:
+            self.pyboy.button(self.settings.action_space[action.action_index])
+        else:
+            pass
+
+        self.advance_frame()
         
-        is_effective = not array_equal(initial_frame, self.get_screen_data())
-        new_frame    = self.get_screen_data()
-        return is_effective, new_frame
+        action.next_frame   = self.get_screen_data()
+        action.is_effective = not array_equal(action.current_frame, action.next_frame)
 
     def reset(self):
         self.close_emulator()
         self.frames.reset()
         self.pyboy = self.initialize_pyboy()
         return self.get_screen_data()
+
+    def set_episode(self, episode):
+        self.episode = episode

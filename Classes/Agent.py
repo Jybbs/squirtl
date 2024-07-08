@@ -1,136 +1,157 @@
 import torch
 import torch.nn as nn
 
-from collections     import deque
-from Gymnasium       import Experience
-from random          import randint, random, sample
-from torch.optim     import Adam, lr_scheduler
+from collections              import deque
+from torch.jit                import script
+from torch.optim              import Adam
+from torch.optim.lr_scheduler import ExponentialLR
+from torch.utils.data         import Dataset, DataLoader
+
+class Memory(Dataset):
+    def __init__(self, capacity):
+        self.actions = deque(maxlen = capacity)
+
+    def __len__(self):
+        return len(self.actions)
+
+    def __getitem__(self, idx):
+        action = self.actions[idx]
+        return \
+        {
+            'action_index'  : torch.tensor(action.action_index, dtype = torch.long),
+            'current_frame' : torch.FloatTensor(action.current_frame),
+            'next_frame'    : torch.FloatTensor(action.next_frame),
+            'reward'        : torch.tensor(action.reward,       dtype = torch.float),
+            'done'          : torch.tensor(float(action.done),  dtype = torch.float)
+        }
+
+    def add_action(self, action):
+        self.actions.append(action)
 
 class DQN(nn.Module):
     def __init__(self, action_count):
         super().__init__()
-        self.network = nn.Sequential \
-        (
+        self.features = nn.Sequential(
             nn.Conv2d(4, 32, kernel_size = 8, stride = 4),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size = 4, stride = 2),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Flatten(),
-            nn.LazyLinear(256), # LazyLinear will automatically determine the input size
-            nn.ReLU(),
-            nn.Linear(256, action_count)
+            nn.Conv2d(64, 64, kernel_size = 3, stride = 1),
+            nn.BatchNorm2d(64),
+            nn.ReLU()
         )
 
-    def forward(self, state):
-        if state.dim() == 3:
-            state = state.unsqueeze(0)
-        return self.network(state.permute(0, 3, 1, 2))
+        with torch.no_grad():
+            sample_input = torch.zeros(1, 4, 144, 160)
+            sample_output = self.features(sample_input)
+            self.feature_size = sample_output.view(1, -1).size(1)
+        
+        self.fc = nn.Sequential(
+            nn.Linear(self.feature_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, action_count)
+        )
 
-class Memory:
-    def __init__(self, capacity):
-        self.capacity    = capacity
-        self.experiences = deque(maxlen = capacity)
-
-    def sample_batch(self, batch_size):
-        return sample(self.experiences, min(batch_size, len(self.experiences)))
-
-    def store(self, experience):
-        self.experiences.append(experience)
+    def forward(self, frame):
+        x = frame.permute(0, 3, 1, 2)
+        x = self.features(x)
+        x = x.view(x.size(0), -1) 
+        x = self.fc(x)
+        return x
 
 class Agent(nn.Module):
     def __init__(self, settings):
-        super(Agent, self).__init__()
+        super().__init__()
         self.action_space_size = len(settings.action_space)
-        self.actions_taken     = 0
         self.batch_size        = settings.batch_size
         self.device            = settings.device
-        self.main_network      = DQN(self.action_space_size).to(self.device)
+        self.loss_function     = nn.HuberLoss()
+        self.main_network      = script(DQN(self.action_space_size)).to(self.device)
+        self.memory            = Memory(settings.memory_capacity)
         self.optimizer         = Adam(self.main_network.parameters(), lr = settings.learning_rate)
-        self.replay_memory     = Memory(settings.memory_capacity)
-        self.scheduler         = lr_scheduler.ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
+        self.scheduler         = ExponentialLR(self.optimizer, gamma = settings.learning_rate_decay)
         self.settings          = settings
-        self.target_network    = DQN(self.action_space_size).to(self.device)
-
+        self.target_network    = script(DQN(self.action_space_size)).to(self.device)
         self.target_network.load_state_dict(self.main_network.state_dict())
         self.target_network.eval()
 
-    def compute_loss(self, batch):
-        current_q_values  = self(batch.state).gather(1, batch.action.unsqueeze(1))
-        expected_q_values = batch.reward + (self.settings.discount_factor * self.compute_next_q_values(batch) * (~batch.done).float())
-        loss              = nn.functional.smooth_l1_loss(current_q_values, expected_q_values.unsqueeze(1))
-        return current_q_values.mean(), loss
+    def learn(self, action):
+        if len(self.memory) < self.batch_size:
+            action.loss    = 0
+            action.q_value = 0
+            return
 
-    def compute_next_q_values(self, batch):
-        next_q_values  = torch.zeros(self.batch_size, device = self.device)
-        non_final_mask = ~batch.done
-        next_q_values[non_final_mask] = self.target_network(batch.next_state[non_final_mask]).max(1)[0]
-        return next_q_values
+        dataloader = DataLoader(self.memory, 
+                                batch_size  = self.batch_size, 
+                                shuffle     = True,
+                                pin_memory  = True if self.device == 'mps' else False)
 
-    def forward(self, state):
-        return self.main_network(state)
-
-    def learn_from_experience(self):
-        if len(self.replay_memory.experiences) < self.batch_size:
-            return 0, 0
-
-        batch       = Experience.batch_to_tensor(self.replay_memory.sample_batch(self.batch_size), self.device)
-        q_mean, loss = self.compute_loss(batch)
-        self.update_networks(loss)
+        batch = next(iter(dataloader))
         
-        return loss.item(), q_mean.item()
+        current_frames   = batch['current_frame'].to(self.device)
+        next_frames      = batch['next_frame'].to(self.device)
+        actions          = batch['action_index'].long().to(self.device)
+        rewards          = batch['reward'].to(self.device)
+        dones            = batch['done'].to(self.device)
+        current_q_values = self.main_network(current_frames).gather(1, actions.unsqueeze(-1))
+
+        with torch.no_grad():
+            next_q_values   = self.target_network(next_frames).max(1)[0]
+            target_q_values = rewards + (1 - dones) * self.settings.discount_factor * next_q_values
+
+        target_q_values = target_q_values.unsqueeze(1)
+        loss = self.loss_function(current_q_values, target_q_values)
+
+        self.optimizer.zero_grad(set_to_none = True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.main_network.parameters(), max_norm = self.settings.max_norm)
+        self.optimizer.step()
+        self.update_learning_parameters()
+        
+        action.loss    = loss.item()
+        action.q_value = current_q_values.mean().item()
 
     def load_checkpoint(self, path):
         checkpoint = torch.load(path, map_location = self.device)
-
-        self.actions_taken = checkpoint['actions_taken']
-        self.main_network.load_state_dict(checkpoint['main_network'])
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.scheduler.load_state_dict(checkpoint['lr_scheduler'])
         self.settings.exploration_rate = checkpoint['exploration_rate']
-        self.target_network.load_state_dict(checkpoint['target_network'])
+        self.main_network = torch.jit.load(checkpoint['model_path'], map_location = self.device)
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.scheduler.load_state_dict(checkpoint['scheduler'])
 
-    def save_checkpoint(self, path):
-        torch.save(
+    def save_checkpoint(self, path, total_actions):
+        model_path = path.with_suffix('.pt')
+        torch.jit.save(self.main_network, model_path)
+        torch.save \
+        (
             {
-                'actions_taken'    : self.actions_taken,
                 'exploration_rate' : self.settings.exploration_rate,
-                'lr_scheduler'     : self.scheduler.state_dict(),
-                'main_network'     : self.main_network.state_dict(),
+                'model_path'       : str(model_path),
                 'optimizer'        : self.optimizer.state_dict(),
-                'target_network'   : self.target_network.state_dict()
+                'scheduler'        : self.scheduler.state_dict(),
+                'total_actions'    : total_actions,
             }, 
-            path
-        )
+        path)
 
-    def select_action(self, state):
-        if random() < self.settings.exploration_rate:
-            return randint(0, self.action_space_size - 1)
+    def select_action(self, current_frame):
+        if torch.rand(1).item() < self.settings.exploration_rate:
+            return torch.randint(self.action_space_size, (1,)).item()
         
-        with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-            return self(state_tensor).argmax(dim = 1).item()
+        frame_tensor = torch.FloatTensor(current_frame).unsqueeze(0).to(self.device)
+        return self.main_network(frame_tensor).argmax().item()
 
-    def store_experience(self, experience):
-        self.actions_taken += 1
-        self.replay_memory.store(experience)
+    def store_action(self, action):
+        self.memory.add_action(action)
 
-    def update_exploration_rate(self):
+    def update_learning_parameters(self):
+        self.scheduler.step()
         self.settings.exploration_rate = max \
         (
             self.settings.exploration_min,
             self.settings.exploration_rate * self.settings.exploration_decay
         )
 
-    def update_networks(self, loss):
-        loss.backward()
-        nn.utils.clip_grad_norm_(self.main_network.parameters(), max_norm = 1.0)  # Clipping by norm
-        self.optimizer.step()
-        self.optimizer.zero_grad()
-
-        if self.actions_taken % self.settings.target_update_interval == 0:
+    def update_target_network(self, total_actions):
+        if total_actions % self.settings.target_update_interval == 0:
             self.target_network.load_state_dict(self.main_network.state_dict())
-
-        self.scheduler.step()
-        self.update_exploration_rate()

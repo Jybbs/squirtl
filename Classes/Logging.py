@@ -1,172 +1,155 @@
 import json
 import matplotlib.pyplot as plt
-import numpy as np
+import numpy             as np
 
-from collections import Counter, defaultdict
-from cv2         import COLOR_RGB2BGR, cvtColor, VideoWriter, VideoWriter_fourcc
-from dataclasses import dataclass, asdict
-from pandas      import DataFrame
-from seaborn     import regplot, scatterplot
-from time        import time
-
-@dataclass
-class Metrics:
-    action        : str
-    action_number : int
-    action_type   : str
-    elapsed_time  : float
-    is_effective  : bool
-    loss          : float
-    q_value       : float
-    reward        : float
-    total_reward  : float
-
-    def to_dict(self):
-        return asdict(self)
+from cv2            import COLOR_RGB2BGR, VideoWriter, VideoWriter_fourcc, cvtColor
+from pandas         import DataFrame
+from seaborn        import regplot, scatterplot
 
 class Logging:
-    def __init__(self, debug, frames, settings, start_episode):
-        self.action_metrics  = defaultdict(list)
-        self.current_episode = start_episode
-        self.debug           = debug
-        self.frames          = frames
-        self.settings        = settings
-        self.start_time      = time()
+    def __init__(self, debug, settings):
+        self.debug    = debug
+        self.episode  = None
+        self.settings = settings
 
-    def calculate_episode_metrics(self, episode):
-        episode_metrics    = self.action_metrics[episode]
-        total_actions      = len(episode_metrics)
-        action_type_counts = Counter(m.action_type for m in episode_metrics)
-        
-        return {
-            "average_loss"         : np.mean([m.loss for m in episode_metrics]),
-            "average_q_value"      : np.mean([m.q_value for m in episode_metrics]),
-            "backtracking_actions" : action_type_counts["backtrack"],
-            "effective_actions"    : sum(m.is_effective for m in episode_metrics),
-            "elapsed_time"         : episode_metrics[-1].elapsed_time - episode_metrics[0].elapsed_time,
-            "episode"              : episode,
-            "new_actions"          : action_type_counts["new"],
-            "revisit_actions"      : action_type_counts["revisit"],
-            "total_actions"        : total_actions,
-            "total_reward"         : episode_metrics[-1].total_reward,
-            "wait_actions"         : action_type_counts["wait"],
+    @property
+    def episode_metrics(self):
+        return \
+        {
+            "average_loss"         : self.episode.average_loss,
+            "average_q_value"      : self.episode.average_q_value,
+            "backtracking_actions" : self.episode.action_type_counts["backtrack"],
+            "effective_actions"    : self.episode.effective_actions,
+            "elapsed_time"         : self.episode.elapsed_time,
+            "episode"              : self.episode.episode_number,
+            "new_actions"          : self.episode.action_type_counts["new"],
+            "total_actions"        : self.episode.total_actions,
+            "total_reward"         : self.episode.total_reward,
+            "wait_actions"         : self.episode.action_type_counts["wait"],
         }
-    
-    def get_frames_for_video(self, frames, filename):
-        if not frames:
-            return
-        
-        fourcc       = VideoWriter_fourcc(*'mp4v')
-        frame_shape  = frames[0].shape[:2][::-1]
-        video_path   = self.settings.video_directory / filename
-        video_writer = VideoWriter(str(video_path), fourcc, 60, frame_shape)
 
-        for frame in frames:
-            video_writer.write(cvtColor(frame, COLOR_RGB2BGR))
+    def __call__(self, episode):
+        self.episode = episode
 
-        video_writer.release()
+    def __str__(self):
+        metrics = self.episode_metrics
+        return (
+            f"\nEpisode Summary:\n"
+            f"Episode:      {metrics['episode']:4d}\n"
+            f"Actions:      {metrics['total_actions']:4d}\n"
+            f"Reward:       {metrics['total_reward']:8.2f}\n"
+            f"Avg. Loss:    {metrics['average_loss']:8.4f}\n"
+            f"Avg. Q-Value: {metrics['average_q_value']:8.4f}\n"
+            f"Time:         {metrics['elapsed_time']:6.2f}s\n"
+            f"Effective:    {metrics['effective_actions']:4d}\n"
+            f"Ineffective:  {metrics['total_actions'] - metrics['effective_actions']:4d}\n"
+            f"New:          {metrics['new_actions']:4d}\n"
+            f"Backtrack:    {metrics['backtracking_actions']:4d}\n"
+            f"Wait:         {metrics['wait_actions']:4d}\n"
+            f"{'-' * 50}"
+        )
 
-    def load_all_episode_metrics(self):
-        all_metrics = []
-        for episode in range(1, self.current_episode + 1):
-            metrics_path = self.settings.metrics_directory / f"episode_{episode}_metrics.json"
-            if metrics_path.exists():
-                with open(metrics_path, 'r') as file:
-                    all_metrics.append(json.load(file))
-        return all_metrics
+    def action_summary(self, action):
+        return \
+        (
+            f"Episode {self.episode.episode_number:4d} | "
+            f"Action {self.episode.total_actions:4d} | "
+            f"Button: {self.settings.action_space[action.action_index]:10s} | "
+            f"Type: {action.action_type:14s} | "
+            f"Effective: {str(action.is_effective):5s} | "
+            f"Reward: {action.reward:10.2f} | "
+            f"Total Reward: {self.episode.total_reward:10.2f} | "
+            f"Loss: {action.loss:8.4f} | "
+            f"Q-Value: {action.q_value:8.4f} | "
+            f"Time: {self.episode.elapsed_time:6.2f}s"
+        )
 
-    def log_action(self, metrics):
-        self.action_metrics[self.current_episode].append(metrics)
+    def log_action(self, action):
         if self.debug:
-            self.print_debug(self.current_episode, metrics)
+            print(self.action_summary(action))
 
     def log_episode(self):
-        metrics = self.calculate_episode_metrics(self.current_episode)
-        self.save_episode_data(self.current_episode, metrics)
-        self.save_episode_videos(self.current_episode)
-        self.print_episode_summary(self.current_episode)
+        metrics = self.episode_metrics
+        self.save_episode_data(metrics)
+        self.save_episode_video()
         self.plot_metrics()
-        self.current_episode += 1
-        return metrics
+        print(self)
 
     def plot_metrics(self):
         self.setup_plot_params()
-        episode_summaries = self.load_all_episode_metrics()
-        df = DataFrame(episode_summaries)
-        
-        metrics = ["total_actions", "total_reward", "average_loss", "average_q_value",
-                   "effective_actions", "new_actions", "backtracking_actions", "wait_actions", "elapsed_time"]
+        metrics_list = [self.episode_metrics for _ in range(1, self.episode.episode_number + 1)]
+        df = DataFrame(metrics_list).drop('episode', axis = 1)
         
         fig, axes = plt.subplots(3, 3, figsize = (15, 10), sharex = True)
-        colors = plt.cm.viridis(np.linspace(0.1, 1, len(metrics)))
+        colors    = plt.cm.viridis(np.linspace(0.1, 1, len(df.columns)))
         
-        for metric, ax, color in zip(metrics, axes.flatten(), colors):
-            regplot(x = 'episode', y = metric, data = df, ax = ax, scatter = False, 
-                    lowess = True, line_kws = {'color': color})
-            scatterplot(x = 'episode', y = metric, data = df, ax = ax, alpha = 0.3, color = color)
-            
+        for (metric, data), ax, color in zip(df.items(), axes.flatten(), colors):
             ax.set_title(metric.replace('_', ' ').title())
             ax.set_ylabel('')
             ax.set_xlabel('Episode' if ax == axes[2, 1] else '')
+            
+            regplot \
+                (x = df.index, y = data, ax = ax, scatter = False, lowess = True, line_kws = {'color': color})
+            scatterplot \
+                (x = df.index, y = data, ax = ax, alpha = 0.3, color = color)
             
             if ax.get_ylim()[0] <= 0 <= ax.get_ylim()[1]:
                 ax.axhline(y = 0, color = 'white', linestyle = '--', linewidth = 1, alpha = 0.5)
         
         plt.tight_layout()
-        plt.savefig(self.settings.metrics_directory / f"plot_episode_{self.current_episode}.png")
+        plt.savefig(self.settings.metrics_directory / f"plot_episode_{self.episode.episode_number}.png")
         plt.close(fig)
 
-    def print_debug(self, episode, m):
-        print(f"Episode {episode:4d} | Action {m.action_number:4d} | Button: {m.action:10s} | "
-              f"Type: {m.action_type:14s} | Effective: {str(m.is_effective):5s} | "
-              f"Reward: {m.reward:10.2f} | Total Reward: {m.total_reward:10.2f} | "
-              f"Loss: {m.loss:8.4f} | Q-Value: {m.q_value:8.4f} | Time: {m.elapsed_time:6.2f}s")
+    def save_episode_data(self, metrics):
+        metrics_path = self.settings.metrics_directory / f"episode_{metrics['episode']}_metrics.json"
+        actions_path = self.settings.metrics_directory / f"episode_{metrics['episode']}_actions.json"
 
-    def print_episode_summary(self, episode):
-        s = self.calculate_episode_metrics(episode)
-        print("\nEpisode Summary:")
-        print(f"Episode: {s['episode']:4d} | Actions: {s['total_actions']:4d} | "
-              f"Total Reward: {s['total_reward']:8.2f} | Avg Loss: {s['average_loss']:8.4f} | "
-              f"Avg Q-Value: {s['average_q_value']:8.4f} | Time: {s['elapsed_time']:6.2f}s")
-        print(f"Effective: {s['effective_actions']:4d} | "
-              f"Ineffective: {s['total_actions'] - s['effective_actions']:4d} | "
-              f"New: {s['new_actions']:4d} | Backtrack: {s['backtracking_actions']:4d} | "
-              f"Wait: {s['wait_actions']:4d}")
-        print("-" * 100)
-
-    def save_episode_data(self, episode, metrics):
-        metrics_path = self.settings.metrics_directory / f"episode_{episode}_metrics.json"
         with open(metrics_path, 'w') as file:
             json.dump(metrics, file, indent = 4)
 
-        actions_path = self.settings.metrics_directory / f"episode_{episode}_actions.json"
         with open(actions_path, 'w') as file:
-            json.dump([m.to_dict() for m in self.action_metrics[episode]], file, indent = 4)
+            json.dump([vars(a) for a in self.episode.actions], file, indent = 4)
 
-    def save_episode_videos(self, episode):
-        self.get_frames_for_video(self.frames.get_episode_frames(), f"episode_{episode}.mp4")
+    def save_episode_video(self):
+        if not self.episode.frames:
+            return
+        
+        episode_number = self.episode.episode_number
+        frame_shape    = self.episode.frames[0].shape[:2][::-1]
+        video_path     = self.settings.video_directory / f"episode_{episode_number}.mp4"
+        video_writer   = VideoWriter(str(video_path), VideoWriter_fourcc(*'mp4v'), 60, frame_shape)
+
+        for frame in self.episode.frames:
+            video_writer.write(cvtColor(frame, COLOR_RGB2BGR))
+
+        video_writer.release()
 
     def setup_plot_params(self):
-        plt.rcParams.update({# Axes parameters                            # Tick parameters
-                             'axes.facecolor'     : '.05',                'xtick.labelsize'    : 8,
-                             'axes.grid'          : True,                 'xtick.color'        : '1',
-                             'axes.labelcolor'    : 'white',              'xtick.major.size'   : 0,
-                             'axes.spines.left'   : False,                'ytick.labelsize'    : 8,
-                             'axes.spines.right'  : False,                'ytick.color'        : '1',
-                             'axes.spines.top'    : False,                'ytick.major.size'   : 0,
-                             'axes.labelsize'     : 10,
-                             'axes.labelweight'   : 'bold',               # Figure parameters
-                             'axes.titlesize'     : 13,                   'figure.facecolor'   : 'black',
-                             'axes.titleweight'   : 'bold',               'figure.figsize'     : (15, 10),
-                             'axes.labelpad'      : 15,                   'figure.autolayout'  : True,
-                             'axes.titlepad'      : 15,
+        plt.rcParams.update \
+        (
+            {
+                # Axes parameters                            # Tick parameters
+                'axes.facecolor'     : '.05',                'xtick.labelsize'    : 8,
+                'axes.grid'          : True,                 'xtick.color'        : '1',
+                'axes.labelcolor'    : 'white',              'xtick.major.size'   : 0,
+                'axes.spines.left'   : False,                'ytick.labelsize'    : 8,
+                'axes.spines.right'  : False,                'ytick.color'        : '1',
+                'axes.spines.top'    : False,                'ytick.major.size'   : 0,
+                'axes.labelsize'     : 10,
+                'axes.labelweight'   : 'bold',               # Figure parameters
+                'axes.titlesize'     : 13,                   'figure.facecolor'   : 'black',
+                'axes.titleweight'   : 'bold',               'figure.figsize'     : (15, 10),
+                'axes.labelpad'      : 15,                   'figure.autolayout'  : True,
+                'axes.titlepad'      : 15,
 
-                             # Font and text parameters                   # Legend parameters
-                             'font.family'        : 'DejaVu Sans Mono',   'legend.facecolor'   : '0.3',
-                             'font.size'          : 8,                    'legend.edgecolor'   : '0.3',
-                             'font.style'         : 'normal',             'legend.borderpad'   : 0.75,
-                             'text.color'         : 'white',              'legend.framealpha'  : '0.5',
+                # Font and text parameters                   # Legend parameters
+                'font.family'        : 'DejaVu Sans Mono',   'legend.facecolor'   : '0.3',
+                'font.size'          : 8,                    'legend.edgecolor'   : '0.3',
+                'font.style'         : 'normal',             'legend.borderpad'   : 0.75,
+                'text.color'         : 'white',              'legend.framealpha'  : '0.5',
 
-                             # Grid parameters
-                             'grid.linestyle'     : ':',
-                             'grid.color'         : '0.2'})
+                # Grid parameters
+                'grid.linestyle'     : ':',
+                'grid.color'         : '0.2'
+            }
+        )

@@ -10,13 +10,14 @@ version      = "0.1.0"
 [tool.poetry.dependencies]
 python = "^3.12"
 
-matplotlib    = "*"
-numpy         = "1.26.4"
-opencv-python = "*"
-pyboy         = "*"
-seaborn       = "*"
-statsmodels   = "*"
-torch         = "*"
+gym            = "*"
+matplotlib     = "*"
+numpy          = "1.26.4"
+opencv-python  = "*"
+pyboy          = "*"
+seaborn        = "*"
+statsmodels    = "*"
+torch          = "*"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
