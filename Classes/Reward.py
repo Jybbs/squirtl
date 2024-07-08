@@ -15,7 +15,7 @@ class Reward:
 
         self.calculate_action_reward(action)
 
-        if action.action_name == 'wait':
+        if action.action_index == 0:
             self.consecutive_waits += 1
             wait_penalty            = self.settings.WAIT_PENALTY * self.consecutive_waits
             action.action_type      = 'wait'

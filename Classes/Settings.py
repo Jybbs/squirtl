@@ -3,7 +3,7 @@ from torch   import backends, device
 
 class Settings:
     def __init__(self):
-        self.action_space          = ['a', 'b', 'down', 'left', 'right', 'up', 'wait']
+        self.action_space          = ['wait', 'a', 'b', 'down', 'left', 'right', 'up']
         self.base_directory        = Path('data')
         self.checkpoints_directory = self.base_directory / "checkpoints"
         self.device                = device("mps" if backends.mps.is_available() else "cpu")

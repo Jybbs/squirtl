@@ -39,17 +39,17 @@ class Logging:
         metrics = self.episode_metrics
         return (
             f"\nEpisode Summary:\n"
-            f"Episode:     {metrics['episode']:4d}\n"
-            f"Actions:     {metrics['total_actions']:4d}\n"
-            f"Total Rwd:   {metrics['total_reward']:8.2f}\n"
-            f"Avg Loss:    {metrics['average_loss']:8.4f}\n"
-            f"Avg Q-Value: {metrics['average_q_value']:8.4f}\n"
-            f"Time:        {metrics['elapsed_time']:6.2f}s\n"
-            f"Effective:   {metrics['effective_actions']:4d}\n"
-            f"Ineffective: {metrics['total_actions'] - metrics['effective_actions']:4d}\n"
-            f"New:         {metrics['new_actions']:4d}\n"
-            f"Backtrack:   {metrics['backtracking_actions']:4d}\n"
-            f"Wait:        {metrics['wait_actions']:4d}\n"
+            f"Episode:      {metrics['episode']:4d}\n"
+            f"Actions:      {metrics['total_actions']:4d}\n"
+            f"Reward:       {metrics['total_reward']:8.2f}\n"
+            f"Avg. Loss:    {metrics['average_loss']:8.4f}\n"
+            f"Avg. Q-Value: {metrics['average_q_value']:8.4f}\n"
+            f"Time:         {metrics['elapsed_time']:6.2f}s\n"
+            f"Effective:    {metrics['effective_actions']:4d}\n"
+            f"Ineffective:  {metrics['total_actions'] - metrics['effective_actions']:4d}\n"
+            f"New:          {metrics['new_actions']:4d}\n"
+            f"Backtrack:    {metrics['backtracking_actions']:4d}\n"
+            f"Wait:         {metrics['wait_actions']:4d}\n"
             f"{'-' * 50}"
         )
 
@@ -58,7 +58,7 @@ class Logging:
         (
             f"Episode {self.episode.episode_number:4d} | "
             f"Action {self.episode.total_actions:4d} | "
-            f"Button: {action.action_name:10s} | "
+            f"Button: {self.settings.action_space[action.action_index]:10s} | "
             f"Type: {action.action_type:14s} | "
             f"Effective: {str(action.is_effective):5s} | "
             f"Reward: {action.reward:10.2f} | "

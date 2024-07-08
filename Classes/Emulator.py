@@ -47,7 +47,7 @@ class Emulator:
 
     def press_button(self, action, episode):
         action.current_frame = self.get_screen_data()
-        self.pyboy.button(action.action_name, delay = 2)
+        self.pyboy.button(self.settings.action_space[action.action_index], delay = 2)
         
         self.advance_frame(2)
         

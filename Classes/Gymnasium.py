@@ -9,7 +9,6 @@ from typing      import List
 @dataclass
 class Action:
     action_index  : int     = field(default = -1)
-    action_name   : str     = field(default = "initial")
     action_type   : str     = field(default = "initial")
     current_frame : ndarray = field(default_factory = empty((144, 160, 4), dtype = uint8))
     done          : bool    = field(default = False)
@@ -123,7 +122,6 @@ class Gymnasium(Env):
         action = Action \
         (
             action_index  = action_index,
-            action_name   = self.settings.action_space[action_index],
             current_frame = self.emulator.advance_until_playable()
         )
         
