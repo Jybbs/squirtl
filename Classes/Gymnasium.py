@@ -24,7 +24,7 @@ class Action:
 class Episode:
     actions        : List[Action]  = field(default_factory = list)
     frames         : List[ndarray] = field(default_factory = list)
-    episode_number : int           = field(default = 0)
+    episode_number : int           = field(default = 1)
 
     @property
     def action_type_counts(self):
@@ -72,9 +72,12 @@ class Episode:
     def add_frame(self, frame):
         self.frames.append(frame)
 
-    def reset(self, episode_number):
+    def increment(self):
+        self.episode_number += 1
+        self.reset()
+
+    def reset(self):
         self.actions.clear()
-        self.episode_number = episode_number
         self.frames.clear()
 
 from gym        import Env
@@ -88,7 +91,6 @@ class Gymnasium(Env):
         self.agent             = agent
         self.emulator          = emulator
         self.episode           = Episode()
-        self.last_action       = None
         self.logging           = logging
         self.observation_space = Box(low = 0, high = 255, shape = (144, 160, 4), dtype = uint8)
         self.reward            = reward
@@ -102,26 +104,28 @@ class Gymnasium(Env):
             self.step(action_index)
         self.logging.log_episode()
 
-    def load_checkpoint(self, start_episode):
-        checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_{(start_episode - 1):04d}.pth"
+    def load_checkpoint(self, episode):
+        checkpoint_path = self.settings.checkpoints_directory / f"checkpoint_{(episode - 1):04d}.pth"
         self.agent.load_checkpoint(checkpoint_path)
 
     def reset(self):
-        self.episode.reset(self.episode.episode_number + 1)
+        self.episode.reset()
         self.emulator.set_episode(self.episode)
         initial_frame = self.emulator.reset()
         self.episode.add_frame(initial_frame)
         self.reward.reset()
         return self.episode.current_frame
 
-    def run_training_session(self, num_episodes, start_episode = 1):
+    def run_training_session(self, num_episodes, start_episode):
+        self.episode.episode_number = start_episode
         if start_episode > 1:
             self.load_checkpoint(start_episode)
 
-        for episode in range(start_episode, start_episode + num_episodes):
-            print(f"\nRunning episode {episode} of {start_episode + num_episodes - 1}")
+        for _ in range(num_episodes):
+            print(f"\nRunning episode {self.episode.episode_number} of {start_episode + num_episodes - 1}")
             self()
-            self.save_checkpoint(episode)
+            self.save_checkpoint(self.episode.episode_number)
+            self.episode.increment()
 
         self.emulator.close_emulator()
 

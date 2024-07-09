@@ -79,7 +79,8 @@ class Logging:
     def plot_metrics(self):
         self.setup_plot_params()
         
-        df = DataFrame([json.load(open(f)) for f in sorted(self.settings.metrics_directory.glob("summary_*.json"))]).set_index('episode')
+        summary_files = sorted(self.settings.metrics_directory.glob("summary_*.json"))
+        df = DataFrame([json.load(open(f)) for f in summary_files if int(f.stem.split('_')[1]) <= self.episode.episode_number]).set_index('episode')
         
         fig, axes = plt.subplots(3, 3, sharex = True)
         
@@ -100,8 +101,8 @@ class Logging:
         plt.close(fig)
 
     def save_episode_data(self, metrics):
-        metrics_path = self.settings.metrics_directory / f"summary_{metrics['episode']:04d}.json"
-        actions_path = self.settings.metrics_directory / f"actions_{metrics['episode']:04d}.json"
+        metrics_path = self.settings.metrics_directory / f"summary_{self.episode.episode_number:04d}.json"
+        actions_path = self.settings.metrics_directory / f"actions_{self.episode.episode_number:04d}.json"
 
         with open(metrics_path, 'w') as file:
             json.dump(metrics, file, indent = 4)
