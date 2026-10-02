@@ -17,9 +17,9 @@ from syrupy.assertion import SnapshotAssertion
 from syrupy.extensions.single_file import SingleFileSnapshotExtension, WriteMode
 
 CLEARED = (
-    "COLORTERM", "COLUMNS", "FORCE_COLOR", "GITHUB_OUTPUT",
-    "GITHUB_STEP_SUMMARY", "LINES", "NO_COLOR", "TTY_COMPATIBLE",
-    "TTY_INTERACTIVE", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"
+    "COLORTERM", "FORCE_COLOR", "GITHUB_OUTPUT", "GITHUB_STEP_SUMMARY",
+    "LINES", "NO_COLOR", "TTY_COMPATIBLE", "TTY_INTERACTIVE",
+    "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"
 )
 
 settings.register_profile("ci", settings.get_profile("ci"), max_examples=200)
@@ -50,8 +50,8 @@ def environment(monkeypatch: MonkeyPatch, tmp_path_factory: TempPathFactory):
     machine running the suite change a result:
 
     - The variables that set whether a console treats its output as a
-      terminal, prints color, or redraws a live display, and how many columns
-      and lines it lays out
+      terminal, prints color, or redraws a live display, and how many lines
+      it lays out
     - `GITHUB_OUTPUT` and `GITHUB_STEP_SUMMARY`, naming the files a GitHub
       Actions runner collects a workflow step's outputs and a workflow run's
       summary page from
@@ -59,13 +59,15 @@ def environment(monkeypatch: MonkeyPatch, tmp_path_factory: TempPathFactory):
       configuration, data, and state
 
     Sets `TERM` to `dumb`, which stops a console writing to a real terminal
-    from choosing a color system, and points `HOME` at an empty directory
-    the test owns, so a tool that falls back to `~` finds none of the
-    developer's files there.
+    from choosing a color system, and `COLUMNS` to `80`, which every console
+    a test builds reads as its width before the size of any terminal the
+    suite runs in. It points `HOME` at an empty directory the test owns, so
+    a tool that falls back to `~` finds none of the developer's files there.
     """
     for name in CLEARED:
         monkeypatch.delenv(name, raising=False)
 
+    monkeypatch.setenv("COLUMNS", "80")
     monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
     monkeypatch.setenv("TERM", "dumb")
 

@@ -3,6 +3,7 @@ Pins the isolation the suite keeps from the machine running it, covering:
 
 - The shell variables each test starts without
 - The home directory each test reads
+- The terminal type and width every console a test builds reads
 - The block that stops a test without the `network` mark from opening a
   network connection, and the Unix socket that block leaves open
 - The mark that lets a `network` test open a connection
@@ -107,3 +108,11 @@ def test_the_terminal_reports_as_dumb():
     real terminal from choosing a color system.
     """
     assert environ["TERM"] == "dumb"
+
+
+def test_the_terminal_reports_eighty_columns():
+    """
+    Asserts that `COLUMNS` reads as `80`, which every console a test builds
+    takes as its width before the size of any terminal the suite runs in.
+    """
+    assert environ["COLUMNS"] == "80"

@@ -4,10 +4,8 @@
 
 uv lock --check
 snapshot=$(mktemp)
-trap 'rm -f "$snapshot"' EXIT
 cp -p .mise/mise.lock "$snapshot"
-mise lock
-diff -u "$snapshot" .mise/mise.lock >&2 || {
-  mv "$snapshot" .mise/mise.lock
-  exit 1
-}
+trap 'mv "$snapshot" .mise/mise.lock' EXIT
+report=$(mise lock 2>&1) || { echo "$report" >&2; exit 1; }
+[[ "$report" != *"failed to resolve"* ]] || { echo "$report" >&2; exit 1; }
+diff -u "$snapshot" .mise/mise.lock >&2
