@@ -14,6 +14,7 @@ restore() {
 
 uv lock --check
 snapshot=$(mktemp "${TMPDIR:-/tmp}/mise.lock.XXXXXX")
+trap 'rm -f "$snapshot"' EXIT
 cp -p .mise/mise.lock "$snapshot"
 trap restore EXIT
 report=$(MISE_LOG_LEVEL=warn MISE_QUIET=0 mise lock 2>&1) || refuse

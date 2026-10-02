@@ -3,11 +3,11 @@ Pins what the `lock:check` task decides and prints from what `uv lock
 --check` and `mise lock` report, and that `.mise/mise.lock` comes back byte
 for byte, mode included, whichever way the task exits.
 
-Each case runs the task from a scratch directory, which holds a copy of
-`.mise/mise.lock` wherever the case reaches `mise lock`, behind the stand-in
-under `fixtures/` answering for `mise` and `uv`, which writes each call
-it receives to a file and answers as the case sets, so no case reaches the
-network.
+Each case runs the task from a scratch directory, which holds a placeholder
+`.mise/mise.lock` wherever the case reaches `mise lock`. The stand-in under
+`fixtures/` answers for `mise` and `uv` in every case, writing each call
+it receives to a file and answering as the case sets, so no case reaches
+the network.
 """
 
 from collections.abc import Callable
@@ -18,30 +18,11 @@ from subprocess      import CompletedProcess, run
 
 
 @fixture
-def calls(monkeypatch: MonkeyPatch, tmp_path: Path) -> Callable[[], list[str]]:
+def calls(stand_ins: Path) -> Callable[[], list[str]]:
     """
-    Puts the stand-in ahead of the real `mise` and `uv` on the path, under
-    each of their names, and returns a reader of the calls it writes, one
-    line each.
-
-    The stand-in appends a line to `.mise/mise.lock` where its call matches
-    the shell pattern `REWRITING` holds, prints `REPORT` to standard error
-    when it answers `mise lock` unless `MISE_QUIET` or `MISE_LOG_LEVEL`
-    quiets it, and exits 1 where its call matches the pattern `FAILING`
-    holds.
+    Builds a reader of the calls the stand-in wrote, one line each.
     """
-    received  = tmp_path / "calls"
-    stand_ins = tmp_path / "stand-ins"
-
-    stand_ins.mkdir()
-
-    for name in ("mise", "uv"):
-        (stand_ins / name).symlink_to(Path(__file__).parent / "fixtures/stand-in.sh")
-
-    monkeypatch.setenv("CALLS", str(received))
-    monkeypatch.setenv("PATH", str(stand_ins), prepend=pathsep)
-
-    return lambda: received.read_text(encoding="utf-8").splitlines()
+    return lambda: stand_ins.read_text(encoding="utf-8").splitlines()
 
 
 @fixture
@@ -64,20 +45,48 @@ def checked(
 
 
 @fixture
-def lockfile(pytestconfig: Config, tmp_path: Path) -> Path:
+def lockfile(tmp_path: Path) -> Path:
     """
-    Copies the worktree's `.mise/mise.lock` into `tmp_path` at mode `0o644`,
+    Writes a placeholder `.mise/mise.lock` into `tmp_path` at mode `0o644`,
     which `mktemp` never gives a file, so a restore that loses the mode
     reads differently.
     """
-    (tmp_path / ".mise").mkdir()
+    placeholder = tmp_path / ".mise/mise.lock"
 
-    copy = (pytestconfig.rootpath / ".mise/mise.lock").copy(
-        tmp_path / ".mise/mise.lock"
-    )
-    copy.chmod(0o644)
+    placeholder.parent.mkdir()
+    placeholder.write_text("pins\n", encoding="utf-8")
+    placeholder.chmod(0o644)
 
-    return copy
+    return placeholder
+
+
+@fixture(autouse=True)
+def stand_ins(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
+    """
+    Puts the stand-in ahead of the real `mise` and `uv` on the path for
+    every case, under each of their names, so no case reaches either tool.
+
+    The stand-in appends a line to `.mise/mise.lock` where its call matches
+    the shell pattern `REWRITING` holds, prints `REPORT` to standard error
+    when it answers `mise lock` unless `MISE_QUIET` or `MISE_LOG_LEVEL`
+    quiets it, and exits 1 where its call matches the pattern `FAILING`
+    holds.
+
+    Returns:
+        The file the stand-in writes each call it receives to.
+    """
+    directory = tmp_path / "stand-ins"
+    received  = tmp_path / "calls"
+
+    directory.mkdir()
+
+    for name in ("mise", "uv"):
+        (directory / name).symlink_to(Path(__file__).parent / "fixtures/stand-in.sh")
+
+    monkeypatch.setenv("CALLS", str(received))
+    monkeypatch.setenv("PATH", str(directory), prepend=pathsep)
+
+    return received
 
 
 def test_a_lagging_uv_lock_stops_the_task_before_mise_lock(
@@ -122,7 +131,6 @@ def test_a_lockfile_in_step_with_its_pins_passes(
     ids = ["rewritten", "failing"]
 )
 def test_a_lockfile_mise_lock_rewrites_comes_back_whole(
-    calls       : Callable[[], list[str]],
     checked     : Callable[[], CompletedProcess[str]],
     failing     : str,
     lockfile    : Path,
@@ -154,7 +162,6 @@ def test_a_lockfile_mise_lock_rewrites_comes_back_whole(
     ids = ["plain", "quiet", "errors-only"]
 )
 def test_an_unresolved_platform_fails_the_task(
-    calls       : Callable[[], list[str]],
     checked     : Callable[[], CompletedProcess[str]],
     lockfile    : Path,
     monkeypatch : MonkeyPatch,
@@ -180,3 +187,18 @@ def test_an_unresolved_platform_fails_the_task(
 
     assert result.returncode == 1
     assert report in result.stderr
+
+
+def test_a_missing_lockfile_leaves_no_snapshot(
+    calls    : Callable[[], list[str]],
+    checked  : Callable[[], CompletedProcess[str]],
+    tmp_path : Path
+):
+    """
+    Pins that the task exits 1 without running `mise lock` when no
+    `.mise/mise.lock` exists to copy, and removes the empty snapshot
+    `mktemp` made before the copy failed.
+    """
+    assert checked().returncode == 1
+    assert calls() == ["uv lock --check"]
+    assert list((tmp_path / "scratch").iterdir()) == []
