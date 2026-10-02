@@ -1,12 +1,13 @@
 """
-Pins what the `lock:check` task decides from what `uv lock --check` and
-`mise lock` report, and that `.mise/mise.lock` comes back byte for byte,
-mode included, whichever way the task exits.
+Pins what the `lock:check` task decides and prints from what `uv lock
+--check` and `mise lock` report, and that `.mise/mise.lock` comes back byte
+for byte, mode included, whichever way the task exits.
 
-Each case runs the task from a scratch directory holding a copy of
-`.mise/mise.lock`, behind the stand-in under `fixtures/` answering for
-`mise` and `uv`, which writes each call it receives to a file and answers as
-the case sets, so no case reaches the network.
+Each case runs the task from a scratch directory, which holds a copy of
+`.mise/mise.lock` wherever the case reaches `mise lock`, behind the stand-in
+under `fixtures/` answering for `mise` and `uv`, which writes each call
+it receives to a file and answers as the case sets, so no case reaches the
+network.
 """
 
 from collections.abc import Callable
@@ -25,8 +26,9 @@ def calls(monkeypatch: MonkeyPatch, tmp_path: Path) -> Callable[[], list[str]]:
 
     The stand-in appends a line to `.mise/mise.lock` where its call matches
     the shell pattern `REWRITING` holds, prints `REPORT` to standard error
-    when it answers `mise lock`, and exits 1 where its call matches the
-    pattern `FAILING` holds.
+    when it answers `mise lock` unless `MISE_QUIET` or `MISE_LOG_LEVEL`
+    quiets it, and exits 1 where its call matches the pattern `FAILING`
+    holds.
     """
     received  = tmp_path / "calls"
     stand_ins = tmp_path / "stand-ins"
@@ -44,14 +46,19 @@ def calls(monkeypatch: MonkeyPatch, tmp_path: Path) -> Callable[[], list[str]]:
 
 @fixture
 def checked(
+    monkeypatch  : MonkeyPatch,
     pytestconfig : Config,
     tmp_path     : Path
 ) -> Callable[[], CompletedProcess[str]]:
     """
-    Builds a runner of the worktree's `lock:check` task that starts it from
-    `tmp_path`, capturing what it prints.
+    Builds a runner of the worktree's `lock:check` task that starts it
+    from `tmp_path`, capturing what it prints, with `TMPDIR` at the empty
+    `tmp_path / "scratch"`, where `mktemp` writes the snapshot.
     """
     task = pytestconfig.rootpath / ".mise/tasks/lock/check"
+
+    (tmp_path / "scratch").mkdir()
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "scratch"))
 
     return lambda: run([task], capture_output=True, cwd=tmp_path, text=True)
 
@@ -92,59 +99,82 @@ def test_a_lagging_uv_lock_stops_the_task_before_mise_lock(
 def test_a_lockfile_in_step_with_its_pins_passes(
     calls    : Callable[[], list[str]],
     checked  : Callable[[], CompletedProcess[str]],
-    lockfile : Path
+    lockfile : Path,
+    tmp_path : Path
 ):
     """
     Pins that the task exits 0 once `uv lock --check` passes and `mise lock`
-    leaves `.mise/mise.lock` as it found it, running the two in that order
-    and leaving the file byte for byte as it was, mode included.
+    leaves `.mise/mise.lock` as it found it, running the two in that order,
+    leaving the file in place with its contents and inode unchanged, and
+    leaving no snapshot behind.
     """
-    contents, mode = lockfile.read_bytes(), lockfile.stat().st_mode
+    contents, inode = lockfile.read_bytes(), lockfile.stat().st_ino
 
     assert checked().returncode == 0
     assert calls() == ["uv lock --check", "mise lock"]
-    assert (lockfile.read_bytes(), lockfile.stat().st_mode) == (contents, mode)
+    assert (lockfile.read_bytes(), lockfile.stat().st_ino) == (contents, inode)
+    assert list((tmp_path / "scratch").iterdir()) == []
 
 
-@mark.parametrize("failing", ["", "mise lock"], ids=["rewritten", "failing"])
+@mark.parametrize(
+    ("failing", "printed"),
+    [("", "+rewritten"), ("mise lock", "mise ERROR could not write the lockfile")],
+    ids = ["rewritten", "failing"]
+)
 def test_a_lockfile_mise_lock_rewrites_comes_back_whole(
     calls       : Callable[[], list[str]],
     checked     : Callable[[], CompletedProcess[str]],
     failing     : str,
     lockfile    : Path,
-    monkeypatch : MonkeyPatch
+    monkeypatch : MonkeyPatch,
+    printed     : str
 ):
     """
     Pins that the task exits 1 and puts `.mise/mise.lock` back byte for
-    byte, mode included, when `mise lock` rewrites it, whether `mise lock`
-    then exits 0 or exits 1, as it does where it cannot finish.
+    byte, mode included, when `mise lock` rewrites it, printing the diff
+    where `mise lock` then exits 0 and what `mise lock` reported where it
+    exits 1, as it does where it cannot finish.
     """
     contents, mode = lockfile.read_bytes(), lockfile.stat().st_mode
 
     monkeypatch.setenv("FAILING", failing)
+    monkeypatch.setenv("REPORT", "mise ERROR could not write the lockfile")
     monkeypatch.setenv("REWRITING", "mise lock")
 
-    assert checked().returncode == 1
+    result = checked()
+
+    assert result.returncode == 1
+    assert printed in result.stderr
     assert (lockfile.read_bytes(), lockfile.stat().st_mode) == (contents, mode)
 
 
+@mark.parametrize(
+    "shell",
+    [{}, {"MISE_QUIET": "1"}, {"MISE_LOG_LEVEL": "error"}],
+    ids = ["plain", "quiet", "errors-only"]
+)
 def test_an_unresolved_platform_fails_the_task(
     calls       : Callable[[], list[str]],
     checked     : Callable[[], CompletedProcess[str]],
     lockfile    : Path,
-    monkeypatch : MonkeyPatch
+    monkeypatch : MonkeyPatch,
+    shell       : dict[str, str]
 ):
     """
     Pins that the task exits 1 and prints the report when `mise lock`
     names a platform it failed to resolve, which `mise lock` reports while
-    exiting 0 and leaving the platform's entry as it was, as it does with
-    no network.
+    exiting 0 and leaving the platform's entry as it was, as it does with no
+    network. The report holds even where the shell running the task quiets
+    `mise` or narrows its log to errors, which would hide that warning.
     """
     report = (
         "mise WARN  failed to resolve python for windows-x64: error sending "
         "request (version 3.14.6, and 6 more platform(s))"
     )
     monkeypatch.setenv("REPORT", report)
+
+    for name, value in shell.items():
+        monkeypatch.setenv(name, value)
 
     result = checked()
 

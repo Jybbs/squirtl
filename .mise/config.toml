@@ -2,7 +2,7 @@ min_version = "2026.9.18"
 
 [doctor.checks.lockfile]
 description = "`uv.lock` and `.mise/mise.lock` resolve what `pyproject.toml` and `.mise/config.toml` declare"
-hint        = "Run `mise relock` to re-resolve both lockfiles against their manifests."
+hint        = "Run `mise lockfile` to print what drifted, or the platform `mise lock` could not resolve without a connection, then `mise relock` to re-resolve both lockfiles against their manifests."
 run         = "mise run lock:check"
 timeout     = "60s"
 

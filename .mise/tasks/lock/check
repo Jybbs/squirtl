@@ -2,10 +2,20 @@
 #MISE alias       = "lockfile"
 #MISE description = "Verify `uv.lock` and `.mise/mise.lock` against their manifests"
 
+refuse() {
+  echo "$report" >&2
+  exit 1
+}
+
+restore() {
+  cmp -s "$snapshot" .mise/mise.lock || mv "$snapshot" .mise/mise.lock
+  rm -f "$snapshot"
+}
+
 uv lock --check
-snapshot=$(mktemp)
+snapshot=$(mktemp "${TMPDIR:-/tmp}/mise.lock.XXXXXX")
 cp -p .mise/mise.lock "$snapshot"
-trap 'mv "$snapshot" .mise/mise.lock' EXIT
-report=$(mise lock 2>&1) || { echo "$report" >&2; exit 1; }
-[[ "$report" != *"failed to resolve"* ]] || { echo "$report" >&2; exit 1; }
+trap restore EXIT
+report=$(MISE_LOG_LEVEL=warn MISE_QUIET=0 mise lock 2>&1) || refuse
+[[ "$report" != *"failed to resolve"* ]] || refuse
 diff -u "$snapshot" .mise/mise.lock >&2
