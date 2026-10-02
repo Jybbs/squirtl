@@ -19,6 +19,8 @@ mise doctor project
 
 `mise trust squirtl` marks the clone's `.mise/config.toml` as a file mise may read, and `mise -C squirtl install` installs the tools it pins before the shell enters the clone. `uv run` builds `.venv` from `uv.lock` before it starts the `squirtl` command. It refuses a `uv.lock` that lags `pyproject.toml`, since the `UV_LOCKED` the config sets reaches every `uv` command run inside the clone. `mise doctor project` then reports each thing the clone still needs beside the command that supplies it.
 
+*SquiRtL* ships no part of the game, so it runs on your own legal copy of the Pokémon Red or Blue ROM, which never enters the repository.
+
 Each step of the development loop runs as a mise task, which `mise tasks` lists in full:
 
 | **Command** | **What It Does** |
