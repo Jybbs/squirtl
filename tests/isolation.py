@@ -1,9 +1,12 @@
 """
-Pins the isolation the suite keeps from the machine running it, covering the
-shell variables each test starts without, the home directory it reads, the
-block that stops a test without the `network` mark from opening a connection
-while a Unix socket stays open, the mark that lets a `network` test open
-one, and the filter that raises every warning as an error.
+Pins the isolation the suite keeps from the machine running it, covering:
+
+- The shell variables each test starts without
+- The home directory each test reads
+- The block that stops a test without the `network` mark from opening a
+  network connection, and the Unix socket that block leaves open
+- The mark that lets a `network` test open a connection
+- The filter that raises every warning as an error
 """
 
 from collections.abc import Iterator
@@ -46,8 +49,7 @@ def test_a_socket_stays_closed_outside_the_network_mark():
 def test_a_unix_socket_stays_open():
     """
     Asserts that a test without the `network` mark can still open a Unix
-    socket, which `--allow-unix-socket` in `[tool.pytest]` leaves open for
-    the process pool that reaches its server over one.
+    socket, which `--allow-unix-socket` in `[tool.pytest]` leaves open.
 
     `socketpair` looks `socket` up on the socket module each time it runs,
     so the pair it opens passes through the class pytest-socket swaps in
