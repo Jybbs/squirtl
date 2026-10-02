@@ -1,0 +1,29 @@
+min_version = "2026.9.18"
+
+[doctor.checks.lockfile]
+description = "`uv.lock` and `.mise/mise.lock` resolve what `pyproject.toml` and `.mise/config.toml` declare"
+hint        = "Run `mise relock` to re-resolve both lockfiles against their manifests."
+run         = "mise run lock:check"
+timeout     = "60s"
+
+[doctor.checks.venv]
+description = "`.venv` was built on the interpreter `.mise/config.toml` pins"
+hint        = "Run `uv sync`, which builds `.venv` from `uv.lock` on the interpreter mise pins."
+run         = '''test "$(.venv/bin/python -c "import sys; print(sys.base_prefix)")" = "$(python -c "import sys; print(sys.prefix)")"'''
+timeout     = "10s"
+
+[env]
+HYPOTHESIS_STORAGE_DIRECTORY = "{{config_root}}/.cache/hypothesis"
+PROSE_CACHE_DIR              = "{{config_root}}/.cache/prose"
+PYTHONPYCACHEPREFIX          = "{{config_root}}/.cache/pycache"
+UV_LOCKED                    = "1"
+
+[settings]
+auto_install = false
+
+[tool_config]
+locked = true
+
+[tools]
+python = "3.14.6"
+uv     = "0.12.13"

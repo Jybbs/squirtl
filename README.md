@@ -6,41 +6,30 @@ With the support of deep Q-learning networks (**DQN**), SquiRtL demonstrates how
 
 ## Installation
 
-To set up the SquiRtL project, follow these steps:
+[mise](https://mise.jdx.dev) reads `.mise/config.toml` and installs the Python interpreter and the `uv` that file pins, so one `mise install` provisions every tool the development loop runs. After installing mise and [activating it in your shell](https://mise.jdx.dev/installing-mise.html):
 
-1. Ensure you have Python 3.12 or later installed on your system.
+```bash
+git clone https://github.com/Jybbs/squirtl.git
+mise trust squirtl
+mise -C squirtl install
+cd squirtl
+uv run squirtl --version
+mise doctor project
+```
 
-2. Install [Poetry](https://python-poetry.org), a dependency management tool for Python, if you haven't already.
+`mise trust squirtl` marks the clone's `.mise/config.toml` as a file mise may read, and `mise -C squirtl install` installs the tools it pins before the shell enters the clone. `uv run` builds `.venv` from `uv.lock` before it starts the `squirtl` command. It refuses a `uv.lock` that lags `pyproject.toml`, since the `UV_LOCKED` the config sets reaches every `uv` command run inside the clone. `mise doctor project` then reports each thing the clone still needs beside the command that supplies it.
 
-3. Clone this repository.
+Each step of the development loop runs as a mise task, which `mise tasks` lists in full:
 
-4. Install dependencies using Poetry via `poetry install`.
-
-5. **Important**: You must supply your own legal copy of either Pokémon Red or Blue ROM file. Place the ROM file in the project root directory and name it `PokemonBlue.gb` or update the `rom_path` in the configuration accordingly.
-
-This will set up a virtual environment with all necessary dependencies as specified in the `pyproject.toml` file.
-
-### Key Packages
-
-- **PyTorch**: The core deep learning framework used for implementing the Deep Q-Network.
-  - Used in: `Agent.py`, `DQN.py`
-  - Purpose: Neural network definition, training, and inference.
-
-- **NumPy**: Provides efficient array operations and numerical computing tools.
-  - Used in: Most files, particularly `Frames.py`
-  - Purpose: Efficient state representation and manipulation.
-
-- **PyBoy**: A Game Boy emulator written in Python.
-  - Used in: `Emulator.py`
-  - Purpose: Provides the game environment for the agent to interact with.
-
-- **Matplotlib** and **Seaborn**: Data visualization libraries.
-  - Used in: `Logging.py`
-  - Purpose: Generate performance plots and visualize training progress.
-
-- **OpenCV (cv2)**: Computer vision library.
-  - Used in: `Logging.py`
-  - Purpose: Video generation of gameplay episodes.
+| **Command** | **What It Does** |
+|---|---|
+| `mise test` | *Runs the test suite* |
+| `mise coverage` | *Runs the suite under coverage, fails when the total falls below **95%**, and writes the HTML report under `.cache/coverage/html/`* |
+| `mise check` | *Reports every rewrite the formatter would make and every lint finding* |
+| `mise format` | *Rewrites the Python source to the house style* |
+| `mise lockfile` | *Verifies `uv.lock` and `.mise/mise.lock` against their manifests* |
+| `mise relock` | *Re-resolves both lockfiles after a change to `pyproject.toml` or `.mise/config.toml`* |
+| `mise ci` | *Runs the lockfile check, the formatter's check, and the suite under coverage in one sweep* |
 
 ## Reinforcement Learning
 
