@@ -5,7 +5,7 @@
 uv lock --check
 snapshot=$(mktemp)
 trap 'rm -f "$snapshot"' EXIT
-cp .mise/mise.lock "$snapshot"
+cp -p .mise/mise.lock "$snapshot"
 mise lock
 diff -u "$snapshot" .mise/mise.lock >&2 || {
   mv "$snapshot" .mise/mise.lock

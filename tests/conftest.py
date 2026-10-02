@@ -49,8 +49,9 @@ def environment(monkeypatch: MonkeyPatch, tmp_path_factory: TempPathFactory):
     Clears every shell variable `CLEARED` names, any of which would let the
     machine running the suite change a result:
 
-    - The variables that set whether a console prints color and how wide it
-      lays out a line
+    - The variables that set whether a console treats its output as a
+      terminal, prints color, or redraws a live display, and how many columns
+      and lines it lays out
     - `GITHUB_OUTPUT` and `GITHUB_STEP_SUMMARY`, naming the files a GitHub
       Actions runner collects a workflow step's outputs and a workflow run's
       summary page from

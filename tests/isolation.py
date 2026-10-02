@@ -1,18 +1,18 @@
 """
-Pins the isolation the suite keeps from the machine running it, covering
-the shell variables each test starts without, the home directory it reads,
-the block that stops a test without the `network` mark from opening a
-connection, the mark that lets a `network` test open one, and the filter
-that raises every warning as an error.
+Pins the isolation the suite keeps from the machine running it, covering the
+shell variables each test starts without, the home directory it reads, the
+block that stops a test without the `network` mark from opening a connection
+while a Unix socket stays open, the mark that lets a `network` test open
+one, and the filter that raises every warning as an error.
 """
 
 from collections.abc import Iterator
-from conftest        import CLEARED, pytest_collection_modifyitems
 from os              import environ
 from pathlib         import Path
 from pytest          import FixtureRequest, fixture, mark, raises, warns
 from pytest_socket   import SocketBlockedError
-from socket          import create_connection
+from socket          import AF_UNIX, create_connection, socketpair
+from tests.conftest  import CLEARED, pytest_collection_modifyitems
 from unittest.mock   import patch
 from warnings        import warn
 
@@ -43,14 +43,20 @@ def test_a_socket_stays_closed_outside_the_network_mark():
         create_connection(("blocked.invalid", 80))
 
 
-def test_a_warning_raises_inside_a_test():
+def test_a_unix_socket_stays_open():
     """
-    Asserts that a warning a test triggers raises as an exception rather
-    than printing in the summary, which `filterwarnings = ["error"]` in
-    `[tool.pytest]` sets for the whole suite.
+    Asserts that a test without the `network` mark can still open a Unix
+    socket, which `--allow-unix-socket` in `[tool.pytest]` leaves open for
+    the process pool that reaches its server over one.
+
+    `socketpair` looks `socket` up on the socket module each time it runs,
+    so the pair it opens passes through the class pytest-socket swaps in
+    when a test starts.
     """
-    with raises(UserWarning):
-        warn("a warning the suite reads as an error", UserWarning)
+    first, second = socketpair()
+
+    with first, second:
+        assert first.family == AF_UNIX
 
 
 @fixture(params=CLEARED, scope="module")
@@ -64,6 +70,16 @@ def name(request: FixtureRequest) -> Iterator[str]:
     """
     with patch.dict(environ, {request.param: "1"}):
         yield request.param
+
+
+def test_a_warning_raises_inside_a_test():
+    """
+    Asserts that a warning a test triggers raises as an exception rather
+    than printing in the summary, which `filterwarnings = ["error"]` in
+    `[tool.pytest]` sets for the whole suite.
+    """
+    with raises(UserWarning):
+        warn("a warning the suite reads as an error", UserWarning)
 
 
 def test_home_is_an_empty_directory():

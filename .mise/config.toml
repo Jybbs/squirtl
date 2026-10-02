@@ -8,7 +8,7 @@ timeout     = "60s"
 
 [doctor.checks.venv]
 description = "`.venv` was built on the interpreter `.mise/config.toml` pins"
-hint        = "Run `uv sync`, which builds `.venv` from `uv.lock` on the interpreter mise pins."
+hint        = "Run `uv venv --clear` and then `uv sync`, which rebuild `.venv` from `uv.lock` on the interpreter mise pins."
 run         = '''test "$(.venv/bin/python -c "import sys; print(sys.base_prefix)")" = "$(python -c "import sys; print(sys.prefix)")"'''
 timeout     = "10s"
 
