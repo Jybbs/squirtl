@@ -10,12 +10,13 @@ argument it receives on a line of its own, so no case starts a program from
 the environment.
 """
 
-from operator   import attrgetter
-from os         import X_OK, access, pathsep
-from pathlib    import Path
-from pytest     import Config, Metafunc, MonkeyPatch, fixture
-from shutil     import which
-from subprocess import run
+from collections.abc import Callable
+from operator        import attrgetter
+from os              import X_OK, access, pathsep
+from pathlib         import Path
+from pytest          import Config, Metafunc, MonkeyPatch, fixture
+from shutil          import which
+from subprocess      import run
 
 
 def pytest_generate_tests(metafunc: Metafunc):
@@ -24,12 +25,12 @@ def pytest_generate_tests(metafunc: Metafunc):
     wrapper added there is checked without a change to this module.
     """
     if "wrapper" in metafunc.fixturenames:
-        wrappers = sorted((Path(__file__).parents[2] / ".mise/bin").iterdir())
+        wrappers = sorted((metafunc.config.rootpath / ".mise/bin").iterdir())
         metafunc.parametrize("wrapper", wrappers, ids=attrgetter("name"))
 
 
 @fixture(autouse=True)
-def stand_in(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
+def stand_in(install_stand_ins: Callable[..., Path]) -> Path:
     """
     Puts the stand-in ahead of the real `uv` on the path for every case, so
     no case starts a program from the environment.
@@ -37,13 +38,7 @@ def stand_in(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
     Returns:
         The directory holding the stand-in.
     """
-    directory = tmp_path / "stand-ins"
-
-    directory.mkdir()
-    (directory / "uv").symlink_to(Path(__file__).parent / "fixtures/echo.sh")
-    monkeypatch.setenv("PATH", str(directory), prepend=pathsep)
-
-    return directory
+    return install_stand_ins("echo.sh", "uv")
 
 
 def test_each_wrapper_hands_uv_its_program_and_arguments(

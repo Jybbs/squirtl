@@ -11,7 +11,6 @@ the network.
 """
 
 from collections.abc import Callable
-from os              import pathsep
 from pathlib         import Path
 from pytest          import Config, MonkeyPatch, fixture, mark
 from subprocess      import CompletedProcess, run
@@ -61,7 +60,11 @@ def lockfile(tmp_path: Path) -> Path:
 
 
 @fixture(autouse=True)
-def stand_ins(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
+def stand_ins(
+    install_stand_ins : Callable[..., Path],
+    monkeypatch       : MonkeyPatch,
+    tmp_path          : Path
+) -> Path:
     """
     Puts the stand-in ahead of the real `mise` and `uv` on the path for
     every case, under each of their names, so no case reaches either tool.
@@ -75,16 +78,10 @@ def stand_ins(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
     Returns:
         The file the stand-in writes each call it receives to.
     """
-    directory = tmp_path / "stand-ins"
-    received  = tmp_path / "calls"
+    received = tmp_path / "calls"
 
-    directory.mkdir()
-
-    for name in ("mise", "uv"):
-        (directory / name).symlink_to(Path(__file__).parent / "fixtures/stand-in.sh")
-
+    install_stand_ins("stand-in.sh", "mise", "uv")
     monkeypatch.setenv("CALLS", str(received))
-    monkeypatch.setenv("PATH", str(directory), prepend=pathsep)
 
     return received
 
