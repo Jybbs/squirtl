@@ -13,11 +13,11 @@ git clone https://github.com/Jybbs/squirtl.git
 mise trust squirtl
 mise -C squirtl install
 cd squirtl
-uv run squirtl --version
+squirtl --version
 mise doctor project
 ```
 
-`mise trust squirtl` marks the clone's `.mise/config.toml` as a file mise may read, and `mise -C squirtl install` installs the tools it pins before the shell enters the clone. `uv run` builds `.venv` from `uv.lock` before it starts the `squirtl` command. It refuses a `uv.lock` that lags `pyproject.toml`, since the `UV_LOCKED` the config sets reaches every `uv` command run inside the clone. `mise doctor project` then reports each thing the clone still needs beside the command that supplies it.
+`mise trust squirtl` marks the clone's `.mise/config.toml` as a file mise may read, and `mise -C squirtl install` installs the tools it pins before the shell enters the clone, so mise puts `uv` and the `squirtl` script under `.mise/bin` on the path as soon as `cd` runs, even when the block is pasted whole. That script runs the command through `uv run --exact --locked`, which builds `.venv` from `uv.lock` first and refuses a `uv.lock` that lags `pyproject.toml`, so the package needs no install step of its own. `mise doctor project` then reports each thing the clone still needs beside the command that supplies it.
 
 *SquiRtL* ships no part of the game, so it runs on your own legal copy of the Pokémon Red or Blue ROM, which never enters the repository.
 
