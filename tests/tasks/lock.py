@@ -188,7 +188,6 @@ def test_an_unresolved_platform_fails_the_task(
     )
     monkeypatch.setenv("REPORT", report)
 
-
     result = checked()
 
     assert result.returncode == 1

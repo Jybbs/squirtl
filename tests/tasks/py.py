@@ -84,18 +84,16 @@ def printed(pytestconfig: Config) -> Callable[[str], list[str]]:
     ],
     indirect = ["shell"]
 )
-def test_each_task_hands_its_program_the_arguments_its_shell_sets(
+def test_each_task_hands_its_program_its_flags_and_arguments(
     argv    : list[str],
     printed : Callable[[str], list[str]],
     shell   : dict[str, str],
     task    : str
 ):
     """
-    Pins the arguments each `py` task hands its program, meaning that
-    `py:check` asks the formatter for annotations under GitHub Actions
-    and for text elsewhere, that `py:coverage` hands pytest `--cov`, which
-    measures the run against `fail_under`, beside the HTML and terminal
-    reports, and that every task forwards `--diff` after its flags and ahead
-    of the folders the formatter reads.
+    Pins the argument list each `py` task hands its program, with `py:check`
+    asking the formatter for annotations under GitHub Actions and for text
+    elsewhere, and every task forwarding `--diff` after its own flags and
+    ahead of any folders the formatter reads.
     """
     assert printed(task) == argv
