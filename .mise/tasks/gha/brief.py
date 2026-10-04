@@ -48,8 +48,7 @@ class Brief:
     def reports(self) -> dict[str, str]:
         """
         Collects the address of each coverage report the workflow run
-        attached, read from every job output whose name ends in `coverage`
-        and leaving out an output a job left empty.
+        attached, read from every job output whose name ends in `coverage`.
 
         Returns:
             Each report's output name beside the address of its artifact.
@@ -58,7 +57,7 @@ class Brief:
             name: url
             for job in self.needs.values()
             for name, url in job.outputs.items()
-            if name.endswith("coverage") and url
+            if name.endswith("coverage")
         }
 
     @property

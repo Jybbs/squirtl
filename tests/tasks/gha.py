@@ -177,6 +177,13 @@ def templates(monkeypatch: MonkeyPatch, tmp_path: Path) -> Callable[..., None]:
             1,
             "❌ A job did not pass",
             id = "warm-kit-failed"
+        ),
+        param(
+            {"kit": job("success"), "prune": job("skipped")},
+            "warm",
+            1,
+            "❌ A job did not pass",
+            id = "warm-prune-skipped"
         )
     ]
 )
@@ -211,7 +218,6 @@ def test_the_gate_exits_with_the_verdict_of_every_job_it_waited_on(
             f"[`site-coverage`]({ATTACHED}0).\n",
             id = "two-reports"
         ),
-        param({"coverage": ""}, "on `main`.\n", id="left-empty"),
         param({"artifact": ATTACHED}, "on `main`.\n", id="not-a-report")
     ]
 )
@@ -223,9 +229,8 @@ def test_the_summary_links_each_coverage_report_the_run_attached(
 ):
     """
     Pins that the summary links each job output named for a coverage report,
-    in the order of their names, and leaves out one a job left empty, as
-    every row of a matrix but the one attaching the report leaves it, and an
-    output naming something else.
+    in the order of their names, and leaves out an output naming something
+    else.
     """
     gate({"check": job("success", outputs)}).write()
 

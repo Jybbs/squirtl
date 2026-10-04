@@ -31,7 +31,7 @@ def gh(*arguments: str) -> CompletedProcess[str]:
 class Entry:
     """
     One Actions cache entry, holding the fields `gh cache list --json`
-    returns for it under the names GitHub gives them.
+    returns for it under the names `gh` gives them.
     """
 
     createdAt   : str

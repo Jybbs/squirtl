@@ -243,6 +243,23 @@ def test_a_missing_lockfile_leaves_no_snapshot(
     assert list(scratch.iterdir()) == []
 
 
+def test_a_tool_missing_from_the_lockfile_fails_the_task(
+    calls       : Callable[[], list[str]],
+    checked     : Callable[[], CompletedProcess[str]],
+    lockfile    : Path,
+    monkeypatch : MonkeyPatch
+):
+    """
+    Pins that the task exits 1 where the locked dry-run install, its last
+    step, finds a tool the project pins with no entry the running platform
+    installs from, which it reports by exiting 1.
+    """
+    monkeypatch.setenv("FAILING", "*mise install*")
+
+    assert checked().returncode == 1
+    assert calls()[-1] == INSTALL
+
+
 @mark.parametrize(
     ("failing", "code", "reached"),
     [
@@ -276,21 +293,21 @@ def test_each_task_script_lockfile_is_checked_before_mise_lock(
     ]
 
 
-def test_a_tool_missing_from_the_lockfile_fails_the_task(
-    calls       : Callable[[], list[str]],
-    checked     : Callable[[], CompletedProcess[str]],
-    lockfile    : Path,
-    monkeypatch : MonkeyPatch
+def test_an_unwritable_scratch_stops_the_task_before_mise_lock(
+    calls    : Callable[[], list[str]],
+    checked  : Callable[[], CompletedProcess[str]],
+    lockfile : Path,
+    scratch  : Path
 ):
     """
-    Pins that the task exits 1 where the locked dry-run install, its last
-    step, finds a tool the project pins with no entry the running platform
-    installs from, which it reports by exiting 1.
+    Pins that the task exits 1 without running `mise lock` when `mktemp`
+    cannot write the snapshot into the `TMPDIR` that `scratch` sets, even
+    with `.mise/mise.lock` in place to copy.
     """
-    monkeypatch.setenv("FAILING", "*mise install*")
+    scratch.chmod(0o555)
 
     assert checked().returncode == 1
-    assert calls()[-1] == INSTALL
+    assert calls() == ["uv lock --check"]
 
 
 def test_relock_re_resolves_every_lockfile(
