@@ -10,11 +10,9 @@ running it, and the collection hook lets a test open a network connection
 only when it carries the `network` mark.
 """
 
-from collections.abc  import Callable, Iterable
+from collections.abc  import Iterable, Iterator
 from hypothesis       import settings
-from os               import pathsep
-from pathlib          import Path
-from pytest           import Config, Item, MonkeyPatch, TempPathFactory, fixture, mark
+from pytest           import FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, mark
 from syrupy.assertion import SnapshotAssertion
 from syrupy.extensions.single_file import SingleFileSnapshotExtension, WriteMode
 
@@ -45,6 +43,21 @@ class PlainFile(SingleFileSnapshotExtension):
     file_extension = "txt"
 
 
+@fixture(params=CLEARED, scope="module")
+def cleared(request: FixtureRequest) -> Iterator[str]:
+    """
+    Sets the variable `request.param` names, once for each name `CLEARED`
+    holds, and yields that name.
+
+    A module-scoped fixture runs before the function-scoped `environment`
+    fixture, so the variable is set on every machine by the time
+    `environment` clears it, a CI runner that never sets it included.
+    """
+    with MonkeyPatch.context() as patched:
+        patched.setenv(request.param, "1")
+        yield request.param
+
+
 @fixture(autouse=True)
 def environment(monkeypatch: MonkeyPatch, tmp_path_factory: TempPathFactory):
     """
@@ -73,42 +86,6 @@ def environment(monkeypatch: MonkeyPatch, tmp_path_factory: TempPathFactory):
     monkeypatch.setenv("COLUMNS", "80")
     monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
     monkeypatch.setenv("TERM", "dumb")
-
-
-@fixture
-def install_stand_ins(
-    monkeypatch  : MonkeyPatch,
-    pytestconfig : Config,
-    tmp_path     : Path
-) -> Callable[..., Path]:
-    """
-    Builds an installer that links each program name it receives to one
-    script under `tests/tasks/fixtures/`, inside `tmp_path / "stand-ins"`,
-    and puts that directory first on the path until the test ends.
-
-    Returns:
-        A function taking the script's name and then the program names,
-        which returns the directory holding the stand-ins.
-    """
-    def install(script: str, *programs: str) -> Path:
-        """
-        Links each of `programs` to the script named `script` and puts the
-        directory holding them first on the path.
-        """
-        directory = tmp_path / "stand-ins"
-
-        directory.mkdir()
-
-        for program in programs:
-            (directory / program).symlink_to(
-                pytestconfig.rootpath / "tests/tasks/fixtures" / script
-            )
-
-        monkeypatch.setenv("PATH", str(directory), prepend=pathsep)
-
-        return directory
-
-    return install
 
 
 def pytest_collection_modifyitems(items: Iterable[Item]):

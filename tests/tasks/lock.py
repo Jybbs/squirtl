@@ -166,7 +166,8 @@ def test_a_lockfile_mise_lock_rewrites_comes_back_whole(
 @mark.parametrize(
     "shell",
     [{}, {"MISE_QUIET": "1"}, {"MISE_LOG_LEVEL": "error"}],
-    ids = ["plain", "quiet", "errors-only"]
+    ids      = ["plain", "quiet", "errors-only"],
+    indirect = True
 )
 def test_an_unresolved_platform_fails_the_task(
     checked     : Callable[[], CompletedProcess[str]],
@@ -187,8 +188,6 @@ def test_an_unresolved_platform_fails_the_task(
     )
     monkeypatch.setenv("REPORT", report)
 
-    for name, value in shell.items():
-        monkeypatch.setenv(name, value)
 
     result = checked()
 

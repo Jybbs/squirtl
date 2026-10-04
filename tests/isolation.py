@@ -10,14 +10,12 @@ Pins the isolation the suite keeps from the machine running it, covering:
 - The filter that raises every warning as an error
 """
 
-from collections.abc import Iterator
-from os              import environ
-from pathlib         import Path
-from pytest          import FixtureRequest, MonkeyPatch, fixture, mark, raises, warns
-from pytest_socket   import SocketBlockedError
-from socket          import AF_UNIX, create_connection, socketpair
-from tests.conftest  import CLEARED, pytest_collection_modifyitems
-from warnings        import warn
+from os            import environ
+from pathlib       import Path
+from pytest        import FixtureRequest, mark, param, raises, warns
+from pytest_socket import SocketBlockedError
+from socket        import AF_UNIX, create_connection, socketpair
+from warnings      import warn
 
 
 def test_a_network_test_gets_the_mark_that_opens_the_socket(request: FixtureRequest):
@@ -26,8 +24,12 @@ def test_a_network_test_gets_the_mark_that_opens_the_socket(request: FixtureRequ
     carrying the `network` mark pytest-socket's `enable_socket` mark, which
     lets that test open a connection.
     """
+    conftest = request.config.pluginmanager.get_plugin(
+        str(request.config.rootpath / "tests/conftest.py")
+    )
+
     request.node.add_marker(mark.network)
-    pytest_collection_modifyitems([request.node])
+    conftest.pytest_collection_modifyitems([request.node])
 
     assert request.node.get_closest_marker("enable_socket")
 
@@ -61,20 +63,6 @@ def test_a_unix_socket_stays_open():
         assert first.family == AF_UNIX
 
 
-@fixture(params=CLEARED, scope="module")
-def name(request: FixtureRequest) -> Iterator[str]:
-    """
-    Sets the variable `request.param` names and yields that name.
-
-    A module-scoped fixture runs before the function-scoped `environment`
-    fixture, so the variable is set on every machine by the time
-    `environment` clears it, a CI runner that never sets it included.
-    """
-    with MonkeyPatch.context() as patched:
-        patched.setenv(request.param, "1")
-        yield request.param
-
-
 def test_a_warning_raises_inside_a_test():
     """
     Asserts that a warning a test triggers raises as an exception rather
@@ -93,26 +81,24 @@ def test_home_is_an_empty_directory():
     assert list(Path.home().iterdir()) == []
 
 
-def test_the_shell_carries_no_variable_that_changes_a_result(name: str):
+def test_the_shell_carries_no_variable_that_changes_a_result(cleared: str):
     """
     Asserts that no variable `CLEARED` names reaches a test, whatever
     the shell running the suite sets, which the `environment` fixture's
     docstring sets out group by group.
     """
-    assert name not in environ
+    assert cleared not in environ
 
 
-def test_the_terminal_reports_as_dumb():
+@mark.parametrize(
+    ("variable", "value"),
+    [param("COLUMNS", "80", id="eighty-columns"), param("TERM", "dumb", id="dumb")]
+)
+def test_the_terminal_reports_a_fixed_type_and_width(value: str, variable: str):
     """
     Asserts that `TERM` reads as `dumb`, which stops a console writing to a
-    real terminal from choosing a color system.
+    real terminal from choosing a color system, and that `COLUMNS` reads as
+    `80`, which every console a test builds takes as its width before the
+    size of any terminal the suite runs in.
     """
-    assert environ["TERM"] == "dumb"
-
-
-def test_the_terminal_reports_eighty_columns():
-    """
-    Asserts that `COLUMNS` reads as `80`, which every console a test builds
-    takes as its width before the size of any terminal the suite runs in.
-    """
-    assert environ["COLUMNS"] == "80"
+    assert environ[variable] == value

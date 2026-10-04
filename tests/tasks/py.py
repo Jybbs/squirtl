@@ -1,10 +1,9 @@
 """
-Pins the arguments the `py:check` and `py:format` tasks hand the
-formatter and the `py:coverage` task hands pytest, meaning the output
-format `py:check` chooses for the shell it runs in, the coverage flags
-`py:coverage` passes, each further argument forwarded after the flags and
-ahead of the operands, and the folders `.mise/lib/py.sh` names as those
-operands.
+Pins the arguments each `py` task hands the program it runs, meaning the
+output format `py:check` chooses for the shell it runs in, the coverage
+flags `py:coverage` passes pytest, each further argument forwarded after the
+flags and ahead of the operands, and the folders `.mise/lib/py.sh` names as
+the formatter's operands.
 
 The stand-in under `fixtures/` answers for `prose` and `pytest`, printing
 each argument it receives on a line of its own, so no case starts either
@@ -13,7 +12,7 @@ program.
 
 from collections.abc import Callable
 from pathlib         import Path
-from pytest          import Config, MonkeyPatch, fixture, mark
+from pytest          import Config, MonkeyPatch, fixture, mark, param
 from subprocess      import run
 
 
@@ -49,47 +48,54 @@ def printed(pytestconfig: Config) -> Callable[[str], list[str]]:
 
 
 @mark.parametrize(
-    ("shell", "output"),
-    [({}, "text"), ({"GITHUB_ACTIONS": "true"}, "github")],
-    ids = ["local", "actions"]
+    ("task", "shell", "argv"),
+    [
+        param(
+            "check",
+            {},
+            [
+                "check", "--output-format", "text", "--diff",
+                ".mise/tasks", "src", "tests"
+            ],
+            id = "check-local"
+        ),
+        param(
+            "check",
+            {"GITHUB_ACTIONS": "true"},
+            [
+                "check", "--output-format", "github", "--diff",
+                ".mise/tasks", "src", "tests"
+            ],
+            id = "check-actions"
+        ),
+        param(
+            "coverage",
+            {},
+            ["--cov", "--cov-report", "html", "--cov-report", "term", "--diff"],
+            id = "coverage"
+        ),
+        param(
+            "format",
+            {},
+            ["format", "--diff", ".mise/tasks", "src", "tests"],
+            id = "format"
+        ),
+        param("test", {}, ["--diff"], id="test")
+    ],
+    indirect = ["shell"]
 )
-def test_check_reports_in_the_format_its_shell_reads(
-    monkeypatch : MonkeyPatch,
-    output      : str,
-    printed     : Callable[[str], list[str]],
-    shell       : dict[str, str]
+def test_each_task_hands_its_program_the_arguments_its_shell_sets(
+    argv    : list[str],
+    printed : Callable[[str], list[str]],
+    shell   : dict[str, str],
+    task    : str
 ):
     """
-    Pins that `py:check` asks the formatter for annotations under GitHub
-    Actions and for text elsewhere, forwarding `--diff` ahead of the folders
-    it checks.
+    Pins the arguments each `py` task hands its program, meaning that
+    `py:check` asks the formatter for annotations under GitHub Actions
+    and for text elsewhere, that `py:coverage` hands pytest `--cov`, which
+    measures the run against `fail_under`, beside the HTML and terminal
+    reports, and that every task forwards `--diff` after its flags and ahead
+    of the folders the formatter reads.
     """
-    for name, value in shell.items():
-        monkeypatch.setenv(name, value)
-
-    assert printed("check") == [
-        "check", "--output-format", output, "--diff", ".mise/tasks", "src", "tests"
-    ]
-
-
-def test_coverage_runs_pytest_under_the_gate_ahead_of_its_arguments(
-    printed: Callable[[str], list[str]]
-):
-    """
-    Pins that `py:coverage` hands pytest `--cov`, which measures the run
-    against `fail_under`, and the HTML and terminal reports, with `--diff`
-    forwarded after them.
-    """
-    assert printed("coverage") == [
-        "--cov", "--cov-report", "html", "--cov-report", "term", "--diff"
-    ]
-
-
-def test_format_forwards_its_arguments_ahead_of_the_folders(
-    printed: Callable[[str], list[str]]
-):
-    """
-    Pins that `py:format` hands the formatter `--diff` ahead of the folders
-    it rewrites.
-    """
-    assert printed("format") == ["format", "--diff", ".mise/tasks", "src", "tests"]
+    assert printed(task) == argv
