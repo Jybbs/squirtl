@@ -1,24 +1,86 @@
-[tool.poetry]
-authors      = ["James Parkington <pongs.acreage.0o@icloud.com>"]
-description  = "Aims to explore and implement various algorithms within a game environment, specifically focusing on Pokémon Blue pathfinding and optimal early gameplay."
-license      = "LICENSE.md"
-name         = "squirtl"
-package-mode = false
-readme       = "README.md"
-version      = "0.1.0"
-
-[tool.poetry.dependencies]
-python = "^3.12"
-
-gym            = "*"
-matplotlib     = "*"
-numpy          = "1.26.4"
-opencv-python  = "*"
-pyboy          = "*"
-seaborn        = "*"
-statsmodels    = "*"
-torch          = "*"
-
 [build-system]
-build-backend = "poetry.core.masonry.api"
-requires      = ["poetry-core"]
+build-backend = "hatchling.build"
+requires      = ["hatchling==1.32.4"]
+
+[project]
+authors         = [{ name = "James Parkington" }]
+dependencies    = ["cyclopts"]
+description     = "Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and PyTorch."
+license         = "MIT"
+license-files   = ["LICENSE.md"]
+name            = "squirtl"
+readme          = "README.md"
+requires-python = ">=3.14"
+version         = "0.1.0"
+
+[project.scripts]
+squirtl = "squirtl.cli:app"
+
+[dependency-groups]
+dev = [
+    "hypothesis",
+    "prose-formatter",
+    "pytest",
+    "pytest-cov",
+    "pytest-randomly",
+    "pytest-socket",
+    "syrupy"
+]
+
+[tool.coverage.html]
+directory = ".cache/coverage/html"
+
+[tool.coverage.report]
+fail_under                 = 95
+include_namespace_packages = true
+precision                  = 2
+show_missing               = true
+
+[tool.coverage.run]
+branch    = true
+data_file = ".cache/coverage/data"
+source    = ["src/squirtl"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/squirtl"]
+
+[tool.prose]
+target-version = "3.14"
+
+[tool.prose.imports]
+first-party = ["squirtl"]
+
+[tool.pytest]
+addopts                  = [
+    "--allow-unix-socket",
+    "--disable-socket",
+    "--import-mode=importlib",
+    "-m",
+    "not network",
+    "-ra",
+    "--snapshot-dirname=fixtures"
+]
+cache_dir                = ".cache/pytest"
+empty_parameter_set_mark = "fail_at_collect"
+filterwarnings           = ["error"]
+markers                  = [
+    "network: reaches a service over the network, so the default run deselects it and a selected run lets it open a connection",
+    "slow: runs longer than a few seconds, so a fast local run deselects it"
+]
+norecursedirs            = ["common", "fixtures"]
+python_files             = ["*.py"]
+pythonpath               = ["tests"]
+strict                   = true
+testpaths                = ["tests"]
+
+[tool.uv]
+build-constraint-dependencies = [
+    "packaging==26.3",
+    "pathspec==1.1.1",
+    "pluggy==1.6.0",
+    "tomlkit==0.15.1",
+    "trove-classifiers==2026.9.21.13"
+]
+python-downloads              = "never"
+python-preference             = "only-system"
+required-version              = "==0.12.13"

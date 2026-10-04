@@ -1,0 +1,9 @@
+Usage: squirtl
+
+Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and 
+PyTorch.
+
+╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ --help (-h)  Display this message and exit.                                  │
+│ --version    Display application version.                                    │
+╰──────────────────────────────────────────────────────────────────────────────╯

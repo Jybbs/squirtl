@@ -1,0 +1,7 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE alias       = "format"
+#MISE description = "Rewrite the Python source to the house style, passing any further arguments to the formatter"
+
+source "$MISE_PROJECT_ROOT/.mise/lib/py.sh"
+
+prose_python format "$@"
