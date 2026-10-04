@@ -208,12 +208,20 @@ def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
     } == {Path("data"), Path("data/runs"), run.directory, run.record}
 
 
-def test_each_stream_seed_fits_in_64_unsigned_bits():
+def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
+    clone       : Path,
+    monkeypatch : MonkeyPatch
+):
     """
-    Asserts that every stream's seed is a 64-bit unsigned integer, the
-    widest seed `torch.manual_seed` takes.
+    Asserts that an untracked file marks the revision dirty in a clone whose
+    configuration sets `status.showUntrackedFiles` to `no`.
     """
-    assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "status.showUntrackedFiles")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "no")
+    (clone / "notes.md").write_text("changed\n", encoding="utf-8")
+
+    assert Revision.checked_out().dirty
 
 
 @mark.parametrize(
@@ -250,6 +258,14 @@ def test_a_run_name_reads_back_as_the_instant_it_started(started: datetime):
     )
 
     assert datetime.fromisoformat(run.name) == started
+
+
+def test_each_stream_seed_fits_in_64_unsigned_bits():
+    """
+    Asserts that every stream's seed is a 64-bit unsigned integer, the
+    widest seed `torch.manual_seed` takes.
+    """
+    assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
 
 
 def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(

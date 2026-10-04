@@ -63,7 +63,8 @@ class Revision:
             CalledProcessError : Where the working directory holds no git
                                  clone.
             FileNotFoundError  : Where the working directory holds no
-                                 `uv.lock`.
+                                 `uv.lock` or no `git` is on the search
+                                 path.
         """
         return cls(
             commit = check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
@@ -199,7 +200,10 @@ class Run:
                                  already holds the directory, which is left
                                  as it was.
             FileNotFoundError  : Where the working directory holds no
-                                 `uv.lock`, before any directory is created.
+                                 `uv.lock` or no `git` is on the search
+                                 path, before any directory is created.
+            ValueError         : Where `started` carries no UTC offset,
+                                 before any directory is created.
         """
         run = cls(
             resumes  = resumes,
