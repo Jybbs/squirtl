@@ -1,7 +1,8 @@
 """
 Pins the records one run reads and writes, covering:
 
-- The settings refusing a change once built and a negative seed
+- Each record refusing a change once built and a key no field declares,
+  and the settings refusing a negative seed
 - The seed each stream derives from the run's one seed
 - The revision read from a clone, what marks it dirty, and the output it
   refuses
@@ -141,17 +142,13 @@ def test_a_run_records_its_settings_revision_and_start(clone: Path):
     }
 
 
-def test_a_run_refuses_an_instant_with_no_offset():
+def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
     """
     Asserts that a run built on an instant carrying no UTC offset raises
     rather than reading that instant as the machine's local time.
     """
     with raises(ValidationError, match="timezone info"):
-        Run(
-            revision = Revision(commit="0", dirty=False, lockfile="0"),
-            settings = RunSettings(),
-            started  = datetime(2026, 10, 4)
-        )
+        Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
 
 
 @mark.parametrize(
@@ -218,19 +215,18 @@ def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
         )
     ]
 )
-def test_a_run_name_reads_back_as_the_instant_it_started(started: datetime):
+def test_a_run_name_reads_back_as_the_instant_it_started(
+    revision : Revision,
+    started  : datetime
+):
     """
     Asserts that `datetime.fromisoformat` reads the name of a run back as
     the instant the run started, whether that instant carries UTC or an
     offset that moves its date in UTC.
     """
-    run = Run(
-        revision = Revision(commit="0", dirty=False, lockfile="0"),
-        settings = RunSettings(),
-        started  = started
-    )
+    name = Run(revision=revision, settings=RunSettings(), started=started).name
 
-    assert datetime.fromisoformat(run.name) == started
+    assert datetime.fromisoformat(name) == started
 
 
 def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
@@ -290,8 +286,8 @@ def test_the_seed_carries_the_description_written_beneath_it():
 )
 def test_a_revision_refuses_output_that_holds_no_hash(commit: str):
     """
-    Asserts that a commit holding anything but hexadecimal digits is
-    refused, so no record carries a commit that is not a hexadecimal hash.
+    Asserts that a commit that is empty or holds any character other than a
+    lowercase hexadecimal digit is refused.
     """
     with raises(ValidationError):
         Revision(commit=commit, dirty=False, lockfile="0")
@@ -307,39 +303,36 @@ def test_the_settings_refuse_a_negative_seed():
 
 
 @mark.parametrize(
-    ("record", "field", "value"),
+    ("part", "field", "value"),
     [
-        param(RunSettings(), "seed", 2, id="the-settings"),
+        param(None,       "started", datetime(2026, 10, 5, tzinfo=UTC), id="the-run"),
         param(
-            Revision(commit="0", dirty=False, lockfile="0"),
+            "revision",
             "dirty",
             True,
             id = "the-revision"
         ),
         param(
-            Run(
-                revision = Revision(commit="0", dirty=False, lockfile="0"),
-                settings = RunSettings(),
-                started  = datetime(2026, 10, 4, tzinfo=UTC)
-            ),
-            "started",
-            datetime(2026, 10, 5, tzinfo=UTC),
-            id = "the-run"
+            "settings",
+            "seed",
+            2,
+            id = "the-settings"
         )
     ]
 )
 def test_a_record_refuses_a_change_once_built(
-    field  : str,
-    record : Revision | Run | RunSettings,
-    value  : object
+    field : str,
+    part  : str | None,
+    run   : Run,
+    value : object
 ):
     """
-    Asserts that each record a run reads or writes raises on an assignment
-    once built, so no step moves a setting another step has read and a run's
-    directory and record stay where its start put them.
+    Asserts that a run, its revision, and its settings each raise on an
+    assignment once built, so no step moves a setting another step has read
+    and a run's directory and record stay where its start put them.
     """
     with raises(ValidationError, match="frozen"):
-        setattr(record, field, value)
+        setattr(getattr(run, part) if part else run, field, value)
 
 
 @mark.parametrize(
@@ -350,17 +343,13 @@ def test_a_record_refuses_a_change_once_built(
         param("settings", id="the-settings")
     ]
 )
-def test_a_run_record_refuses_a_key_no_field_declares(field: str | None):
+def test_a_run_record_refuses_a_key_no_field_declares(field: str | None, run: Run):
     """
     Asserts that a run record carrying a key no field declares, at its top
     level or inside its revision or its settings, is refused rather than
     read back with the key dropped.
     """
-    record = Run(
-        revision = Revision(commit="0", dirty=False, lockfile="0"),
-        settings = RunSettings(),
-        started  = datetime(2026, 10, 4, tzinfo=UTC)
-    ).model_dump()
+    record = run.model_dump()
     (record[field] if field else record)["sead"] = 7
 
     with raises(ValidationError, match="Extra inputs are not permitted"):
