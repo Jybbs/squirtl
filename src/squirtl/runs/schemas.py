@@ -93,11 +93,11 @@ class RunSettings(
     `[tool.squirtl]` in `pyproject.toml`.
     """
 
-    # cyclopts takes a `kw_only` field as a flag alone, never as a positional token.
+    # Keeps `seed` keyword-only, which cyclopts takes as a flag and never positionally.
     seed: Annotated[int, Field(ge=0, kw_only=True)] = 1
     """
-    The seed every random draw in the run derives from, 1 by default as in
-    CleanRL's `dqn_atari.py`.
+    The seed every random draw in the run derives from, whose default
+    follows CleanRL's `dqn_atari.py`.
     """
 
     @property

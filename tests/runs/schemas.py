@@ -45,8 +45,8 @@ def test_a_clean_clone_reads_as_its_commit_and_its_lockfile(clone: Path):
 def test_each_stream_starts_from_a_seed_of_its_own(seed: int):
     """
     Asserts that no two streams of one run start from the same seed,
-    whatever integer the run's seed is, since each stream takes a child of
-    its own from the run seed's `SeedSequence`.
+    whatever non-negative integer the run's seed is, since each stream takes
+    a child of its own from the run seed's `SeedSequence`.
     """
     assert len(set(RunSettings(seed=seed).seeds.values())) == len(Stream)
 
@@ -276,8 +276,8 @@ def test_the_seed_carries_the_description_written_beneath_it():
     description, which cyclopts renders as the help of `--seed`.
     """
     assert RunSettings.model_fields["seed"].description == (
-        "The seed every random draw in the run derives from, 1 by default as in\n"
-        "CleanRL's `dqn_atari.py`."
+        "The seed every random draw in the run derives from, whose default\n"
+        "follows CleanRL's `dqn_atari.py`."
     )
 
 
@@ -291,19 +291,10 @@ def test_the_seed_carries_the_description_written_beneath_it():
 def test_a_revision_refuses_output_that_holds_no_hash(commit: str):
     """
     Asserts that a commit holding anything but hexadecimal digits is
-    refused, so a record never carries what git printed in place of a hash.
+    refused, so no record carries a commit that is not a hexadecimal hash.
     """
     with raises(ValidationError):
         Revision(commit=commit, dirty=False, lockfile="0")
-
-
-def test_the_settings_refuse_a_change_once_built():
-    """
-    Asserts that a built `RunSettings` raises on an assignment, so no step
-    of a run moves a setting another step has already read.
-    """
-    with raises(ValidationError):
-        RunSettings().seed = 2
 
 
 def test_the_settings_refuse_a_negative_seed():
@@ -313,3 +304,64 @@ def test_the_settings_refuse_a_negative_seed():
     """
     with raises(ValidationError, match="greater than or equal to 0"):
         RunSettings(seed=-1)
+
+
+@mark.parametrize(
+    ("record", "field", "value"),
+    [
+        param(RunSettings(), "seed", 2, id="the-settings"),
+        param(
+            Revision(commit="0", dirty=False, lockfile="0"),
+            "dirty",
+            True,
+            id = "the-revision"
+        ),
+        param(
+            Run(
+                revision = Revision(commit="0", dirty=False, lockfile="0"),
+                settings = RunSettings(),
+                started  = datetime(2026, 10, 4, tzinfo=UTC)
+            ),
+            "started",
+            datetime(2026, 10, 5, tzinfo=UTC),
+            id = "the-run"
+        )
+    ]
+)
+def test_a_record_refuses_a_change_once_built(
+    field  : str,
+    record : Revision | Run | RunSettings,
+    value  : object
+):
+    """
+    Asserts that each record a run reads or writes raises on an assignment
+    once built, so no step moves a setting another step has read and a run's
+    directory and record stay where its start put them.
+    """
+    with raises(ValidationError, match="frozen"):
+        setattr(record, field, value)
+
+
+@mark.parametrize(
+    "field",
+    [
+        param(None,       id="the-run"),
+        param("revision", id="the-revision"),
+        param("settings", id="the-settings")
+    ]
+)
+def test_a_run_record_refuses_a_key_no_field_declares(field: str | None):
+    """
+    Asserts that a run record carrying a key no field declares, at its top
+    level or inside its revision or its settings, is refused rather than
+    read back with the key dropped.
+    """
+    record = Run(
+        revision = Revision(commit="0", dirty=False, lockfile="0"),
+        settings = RunSettings(),
+        started  = datetime(2026, 10, 4, tzinfo=UTC)
+    ).model_dump()
+    (record[field] if field else record)["sead"] = 7
+
+    with raises(ValidationError, match="Extra inputs are not permitted"):
+        Run.model_validate(record)
