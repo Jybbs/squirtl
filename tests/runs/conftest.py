@@ -1,6 +1,6 @@
 """
-Defines the fixture the tests of `squirtl.runs` request, a git clone in a
-directory the test owns.
+Defines the fixtures the tests of `squirtl.runs` request, a git clone in a
+directory the test owns and a directory no clone holds.
 """
 
 from os         import devnull
@@ -36,5 +36,17 @@ def clone(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
             capture_output = True,
             check          = True
         )
+
+    return tmp_path
+
+
+@fixture
+def outside(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
+    """
+    Makes `tmp_path` the working directory, where `GIT_CEILING_DIRECTORIES`
+    stops git looking for a clone above it, so no clone holds it.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
 
     return tmp_path

@@ -7,34 +7,27 @@ Defines the records one run reads and writes:
 - `Stream`, the streams of random draws the run makes
 """
 
-from dataclasses import asdict, dataclass
-from datetime    import UTC, datetime
-from enum        import StrEnum, auto
-from hashlib     import blake2b, sha256
-from json        import dumps
-from pathlib     import Path
-from subprocess  import check_output
-from typing      import Self
+from datetime     import UTC, datetime
+from enum         import StrEnum, auto
+from hashlib      import sha256
+from numpy        import uint64
+from numpy.random import SeedSequence
+from pathlib      import Path
+from pydantic     import AwareDatetime, BaseModel, Field, StringConstraints
+from subprocess   import check_output
+from typing       import Annotated, Self
+
+type Hexadecimal = Annotated[
+    str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
+]
 
 
-class Stream(StrEnum):
-    """
-    The streams of random draws a run makes, each starting from a seed of
-    its own, so no stream repeats the draws of another.
-    """
-
-    AGENT       = auto()
-    ENVIRONMENT = auto()
-    EVALUATION  = auto()
-
-
-@dataclass(frozen=True, kw_only=True)
-class Revision:
+class Revision(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True):
     """
     The code a run ran on, read from the clone in the working directory.
     """
 
-    commit: str
+    commit: Hexadecimal
     """
     The commit checked out, as `git rev-parse HEAD` prints it.
     """
@@ -46,7 +39,7 @@ class Revision:
     tracked file and for an untracked one outside the paths git ignores.
     """
 
-    lockfile: str
+    lockfile: Hexadecimal
     """
     The SHA-256 digest of `uv.lock`, which pins every library the run
     imports.
@@ -67,7 +60,7 @@ class Revision:
                                  path.
         """
         return cls(
-            commit = check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+            commit = check_output(["git", "rev-parse", "HEAD"], text=True),
             dirty  = bool(
                 check_output(
                     ["git", "status", "--porcelain", "--untracked-files=normal"]
@@ -77,15 +70,31 @@ class Revision:
         )
 
 
-@dataclass(frozen=True, kw_only=True)
-class RunSettings:
+class Stream(StrEnum):
+    """
+    The streams of random draws a run makes, each starting from a seed of
+    its own, so no stream repeats the draws of another.
+    """
+
+    AGENT       = auto()
+    ENVIRONMENT = auto()
+    EVALUATION  = auto()
+
+
+class RunSettings(
+    BaseModel,
+    extra                    = "forbid",
+    frozen                   = True,
+    use_attribute_docstrings = True
+):
     """
     The settings one run reads, where each field is a flag on any command
     taking the record through `Parameter(name="*")` and a key under
     `[tool.squirtl]` in `pyproject.toml`.
     """
 
-    seed: int = 1
+    # cyclopts takes a `kw_only` field as a flag alone, never as a positional token.
+    seed: Annotated[int, Field(ge=0, kw_only=True)] = 1
     """
     The seed every random draw in the run derives from, 1 by default as in
     CleanRL's `dqn_atari.py`.
@@ -94,25 +103,25 @@ class RunSettings:
     @property
     def seeds(self) -> dict[Stream, int]:
         """
-        Derives the seed each stream starts from by hashing `seed` through
-        BLAKE2b with the stream's name as the personalization string, so
-        each stream takes a seed of its own that the same run seed always
-        reproduces.
+        Spawns one child of a `SeedSequence` over `seed` for each stream,
+        in the order `Stream` declares its members, and draws each child's
+        seed.
 
         Returns:
-            Each stream's seed, a 64-bit unsigned integer.
+            Each stream's seed, a 64-bit unsigned integer, which
+            `torch.manual_seed` and Gymnasium's `reset` both take.
         """
         return {
-            stream: int.from_bytes(
-                blake2b(str(self.seed).encode(), digest_size=8, person=stream.encode())
-                .digest()
+            stream: child.generate_state(1, uint64).item()
+            for stream, child in zip(
+                Stream,
+                SeedSequence(self.seed).spawn(len(Stream)),
+                strict = True
             )
-            for stream in Stream
         }
 
 
-@dataclass(frozen=True, kw_only=True)
-class Run:
+class Run(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True):
     """
     One run, recorded in a directory of its own under `data/runs/` named for
     the instant it started.
@@ -128,9 +137,10 @@ class Run:
     The settings the run read.
     """
 
-    started: datetime
+    started: AwareDatetime
     """
-    The instant the run started.
+    The instant the run started, carrying the UTC offset `name` reads to
+    spell it in UTC.
     """
 
     resumes: str | None = None
@@ -138,20 +148,6 @@ class Run:
     The name of the run this one continues, or `None` for a run starting
     afresh.
     """
-
-    def __post_init__(self):
-        """
-        Checks that `started` carries a UTC offset, which `name` reads to
-        spell the instant in UTC.
-
-        Raises:
-            ValueError: Where `started` carries no UTC offset.
-        """
-        if self.started.utcoffset() is None:
-            raise ValueError(
-                f"a run starts at an instant carrying a UTC offset, and {self.started} "
-                "carries none"
-            )
 
     @property
     def directory(self) -> Path:
@@ -202,7 +198,7 @@ class Run:
             FileNotFoundError  : Where the working directory holds no
                                  `uv.lock` or no `git` is on the search
                                  path, before any directory is created.
-            ValueError         : Where `started` carries no UTC offset,
+            ValidationError    : Where `started` carries no UTC offset,
                                  before any directory is created.
         """
         run = cls(
@@ -212,9 +208,6 @@ class Run:
             started  = started
         )
         run.directory.mkdir(parents=True)
-        run.record.write_text(
-            dumps(asdict(run), default=datetime.isoformat, indent=2),
-            encoding = "utf-8"
-        )
+        run.record.write_text(run.model_dump_json(indent=2), encoding="utf-8")
 
         return run

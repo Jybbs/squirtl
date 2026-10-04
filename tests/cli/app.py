@@ -9,7 +9,7 @@ Pins what the `squirtl` command itself defines, covering:
 """
 
 from collections.abc    import Callable
-from cyclopts           import App, Parameter, UnknownOptionError
+from cyclopts           import App, Parameter, UnknownOptionError, UnusedCliTokensError
 from dataclasses        import dataclass
 from importlib.metadata import EntryPoint, entry_points, version
 from pathlib            import Path
@@ -114,6 +114,15 @@ def test_a_key_no_setting_declares_is_refused(read: Reader):
         read([], "[tool.squirtl]\nsead = 7\n")
 
 
+def test_a_setting_takes_no_positional_token(read: Reader):
+    """
+    Asserts that a bare token on the command line is refused rather than
+    read as a setting, so a setting arrives only through its flag.
+    """
+    with raises(UnusedCliTokensError):
+        read(["9"], None)
+
+
 def test_a_table_above_the_working_directory_is_not_read(
     monkeypatch : MonkeyPatch,
     read        : Reader,
@@ -129,18 +138,6 @@ def test_a_table_above_the_working_directory_is_not_read(
     monkeypatch.chdir(nested)
 
     assert read([], "[tool.squirtl]\nseed = 7\n") == RunSettings()
-
-
-def test_help_text(invoke: Invoker, snapshot: SnapshotAssertion):
-    """
-    Asserts that `--help` exits zero and prints the help text its fixture
-    file holds, carrying the description the manifest declares, so a change
-    to what the command documents is reviewed as a diff.
-    """
-    invocation = invoke(["--help"])
-
-    assert invocation.code == 0
-    assert invocation.output == snapshot
 
 
 @mark.parametrize(
@@ -170,6 +167,18 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
     the table sets it.
     """
     assert read(argv, manifest) == RunSettings(seed=seed)
+
+
+def test_help_text(invoke: Invoker, snapshot: SnapshotAssertion):
+    """
+    Asserts that `--help` exits zero and prints the help text its fixture
+    file holds, carrying the description the manifest declares, so a change
+    to what the command documents is reviewed as a diff.
+    """
+    invocation = invoke(["--help"])
+
+    assert invocation.code == 0
+    assert invocation.output == snapshot
 
 
 def test_reading_the_settings_writes_nothing(read: Reader, tmp_path: Path):
