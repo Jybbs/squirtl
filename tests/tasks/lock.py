@@ -3,11 +3,11 @@ Pins what the `lock:check` task decides and prints from what `uv lock
 --check` and `mise lock` report, and that `.mise/mise.lock` comes back byte
 for byte, mode included, whichever way the task exits.
 
-Each case runs the task from a scratch directory, which holds a placeholder
-`.mise/mise.lock` wherever the case reaches `mise lock`. The stand-in under
-`fixtures/` answers for `mise` and `uv` in every case, writing each call
-it receives to a file and answering as the case sets, so no case reaches
-the network.
+Each case runs the task from `tmp_path`, which holds a placeholder
+`.mise/mise.lock` wherever the case reaches `mise lock`, with `TMPDIR` at
+the `scratch` directory inside it. The stand-in under `fixtures/` answers
+for `mise` and `uv` in every case, writing each call it receives to a file
+and answering as the case sets, so no case reaches the network.
 """
 
 from collections.abc import Callable
@@ -209,3 +209,20 @@ def test_a_missing_lockfile_leaves_no_snapshot(
     assert checked().returncode == 1
     assert calls() == ["uv lock --check"]
     assert list(scratch.iterdir()) == []
+
+
+def test_an_unwritable_scratch_stops_the_task_before_mise_lock(
+    calls    : Callable[[], list[str]],
+    checked  : Callable[[], CompletedProcess[str]],
+    lockfile : Path,
+    scratch  : Path
+):
+    """
+    Pins that the task exits 1 without running `mise lock` when `mktemp`
+    cannot write the snapshot into the `TMPDIR` that `scratch` sets, even
+    with `.mise/mise.lock` in place to copy.
+    """
+    scratch.chmod(0o555)
+
+    assert checked().returncode == 1
+    assert calls() == ["uv lock --check"]

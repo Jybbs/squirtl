@@ -19,9 +19,9 @@ from syrupy.assertion import SnapshotAssertion
 from syrupy.extensions.single_file import SingleFileSnapshotExtension, WriteMode
 
 CLEARED = (
-    "COLORTERM", "FORCE_COLOR", "GITHUB_OUTPUT", "GITHUB_STEP_SUMMARY",
-    "LINES", "NO_COLOR", "TTY_COMPATIBLE", "TTY_INTERACTIVE",
-    "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"
+    "COLORTERM", "FORCE_COLOR", "GITHUB_ACTIONS", "GITHUB_OUTPUT",
+    "GITHUB_STEP_SUMMARY", "LINES", "NO_COLOR", "TTY_COMPATIBLE",
+    "TTY_INTERACTIVE", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"
 )
 
 settings.register_profile("ci", settings.get_profile("ci"), max_examples=200)
@@ -54,9 +54,10 @@ def environment(monkeypatch: MonkeyPatch, tmp_path_factory: TempPathFactory):
     - The variables that set whether a console treats its output as a
       terminal, prints color, or redraws a live display, and how many lines
       it lays out
-    - `GITHUB_OUTPUT` and `GITHUB_STEP_SUMMARY`, naming the files a GitHub
-      Actions runner collects a workflow step's outputs and a workflow run's
-      summary page from
+    - `GITHUB_ACTIONS`, which a GitHub Actions runner sets to mark itself,
+      and `GITHUB_OUTPUT` and `GITHUB_STEP_SUMMARY`, naming the files the
+      runner collects a workflow step's outputs and a workflow run's summary
+      page from
     - The XDG variables, naming the directories where a tool keeps its
       configuration, data, and state
 
