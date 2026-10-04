@@ -2,7 +2,9 @@
 #MISE alias       = "check"
 #MISE description = "Report every formatting rewrite and lint finding, as annotations under GitHub Actions, passing any further arguments to the formatter"
 
+source "$MISE_PROJECT_ROOT/.mise/lib/py.sh"
+
 format=text
 [[ -z "${GITHUB_ACTIONS:-}" ]] || format=github
 
-prose check --output-format "$format" "$@" .mise/tasks src tests
+prose_python check --output-format "$format" "$@"

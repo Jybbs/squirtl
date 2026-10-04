@@ -26,19 +26,15 @@ def calls(stand_ins: Path) -> Callable[[], list[str]]:
 
 @fixture
 def checked(
-    monkeypatch  : MonkeyPatch,
     pytestconfig : Config,
+    scratch      : Path,
     tmp_path     : Path
 ) -> Callable[[], CompletedProcess[str]]:
     """
-    Builds a runner of the worktree's `lock:check` task that starts it
-    from `tmp_path`, capturing what it prints, with `TMPDIR` at the empty
-    `tmp_path / "scratch"`, where `mktemp` writes the snapshot.
+    Builds a runner of the worktree's `lock:check` task that starts it from
+    `tmp_path`, capturing what it prints, with `TMPDIR` at `scratch`.
     """
     task = pytestconfig.rootpath / ".mise/tasks/lock/check"
-
-    (tmp_path / "scratch").mkdir()
-    monkeypatch.setenv("TMPDIR", str(tmp_path / "scratch"))
 
     return lambda: run([task], capture_output=True, cwd=tmp_path, text=True)
 
@@ -57,6 +53,20 @@ def lockfile(tmp_path: Path) -> Path:
     placeholder.chmod(0o644)
 
     return placeholder
+
+
+@fixture
+def scratch(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
+    """
+    Makes the empty directory `mktemp` writes the snapshot into and points
+    `TMPDIR` at it, so a case reads what the task leaves there.
+    """
+    directory = tmp_path / "scratch"
+
+    directory.mkdir()
+    monkeypatch.setenv("TMPDIR", str(directory))
+
+    return directory
 
 
 @fixture(autouse=True)
@@ -106,7 +116,7 @@ def test_a_lockfile_in_step_with_its_pins_passes(
     calls    : Callable[[], list[str]],
     checked  : Callable[[], CompletedProcess[str]],
     lockfile : Path,
-    tmp_path : Path
+    scratch  : Path
 ):
     """
     Pins that the task exits 0 once `uv lock --check` passes and `mise lock`
@@ -119,7 +129,7 @@ def test_a_lockfile_in_step_with_its_pins_passes(
     assert checked().returncode == 0
     assert calls() == ["uv lock --check", "mise lock"]
     assert (lockfile.read_bytes(), lockfile.stat().st_ino) == (contents, inode)
-    assert list((tmp_path / "scratch").iterdir()) == []
+    assert list(scratch.iterdir()) == []
 
 
 @mark.parametrize(
@@ -187,9 +197,9 @@ def test_an_unresolved_platform_fails_the_task(
 
 
 def test_a_missing_lockfile_leaves_no_snapshot(
-    calls    : Callable[[], list[str]],
-    checked  : Callable[[], CompletedProcess[str]],
-    tmp_path : Path
+    calls   : Callable[[], list[str]],
+    checked : Callable[[], CompletedProcess[str]],
+    scratch : Path
 ):
     """
     Pins that the task exits 1 without running `mise lock` when no
@@ -198,4 +208,4 @@ def test_a_missing_lockfile_leaves_no_snapshot(
     """
     assert checked().returncode == 1
     assert calls() == ["uv lock --check"]
-    assert list((tmp_path / "scratch").iterdir()) == []
+    assert list(scratch.iterdir()) == []

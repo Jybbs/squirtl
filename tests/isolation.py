@@ -13,11 +13,10 @@ Pins the isolation the suite keeps from the machine running it, covering:
 from collections.abc import Iterator
 from os              import environ
 from pathlib         import Path
-from pytest          import FixtureRequest, fixture, mark, raises, warns
+from pytest          import FixtureRequest, MonkeyPatch, fixture, mark, raises, warns
 from pytest_socket   import SocketBlockedError
 from socket          import AF_UNIX, create_connection, socketpair
 from tests.conftest  import CLEARED, pytest_collection_modifyitems
-from unittest.mock   import patch
 from warnings        import warn
 
 
@@ -71,7 +70,8 @@ def name(request: FixtureRequest) -> Iterator[str]:
     fixture, so the variable is set on every machine by the time
     `environment` clears it, a CI runner that never sets it included.
     """
-    with patch.dict(environ, {request.param: "1"}):
+    with MonkeyPatch.context() as patched:
+        patched.setenv(request.param, "1")
         yield request.param
 
 
