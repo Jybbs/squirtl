@@ -42,8 +42,8 @@ class Revision:
     dirty: bool
     """
     Whether the working tree differs from the commit, which
-    `git status --porcelain` reports for a changed tracked file and for an
-    untracked one outside the paths `.gitignore` covers.
+    `git status --porcelain --untracked-files=normal` reports for a changed
+    tracked file and for an untracked one outside the paths git ignores.
     """
 
     lockfile: str
@@ -60,12 +60,18 @@ class Revision:
         `uv.lock`.
 
         Raises:
-            CalledProcessError: Where the working directory holds no git
-                                clone.
+            CalledProcessError : Where the working directory holds no git
+                                 clone.
+            FileNotFoundError  : Where the working directory holds no
+                                 `uv.lock`.
         """
         return cls(
-            commit   = check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
-            dirty    = bool(check_output(["git", "status", "--porcelain"])),
+            commit = check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+            dirty  = bool(
+                check_output(
+                    ["git", "status", "--porcelain", "--untracked-files=normal"]
+                )
+            ),
             lockfile = sha256(Path("uv.lock").read_bytes()).hexdigest()
         )
 
@@ -132,6 +138,20 @@ class Run:
     afresh.
     """
 
+    def __post_init__(self):
+        """
+        Checks that `started` carries a UTC offset, which `name` reads to
+        spell the instant in UTC.
+
+        Raises:
+            ValueError: Where `started` carries no UTC offset.
+        """
+        if self.started.utcoffset() is None:
+            raise ValueError(
+                f"a run starts at an instant carrying a UTC offset, and {self.started} "
+                "carries none"
+            )
+
     @property
     def directory(self) -> Path:
         """
@@ -178,6 +198,8 @@ class Run:
             FileExistsError    : Where a run started at the same instant
                                  already holds the directory, which is left
                                  as it was.
+            FileNotFoundError  : Where the working directory holds no
+                                 `uv.lock`, before any directory is created.
         """
         run = cls(
             resumes  = resumes,

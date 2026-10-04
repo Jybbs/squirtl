@@ -64,7 +64,7 @@ def read(monkeypatch: MonkeyPatch, tmp_path: Path) -> Reader:
     monkeypatch.chdir(tmp_path)
     probe = App(config=app.config, default_parameter=app.default_parameter)
 
-    @probe.default
+    @probe.command
     def received(
         settings: Annotated[RunSettings, Parameter(name="*")] = RunSettings()
     ) -> RunSettings:
@@ -85,7 +85,7 @@ def read(monkeypatch: MonkeyPatch, tmp_path: Path) -> Reader:
             (tmp_path / "pyproject.toml").write_text(manifest, encoding="utf-8")
 
         return probe(
-            argv,
+            ["received", *argv],
             exit_on_error = False,
             print_error   = False,
             result_action = "return_value"

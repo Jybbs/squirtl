@@ -144,6 +144,19 @@ def test_a_revision_is_dirty_wherever_git_reports_a_change(
     assert Revision.checked_out().dirty is dirty
 
 
+def test_a_run_refuses_an_instant_with_no_offset():
+    """
+    Asserts that a run built on an instant carrying no UTC offset raises
+    rather than reading that instant as the machine's local time.
+    """
+    with raises(ValueError, match="carries none"):
+        Run(
+            revision = Revision(commit="0", dirty=False, lockfile="0"),
+            settings = RunSettings(),
+            started  = datetime(2026, 10, 4)
+        )
+
+
 def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
     """
     Asserts that a run started at the same instant as an earlier one raises
@@ -158,6 +171,26 @@ def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path
         Run.start(RunSettings(seed=2), started)
 
     assert first.record.read_text(encoding="utf-8") == record
+
+
+@mark.parametrize(
+    ("first", "second"),
+    [
+        param(1,  2,     id="adjacent"),
+        param(-1, 1,     id="opposite-signs"),
+        param(0,  2**64, id="apart-by-2-to-the-64")
+    ]
+)
+def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
+    """
+    Asserts that runs taking distinct seeds start no stream from the same
+    seed, covering the adjacent pair an offset per stream would collide on
+    and the pairs a dropped sign or a 64-bit mask on the run seed would.
+    """
+    assert not (
+        set(RunSettings(seed=first).seeds.values())
+        & set(RunSettings(seed=second).seeds.values())
+    )
 
 
 def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
@@ -175,37 +208,12 @@ def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
     } == {Path("data"), Path("data/runs"), run.directory, run.record}
 
 
-def test_adjacent_run_seeds_share_no_stream_seed():
-    """
-    Asserts that runs taking adjacent seeds start no stream from the same
-    seed, the pair a seed derived by adding an offset per stream would
-    collide on.
-    """
-    assert not (
-        set(RunSettings(seed=1).seeds.values())
-        & set(RunSettings(seed=2).seeds.values())
-    )
-
-
 def test_each_stream_seed_fits_in_64_unsigned_bits():
     """
     Asserts that every stream's seed is a 64-bit unsigned integer, the
     widest seed `torch.manual_seed` takes.
     """
     assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
-
-
-def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
-    snapshot: SnapshotAssertion
-):
-    """
-    Asserts that the default run seed derives the stream seeds its fixture
-    file holds, so a change to the derivation, which would change the draws
-    every recorded run's seed reproduces, is reviewed as a diff.
-    """
-    seeds = RunSettings().seeds
-
-    assert "\n".join(f"{stream} {seed}" for stream, seed in seeds.items()) == snapshot
 
 
 @mark.parametrize(
@@ -242,6 +250,19 @@ def test_a_run_name_reads_back_as_the_instant_it_started(started: datetime):
     )
 
     assert datetime.fromisoformat(run.name) == started
+
+
+def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
+    snapshot: SnapshotAssertion
+):
+    """
+    Asserts that the default run seed derives the stream seeds its fixture
+    file holds, so a change to the derivation, which would change the draws
+    every recorded run's seed reproduces, is reviewed as a diff.
+    """
+    seeds = RunSettings().seeds
+
+    assert "\n".join(f"{stream} {seed}" for stream, seed in seeds.items()) == snapshot
 
 
 def test_the_settings_refuse_a_change_once_built():
