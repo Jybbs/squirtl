@@ -1,0 +1,24 @@
+name        : Provision
+description : Installs through mise the subset of the tools `.mise/config.toml` pins that `tools` names, restoring that subset's archive from the Actions cache and saving it back wherever the job's `cache-mode` grants a write.
+
+inputs:
+  tools:
+    description : The space-separated subset of the tools `.mise/config.toml` pins that the job's command reads. `jdx/mise-action` hashes the names into its cache key, so each subset is an archive of its own.
+    required    : true
+
+runs:
+  using: composite
+
+  steps:
+    - name  : Read the mise release `.mise/config.toml` sets as its floor
+      id    : floor
+      shell : bash
+      run   : |
+        version=$(python3 -c 'import tomllib; print(tomllib.load(open(".mise/config.toml", "rb"))["min_version"])')
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - name : Install the subset through mise
+      uses : jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492
+      with:
+        install_args : ${{ inputs.tools }}
+        version      : ${{ steps.floor.outputs.version }}

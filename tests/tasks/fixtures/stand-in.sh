@@ -1,5 +1,5 @@
 #!/bin/sh
-call="${0##*/} $*"
+call="${MISE_LOCKED_SCOPES:+MISE_LOCKED_SCOPES=$MISE_LOCKED_SCOPES }${0##*/} $*"
 echo "$call" >> "$CALLS"
 [ -n "$REWRITING" ] && case "$call" in $REWRITING) echo rewritten >> .mise/mise.lock ;; esac
 if [ -n "$REPORT" ] && [ "$call" = "mise lock" ]; then

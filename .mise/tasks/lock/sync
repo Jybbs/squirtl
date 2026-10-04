@@ -1,6 +1,9 @@
 #!/usr/bin/env -S bash -euo pipefail
 #MISE alias       = "relock"
-#MISE description = "Re-resolve `uv.lock` and `.mise/mise.lock` against their manifests"
+#MISE description = "Re-resolve `uv.lock`, each task script's lockfile, and `.mise/mise.lock` against their manifests"
+
+source "$MISE_PROJECT_ROOT/.mise/lib/lock.sh"
 
 mise lock
 uv lock --no-locked
+lock_scripts --no-locked

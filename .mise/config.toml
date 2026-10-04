@@ -1,8 +1,8 @@
 min_version = "2026.9.18"
 
 [doctor.checks.lockfile]
-description = "`uv.lock` and `.mise/mise.lock` resolve what `pyproject.toml` and `.mise/config.toml` declare"
-hint        = "Run `mise lockfile` to print what drifted, or the platform `mise lock` could not resolve without a connection, then `mise relock` to re-resolve both lockfiles against their manifests."
+description = "`uv.lock`, each task script's lockfile, and `.mise/mise.lock` resolve what their manifests declare, and every tool the project pins installs from `.mise/mise.lock`"
+hint        = "Run `mise lockfile` to print what drifted, or the platform `mise lock` could not resolve without a connection, then `mise relock` to re-resolve every lockfile against its manifest."
 run         = "mise run lock:check"
 timeout     = "60s"
 
@@ -28,3 +28,4 @@ locked = true
 [tools]
 python = "3.14.6"
 uv     = "0.12.13"
+zizmor = "1.30.1"

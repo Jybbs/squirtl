@@ -1,0 +1,77 @@
+name        : 🕹️ CI
+run-name    : 🕹️ CI · ${{ github.head_ref || github.ref_name }}
+cache-mode  : read
+permissions : { contents: read }
+
+on:
+  pull_request:
+
+  workflow_dispatch:
+
+concurrency:
+  cancel-in-progress : ${{ github.event_name == 'pull_request' }}
+  group              : ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+
+jobs:
+  check:
+    name            : ${{ matrix.name }}
+    outputs         : { coverage: "${{ steps.attach.outputs.artifact-url }}" }
+    runs-on         : &runner ubuntu-26.04
+    timeout-minutes : &timeout 15
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        include:
+          - name  : 🗝️ Lockfile
+            task  : lock:check
+            tools : &package python uv
+          - name  : 🖋️ Prose
+            task  : py:check
+            tools : *package
+          - name   : 🧪 Suite
+            report : coverage
+            task   : py:coverage
+            tools  : *package
+          - name  : 🔭 Zizmor
+            task  : gha:lint
+            tools : zizmor
+
+    steps:
+      - &checkout
+        name : Check out the repository
+        uses : actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with : { persist-credentials: false }
+
+      - name : Provision the tools the task reads
+        uses : $/.github/actions/provision
+        with : { tools: "${{ matrix.tools }}" }
+
+      - name : mise run ${{ matrix.task }}
+        env  : { TASK: "${{ matrix.task }}" }
+        run  : mise run "$TASK"
+
+      - name : Attach the coverage report
+        id   : attach
+        if   : ${{ !cancelled() && matrix.report }}
+        uses : actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with : { name: "${{ matrix.report }}", path: .cache/coverage/html, retention-days: 14 }
+
+  brief:
+    name            : 🎒 Brief
+    if              : always()
+    needs           : check
+    runs-on         : *runner
+    timeout-minutes : *timeout
+
+    steps:
+      - *checkout
+
+      - name : Provision the tools the summary reads
+        uses : $/.github/actions/provision
+        with : { tools: *package }
+
+      - name : Write the summary and exit with the verdict
+        env  : { COMMIT: "${{ github.event.pull_request.head.sha || github.sha }}", NEEDS: "${{ toJSON(needs) }}" }
+        run  : mise run gha:brief

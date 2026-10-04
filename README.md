@@ -6,7 +6,7 @@ With the support of deep Q-learning networks (**DQN**), SquiRtL demonstrates how
 
 ## Installation
 
-[mise](https://mise.jdx.dev) reads `.mise/config.toml` and installs the Python interpreter and the `uv` that file pins, so one `mise install` provisions every tool the development loop runs. After installing mise and [activating it in your shell](https://mise.jdx.dev/installing-mise.html):
+[mise](https://mise.jdx.dev) reads `.mise/config.toml` and installs the Python interpreter, the `uv`, and the [zizmor](https://docs.zizmor.sh/) that file pins, so one `mise install` provisions every tool the development loop runs. After installing mise and [activating it in your shell](https://mise.jdx.dev/installing-mise.html):
 
 ```bash
 git clone https://github.com/Jybbs/squirtl.git
@@ -29,9 +29,10 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise coverage` | *Runs the suite under coverage, fails when the total falls below **95%**, and writes the HTML report under `.cache/coverage/html/`* |
 | `mise check` | *Reports every rewrite the formatter would make and every lint finding* |
 | `mise format` | *Rewrites the Python source to the house style* |
-| `mise lockfile` | *Verifies `uv.lock` and `.mise/mise.lock` against their manifests* |
-| `mise relock` | *Re-resolves both lockfiles after a change to `pyproject.toml` or `.mise/config.toml`* |
-| `mise ci` | *Runs the lockfile check, the formatter's check, and the suite under coverage in one sweep* |
+| `mise lockfile` | *Verifies `uv.lock`, each task script's lockfile, and `.mise/mise.lock` against their manifests, and that every pinned tool installs from `.mise/mise.lock`* |
+| `mise relock` | *Re-resolves every lockfile after a change to `pyproject.toml`, `.mise/config.toml`, or a task script's inline metadata* |
+| `mise run gha:lint` | *Audits the workflows and the composite action under `.github/` through zizmor* |
+| `mise ci` | *Runs the lockfile check, the workflow audit, the formatter's check, and the suite under coverage in one sweep* |
 
 ## Reinforcement Learning
 

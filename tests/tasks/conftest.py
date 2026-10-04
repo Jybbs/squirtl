@@ -1,13 +1,17 @@
 """
 Defines the fixtures the task tests share, meaning the installer that puts
-stand-in programs first on the path and the shell variables a case sets
-before it starts a task.
+stand-in programs first on the path, the loader that imports a Python task
+as a module, the runner that reads back what the `echo.sh` stand-in printed,
+and the shell variables a case sets before it starts a task.
 """
 
 from collections.abc import Callable
+from importlib.util  import module_from_spec, spec_from_file_location
 from os              import pathsep
 from pathlib         import Path
 from pytest          import Config, FixtureRequest, MonkeyPatch, fixture
+from subprocess      import run
+from types           import ModuleType
 
 
 @fixture
@@ -44,6 +48,45 @@ def install_stand_ins(
         return directory
 
     return install
+
+
+@fixture
+def load_task(pytestconfig: Config) -> Callable[[str], ModuleType]:
+    """
+    Builds a loader that imports the task script at a path under the
+    worktree root as a module named for the file's stem, so a case calls the
+    records the script declares.
+    """
+    def load(path: str) -> ModuleType:
+        """
+        Imports the script at `path` under the worktree root.
+        """
+        spec   = spec_from_file_location(Path(path).stem, pytestconfig.rootpath / path)
+        module = module_from_spec(spec)
+
+        spec.loader.exec_module(module)
+
+        return module
+
+    return load
+
+
+@fixture
+def printed(pytestconfig: Config) -> Callable[..., list[str]]:
+    """
+    Builds a runner of the task file at `.mise/tasks/<task>`, which reads
+    back each argument the `echo.sh` stand-in received, one per line.
+
+    Returns:
+        A function taking the task's path under `.mise/tasks` and then the
+        arguments to start it with.
+    """
+    return lambda task, *arguments: run(
+        [pytestconfig.rootpath / ".mise/tasks" / task, *arguments],
+        capture_output = True,
+        check          = True,
+        text           = True
+    ).stdout.splitlines()
 
 
 @fixture
