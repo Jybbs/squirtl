@@ -14,7 +14,7 @@ from hashlib      import sha256
 from numpy        import uint64
 from numpy.random import SeedSequence
 from pathlib      import Path
-from pydantic     import AwareDatetime, BaseModel, Field, StringConstraints
+from pydantic     import AwareDatetime, BaseModel, NonNegativeInt, StringConstraints
 from subprocess   import check_output
 from typing       import Annotated, Self
 
@@ -97,7 +97,7 @@ class RunSettings(Record):
     under `[tool.squirtl]` in `pyproject.toml`.
     """
 
-    seed: Annotated[int, Field(ge=0)] = 1
+    seed: NonNegativeInt = 1
     """
     The seed every random draw in the run derives from, whose default
     follows CleanRL's `dqn_atari.py`.
