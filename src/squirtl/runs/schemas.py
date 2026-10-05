@@ -1,6 +1,7 @@
 """
 Defines the records one run reads and writes:
 
+- `Record`, the base each record builds on
 - `RunSettings`, every setting the run reads
 - `Revision`, the code the run ran on
 - `Run`, the directory under `data/runs/` recording both
@@ -22,7 +23,26 @@ type Hexadecimal = Annotated[
 ]
 
 
-class Revision(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True):
+class Record(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True):
+    """
+    The base each record of a run builds on, which refuses a key no field
+    declares and an assignment once built, and takes the docstring beneath
+    each field as that field's description.
+    """
+
+
+class Stream(StrEnum):
+    """
+    The streams of random draws a run makes, each starting from a seed of
+    its own, so no stream repeats the draws of another.
+    """
+
+    AGENT       = auto()
+    ENVIRONMENT = auto()
+    EVALUATION  = auto()
+
+
+class Revision(Record):
     """
     The code a run ran on, read from the clone in the working directory.
     """
@@ -70,31 +90,14 @@ class Revision(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=
         )
 
 
-class Stream(StrEnum):
-    """
-    The streams of random draws a run makes, each starting from a seed of
-    its own, so no stream repeats the draws of another.
-    """
-
-    AGENT       = auto()
-    ENVIRONMENT = auto()
-    EVALUATION  = auto()
-
-
-class RunSettings(
-    BaseModel,
-    extra                    = "forbid",
-    frozen                   = True,
-    use_attribute_docstrings = True
-):
+class RunSettings(Record):
     """
     The settings one run reads, where each field is a flag on any command
-    taking the record through `Parameter(name="*")` and a key under
-    `[tool.squirtl]` in `pyproject.toml`.
+    taking the record keyword-only through `Parameter(name="*")` and a key
+    under `[tool.squirtl]` in `pyproject.toml`.
     """
 
-    # Keeps `seed` keyword-only, which cyclopts takes as a flag and never positionally.
-    seed: Annotated[int, Field(ge=0, kw_only=True)] = 1
+    seed: Annotated[int, Field(ge=0)] = 1
     """
     The seed every random draw in the run derives from, whose default
     follows CleanRL's `dqn_atari.py`.
@@ -121,7 +124,7 @@ class RunSettings(
         }
 
 
-class Run(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True):
+class Run(Record):
     """
     One run, recorded in a directory of its own under `data/runs/` named for
     the instant it started.

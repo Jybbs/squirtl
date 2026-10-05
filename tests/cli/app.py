@@ -66,6 +66,7 @@ def read(monkeypatch: MonkeyPatch, tmp_path: Path) -> Reader:
 
     @probe.command
     def received(
+        *,
         settings: Annotated[RunSettings, Parameter(name="*")] = RunSettings()
     ) -> RunSettings:
         """
@@ -116,8 +117,10 @@ def test_a_key_no_setting_declares_is_refused(read: Reader):
 
 def test_a_setting_takes_no_positional_token(read: Reader):
     """
-    Asserts that a bare token on the command line is refused rather than
-    read as a setting, so a setting arrives only through its flag.
+    Asserts that a command taking `RunSettings` keyword-only, after a bare
+    `*`, refuses a bare token rather than reading it as a setting, since
+    cyclopts carries the keyword-only kind to every flattened setting,
+    nested records included.
     """
     with raises(UnusedCliTokensError):
         read(["9"], None)
