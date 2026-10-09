@@ -13,7 +13,6 @@ program.
 from collections.abc import Callable
 from pathlib         import Path
 from pytest          import Config, MonkeyPatch, fixture, mark, param
-from subprocess      import run
 
 
 @fixture(autouse=True)
@@ -29,22 +28,6 @@ def stand_in(
     """
     install_stand_ins("echo.sh", "prose", "pytest")
     monkeypatch.setenv("MISE_PROJECT_ROOT", str(pytestconfig.rootpath))
-
-
-@fixture
-def printed(pytestconfig: Config) -> Callable[[str], list[str]]:
-    """
-    Builds a runner of the task named under `.mise/tasks/py/` with `--diff`,
-    which reads back each argument the stand-in received.
-    """
-    tasks = pytestconfig.rootpath / ".mise/tasks/py"
-
-    return lambda task: run(
-        [tasks / task, "--diff"],
-        capture_output = True,
-        check          = True,
-        text           = True
-    ).stdout.splitlines()
 
 
 @mark.parametrize(
@@ -86,7 +69,7 @@ def printed(pytestconfig: Config) -> Callable[[str], list[str]]:
 )
 def test_each_task_hands_its_program_its_flags_and_arguments(
     argv    : list[str],
-    printed : Callable[[str], list[str]],
+    printed : Callable[..., list[str]],
     shell   : dict[str, str],
     task    : str
 ):
@@ -96,4 +79,4 @@ def test_each_task_hands_its_program_its_flags_and_arguments(
     elsewhere, and every task forwarding `--diff` after its own flags and
     ahead of any folders the formatter reads.
     """
-    assert printed(task) == argv
+    assert printed(f"py/{task}", "--diff") == argv

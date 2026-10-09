@@ -1,6 +1,8 @@
 #!/usr/bin/env -S bash -euo pipefail
 #MISE alias       = "lockfile"
-#MISE description = "Verify `uv.lock` and `.mise/mise.lock` against their manifests"
+#MISE description = "Verify `uv.lock`, each task script's lockfile, and `.mise/mise.lock` against their manifests, and that every tool the project pins installs from `.mise/mise.lock`"
+
+source "$MISE_PROJECT_ROOT/.mise/lib/lock.sh"
 
 refuse() {
   echo "$report" >&2
@@ -13,6 +15,7 @@ restore() {
 }
 
 uv lock --check
+lock_scripts --check
 snapshot=$(mktemp "${TMPDIR:-/tmp}/mise.lock.XXXXXX")
 trap 'rm -f "$snapshot"' EXIT
 cp -p .mise/mise.lock "$snapshot"
@@ -20,3 +23,4 @@ trap restore EXIT
 report=$(MISE_LOG_LEVEL=warn MISE_QUIET=0 mise lock 2>&1) || refuse
 [[ "$report" != *"failed to resolve"* ]] || refuse
 diff -u "$snapshot" .mise/mise.lock >&2
+MISE_LOCKED_SCOPES=project mise install --dry-run --force --locked

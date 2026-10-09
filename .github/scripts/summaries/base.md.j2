@@ -1,0 +1,7 @@
+## {{ workflow }}
+
+{{ "✅ Every job passed" if passed else "❌ A job did not pass" }} at [`{{ commit[:7] }}`]({{ server }}/{{ repository }}/commit/{{ commit }}) on `{{ ref }}`.
+{% if reports %}
+
+The workflow run attached {% for name, url in reports | dictsort %}[`{{ name }}`]({{ url }}){{ ", " if not loop.last }}{% endfor %}.
+{% endif %}

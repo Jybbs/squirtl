@@ -18,11 +18,13 @@ squirtl = "squirtl.cli:app"
 
 [dependency-groups]
 dev = [
+    "minijinja",
     "prose-formatter",
     "pytest",
     "pytest-cov",
     "pytest-randomly",
     "pytest-socket",
+    "pytest-subprocess",
     "syrupy"
 ]
 

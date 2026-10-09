@@ -1,0 +1,76 @@
+name        : 🕹️ Warm
+run-name    : 🕹️ Warm · ${{ github.ref_name }}
+cache-mode  : read
+permissions : { contents: read }
+
+on:
+  push:
+    branches : [main]
+    paths:
+      - .github/actions/provision/action.yml
+      - .github/workflows/warm.yml
+      - .mise/config.toml
+      - .mise/mise.lock
+
+  workflow_dispatch:
+
+concurrency:
+  cancel-in-progress : false
+  group              : ${{ github.workflow }}
+
+jobs:
+  kit:
+    name            : 💾 Kit · ${{ matrix.tools }}
+    cache-mode      : write
+    runs-on         : &runner ubuntu-26.04
+    timeout-minutes : &timeout 15
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        tools: [&package python uv, zizmor]
+
+    steps:
+      - &checkout
+        name : Check out the repository
+        uses : actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with : { persist-credentials: false }
+
+      - name : Install the subset and save its archive
+        uses : $/.github/actions/provision
+        with : { tools: "${{ matrix.tools }}" }
+
+  prune:
+    name            : 🧹 Prune
+    cache-mode      : none
+    needs           : kit
+    permissions     : { actions: write, contents: read }
+    runs-on         : *runner
+    timeout-minutes : *timeout
+
+    steps:
+      - *checkout
+
+      - name              : Delete the cache entries newer entries replaced
+        continue-on-error : true
+        env               : { GH_TOKEN: "${{ github.token }}" }
+        run               : .mise/tasks/gha/prune.py
+
+  brief:
+    name            : 🎒 Brief
+    if              : always()
+    needs           : [kit, prune]
+    runs-on         : *runner
+    timeout-minutes : *timeout
+
+    steps:
+      - *checkout
+
+      - name : Provision the tools the summary reads
+        uses : $/.github/actions/provision
+        with : { tools: *package }
+
+      - name : Write the summary and exit with the verdict
+        env  : { NEEDS: "${{ toJSON(needs) }}" }
+        run  : mise run gha:brief
