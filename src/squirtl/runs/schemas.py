@@ -1,7 +1,6 @@
 """
 Defines the records one run reads and writes:
 
-- `Record`, the base each record builds on
 - `RunSettings`, every setting the run reads
 - `Revision`, the code the run ran on
 - `Run`, the directory under `data/runs/` recording both
@@ -14,34 +13,16 @@ from hashlib      import sha256
 from numpy        import uint64
 from numpy.random import SeedSequence
 from pathlib      import Path
-from pydantic     import AwareDatetime, BaseModel, Field, NonNegativeInt, StringConstraints
+from pydantic     import AwareDatetime, Field, NonNegativeInt, StringConstraints
 from subprocess   import check_output
 from typing       import Annotated, Self
 
-from squirtl.agent.schemas import AgentSettings
+from squirtl.agent.schemas    import AgentSettings
+from squirtl.emulator.schemas import EmulatorSettings, Record
 
 type Hexadecimal = Annotated[
     str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
 ]
-
-
-class Record(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True):
-    """
-    The base each record of a run builds on, which refuses a key no field
-    declares and an assignment once built, and takes the docstring beneath
-    each field as that field's description.
-    """
-
-
-class Stream(StrEnum):
-    """
-    The streams of random draws a run makes, each starting from a seed of
-    its own, so no stream repeats the draws of another.
-    """
-
-    AGENT       = auto()
-    ENVIRONMENT = auto()
-    EVALUATION  = auto()
 
 
 class Revision(Record):
@@ -92,13 +73,25 @@ class Revision(Record):
         )
 
 
+class Stream(StrEnum):
+    """
+    The streams of random draws a run makes, each starting from a seed of
+    its own, so no stream repeats the draws of another.
+    """
+
+    AGENT       = auto()
+    ENVIRONMENT = auto()
+    EVALUATION  = auto()
+
+
 class RunSettings(Record):
     """
     The settings one run reads, where each field is a flag on any
     command that flattens the record through `Parameter(name="*")` and
-    a key under `[tool.squirtl]` in `pyproject.toml`. Each field of a
-    subject's record is likewise a `--<subject>.<field>` flag and a key
-    under `[tool.squirtl.<subject>]`. A bare `*` before the record in the
+    a key under `[tool.squirtl]` in `pyproject.toml`. A field holding
+    a subject's record takes that record's fields as flags under its
+    name (`--emulator.cartridge`) and as keys of a table of its own
+    (`[tool.squirtl.emulator]`). A bare `*` before the record in the
     command's signature keeps every field keyword-only, so no bare token
     fills one.
     """
@@ -106,6 +99,11 @@ class RunSettings(Record):
     agent: AgentSettings = Field(default_factory=AgentSettings)
     """
     The settings the agent reads.
+    """
+
+    emulator: EmulatorSettings = Field(default_factory=EmulatorSettings)
+    """
+    The settings the emulator reads.
     """
 
     seed: NonNegativeInt = 1

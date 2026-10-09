@@ -19,7 +19,7 @@ mise doctor project
 
 `mise trust squirtl` marks the clone's `.mise/config.toml` as a file mise may read, and `mise -C squirtl install` installs the tools it pins before the shell enters the clone. Once `cd` runs, the activated mise puts the pinned `uv` and the `.mise/bin` folder holding the `squirtl` script on the path, even when the block is pasted whole. That script starts `squirtl` through `uv run --exact --locked`, which installs the package into `.venv` from `uv.lock` on its first run and refuses a `uv.lock` that lags `pyproject.toml`. `mise doctor project` then reports each thing the clone still needs beside the command that supplies it.
 
-*SquiRtL* ships no part of the game, so it runs on your own legal copy of the Pokémon Red or Blue ROM, which never enters the repository.
+*SquiRtL* ships no part of the game, so it runs on your own legal copy of the English Pokémon Red or Blue ROM, which never enters the repository. It sits at `data/rom.gb`, which `.gitignore` keeps out of `git status` and `mise doctor project` checks for, and a run refuses any ROM there whose SHA-1 is not one the [pret/pokered](https://github.com/pret/pokered) disassembly lists for those two releases.
 
 Each step of the development loop runs as a mise task, which `mise tasks` lists in full:
 
@@ -152,6 +152,7 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 |---|---|
 | `squirtl.agent` | *The deep Q-network agent, meaning the Q-network, replay memory holding each frame once, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from* |
 | `squirtl.cli` | *The `squirtl` command* |
+| `squirtl.emulator` | *The cartridge a run reads, refused unless its SHA-1 names an English release of Pokémon Red or Blue, and `GameBoy` running it headless through PyBoy with no save beside it, beside the buttons a step presses and the addresses in the game's memory the package reads* |
 | `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, and the directory under `data/runs/` recording each run's settings, its commit, and the digest of `uv.lock`* |
 
 ## Metrics & Analysis

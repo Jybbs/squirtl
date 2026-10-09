@@ -21,8 +21,9 @@ from pytest             import CaptureFixture, MonkeyPatch, fixture, mark, param
 from syrupy.assertion   import SnapshotAssertion
 from typing             import Annotated
 
-from squirtl.cli          import app
-from squirtl.runs.schemas import RunSettings
+from squirtl.cli              import app
+from squirtl.emulator.schemas import EmulatorSettings
+from squirtl.runs.schemas     import RunSettings
 
 type Invoker = Callable[[list[str]], Invocation]
 type Reader  = Callable[[list[str], str | None], RunSettings]
@@ -110,13 +111,21 @@ def script() -> EntryPoint:
     return entry
 
 
-def test_a_key_no_setting_declares_is_refused(read: Reader):
+@mark.parametrize(
+    "manifest",
+    [
+        param("[tool.squirtl]\nsead = 7\n", id="the-table"),
+        param("[tool.squirtl.emulator]\nopen-windw = true\n", id="a-subject-table")
+    ]
+)
+def test_a_key_no_setting_declares_is_refused(manifest: str, read: Reader):
     """
-    Asserts that a key in the `[tool.squirtl]` table naming no setting
-    raises rather than leaving a misspelled setting at its default.
+    Asserts that a key naming no setting, in the `[tool.squirtl]` table or
+    in a subject's table beneath it, raises rather than leaving a misspelled
+    setting at its default.
     """
     with raises(UnknownOptionError):
-        read([], "[tool.squirtl]\nsead = 7\n")
+        read([], manifest)
 
 
 def test_a_setting_takes_no_positional_token(read: Reader):
@@ -148,16 +157,24 @@ def test_a_table_above_the_working_directory_is_not_read(
 
 
 @mark.parametrize(
-    ("manifest", "argv", "seed"),
+    ("manifest", "argv", "settings"),
     [
-        param(None,                          [],               1, id="no-manifest"),
-        param("[project]\nname = 'x'\n",     [],               1, id="no-table"),
-        param("[tool.squirtl]\nseed = 7\n",  [],               7, id="the-table"),
+        param(None,                         [], RunSettings(),       id="no-manifest"),
+        param("[project]\nname = 'x'\n",    [], RunSettings(),       id="no-table"),
+        param("[tool.squirtl]\nseed = 7\n", [], RunSettings(seed=7), id="the-table"),
         param(
             "[tool.squirtl]\nseed = 7\n",
             ["--seed", "9"],
-            9,
+            RunSettings(seed=9),
             id = "a-flag-over-the-table"
+        ),
+        param(
+            "[tool.squirtl.emulator]\nopen-window = true\n",
+            ["--emulator.cartridge", "rom.gb"],
+            RunSettings(
+                emulator = EmulatorSettings(cartridge=Path("rom.gb"), open_window=True)
+            ),
+            id = "a-subject-table-beside-a-flag"
         )
     ]
 )
@@ -165,15 +182,17 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
     argv     : list[str],
     manifest : str | None,
     read     : Reader,
-    seed     : int
+    settings : RunSettings
 ):
     """
-    Asserts that a setting takes the flag passed for it over the same key
-    in the `[tool.squirtl]` table of `pyproject.toml`, and that key over the
-    default its field declares, which it keeps where neither the flag nor
-    the table sets it.
+    Asserts that a setting takes the flag passed for it, then the same key
+    in the `[tool.squirtl]` table of `pyproject.toml`, then the default its
+    field declares.
+
+    A flag for one of a subject's settings leaves in place the others that
+    subject's table sets.
     """
-    assert read(argv, manifest) == RunSettings(seed=seed)
+    assert read(argv, manifest) == settings
 
 
 def test_help_text(invoke: Invoker, snapshot: SnapshotAssertion):

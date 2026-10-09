@@ -9,25 +9,23 @@ Defines the records the agent reads and writes:
 
 from dataclasses       import dataclass
 from pathlib           import Path
-from pydantic          import BaseModel, Field, PositiveFloat, PositiveInt
+from pydantic          import Field, PositiveFloat, PositiveInt
 from torch             import Tensor, load, no_grad, save
 from torch.accelerator import current_accelerator
 from typing            import Annotated, Self
 
-from squirtl.agent.networks import QNetwork
+from squirtl.agent.networks   import QNetwork
+from squirtl.emulator.schemas import Record
 
 type Fraction = Annotated[float, Field(gt=0, le=1)]
 
 type Probability = Annotated[float, Field(ge=0, le=1)]
 
 
-class AgentSettings(
-    BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True
-):
+class AgentSettings(Record):
     """
-    The settings the agent reads, each a `--agent.<field>` flag on a
-    command taking `RunSettings` and a key under `[tool.squirtl.agent]`
-    in `pyproject.toml`.
+    The settings the agent reads, each a field of `RunSettings.agent` and a
+    key under `[tool.squirtl.agent]` in `pyproject.toml`.
     """
 
     batch_size: PositiveInt = 32

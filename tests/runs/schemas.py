@@ -128,7 +128,8 @@ def test_a_run_records_its_settings_revision_and_start(clone: Path):
     the instant it started under `data/runs/`, holding its settings, the
     revision of the clone, that instant, and no run it resumes.
     """
-    Run.start(RunSettings(seed=7), datetime(2026, 10, 4, 12, 30, 5, 123456, tzinfo=UTC))
+    settings = RunSettings(seed=7)
+    Run.start(settings, datetime(2026, 10, 4, 12, 30, 5, 123456, tzinfo=UTC))
 
     assert loads(
         (clone / "data/runs/20261004T123005.123456Z/run.json").read_text(
@@ -138,7 +139,7 @@ def test_a_run_records_its_settings_revision_and_start(clone: Path):
         "resumes"  : None,
         "revision" : Revision.checked_out().model_dump(),
         "started"  : "2026-10-04T12:30:05.123456Z",
-        "settings" : RunSettings(seed=7).model_dump(mode="json")
+        "settings" : settings.model_dump(mode="json")
     }
 
 

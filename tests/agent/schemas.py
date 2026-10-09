@@ -1,9 +1,8 @@
 """
 Pins the records the agent reads and writes, covering:
 
-- Each setting's default against the source it follows, the device it
-  defaults to, the values it refuses and the bound it accepts, and the
-  description each carries
+- Each setting's default, bounds, and description, the device it defaults
+  to, and the values it refuses and the bound it accepts
 - The settings refusing a change once built and a key no field declares
 - The value a batch reads for each draw's action and the target it sets
   each draw
@@ -11,6 +10,7 @@ Pins the records the agent reads and writes, covering:
   holds anything beyond tensors and plain values
 """
 
+from json             import dumps
 from pathlib          import Path
 from pickle           import UnpicklingError
 from pydantic         import ValidationError
@@ -19,33 +19,6 @@ from syrupy.assertion import SnapshotAssertion
 from torch            import arange, device, equal, save, tensor, uint8
 
 from squirtl.agent.schemas import AgentSettings, Batch, Checkpoint
-
-
-@mark.parametrize(
-    ("field", "value"),
-    [
-        param("batch_size",           32,      id="mnih-batch-size"),
-        param("capacity",             100_000, id="capacity"),
-        param("discount",             0.99,    id="mnih-discount"),
-        param("epsilon_end",          0.01,    id="cleanrl-epsilon-end"),
-        param("epsilon_start",        1.0,     id="cleanrl-epsilon-start"),
-        param("exploration_fraction", 0.1,     id="cleanrl-exploration-fraction"),
-        param("learning_rate",        1e-4,    id="cleanrl-learning-rate"),
-        param("max_grad_norm",        10.0,    id="sb3-max-grad-norm"),
-        param("sync_steps",           1000,    id="cleanrl-sync-steps")
-    ]
-)
-def test_each_setting_defaults_to_the_value_its_source_publishes(
-    field : str,
-    value : float
-):
-    """
-    Asserts that each setting defaults to the value the source its
-    docstring names publishes, Mnih et al., CleanRL's `dqn_atari.py`, or
-    Stable-Baselines3's DQN, and the capacity to the 100,000 frames whose
-    576 MB its docstring names.
-    """
-    assert getattr(AgentSettings(), field) == value
 
 
 @mark.parametrize(
@@ -150,18 +123,19 @@ def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path)
         Checkpoint.from_path(tmp_path / "checkpoint.pt")
 
 
-def test_each_setting_carries_the_description_written_beneath_it(
+def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
     snapshot: SnapshotAssertion
 ):
     """
-    Asserts that each setting carries the docstring written beneath it as
-    its description, which cyclopts renders as the help of its flag, so
-    a reorder that moves a description under another field is reviewed as
+    Asserts that the agent's settings carry the default and the bounds each
+    field declares beside the description written beneath it, which names
+    where the default comes from, so a change to any of them is reviewed as
     a diff.
     """
-    assert "\n\n".join(
-        f"{name}\n{field.description}"
-        for name, field in AgentSettings.model_fields.items()
+    assert dumps(
+        AgentSettings.model_json_schema(),
+        ensure_ascii = False,
+        indent       = 2
     ) == snapshot
 
 

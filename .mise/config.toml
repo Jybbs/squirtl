@@ -1,5 +1,11 @@
 min_version = "2026.9.18"
 
+[doctor.checks.cartridge]
+description = "A file sits at `data/rom.gb`, the place a run reads the user's own ROM of Pokémon Red or Blue from"
+hint        = "Copy your own ROM of the English Pokémon Red or Blue to `data/rom.gb`, which `.gitignore` keeps out of the repository, and a run refuses any other ROM there with a message naming the SHA-1 it found."
+run         = "test -f data/rom.gb"
+timeout     = "5s"
+
 [doctor.checks.lockfile]
 description = "`uv.lock`, each task script's lockfile, and `.mise/mise.lock` resolve what their manifests declare, and every tool the project pins installs from `.mise/mise.lock`"
 hint        = "Run `mise lockfile` to print what drifted, or the platform `mise lock` could not resolve without a connection, then `mise relock` to re-resolve every lockfile against its manifest."
