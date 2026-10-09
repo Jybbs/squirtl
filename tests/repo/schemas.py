@@ -4,8 +4,8 @@ Pins what each registry record reads and the plan it derives, covering:
 - The rows a label refuses, and the longest description it takes
 - The labels a plan writes and the live labels it lists as strays
 - The rulesets a plan updates in place, creates, and lists as strays
-- The tables and the fields the settings refuse, and the order the settings
-  send in
+- The tables, the fields, and the values the settings refuse, the assignment
+  they refuse once read, and the order the settings send in
 - The homepage the project writes without its scheme
 
 Each case writes the files it reads into a checkout under `tmp_path`, and
@@ -316,7 +316,7 @@ def test_a_ruleset_refuses_a_key_or_a_value_github_does_not_take(
         )
     ]
 )
-def test_the_settings_refuse_a_table_or_a_field_no_record_declares(
+def test_the_settings_refuse_a_table_a_field_or_a_value_github_does_not_take(
     rewrite  : tuple[str, str],
     settings : Callable[..., Settings]
 ):
@@ -330,13 +330,23 @@ def test_the_settings_refuse_a_table_or_a_field_no_record_declares(
         settings(rewrite)
 
 
-def test_the_settings_refuse_an_assignment_once_read(settings: Callable[..., Settings]):
+@mark.parametrize(
+    "assign",
+    [
+        param(lambda read: setattr(read, "workflow", read.workflow), id="a-table"),
+        param(lambda read: setattr(read.repository, "has_wiki", True), id="a-field")
+    ]
+)
+def test_the_settings_refuse_an_assignment_once_read(
+    assign   : Callable[[Settings], None],
+    settings : Callable[..., Settings]
+):
     """
-    Pins that the settings record refuses an assignment once read, down to a
-    field of one of its tables.
+    Pins that the settings record refuses an assignment once read, to one of
+    its tables and to a field of one table alike.
     """
     with raises(ValidationError):
-        settings().repository.has_wiki = True
+        assign(settings())
 
 
 def test_the_settings_send_every_setting_in_the_order_the_endpoints_take(

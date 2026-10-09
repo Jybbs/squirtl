@@ -514,10 +514,10 @@ class SecurityAndAnalysis(Schema):
 
 class Settings(Registry):
     """
-    The repository settings `file` declares, one table per endpoint keyed
-    by the REST field names beside a `[dependabot]` table keyed by the two
-    endpoints it turns on or off, and the `[project]` table they read the
-    description, the homepage, and the topics from.
+    The repository settings `file` declares, one table per endpoint keyed by
+    the REST field names and a `[dependabot]` table keyed by each endpoint
+    it turns on or off, beside the description, the homepage, and the topics
+    `project` reads from `pyproject.toml`.
     """
 
     file: ClassVar[Path] = Path(".github/settings.toml")

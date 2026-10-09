@@ -18,7 +18,7 @@ Every change to *SquiRtL* starts as an issue, lands on a branch linked to it, an
 
 ## 🎒 Labels
 
-`.github/labels.toml` declares every label by its name, its color, and a one-line description, and `.github/release.yml` files each one under exactly one release-notes category, in the order the generated notes list them. A label is added, renamed, or recolored in those two files within one pull request rather than in the repository's settings.
+`.github/labels.toml` declares every label by its name, its color, and a one-line description, and `.github/release.yml` files each one under exactly one release-notes category, with the `*` category last to catch each pull request no earlier category matches. A label is added, renamed, or recolored in those two files within one pull request rather than in the repository's settings.
 
 `mise labels` then writes to GitHub each label the registry declares that the repository lacks or carries under another color or description. It also lists each label the repository carries that the registry leaves out, which stays on GitHub until someone adds it to the registry or deletes it by hand.
 
@@ -54,7 +54,7 @@ GitHub fills the body from `.github/PULL_REQUEST_TEMPLATE.md`, whose comments na
 
 ## 🔧 Repository Settings
 
-The protection on `main` and on every tag lives in `.github/rulesets/`, and the repository's features, merge methods, security features, and Actions permissions live in `.github/settings.toml`, one table per REST endpoint beside a `[dependabot]` table keyed by the two endpoints it turns on or off. `mise rulesets` sends each ruleset, updating the one GitHub carries under the same name in place, and then every setting, reading the description, the homepage, and the topics from `[project]` in `pyproject.toml`. Both `mise labels` and `mise rulesets` print every command they would send and ask before sending any.
+The protection on `main` and on every tag lives in `.github/rulesets/`, and the repository's features, merge methods, security features, and Actions permissions live in `.github/settings.toml`, one table per REST endpoint beside a `[dependabot]` table keyed by each endpoint it turns on or off. `mise rulesets` sends each ruleset, updating the one GitHub carries under the same name in place, and then every setting, reading the description, the homepage, and the topics from `[project]` in `pyproject.toml`. Both `mise labels` and `mise rulesets` print every command they would send and ask before sending any.
 
 ---
 
