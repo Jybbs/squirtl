@@ -3,7 +3,10 @@ Pins the agent, each training step on the CPU under a fixed seed, covering:
 
 - An update changing the online network and leaving the target alone, no
   update until replay memory holds a batch, the target each update moves
-  toward, and the norm it clips the gradient to
+  toward, the norm it clips the gradient to, and the gradient it computes
+  afresh rather than adding to the one a parameter held
+- The capacity of replay memory and Adam's learning rate, each read from
+  the settings the agent is built with
 - The target network copying the online network every `sync_steps` steps
 - The chance of a random action across the run, the random actions it
   draws, and the greedy action it evaluates with no autograd graph
@@ -16,10 +19,11 @@ from collections.abc     import Callable
 from copy                import deepcopy
 from numpy               import ndarray
 from pytest              import MonkeyPatch, approx, mark, param
-from torch               import allclose, as_tensor, equal, full, get_rng_state, is_inference_mode_enabled, manual_seed
-from torch               import no_grad, ones_like
+from torch               import as_tensor, equal, full, get_rng_state, is_inference_mode_enabled, manual_seed, no_grad
+from torch               import ones_like
 from torch.nn.functional import huber_loss
 from torch.nn.utils      import parameters_to_vector
+from torch.testing       import assert_close
 
 from squirtl.agent.learner import Agent
 
@@ -111,7 +115,7 @@ def test_an_update_targets_each_reward_plus_the_discounted_value_that_follows(
 
     agent.update()
 
-    assert allclose(targets[0], full((8,), target))
+    assert_close(targets[0], full((8,), target))
 
 
 @mark.parametrize(
@@ -193,9 +197,8 @@ def test_the_chance_of_a_random_action_falls_over_the_exploration_fraction(
 ):
     """
     Asserts that the chance of a random action falls linearly from 1.0 to
-    0.01 over the `exploration_fraction` of a 1,000-step run, its first
-    tenth by default, counted in environment steps, and holds at 0.01 after
-    it.
+    0.01 over the `exploration_fraction` of a 1,000-step run, counted in
+    environment steps, and holds at 0.01 after it.
     """
     agent      = build(exploration_fraction=fraction)
     agent.step = step
