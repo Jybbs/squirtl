@@ -164,11 +164,13 @@ class GameBoy(AbstractContextManager):
 
         return self.screen
 
-    def read(self, symbol: Symbol) -> int:
+    def read(self, symbol: Symbol, offset: int = 0) -> int:
         """
-        Reads the byte at the address `symbol` names in the game's memory.
+        Reads the byte `offset` bytes past the address `symbol` names in
+        the game's memory, so an offset into an array such as `wEventFlags`
+        reads the byte at that index.
         """
-        return self.emulator.memory[symbol]
+        return self.emulator.memory[symbol + offset]
 
     def restore(self, state: bytes):
         """
