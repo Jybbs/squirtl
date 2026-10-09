@@ -24,17 +24,17 @@ jobs:
 
       matrix:
         include:
-          - name  : 🗝️ Lockfile
+          - name  : 💾 Lockfile
             task  : lock:check
             tools : &package python uv
-          - name  : 🖋️ Prose
-            task  : py:check
+          - name  : 🪻 Prose
+            task  : py:lint
             tools : *package
-          - name   : 🧪 Suite
+          - name   : 🏟️ Suite
             report : coverage
             task   : py:coverage
             tools  : *package
-          - name  : 🔭 Zizmor
+          - name  : 🗝️ Workflows
             task  : gha:lint
             tools : zizmor
 

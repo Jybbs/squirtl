@@ -27,7 +27,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 |---|---|
 | `mise test` | *Runs the test suite* |
 | `mise coverage` | *Runs the suite under coverage, fails when the total falls below **95%**, and writes the HTML report under `.cache/coverage/html/`* |
-| `mise check` | *Reports every rewrite the formatter would make and every lint finding* |
+| `mise lint` | *Reports every rewrite the formatter would make and every lint finding* |
 | `mise format` | *Rewrites the Python source to the house style* |
 | `mise lockfile` | *Verifies `uv.lock`, each task script's lockfile, and `.mise/mise.lock` against their manifests, and that every pinned tool installs from `.mise/mise.lock`* |
 | `mise relock` | *Re-resolves every lockfile after a change to `pyproject.toml`, `.mise/config.toml`, or a task script's inline metadata* |
