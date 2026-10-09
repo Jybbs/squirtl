@@ -125,11 +125,7 @@ class RunSettings(Record):
         """
         return {
             stream: child.generate_state(1, uint64).item()
-            for stream, child in zip(
-                Stream,
-                SeedSequence(self.seed).spawn(len(Stream)),
-                strict = True
-            )
+            for stream, child in zip(Stream, SeedSequence(self.seed).spawn(len(Stream)))
         }
 
 

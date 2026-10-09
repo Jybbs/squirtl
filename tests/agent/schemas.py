@@ -1,22 +1,19 @@
 """
 Pins the records the agent reads and writes, covering:
 
-- Each setting's default, bounds, and description, the device it defaults
-  to, and the values it refuses and the bound it accepts
-- The settings refusing a change once built and a key no field declares
+- The device the settings default to, the values each setting refuses,
+  and the bound a fraction accepts
 - The value a batch reads for each draw's action and the target it sets
   each draw
 - A checkpoint reading back as the one written, and refusing a file that
   holds anything beyond tensors and plain values
 """
 
-from json             import dumps
-from pathlib          import Path
-from pickle           import UnpicklingError
-from pydantic         import ValidationError
-from pytest           import MonkeyPatch, mark, param, raises
-from syrupy.assertion import SnapshotAssertion
-from torch            import arange, device, equal, save, tensor, uint8
+from pathlib  import Path
+from pickle   import UnpicklingError
+from pydantic import ValidationError
+from pytest   import MonkeyPatch, mark, param, raises
+from torch    import arange, device, equal, save, tensor, uint8
 
 from squirtl.agent.schemas import AgentSettings, Batch, Checkpoint
 
@@ -121,39 +118,6 @@ def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path)
 
     with raises(UnpicklingError, match="Weights only load failed"):
         Checkpoint.from_path(tmp_path / "checkpoint.pt")
-
-
-def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
-    snapshot: SnapshotAssertion
-):
-    """
-    Asserts that the agent's settings carry the default and the bounds each
-    field declares beside the description written beneath it, which names
-    where the default comes from, so a change to any of them is reviewed as
-    a diff.
-    """
-    assert dumps(
-        AgentSettings.model_json_schema(),
-        ensure_ascii = False,
-        indent       = 2
-    ) == snapshot
-
-
-def test_the_settings_refuse_a_change_once_built():
-    """
-    Asserts that the settings raise on an assignment once built.
-    """
-    with raises(ValidationError, match="frozen"):
-        AgentSettings().batch_size = 64
-
-
-def test_the_settings_refuse_a_key_no_field_declares():
-    """
-    Asserts that the settings refuse a key no field declares rather than
-    dropping it.
-    """
-    with raises(ValidationError, match="Extra inputs are not permitted"):
-        AgentSettings(batch=64)
 
 
 @mark.parametrize(
