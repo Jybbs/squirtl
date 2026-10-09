@@ -93,8 +93,10 @@ class Revision(Record):
 class RunSettings(Record):
     """
     The settings one run reads, where each field is a flag on any command
-    that flattens the record through `Parameter(name="*")` after a bare `*`,
-    and a key under `[tool.squirtl]` in `pyproject.toml`.
+    that flattens the record through `Parameter(name="*")` and a key under
+    `[tool.squirtl]` in `pyproject.toml`. A bare `*` before the record in
+    the command's signature keeps every field keyword-only, so no bare token
+    fills one.
     """
 
     seed: NonNegativeInt = 1

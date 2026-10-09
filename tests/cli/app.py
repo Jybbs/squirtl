@@ -4,10 +4,12 @@ Pins what the `squirtl` command itself defines, covering:
 - The help text its metadata renders and the version that metadata carries,
   each call to the app read back as an `Invocation`
 - The script `[project.scripts]` points at the app
-- How a command reads its settings, taking each from its flag, then the
-  `[tool.squirtl]` table of the working directory's `pyproject.toml`, then
-  its default, refusing a key no setting declares and a bare token, and
-  writing nothing
+- How a command reads its settings:
+
+   - Each setting comes from its flag, then the `[tool.squirtl]` table of
+     the working directory's `pyproject.toml`, then its default
+   - A key no setting declares and a bare token are both refused
+   - Reading the settings writes nothing
 """
 
 from collections.abc    import Callable
