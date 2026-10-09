@@ -1,0 +1,8 @@
+{
+    "bypass_actors" : [],
+    "conditions"    : { "ref_name": { "exclude": [], "include": ["refs/tags/*"] } },
+    "enforcement"   : "active",
+    "name"          : "release tag protection",
+    "rules"         : [{ "type": "deletion" }, { "type": "update" }],
+    "target"        : "tag"
+}

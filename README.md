@@ -32,6 +32,8 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise lockfile` | *Verifies `uv.lock`, each task script's lockfile, and `.mise/mise.lock` against their manifests, and that every pinned tool installs from `.mise/mise.lock`* |
 | `mise relock` | *Re-resolves every lockfile after a change to `pyproject.toml`, `.mise/config.toml`, or a task script's inline metadata* |
 | `mise run gha:lint` | *Audits the workflows and the composite action under `.github/` through zizmor* |
+| `mise labels` | *Writes each label `.github/labels.toml` declares that GitHub lacks or carries under another color or description once you confirm it, and lists each live label the registry leaves out* |
+| `mise rulesets` | *Applies the rulesets under `.github/rulesets/`, then the repository settings `.github/settings.toml` declares, once you confirm them* |
 | `mise ci` | *Runs the lockfile check, the workflow audit, the formatter's check, and the suite under coverage in one sweep* |
 
 ## Reinforcement Learning
@@ -151,6 +153,7 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 | **Subpackage** | **What It Holds** |
 |---|---|
 | `squirtl.cli` | *The `squirtl` command* |
+| `squirtl.repo` | *The records read from the label, ruleset, and settings registries under `.github/`, and the `gh` commands `mise labels` and `mise rulesets` send once you confirm them* |
 | `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, and the directory under `data/runs/` recording each run's settings, its commit, and the digest of `uv.lock`* |
 
 ## Metrics & Analysis

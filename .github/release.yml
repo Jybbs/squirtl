@@ -1,0 +1,16 @@
+changelog:
+  categories:
+    - title  : 🐛 Fixes
+      labels : [🐛 bug]
+    - title  : 🧢 Learning
+      labels : [🧢 agent, 🏅 evaluation]
+    - title  : 🎮 Game
+      labels : [🎮 emulator, 🌿 environment, 🍬 reward]
+    - title  : ⌨️ Command Line
+      labels : [⌨️ cli]
+    - title  : 📕 Docs
+      labels : [📕 docs]
+    - title  : 🔧 Build
+      labels : [🔧 build]
+    - title  : Other
+      labels : ["*"]

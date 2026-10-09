@@ -6,6 +6,20 @@ requires      = ["hatchling==1.32.4"]
 authors         = [{ name = "James Parkington" }]
 dependencies    = ["cyclopts", "numpy", "pydantic"]
 description     = "Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and PyTorch."
+keywords        = [
+    "deep-learning",
+    "deep-reinforcement-learning",
+    "dqn",
+    "gameboy",
+    "gymnasium",
+    "machine-learning",
+    "pokemon",
+    "pyboy",
+    "python",
+    "pytorch",
+    "q-learning",
+    "reinforcement-learning"
+]
 license         = "MIT"
 license-files   = ["LICENSE.md"]
 name            = "squirtl"
@@ -59,6 +73,7 @@ addopts                  = [
     "-m",
     "not network",
     "-ra",
+    "--snapshot-default-extension=common.snapshots.PlainFile",
     "--snapshot-dirname=fixtures"
 ]
 cache_dir                = ".cache/pytest"

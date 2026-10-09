@@ -6,10 +6,10 @@ running it, and the collection hook lets a test open a network connection
 only when it carries the `network` mark.
 """
 
-from collections.abc  import Iterable, Iterator
-from pytest           import FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, mark
-from syrupy.assertion import SnapshotAssertion
-from syrupy.extensions.single_file import SingleFileSnapshotExtension, WriteMode
+from collections.abc   import Callable, Iterable, Iterator
+from io                import StringIO
+from pytest            import FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, mark
+from pytest_subprocess import FakeProcess
 
 CLEARED = (
     "COLORTERM", "FORCE_COLOR", "GITHUB_ACTIONS", "GITHUB_OUTPUT",
@@ -18,16 +18,28 @@ CLEARED = (
 )
 
 
-class PlainFile(SingleFileSnapshotExtension):
+@fixture
+def answered(fp: FakeProcess, monkeypatch: MonkeyPatch) -> Callable[[str], None]:
     """
-    Writes each snapshot as a plain text file at
-    `fixtures/<module>/<test>.txt` beside the tests that read it, the
-    `fixtures` directory named by the `--snapshot-dirname` option in
-    `[tool.pytest]`.
+    Builds a function that types `reply` at the prompt `Plan.apply` raises,
+    putting it on standard input, and has `gh api` name `Jybbs/squirtl` as
+    the repository that prompt names.
     """
+    def answer(reply: str):
+        """
+        Puts `reply` on standard input and answers the read of the
+        repository's name.
+        """
+        fp.register(
+            [
+                "gh", "api", "repos/{owner}/{repo}", "--method",
+                "GET", "--jq", ".full_name"
+            ],
+            stdout = "Jybbs/squirtl\n"
+        )
+        monkeypatch.setattr("sys.stdin", StringIO(reply))
 
-    _write_mode    = WriteMode.TEXT
-    file_extension = "txt"
+    return answer
 
 
 @fixture(params=CLEARED, scope="module")
@@ -86,10 +98,3 @@ def pytest_collection_modifyitems(items: Iterable[Item]):
         if item.get_closest_marker("network"):
             item.add_marker(mark.enable_socket)
 
-
-@fixture
-def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
-    """
-    Routes every snapshot through the plain-file extension.
-    """
-    return snapshot.use_extension(PlainFile)
