@@ -13,10 +13,11 @@ Pins the agent, each training step on the CPU under a fixed seed, covering:
 """
 
 from collections.abc     import Callable
+from copy                import deepcopy
 from numpy               import ndarray
 from pytest              import MonkeyPatch, approx, mark, param
 from torch               import allclose, as_tensor, equal, full, get_rng_state, is_inference_mode_enabled, manual_seed
-from torch               import no_grad
+from torch               import no_grad, ones_like
 from torch.nn.functional import huber_loss
 from torch.nn.utils      import parameters_to_vector
 
@@ -76,7 +77,7 @@ def test_an_update_waits_for_replay_to_hold_a_batch(
 @mark.parametrize(
     ("terminated", "target"),
     [
-        param(False, 1.99, id="a-step-the-episode-goes-on-from"),
+        param(False, 1.5,  id="a-step-the-episode-goes-on-from"),
         param(True,  1.0,  id="a-terminated-step")
     ]
 )
@@ -88,20 +89,21 @@ def test_an_update_targets_each_reward_plus_the_discounted_value_that_follows(
     terminated  : bool
 ):
     """
-    Asserts that an update moves each value toward its reward of one plus
-    0.99 times the highest value the target network gives the observation
-    reached, which a target network whose last layer has zero weights and
-    a bias of one puts at one, so 1.99, and toward the reward of one alone
-    where the step terminated the episode.
+    Asserts that an update draws a batch of `batch_size` and moves each
+    value toward its reward of one plus `discount` times the highest value
+    the target network gives the observation reached, which a target network
+    whose last layer has zero weights and a bias of one puts at one, so
+    1.5 for a batch of 8 at a discount of 0.5, and toward the reward of one
+    alone where the step terminated the episode.
     """
-    agent   = build()
+    agent   = build(batch_size=8, discount=0.5)
     targets = []
 
     with no_grad():
         agent.target[-1].weight.zero_()
         agent.target[-1].bias.fill_(1)
 
-    play(agent, 32, terminated)
+    play(agent, 8, terminated)
     monkeypatch.setattr(
         "squirtl.agent.learner.huber_loss",
         lambda values, given: targets.append(given) or huber_loss(values, given)
@@ -109,7 +111,7 @@ def test_an_update_targets_each_reward_plus_the_discounted_value_that_follows(
 
     agent.update()
 
-    assert allclose(targets[0], full((32,), target))
+    assert allclose(targets[0], full((8,), target))
 
 
 @mark.parametrize(
@@ -174,25 +176,28 @@ def test_the_target_copies_the_online_network_every_sync_steps(
 
 
 @mark.parametrize(
-    ("step", "epsilon"),
+    ("fraction", "step", "epsilon"),
     [
-        param(0,    1.0,   id="the-first-step"),
-        param(50,   0.505, id="halfway-through-exploration"),
-        param(100,  0.01,  id="the-end-of-exploration"),
-        param(1000, 0.01,  id="the-last-step")
+        param(0.1, 0,    1.0,   id="the-first-step"),
+        param(0.1, 50,   0.505, id="halfway-through-exploration"),
+        param(0.1, 100,  0.01,  id="the-end-of-exploration"),
+        param(0.1, 1000, 0.01,  id="the-last-step"),
+        param(0.5, 250,  0.505, id="halfway-through-half-the-run")
     ]
 )
-def test_the_chance_of_a_random_action_falls_over_the_first_tenth_of_the_run(
-    build   : Callable[..., Agent],
-    epsilon : float,
-    step    : int
+def test_the_chance_of_a_random_action_falls_over_the_exploration_fraction(
+    build    : Callable[..., Agent],
+    epsilon  : float,
+    fraction : float,
+    step     : int
 ):
     """
     Asserts that the chance of a random action falls linearly from 1.0 to
-    0.01 over the first tenth of a 1,000-step run, counted in environment
-    steps, and holds at 0.01 after it.
+    0.01 over the `exploration_fraction` of a 1,000-step run, its first
+    tenth by default, counted in environment steps, and holds at 0.01 after
+    it.
     """
-    agent      = build()
+    agent      = build(exploration_fraction=fraction)
     agent.step = step
 
     assert agent.epsilon == approx(epsilon)
@@ -310,17 +315,77 @@ def test_an_update_clips_the_gradient_norm_at_max_grad_norm(
     play  : Callable[..., None]
 ):
     """
-    Asserts that an update clips its gradient to a norm of `max_grad_norm`
-    before Adam steps, the gradient staying on each parameter afterward.
+    Asserts that the gradient Adam steps on carries a norm of
+    `max_grad_norm`, read through a hook that runs before the step.
     """
     agent = build(max_grad_norm=1e-3)
+    norms = []
     play(agent, 32)
+    agent.optimizer.register_step_pre_hook(
+        lambda *_: norms.append(
+            parameters_to_vector(
+                parameter.grad for parameter in agent.online.parameters()
+            ).norm().item()
+        )
+    )
 
     agent.update()
 
-    assert parameters_to_vector(
-        parameter.grad for parameter in agent.online.parameters()
-    ).norm().item() == approx(1e-3, rel=1e-4)
+    assert norms == [approx(1e-3, rel=1e-4)]
+
+
+def test_an_update_computes_its_gradient_afresh(
+    build : Callable[..., Agent],
+    play  : Callable[..., None]
+):
+    """
+    Asserts that an update leaves each parameter holding the gradient of its
+    own batch alone, whatever gradient the parameter held before it.
+    """
+    agent = build()
+    play(agent, 32)
+    twin = deepcopy(agent)
+
+    for parameter in agent.online.parameters():
+        parameter.grad = ones_like(parameter)
+
+    agent.update()
+    twin.update()
+
+    assert equal(
+        parameters_to_vector(parameter.grad for parameter in agent.online.parameters()),
+        parameters_to_vector(parameter.grad for parameter in twin.online.parameters())
+    )
+
+
+@mark.parametrize(
+    ("setting", "value", "read"),
+    [
+        param(
+            "capacity",
+            64,
+            lambda agent: len(agent.replay.frames),
+            id = "the-frames-replay-memory-holds"
+        ),
+        param(
+            "learning_rate",
+            3e-4,
+            lambda agent: agent.optimizer.param_groups[0]["lr"],
+            id = "adams-learning-rate"
+        )
+    ]
+)
+def test_the_agent_builds_on_the_settings_it_is_given(
+    build   : Callable[..., Agent],
+    read    : Callable[[Agent], object],
+    setting : str,
+    value   : object
+):
+    """
+    Asserts that the agent sizes replay memory and sets Adam's learning rate
+    from the settings it is built with rather than from any default.
+    """
+    assert read(build(**{setting: value})) == value
 
 
 @mark.parametrize(

@@ -93,7 +93,7 @@ $`\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} 
 
 Where:
 
-- $`y = r + \gamma \max_{a'} Q(s', a'; \theta^-)`$ is the target Q-value, or $`y = r`$ where the step ends the episode
+- $`y = r + \gamma \max_{a'} Q(s', a'; \theta^-)`$ is the target Q-value, or $`y = r`$ where the step terminates the episode, whereas a step the time limit cuts short keeps the discounted term
 - $`\theta`$ are the parameters of the online network
 - $`\theta^-`$ are the parameters of the target network
 - $`U(D)`$ is a uniform distribution over the replay buffer D
