@@ -4,7 +4,7 @@ requires      = ["hatchling==1.32.4"]
 
 [project]
 authors         = [{ name = "James Parkington" }]
-dependencies    = ["cyclopts", "numpy", "pydantic"]
+dependencies    = ["cyclopts", "numpy", "pyboy", "pydantic"]
 description     = "Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and PyTorch."
 license         = "MIT"
 license-files   = ["LICENSE.md"]
@@ -63,7 +63,10 @@ addopts                  = [
 ]
 cache_dir                = ".cache/pytest"
 empty_parameter_set_mark = "fail_at_collect"
-filterwarnings           = ["error"]
+filterwarnings           = [
+    "error",
+    "ignore:Using SDL2 binaries from pysdl2-dll:UserWarning:sdl2._internal"
+]
 markers                  = [
     "network: reaches a service over the network, so the default run deselects it and a selected run lets it open a connection",
     "slow: runs longer than a few seconds, so a fast local run deselects it"
