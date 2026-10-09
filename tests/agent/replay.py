@@ -13,7 +13,7 @@ from itertools       import pairwise
 from numpy           import arange, ndarray, uint8
 from numpy.random    import default_rng
 from pytest          import mark, param
-from torch           import equal
+from torch.testing   import assert_close
 
 from squirtl.agent.replay  import Replay
 from squirtl.agent.schemas import AgentSettings
@@ -111,4 +111,4 @@ def test_replay_draws_each_batch_from_the_generator_it_is_built_with(
 
     first, second = (replay.sample("cpu", 32) for replay in replays)
 
-    assert all(map(equal, vars(first).values(), vars(second).values()))
+    assert_close(vars(first), vars(second), atol=0, rtol=0)

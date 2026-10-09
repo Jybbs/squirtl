@@ -245,15 +245,11 @@ def test_a_restored_agent_keeps_training_from_the_saved_state(
     restored = resume(saved)
 
     assert restored.step == saved.step
-    assert all(
-        equal(
-            parameters_to_vector(mine.parameters()),
-            parameters_to_vector(theirs.parameters())
-        )
-        for mine, theirs in (
-            (restored.online, saved.online),
-            (restored.target, saved.target)
-        )
+    assert_close(
+        (restored.online.state_dict(), restored.target.state_dict()),
+        (saved.online.state_dict(), saved.target.state_dict()),
+        atol = 0,
+        rtol = 0
     )
 
     play(restored, 32)

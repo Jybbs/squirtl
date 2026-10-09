@@ -6,8 +6,9 @@ absence of any layer whose output depends on the batch or the mode.
 
 from pytest           import mark, param
 from syrupy.assertion import SnapshotAssertion
-from torch            import allclose, equal, manual_seed, randint, uint8
+from torch            import equal, manual_seed, randint, uint8
 from torch.nn         import Sequential
+from torch.testing    import assert_close
 
 from squirtl.agent.networks import QNetwork
 
@@ -64,4 +65,4 @@ def test_the_network_values_a_stack_alike_in_training_and_in_evaluation():
     trained      = network.train()(observations)
 
     assert equal(network.eval()(observations), trained)
-    assert allclose(network(observations[:1]), trained[:1], atol=1e-6)
+    assert_close(network(observations[:1]), trained[:1])
