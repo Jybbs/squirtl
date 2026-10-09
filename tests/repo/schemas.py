@@ -282,16 +282,17 @@ def test_the_ruleset_plan_updates_a_live_ruleset_and_creates_any_other(
     "fields",
     [
         param({"targets": "tag"}, id="misspelled-key"),
-        param({"target": "tags"}, id="unknown-target")
+        param({"target": "tags"}, id="unknown-target"),
+        param({"enforcement": "on"}, id="unknown-enforcement")
     ]
 )
-def test_a_ruleset_refuses_a_key_or_a_target_github_does_not_take(
+def test_a_ruleset_refuses_a_key_or_a_value_github_does_not_take(
     checkout : Callable[[Mapping[str, str]], None],
     fields   : dict[str, str],
     ruleset  : Callable[..., str]
 ):
     """
-    Pins that a ruleset file holding a key no field declares or a target
+    Pins that a ruleset file holding a key no field declares or a value
     GitHub does not take fails the read before anything is sent.
     """
     checkout({".github/rulesets/main.json": ruleset(**fields)})
@@ -305,7 +306,10 @@ def test_a_ruleset_refuses_a_key_or_a_target_github_does_not_take(
     [
         param(("has_wiki ", "has_wikis = false\nhas_wiki "), id="unknown-field"),
         param(("has_issues", "#has_issues"), id="missing-field"),
-        param(('"read"', '"none"'), id="unknown-value"),
+        param(('"all"', '"every"'), id="unknown-allowed-actions"),
+        param(('"enabled" }', '"on" }'), id="unknown-feature-status"),
+        param(('"PR_TITLE"', '"TITLE"'), id="unknown-squash-title"),
+        param(('"read"', '"none"'), id="unknown-token-permission"),
         param(
             ("[workflow]", '[project]\ndescription = "x"\n\n[workflow]'),
             id = "project-table"
@@ -324,6 +328,15 @@ def test_the_settings_refuse_a_table_or_a_field_no_record_declares(
     """
     with raises(ValidationError):
         settings(rewrite)
+
+
+def test_the_settings_refuse_an_assignment_once_read(settings: Callable[..., Settings]):
+    """
+    Pins that the settings record refuses an assignment once read, down to a
+    field of one of its tables.
+    """
+    with raises(ValidationError):
+        settings().repository.has_wiki = True
 
 
 def test_the_settings_send_every_setting_in_the_order_the_endpoints_take(

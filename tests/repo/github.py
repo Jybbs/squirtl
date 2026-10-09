@@ -93,20 +93,32 @@ def test_api_addresses_the_repository_or_a_path_under_it(address: str, path: str
     )
 
 
+@mark.parametrize(
+    ("strays", "listing"),
+    [
+        param((), "", id="no-stray"),
+        param(
+            ("the label 🔥 old",),
+            "Left as they are, since no file under .github/ declares them:\n"
+            "  the label 🔥 old\n",
+            id = "a-stray"
+        )
+    ]
+)
 def test_a_plan_holding_no_write_asks_nothing(
-    capsys : CaptureFixture[str],
-    fp     : FakeProcess
+    capsys  : CaptureFixture[str],
+    fp      : FakeProcess,
+    listing : str,
+    strays  : tuple[str, ...]
 ):
     """
-    Pins that a plan holding strays and no write lists the strays, says
-    GitHub already matches, and exits 0 without reading the repository's
-    name or raising a prompt.
+    Pins that a plan holding no write lists any strays it holds, says GitHub
+    already matches, and exits 0 without reading the repository's name or
+    raising a prompt.
     """
-    assert Plan(strays=("the label 🔥 old",)).apply() == 0
+    assert Plan(strays=strays).apply() == 0
     assert capsys.readouterr().out == (
-        "Left as they are, since no file under .github/ declares them:\n"
-        "  the label 🔥 old\n"
-        "GitHub already matches the files under .github/\n"
+        listing + "GitHub already matches the files under .github/\n"
     )
     assert list(fp.calls) == []
 

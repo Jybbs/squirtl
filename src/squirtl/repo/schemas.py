@@ -502,7 +502,8 @@ class SecurityAndAnalysis(Schema):
 
     secret_scanning: Feature
     """
-    Whether GitHub scans each push for a secret a known provider issues.
+    Whether GitHub scans the repository's history on every branch for a
+    secret a known provider issues.
     """
 
     secret_scanning_push_protection: Feature
@@ -514,7 +515,8 @@ class SecurityAndAnalysis(Schema):
 class Settings(Registry):
     """
     The repository settings `file` declares, one table per endpoint keyed
-    by the REST field names, beside the `[project]` table they read the
+    by the REST field names beside a `[dependabot]` table keyed by the two
+    endpoints it turns on or off, and the `[project]` table they read the
     description, the homepage, and the topics from.
     """
 
@@ -582,7 +584,7 @@ class WorkflowPermissions(Schema):
 
     can_approve_pull_request_reviews: bool
     """
-    Whether the token may approve a pull request.
+    Whether the token may open or approve a pull request.
     """
 
     default_workflow_permissions: Literal["read", "write"]

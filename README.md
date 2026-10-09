@@ -153,6 +153,7 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 | **Subpackage** | **What It Holds** |
 |---|---|
 | `squirtl.cli` | *The `squirtl` command* |
+| `squirtl.repo` | *The records read from the label, ruleset, and settings registries under `.github/`, and the `gh` commands `mise labels` and `mise rulesets` send once you confirm them* |
 | `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, and the directory under `data/runs/` recording each run's settings, its commit, and the digest of `uv.lock`* |
 
 ## Metrics & Analysis
