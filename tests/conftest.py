@@ -6,8 +6,9 @@ running it, and the collection hook lets a test open a network connection
 only when it carries the `network` mark.
 """
 
-from collections.abc   import Callable, Iterable, Iterator
+from collections.abc   import Callable, Iterable, Iterator, Mapping
 from io                import StringIO
+from pathlib           import Path
 from pytest            import FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, mark
 from pytest_subprocess import FakeProcess
 
@@ -40,6 +41,28 @@ def answered(fp: FakeProcess, monkeypatch: MonkeyPatch) -> Callable[[str], None]
         monkeypatch.setattr("sys.stdin", StringIO(reply))
 
     return answer
+
+
+@fixture
+def checkout(
+    monkeypatch : MonkeyPatch,
+    tmp_path    : Path
+) -> Callable[[Mapping[str, str]], None]:
+    """
+    Builds a writer that makes `tmp_path` the working directory and writes
+    each file a case names there, under its path relative to that directory.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    def write(files: Mapping[str, str]):
+        """
+        Writes each of `files`, a path beside the text it holds.
+        """
+        for path, text in files.items():
+            (file := tmp_path / path).parent.mkdir(exist_ok=True, parents=True)
+            file.write_text(text, encoding="utf-8")
+
+    return write
 
 
 @fixture(params=CLEARED, scope="module")

@@ -8,9 +8,9 @@ Pins what each registry record reads and the plan it derives, covering:
   they refuse once read, and the order the settings send in
 - The homepage the project writes without its scheme
 
-Each case writes the files it reads into a checkout under `tmp_path`, and
-the `fp` fixture pytest-subprocess provides answers every `gh` read, so no
-case reaches GitHub.
+Each case writes the files it reads under `tmp_path` through the `checkout`
+fixture, and the `fp` fixture pytest-subprocess provides answers every `gh`
+read, so no case reaches GitHub.
 """
 
 from collections.abc   import Callable, Mapping
@@ -18,33 +18,11 @@ from http              import HTTPMethod
 from json              import dumps, loads
 from pathlib           import Path
 from pydantic          import ValidationError
-from pytest            import MonkeyPatch, fixture, mark, param, raises
+from pytest            import fixture, mark, param, raises
 from pytest_subprocess import FakeProcess
 
 from squirtl.repo.github  import Command
 from squirtl.repo.schemas import Label, Labels, Project, Rulesets, Settings
-
-
-@fixture
-def checkout(
-    monkeypatch : MonkeyPatch,
-    tmp_path    : Path
-) -> Callable[[Mapping[str, str]], None]:
-    """
-    Builds a writer that makes `tmp_path` the working directory and writes
-    each file a case names there, under its path relative to that directory.
-    """
-    monkeypatch.chdir(tmp_path)
-
-    def write(files: Mapping[str, str]):
-        """
-        Writes each of `files`, a path beside the text it holds.
-        """
-        for path, text in files.items():
-            (file := tmp_path / path).parent.mkdir(exist_ok=True, parents=True)
-            file.write_text(text, encoding="utf-8")
-
-    return write
 
 
 @fixture

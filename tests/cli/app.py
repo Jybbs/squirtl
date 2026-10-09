@@ -12,7 +12,7 @@ Pins what the `squirtl` command itself defines, covering:
    - Reading the settings writes nothing
 """
 
-from collections.abc    import Callable
+from collections.abc    import Callable, Mapping
 from cyclopts           import App, Parameter, UnknownOptionError, UnusedCliTokensError
 from dataclasses        import dataclass
 from importlib.metadata import EntryPoint, entry_points, version
@@ -59,13 +59,12 @@ def invoke(capsys: CaptureFixture[str]) -> Invoker:
 
 
 @fixture
-def read(monkeypatch: MonkeyPatch, tmp_path: Path) -> Reader:
+def read(checkout: Callable[[Mapping[str, str]], None]) -> Reader:
     """
     Builds a reader that parses `argv` the way a command taking
-    `RunSettings` would, through the configuration the app reads, with
-    `tmp_path` as the working directory.
+    `RunSettings` would, through the configuration the app reads, in the
+    working directory `checkout` makes of `tmp_path`.
     """
-    monkeypatch.chdir(tmp_path)
     probe = App(config=app.config, default_parameter=app.default_parameter)
 
     @probe.command
@@ -81,13 +80,13 @@ def read(monkeypatch: MonkeyPatch, tmp_path: Path) -> Reader:
 
     def parse(argv: list[str], manifest: str | None) -> RunSettings:
         """
-        Writes `manifest` as the working directory's `pyproject.toml`
-        unless it is `None`, then parses `argv` into the settings a command
-        receives. A parse cyclopts rejects raises its error rather than
-        exiting.
+        Writes `manifest` as the `pyproject.toml` of `tmp_path` through
+        `checkout` unless it is `None`, then parses `argv` into the settings
+        a command receives. A parse cyclopts rejects raises its error rather
+        than exiting.
         """
         if manifest is not None:
-            (tmp_path / "pyproject.toml").write_text(manifest, encoding="utf-8")
+            checkout({"pyproject.toml": manifest})
 
         return probe(
             ["received", *argv],

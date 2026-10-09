@@ -10,6 +10,7 @@ Pins the records one run reads and writes, covering:
   there, and the run a resumed one names
 """
 
+from collections.abc  import Callable, Mapping
 from datetime         import UTC, datetime
 from hashlib          import sha256
 from json             import loads
@@ -97,6 +98,7 @@ def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
     assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
 
 
+@mark.usefixtures("clone")
 @mark.parametrize(
     ("path", "dirty"),
     [
@@ -106,18 +108,16 @@ def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
     ]
 )
 def test_a_revision_is_dirty_wherever_git_reports_a_change(
-    clone : Path,
-    dirty : bool,
-    path  : str
+    checkout : Callable[[Mapping[str, str]], None],
+    dirty    : bool,
+    path     : str
 ):
     """
     Asserts that an untracked file and a change to a tracked one each mark
     the revision dirty, whereas a file under `data/`, which `.gitignore`
     covers and which holds everything a run writes, leaves it clean.
     """
-    written = clone / path
-    written.parent.mkdir(exist_ok=True, parents=True)
-    written.write_text("changed\n", encoding="utf-8")
+    checkout({path: "changed\n"})
 
     assert Revision.checked_out().dirty is dirty
 
@@ -229,8 +229,9 @@ def test_a_run_name_reads_back_as_the_instant_it_started(
     assert datetime.fromisoformat(name) == started
 
 
+@mark.usefixtures("clone")
 def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
-    clone       : Path,
+    checkout    : Callable[[Mapping[str, str]], None],
     monkeypatch : MonkeyPatch
 ):
     """
@@ -240,7 +241,7 @@ def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
     monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
     monkeypatch.setenv("GIT_CONFIG_KEY_0", "status.showUntrackedFiles")
     monkeypatch.setenv("GIT_CONFIG_VALUE_0", "no")
-    (clone / "notes.md").write_text("changed\n", encoding="utf-8")
+    checkout({"notes.md": "changed\n"})
 
     assert Revision.checked_out().dirty
 

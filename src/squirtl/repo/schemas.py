@@ -1,10 +1,11 @@
 """
 Defines the records the `repo:labels` and `repo:rulesets` tasks read from
-the registries under `.github/` and from `pyproject.toml`, each registry
-deriving the `Plan` that brings GitHub in line with it:
+the registries under `.github/` and from `pyproject.toml`, each built on the
+`Schema` that `squirtl.repo.github` defines and each registry deriving the
+`Plan` that brings GitHub in line with it:
 
-- `Schema`, the base each record builds on, and `Registry`, the base of a
-  registry one TOML file holds
+- `Registry`, the base of a registry one TOML file holds, and `Endpoint`,
+  the base of a table sent whole as the body of a `PUT`
 - `Label` and `Labels`, the label registry
 - `Ruleset` and `Rulesets`, the rulesets, beside `GithubRuleset`
 - `Settings` and a record for each of its tables, beside `Project`
@@ -15,55 +16,11 @@ from functools       import cached_property
 from http            import HTTPMethod
 from itertools       import chain
 from pathlib         import Path
-from pydantic        import BaseModel, Field, HttpUrl, JsonValue, StringConstraints, TypeAdapter
+from pydantic        import Field, HttpUrl, JsonValue, StringConstraints
 from tomllib         import loads
 from typing          import Annotated, ClassVar, Literal, Self
 
-from squirtl.repo.github import Command, Plan
-
-
-class Schema(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True):
-    """
-    The base each record this module reads builds on, which refuses an
-    assignment once built and takes the docstring beneath each field as
-    its description. A registry's record refuses a key no field declares,
-    so a misspelled key fails the read before anything is sent, whereas a
-    record of what GitHub or the manifest returns ignores the keys it does
-    not read.
-    """
-
-
-class ActionsPermissions(Schema):
-    """
-    The `[actions]` table, the body of the request that sets which actions a
-    workflow may run.
-    """
-
-    allowed_actions: Literal["all", "local_only", "selected"]
-    """
-    The actions a workflow may run, as GitHub names the choice.
-    """
-
-    enabled: bool
-    """
-    Whether GitHub Actions runs on the repository at all.
-    """
-
-    sha_pinning_required: bool
-    """
-    Whether a workflow may run only an action pinned to a full commit SHA.
-    """
-
-    @property
-    def command(self) -> Command:
-        """
-        Builds the `PUT` that sets which actions a workflow may run.
-        """
-        return Command.api(
-            "actions/permissions",
-            body   = self.model_dump(),
-            method = HTTPMethod.PUT
-        )
+from squirtl.repo.github import Command, Plan, Schema
 
 
 class Dependabot(Schema):
@@ -96,6 +53,22 @@ class Dependabot(Schema):
             )
             for endpoint, enabled in self.model_dump(by_alias=True).items()
         )
+
+
+class Endpoint(Schema):
+    """
+    The base of a table sent whole as the body of the `PUT` to `path` under
+    the repository.
+    """
+
+    path: ClassVar[str]
+
+    @property
+    def command(self) -> Command:
+        """
+        Builds the `PUT` that sends the table to `path`.
+        """
+        return Command.api(self.path, body=self.model_dump(), method=HTTPMethod.PUT)
 
 
 class Feature(Schema):
@@ -243,6 +216,62 @@ class Registry(Schema):
         return cls.model_validate(loads(cls.file.read_text(encoding="utf-8")))
 
 
+class Ruleset(Schema):
+    """
+    One ruleset a file under `.github/rulesets/` declares, as the body of
+    the request that creates or updates it.
+    """
+
+    bypass_actors: list[dict[str, JsonValue]]
+    """
+    The actors the ruleset lets past its rules.
+    """
+
+    conditions: dict[str, JsonValue]
+    """
+    The refs the ruleset covers.
+    """
+
+    enforcement: Literal["active", "disabled", "evaluate"]
+    """
+    Whether GitHub enforces the rules, only reports them, or ignores them.
+    """
+
+    name: str
+    """
+    The name GitHub carries the ruleset under, which an update matches on.
+    """
+
+    rules: list[dict[str, JsonValue]]
+    """
+    The rules the ruleset enforces, each keyed by its `type`.
+    """
+
+    target: Literal["branch", "push", "tag"]
+    """
+    The kind of ref the ruleset covers.
+    """
+
+    def command(self, live: Mapping[str, int]) -> Command:
+        """
+        Builds the `PUT` that updates in place the ruleset whose id `live`
+        maps this one's name to, or the `POST` that creates this one where
+        `live` holds no such name.
+        """
+        if (existing := live.get(self.name)) is None:
+            return Command.api(
+                "rulesets",
+                body   = self.model_dump(),
+                method = HTTPMethod.POST
+            )
+
+        return Command.api(
+            f"rulesets/{existing}",
+            body   = self.model_dump(),
+            method = HTTPMethod.PUT
+        )
+
+
 class Repository(Schema):
     """
     The `[repository]` table, the body of the request that updates the
@@ -316,60 +345,28 @@ class Repository(Schema):
     """
 
 
-class Ruleset(Schema):
+class ActionsPermissions(Endpoint):
     """
-    One ruleset a file under `.github/rulesets/` declares, as the body of
-    the request that creates or updates it.
-    """
-
-    bypass_actors: list[dict[str, JsonValue]]
-    """
-    The actors the ruleset lets past its rules.
+    The `[actions]` table, the body of the request that sets which actions a
+    workflow may run.
     """
 
-    conditions: dict[str, JsonValue]
+    path: ClassVar[str] = "actions/permissions"
+
+    allowed_actions: Literal["all", "local_only", "selected"]
     """
-    The refs the ruleset covers.
+    The actions a workflow may run, as GitHub names the choice.
     """
 
-    enforcement: Literal["active", "disabled", "evaluate"]
+    enabled: bool
     """
-    Whether GitHub enforces the rules, only reports them, or ignores them.
-    """
-
-    name: str
-    """
-    The name GitHub carries the ruleset under, which an update matches on.
+    Whether GitHub Actions runs on the repository at all.
     """
 
-    rules: list[dict[str, JsonValue]]
+    sha_pinning_required: bool
     """
-    The rules the ruleset enforces, each keyed by its `type`.
+    Whether a workflow may run only an action pinned to a full commit SHA.
     """
-
-    target: Literal["branch", "push", "tag"]
-    """
-    The kind of ref the ruleset covers.
-    """
-
-    def command(self, live: Mapping[str, int]) -> Command:
-        """
-        Builds the `PUT` that updates in place the ruleset whose id `live`
-        maps this one's name to, or the `POST` that creates this one where
-        `live` holds no such name.
-        """
-        if (existing := live.get(self.name)) is None:
-            return Command.api(
-                "rulesets",
-                body   = self.model_dump(),
-                method = HTTPMethod.POST
-            )
-
-        return Command.api(
-            f"rulesets/{existing}",
-            body   = self.model_dump(),
-            method = HTTPMethod.PUT
-        )
 
 
 class Labels(Registry):
@@ -404,15 +401,13 @@ class Labels(Registry):
         carries, as `gh label list` returns them, keyed by the label's name.
         """
         # Without `--limit`, `gh label list` returns at most 30 labels.
-        rows = TypeAdapter(list[dict[str, str]]).validate_json(
-            Command(
-                arguments = (
-                    "label", "list", "--json",
-                    ",".join(Label.model_fields),
-                    "--limit", "1000"
-                )
-            ).output()
-        )
+        rows = Command(
+            arguments = (
+                "label", "list", "--json",
+                ",".join(Label.model_fields),
+                "--limit", "1000"
+            )
+        ).parsed(list[dict[str, str]])
 
         return {row["name"]: row for row in rows}
 
@@ -457,13 +452,11 @@ class Rulesets(Schema):
         of GitHub's listing, keyed by its name, leaving out a ruleset the
         repository inherits from an organization.
         """
-        pages = TypeAdapter(list[list[GithubRuleset]]).validate_json(
-            Command.api(
-                "rulesets?includes_parents=false",
-                "--paginate",
-                "--slurp"
-            ).output()
-        )
+        pages = Command.api(
+            "rulesets?includes_parents=false",
+            "--paginate",
+            "--slurp"
+        ).parsed(list[list[GithubRuleset]])
 
         return {ruleset.name: ruleset.id for ruleset in chain.from_iterable(pages)}
 
@@ -576,11 +569,13 @@ class Settings(Registry):
         return Project.read()
 
 
-class WorkflowPermissions(Schema):
+class WorkflowPermissions(Endpoint):
     """
     The `[workflow]` table, the body of the request that sets what the token
     each workflow run receives may do.
     """
+
+    path: ClassVar[str] = "actions/permissions/workflow"
 
     can_approve_pull_request_reviews: bool
     """
@@ -591,15 +586,3 @@ class WorkflowPermissions(Schema):
     """
     Whether the token may write to the repository or only read it.
     """
-
-    @property
-    def command(self) -> Command:
-        """
-        Builds the `PUT` that sets what the token each workflow run receives
-        may do.
-        """
-        return Command.api(
-            "actions/permissions/workflow",
-            body   = self.model_dump(),
-            method = HTTPMethod.PUT
-        )
