@@ -1,7 +1,7 @@
 """
 Defines the records the emulator reads:
 
-- `Record`, the base every record in the package builds on
+- `Record`, the base of a frozen record refusing a key no field declares
 - `Button`, the buttons a step presses
 - `Edition`, the releases of the game whose layout pret/pokered rebuilds
 - `Symbol`, the addresses in the game's memory the package reads
@@ -44,9 +44,9 @@ class Edition(StrEnum):
 
 class Record(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True):
     """
-    The base every record in the package builds on, which refuses a key no
-    field declares and an assignment once built, and takes the docstring
-    beneath each field as that field's description.
+    The base of a frozen record, which refuses a key no field declares and
+    an assignment once built, and takes the docstring beneath each field as
+    that field's description.
     """
 
 
@@ -58,7 +58,8 @@ class Symbol(IntEnum):
 
     - `W_CUR_MAP`, the map the player stands on
     - `W_EVENT_FLAGS`, the first byte of the flag array recording each event
-    - `W_X_COORD` and `W_Y_COORD`, the tile the player stands on in that map
+    - `W_X_COORD` and `W_Y_COORD`, the square of 2x2 tiles the player stands
+      on in that map
     """
 
     W_CUR_MAP     = 0xD35E
@@ -148,9 +149,9 @@ class EmulatorSettings(Record):
 
     open_window: bool = False
     """
-    Whether PyBoy draws the game in an SDL2 window in real time, where
-    otherwise a run draws nothing and advances frames as fast as the
-    machine allows.
+    Whether PyBoy draws the last frame of each step in an SDL2 window,
+    pacing the steps at sixty a second, where otherwise a run draws nothing
+    and advances as fast as the machine allows.
     """
 
     @property

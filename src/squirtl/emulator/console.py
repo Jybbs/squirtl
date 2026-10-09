@@ -116,8 +116,9 @@ class GameBoy(AbstractContextManager):
 
         Handed bytes, PyBoy derives no path to a `.ram`, `.rtc`, or `.sym`
         file and reads none beside the cartridge. It logs errors alone,
-        since at its default level it warns at every boot that Pillow, which
-        only its image plugins read, is missing.
+        since at its default level it warns at every boot that Pillow,
+        which only the screen's `image` and its recording plugins read,
+        is missing.
         """
         return cls(
             PyBoy(
@@ -142,8 +143,9 @@ class GameBoy(AbstractContextManager):
         """
         Stops the emulator without saving, since PyBoy's default `stop()`
         writes the cartridge's battery RAM to a file beside the cartridge's
-        path and raises for a cartridge handed over as bytes, which has
-        none.
+        path, and for a cartridge handed over as bytes, which has none, it
+        prints the `TypeError` that building the path raises and leaves the
+        emulator running.
         """
         self.emulator.stop(save=False)
 

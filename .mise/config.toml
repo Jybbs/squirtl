@@ -1,7 +1,7 @@
 min_version = "2026.9.18"
 
 [doctor.checks.cartridge]
-description = "`data/rom.gb` holds a cartridge, the place a run reads the user's own ROM of Pokémon Red or Blue from"
+description = "A file sits at `data/rom.gb`, the place a run reads the user's own ROM of Pokémon Red or Blue from"
 hint        = "Copy your own ROM of the English Pokémon Red or Blue to `data/rom.gb`, which `.gitignore` keeps out of the repository, and a run refuses any other ROM there with a message naming the SHA-1 it found."
 run         = "test -f data/rom.gb"
 timeout     = "5s"

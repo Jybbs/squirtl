@@ -11,7 +11,7 @@
     },
     "open_window": {
       "default": false,
-      "description": "Whether PyBoy draws the game in an SDL2 window in real time, where\notherwise a run draws nothing and advances frames as fast as the\nmachine allows.",
+      "description": "Whether PyBoy draws the last frame of each step in an SDL2 window,\npacing the steps at sixty a second, where otherwise a run draws nothing\nand advances as fast as the machine allows.",
       "title": "Open Window",
       "type": "boolean"
     }

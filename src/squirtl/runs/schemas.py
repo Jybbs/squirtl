@@ -13,7 +13,7 @@ from hashlib      import sha256
 from numpy        import uint64
 from numpy.random import SeedSequence
 from pathlib      import Path
-from pydantic     import AwareDatetime, NonNegativeInt, StringConstraints
+from pydantic     import AwareDatetime, Field, NonNegativeInt, StringConstraints
 from subprocess   import check_output
 from typing       import Annotated, Self
 
@@ -95,7 +95,7 @@ class RunSettings(Record):
     fills one.
     """
 
-    emulator: EmulatorSettings = EmulatorSettings()
+    emulator: EmulatorSettings = Field(default_factory=EmulatorSettings)
     """
     The settings the emulator reads.
     """
