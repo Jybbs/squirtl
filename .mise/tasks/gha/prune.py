@@ -20,9 +20,6 @@ from typing      import Self
 def gh(*arguments: str) -> CompletedProcess[str]:
     """
     Runs `gh` with `arguments`, capturing both output streams as text.
-
-    Returns:
-        The finished process.
     """
     return run(["gh", *arguments], capture_output=True, text=True)
 

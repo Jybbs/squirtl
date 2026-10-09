@@ -73,5 +73,5 @@ jobs:
         with : { tools: *package }
 
       - name : Write the summary and exit with the verdict
-        env  : { COMMIT: "${{ github.event.pull_request.head.sha || github.sha }}", NEEDS: "${{ toJSON(needs) }}" }
+        env  : { COMMIT: "${{ github.event.pull_request.head.sha }}", NEEDS: "${{ toJSON(needs) }}" }
         run  : mise run gha:brief
