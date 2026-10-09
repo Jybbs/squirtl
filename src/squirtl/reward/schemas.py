@@ -8,10 +8,12 @@ Defines the records the reward reads and writes:
 - `Score`, the reward one step earns, split by term
 """
 
-from enum     import IntEnum, StrEnum, auto
-from math     import fsum
-from pydantic import Field, model_validator
-from typing   import Annotated, Self
+from collections     import Counter
+from collections.abc import Mapping
+from enum            import IntEnum, StrEnum, auto
+from math            import fsum
+from pydantic        import Field, model_validator
+from typing          import Annotated, Self
 
 from squirtl.emulator.console import GameBoy
 from squirtl.emulator.schemas import Record, Symbol
@@ -133,18 +135,26 @@ class RewardSettings(Record):
     @property
     def ceiling(self) -> float:
         """
-        Sums what a step earns where it reaches a new position and first
-        sets every flag `Event` names at once, the most any step can earn,
-        rounding once at the end as `fsum` does, so terms summing to 1 in
-        decimal sum to 1.
+        Totals the shares of a step reaching a new position and first
+        setting every flag `Event` names at once, the most any step can
+        earn, since every other step earns each term no more often.
         """
-        return fsum([self.novelty, *(self.pay(event.term) for event in Event)])
+        earned = Counter([Term.NOVELTY, *(event.term for event in Event)])
+
+        return fsum(self.shares(earned).values())
 
     def pay(self, term: Term) -> float:
         """
         Reads what `term` pays a step.
         """
         return getattr(self, term)
+
+    def shares(self, earned: Mapping[Term, int]) -> dict[Term, float]:
+        """
+        Multiplies what each term pays by the number of times `earned`
+        counts it, giving zero for a term `earned` leaves out.
+        """
+        return {term: earned.get(term, 0) * self.pay(term) for term in Term}
 
     @model_validator(mode="after")
     def verify(self) -> Self:
@@ -166,7 +176,8 @@ class RewardSettings(Record):
         if self.ceiling > 1:
             raise ValueError(
                 f"a step reaching a new position and every event at once earns "
-                f"{self.ceiling:g}, past the 1 Mnih et al. clip each reward to"
+                f"{self.ceiling - 1:.3g} more than the 1 Mnih et al. clip each "
+                f"reward to"
             )
 
         return self

@@ -162,6 +162,16 @@ def test_a_step_reaching_a_new_position_and_a_milestone_earns_both(
     )
 
 
+@mark.parametrize(
+    "settings",
+    [
+        param(
+            RewardSettings(milestone=0.125, novelty=0.0625, starter=0.5),
+            id = "powers-of-two"
+        ),
+        param(RewardSettings(milestone=0.09, novelty=0.04, starter=0.69), id="decimals")
+    ]
+)
 def test_the_most_one_step_earns_is_the_ceiling_the_settings_hold(
     flag     : Callable[[Event], None],
     move     : Callable[[Position], None],
@@ -169,9 +179,10 @@ def test_the_most_one_step_earns_is_the_ceiling_the_settings_hold(
     settings : RewardSettings
 ):
     """
-    Asserts that a step reaching a new position and first setting every flag
-    at once earns the `ceiling` of its settings, which stays within 1, and
-    ends the episode.
+    Asserts that a step reaching a new position and first setting every
+    flag at once earns exactly the `ceiling` of its settings, which stays
+    within 1, and ends the episode, whether each value is a power of two or
+    a decimal whose shares round.
     """
     move(Position(map=0, x=1, y=0))
 

@@ -43,6 +43,6 @@ class Progress:
         self.positions.add(position)
 
         return Score(
-            shares = {term: earned[term] * self.settings.pay(term) for term in Term},
+            shares     = self.settings.shares(earned),
             terminated = Event.EVENT_GOT_STARTER in reached
         )

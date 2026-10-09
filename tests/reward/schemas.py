@@ -200,12 +200,27 @@ def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
     ) == snapshot
 
 
-def test_the_settings_refuse_terms_one_step_could_sum_past_one():
+@mark.parametrize(
+    ("settings", "past"),
+    [
+        param({"milestone": 0.3, "starter": 0.31}, "0.215", id="by-a-share"),
+        param(
+            {"milestone": 0.2, "novelty": 0.057, "starter": 0.343},
+            "2.22e-16",
+            id = "by-the-rounding-of-a-share"
+        )
+    ]
+)
+def test_the_settings_refuse_terms_one_step_could_sum_past_one(
+    past     : str,
+    settings : dict[str, float]
+):
     """
     Asserts that the settings refuse terms where a step reaching a new
-    position and first setting every flag at once earns past 1, naming
-    what that step earns rounded to six significant digits rather than the
-    `1.2149999999999999` a float prints.
+    position and first setting every flag at once earns past 1, naming how
+    far past to three significant digits, whether the terms sum past 1 in
+    decimal or sum to 1 in decimal and round past it once the milestone is
+    counted three times.
     """
-    with raises(ValidationError, match="earns 1.215, past the 1 Mnih et al."):
-        RewardSettings(milestone=0.3, starter=0.31)
+    with raises(ValidationError, match=f"earns {past} more than the 1 Mnih et al."):
+        RewardSettings(**settings)
