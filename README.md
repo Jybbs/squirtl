@@ -87,13 +87,13 @@ Where:
 
 This equation represents a contraction mapping in the space of value functions, guaranteeing convergence to a unique fixed point (the optimal Q-function) under certain conditions. Interestingly enough, this is reminiscent of the convergence properties of other iterative algorithms in Bellman's purview, like the Bellman-Ford algorithm for finding shortest paths.
 
-In practice, we use a neural network $`Q(s, a; \theta)`$ to approximate $`Q(s, a)`$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network is trained to minimize the loss:
+In practice, we use a neural network $`Q(s, a; \theta)`$ to approximate $`Q(s, a)`$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network is trained to minimize the Huber loss $`\ell`$ on the gap between each target and the value the network gives:
 
-$`\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} [(r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta))^2]`$
+$`\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} [\ell(y - Q(s, a; \theta))], \quad \ell(x) = \begin{cases} \tfrac{1}{2} x^2, & |x| \le 1 \\ |x| - \tfrac{1}{2}, & \text{otherwise} \end{cases}`$
 
 Where:
 
-- $`r + \gamma \max_{a'} Q(s', a'; \theta^-)`$ is the target Q-value
+- $`y = r + \gamma \max_{a'} Q(s', a'; \theta^-)`$ is the target Q-value, or $`y = r`$ where the step ends the episode
 - $`\theta`$ are the parameters of the online network
 - $`\theta^-`$ are the parameters of the target network
 - $`U(D)`$ is a uniform distribution over the replay buffer D
@@ -102,7 +102,7 @@ This loss function is a form of temporal difference learning, where we bootstrap
 
 The gradient of the loss with respect to the network parameters is:
 
-$`\hspace{0.5cm} \displaystyle \nabla_\theta L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)}[(r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta)) \nabla_\theta Q(s, a; \theta)]`$
+$`\hspace{0.5cm} \displaystyle \nabla_\theta L(\theta) = -\mathbb{E}_{(s, a, r, s') \sim U(D)}[\operatorname{clip}(y - Q(s, a; \theta), -1, 1) \nabla_\theta Q(s, a; \theta)]`$
 
 This gradient form allows for stochastic gradient descent, connecting our DQN implementation to the broader family of iterative improvement algorithms.
 
@@ -115,9 +115,9 @@ $`\hspace{0.5cm} \pi(a|s) = \begin{cases}
 
 Where $`|A|`$ is the size of the action space.
 
-The exploration rate $`\epsilon`$ decays over time:
+The exploration rate $`\epsilon`$ falls linearly from $`\epsilon_0`$ to $`\epsilon_{\min}`$ over the run's first $`T`$ steps, a tenth of its length, and holds at $`\epsilon_{\min}`$ after them:
 
-$`\hspace{0.5cm} \displaystyle \epsilon_t = \max(\epsilon_{\min}, \epsilon_0 \cdot \epsilon_{\text{decay}}^t)`$
+$`\hspace{0.5cm} \displaystyle \epsilon_t = \epsilon_0 + \min\left(\frac{t}{T}, 1\right)(\epsilon_{\min} - \epsilon_0)`$
 
 This decay schedule is most analogous to the cooling schedule in simulated annealing, gradually shifting from exploration to exploitation as the agent gains more knowledge about the environment.
 
@@ -150,6 +150,7 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 
 | **Subpackage** | **What It Holds** |
 |---|---|
+| `squirtl.agent` | *The deep Q-network agent, meaning the Q-network, replay memory holding each frame once, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from* |
 | `squirtl.cli` | *The `squirtl` command* |
 | `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, and the directory under `data/runs/` recording each run's settings, its commit, and the digest of `uv.lock`* |
 

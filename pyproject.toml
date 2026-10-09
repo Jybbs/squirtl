@@ -4,7 +4,7 @@ requires      = ["hatchling==1.32.4"]
 
 [project]
 authors         = [{ name = "James Parkington" }]
-dependencies    = ["cyclopts", "numpy", "pydantic"]
+dependencies    = ["cyclopts", "numpy", "pydantic", "torch"]
 description     = "Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and PyTorch."
 license         = "MIT"
 license-files   = ["LICENSE.md"]
@@ -85,3 +85,11 @@ build-constraint-dependencies = [
 python-downloads              = "never"
 python-preference             = "only-system"
 required-version              = "==0.12.13"
+
+[[tool.uv.index]]
+explicit = true
+name     = "pytorch-cpu"
+url      = "https://download.pytorch.org/whl/cpu"
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu", marker = "sys_platform == 'linux'" }

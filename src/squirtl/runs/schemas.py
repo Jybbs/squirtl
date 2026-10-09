@@ -14,9 +14,11 @@ from hashlib      import sha256
 from numpy        import uint64
 from numpy.random import SeedSequence
 from pathlib      import Path
-from pydantic     import AwareDatetime, BaseModel, NonNegativeInt, StringConstraints
+from pydantic     import AwareDatetime, BaseModel, Field, NonNegativeInt, StringConstraints
 from subprocess   import check_output
 from typing       import Annotated, Self
+
+from squirtl.agent.schemas import AgentSettings
 
 type Hexadecimal = Annotated[
     str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
@@ -92,11 +94,18 @@ class Revision(Record):
 
 class RunSettings(Record):
     """
-    The settings one run reads, where each field is a flag on any command
-    that flattens the record through `Parameter(name="*")` and a key under
-    `[tool.squirtl]` in `pyproject.toml`. A bare `*` before the record in
-    the command's signature keeps every field keyword-only, so no bare token
+    The settings one run reads, where each field is a flag on any
+    command that flattens the record through `Parameter(name="*")` and
+    a key under `[tool.squirtl]` in `pyproject.toml`. Each field of a
+    subject's record is likewise a `--<subject>.<field>` flag and a key
+    under `[tool.squirtl.<subject>]`. A bare `*` before the record in the
+    command's signature keeps every field keyword-only, so no bare token
     fills one.
+    """
+
+    agent: AgentSettings = Field(default_factory=AgentSettings)
+    """
+    The settings the agent reads.
     """
 
     seed: NonNegativeInt = 1

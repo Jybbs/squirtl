@@ -138,7 +138,7 @@ def test_a_run_records_its_settings_revision_and_start(clone: Path):
         "resumes"  : None,
         "revision" : Revision.checked_out().model_dump(),
         "started"  : "2026-10-04T12:30:05.123456Z",
-        "settings" : {"seed": 7}
+        "settings" : RunSettings(seed=7).model_dump(mode="json")
     }
 
 
