@@ -116,9 +116,9 @@ class GameBoy(AbstractContextManager):
 
         Handed bytes, PyBoy derives no path to a `.ram`, `.rtc`, or `.sym`
         file and reads none beside the cartridge. It logs errors alone,
-        since at its default level it warns at every boot that Pillow,
-        which only the screen's `image` and its recording plugins read,
-        is missing.
+        since at its default level it warns at every boot that Pillow is
+        missing, once for the screen's `image` and once for each of its
+        recording plugins.
         """
         return cls(
             PyBoy(
