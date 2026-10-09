@@ -4,7 +4,7 @@ requires      = ["hatchling==1.32.4"]
 
 [project]
 authors         = [{ name = "James Parkington" }]
-dependencies    = ["cyclopts"]
+dependencies    = ["cyclopts", "numpy", "pydantic"]
 description     = "Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and PyTorch."
 license         = "MIT"
 license-files   = ["LICENSE.md"]
@@ -18,7 +18,6 @@ squirtl = "squirtl.cli:app"
 
 [dependency-groups]
 dev = [
-    "hypothesis",
     "minijinja",
     "prose-formatter",
     "pytest",

@@ -13,11 +13,10 @@ run         = 'test .venv/bin/python -ef "$(mise which python)"'
 timeout     = "10s"
 
 [env]
-HYPOTHESIS_STORAGE_DIRECTORY = "{{config_root}}/.cache/hypothesis"
-PROSE_CACHE_DIR              = "{{config_root}}/.cache/prose"
-PYTHONPYCACHEPREFIX          = "{{config_root}}/.cache/pycache"
-UV_LOCKED                    = "1"
-_.path                       = ".mise/bin"
+PROSE_CACHE_DIR     = "{{config_root}}/.cache/prose"
+PYTHONPYCACHEPREFIX = "{{config_root}}/.cache/pycache"
+UV_LOCKED           = "1"
+_.path              = ".mise/bin"
 
 [settings]
 auto_install = false

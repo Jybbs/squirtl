@@ -144,47 +144,14 @@ $`\hspace{0.5cm} R(s, a, s') = \begin{cases}
 
 This reward structure, combined with the DQN algorithm, allows SquiRtL to learn a policy that can navigate the complex, partially observable environment of Pokémon Blue, dealing with delayed rewards and a large state space.
 
-## Class Structure & Components
+## Package Layout
 
-SquiRtL is composed of several interconnected classes:
+The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per subject, and the training script the package replaces stays readable at the `0.1.0` tag.
 
-1. **Orchestrator**: The main class that initializes and coordinates all components.
-    - Initializes all other components
-    - Manages the training process
-
-2. **Agent**: Implements the DQN algorithm, including action selection and learning.
-    - Selects actions using an epsilon-greedy strategy
-    - Stores experiences in replay memory
-    - Performs learning updates on the DQN by using forward passes to predict Q-values
-
-3. **Emulator**: Interfaces with the Pokémon Blue game using PyBoy.
-    - Manages the game state
-    - Executes actions in the game environment
-    - Provides observations (screen states)
-
-4. **Frames**: Manages game frames, including state representation and novelty detection.
-    - Processes and stores game frames
-    - Detects new game states
-    - Checks for backtracking
-
-5. **Gymnasium**: Coordinates the interaction between the agent and the environment.
-    - Manages episodes
-    - Handles action execution and reward calculation
-    - Facilitates the agent-environment loop
-
-6. **Logging**: Handles metrics logging and visualization.
-    - Collects performance metrics
-    - Generates visualizations and progress reports
-
-7. **Reward**: Defines the reward structure for the agent.
-    - Calculates rewards based on game events and agent actions
-    - Implements the reward shaping strategy
-
-8. **Settings**: Centralizes all configuration parameters.
-    - Stores hyperparameters and game settings
-    - Provides a single point of configuration for the entire system
-
-These components work together to create a complete reinforcement learning system. The **Orchestrator** initializes the process, the **Agent** interacts with the **Gymnasium**, which uses the **Emulator** to execute actions and observe states. The **Frames** class assists in state processing, while the **Reward** class provides feedback. The DQN is initialized and used by the **Agent** for action selection and learning as it borrows hyperparameters from **Settings**, and the **Logging** class tracks the overall performance.
+| **Subpackage** | **What It Holds** |
+|---|---|
+| `squirtl.cli` | *The `squirtl` command* |
+| `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, and the directory under `data/runs/` recording each run's settings, its commit, and the digest of `uv.lock`* |
 
 ## Metrics & Analysis
 

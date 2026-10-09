@@ -1,9 +1,5 @@
 """
-Sets the example count on Hypothesis's built-in profiles, two hundred under
-the `ci` profile Hypothesis loads on a CI runner and twenty-five under
-`default`. The `default` profile also drops the deadline, as `ci` already
-does, so a heavily loaded machine fails no test a runner passes. It also
-defines the fixtures the suite shares, each described where it is defined.
+Defines the fixtures the suite shares, each described where it is defined.
 
 The autouse `environment` fixture isolates every test from the machine
 running it, and the collection hook lets a test open a network connection
@@ -11,7 +7,6 @@ only when it carries the `network` mark.
 """
 
 from collections.abc  import Iterable, Iterator
-from hypothesis       import settings
 from pytest           import FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, mark
 from syrupy.assertion import SnapshotAssertion
 from syrupy.extensions.single_file import SingleFileSnapshotExtension, WriteMode
@@ -20,14 +15,6 @@ CLEARED = (
     "COLORTERM", "FORCE_COLOR", "GITHUB_ACTIONS", "GITHUB_OUTPUT",
     "GITHUB_STEP_SUMMARY", "LINES", "NO_COLOR", "TTY_COMPATIBLE",
     "TTY_INTERACTIVE", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"
-)
-
-settings.register_profile("ci", settings.get_profile("ci"), max_examples=200)
-settings.register_profile(
-    "default",
-    settings.get_profile("default"),
-    deadline     = None,
-    max_examples = 25
 )
 
 
