@@ -145,13 +145,26 @@ def test_the_settings_accept_a_starter_paying_more_than_every_other_term():
     assert RewardSettings(milestone=0.125, starter=0.1875).starter == 0.1875
 
 
-def test_the_settings_accept_terms_one_step_sums_to_one_at_most():
+@mark.parametrize(
+    "settings",
+    [
+        param(
+            {"milestone": 0.125, "novelty": 0.125, "starter": 0.5},
+            id = "powers-of-two"
+        ),
+        param({"milestone": 0.07, "novelty": 0.11, "starter": 0.68}, id="decimals")
+    ]
+)
+def test_the_settings_accept_terms_one_step_sums_to_one_at_most(
+    settings: dict[str, float]
+):
     """
     Asserts that the settings accept terms where a step reaching a new
-    position and first setting every flag at once earns exactly 1, each
-    value a power of two so the sum carries no rounding.
+    position and first setting every flag at once earns exactly 1, whether
+    each value is a power of two or a decimal whose sum one float addition
+    at a time rounds to `1.0000000000000002`.
     """
-    assert RewardSettings(milestone=0.125, novelty=0.125, starter=0.5).ceiling == 1
+    assert RewardSettings(**settings).ceiling == 1
 
 
 @mark.parametrize(
@@ -190,8 +203,9 @@ def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
 def test_the_settings_refuse_terms_one_step_could_sum_past_one():
     """
     Asserts that the settings refuse terms where a step reaching a new
-    position and first setting every flag at once earns past 1, naming what
-    that step earns.
+    position and first setting every flag at once earns past 1, naming
+    what that step earns rounded to six significant digits rather than the
+    `1.2149999999999999` a float prints.
     """
-    with raises(ValidationError, match="earns 1.125, past the 1 Mnih et al."):
-        RewardSettings(milestone=0.125, novelty=0.25, starter=0.5)
+    with raises(ValidationError, match="earns 1.215, past the 1 Mnih et al."):
+        RewardSettings(milestone=0.3, starter=0.31)

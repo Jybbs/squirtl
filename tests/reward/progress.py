@@ -153,7 +153,7 @@ def test_a_step_reaching_a_new_position_and_a_milestone_earns_both(
     sets a milestone's flag earns both terms, the way stepping onto row 1 of
     Pallet Town, beside its north exit, sets `EVENT_OAK_APPEARED_IN_PALLET`.
     """
-    move(Position(map=0, x=1, y=0))
+    move(Position(map=0, x=0, y=1))
     flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
 
     assert progress.score() == earning(

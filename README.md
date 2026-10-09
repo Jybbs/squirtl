@@ -50,7 +50,7 @@ Reinforcement Learning (**RL**) is a paradigm of machine learning where an agent
 
 5. **Value Function**: Estimates the expected cumulative reward from a given state. In Pokémon Blue, many actions don't have immediate rewards, so the agent must learn to value states that lead to future rewards, like progressing through dialogue or moving towards important locations.
 
-6. **Experience Replay**: A technique where the agent stores and learns from past experiences. This is particularly important in this project due to the rarity of significant events (*like completing the intro or choosing a starter*). Experience replay allows the agent to learn efficiently from these rare but important experiences.
+6. **Experience Replay**: A technique where the agent stores and learns from past experiences. This is particularly important in this project due to the rarity of significant events (*like a milestone on the way to the starter, or choosing the starter itself*). Experience replay allows the agent to learn efficiently from these rare but important experiences.
 
 ### Deep Q-Networks (DQN)
 
@@ -250,9 +250,9 @@ The overall time complexity per step, expressed in terms of the dominant term, t
   This accounts for storing all weights and biases of the network across L layers.
 
 - **Explored States**: $`\mathcal{O}(m)`$, where $`m`$ is the number of positions an episode reaches
-  Each position is a map and two coordinates, three bytes of the game's memory, recorded once per episode.
+  Each position is a record of a map and two coordinates, read from three bytes of the game's memory and recorded once per episode.
 
-The total space complexity, likewise to **Time Complexity**, is $`\mathcal{O}(L n^2)`$, since the positions an episode records take three bytes each.
+The total space complexity, likewise to **Time Complexity**, is $`\mathcal{O}(L n^2)`$, since the positions an episode can record are bounded by the squares the game's maps hold.
 
 ### Trade-offs & Optimizations
 
@@ -260,7 +260,7 @@ The total space complexity, likewise to **Time Complexity**, is $`\mathcal{O}(L 
 
 2. **State Representation**: The current pixel-based state representation (*$`wh`$ pixels*) is memory-intensive. Dimensionality reduction techniques could potentially reduce this, trading off some information for improved space efficiency.
 
-3. **Novelty Detection**: Reading novelty from the map position rather than the screen reduces the check to a set lookup and each explored state to three bytes, whereas a change on screen that leaves the player on the same square, such as a line of dialogue, earns no novelty at all.
+3. **Novelty Detection**: Reading novelty from the map position rather than the screen reduces the check to a set lookup and each explored state to a map and two coordinates, whereas a change on screen that leaves the player on the same square, such as a line of dialogue, earns no novelty at all.
 
 4. **Batch Processing**: The batch size $`b`$ presents a trade-off between computation time and learning stability. Larger batches provide more stable gradient estimates but increase per-step computation time.
 

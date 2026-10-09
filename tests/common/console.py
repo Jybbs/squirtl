@@ -1,5 +1,5 @@
 """
-Defines `StandIn`, which answers for the members of `PyBoy` that a boot, a
+Defines `StandIn`, which stands in for the members of `PyBoy` that a boot, a
 press, and a read reach, recording what each call received.
 """
 

@@ -9,6 +9,7 @@ Defines the records the reward reads and writes:
 """
 
 from enum     import IntEnum, StrEnum, auto
+from math     import fsum
 from pydantic import Field, model_validator
 from typing   import Annotated, Self
 
@@ -133,9 +134,11 @@ class RewardSettings(Record):
     def ceiling(self) -> float:
         """
         Sums what a step earns where it reaches a new position and first
-        sets every flag `Event` names at once, the most any step can earn.
+        sets every flag `Event` names at once, the most any step can earn,
+        rounding once at the end as `fsum` does, so terms summing to 1 in
+        decimal sum to 1.
         """
-        return self.novelty + sum(self.pay(event.term) for event in Event)
+        return fsum([self.novelty, *(self.pay(event.term) for event in Event)])
 
     def pay(self, term: Term) -> float:
         """
@@ -163,7 +166,7 @@ class RewardSettings(Record):
         if self.ceiling > 1:
             raise ValueError(
                 f"a step reaching a new position and every event at once earns "
-                f"{self.ceiling}, past the 1 Mnih et al. clip each reward to"
+                f"{self.ceiling:g}, past the 1 Mnih et al. clip each reward to"
             )
 
         return self
@@ -189,6 +192,7 @@ class Score(Record):
     @property
     def total(self) -> float:
         """
-        Sums the shares into the step's reward.
+        Sums the shares into the step's reward, rounding once at the end as
+        `fsum` does.
         """
-        return sum(self.shares.values())
+        return fsum(self.shares.values())
