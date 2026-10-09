@@ -1,0 +1,44 @@
+[[labels]]
+color       = "3aa6f0"
+description = "The deep Q-network, replay memory, the update and its schedules, and the checkpoint"
+name        = "🧢 agent"
+
+[[labels]]
+color       = "b8d93a"
+description = "A defect in behavior the code already claims, repaired rather than built anew"
+name        = "🐛 bug"
+
+[[labels]]
+color       = "5f6672"
+description = "The manifest, the lockfiles, the mise tasks and toolchain, and the workflows that run them"
+name        = "🔧 build"
+
+[[labels]]
+color       = "e6e6ff"
+description = "The squirtl command, its subcommands and flags, and what each one prints"
+name        = "⌨️ cli"
+
+[[labels]]
+color       = "e2533a"
+description = "The README, the docs site and its pages, and the files the package writes into them"
+name        = "📕 docs"
+
+[[labels]]
+color       = "a173e6"
+description = "PyBoy, the cartridge it boots, its buttons and screen, and the game's memory"
+name        = "🎮 emulator"
+
+[[labels]]
+color       = "2e9d62"
+description = "The Gymnasium environment, its observation and actions, and where an episode starts and ends"
+name        = "🌿 environment"
+
+[[labels]]
+color       = "f0c040"
+description = "Evaluation episodes, the random baseline, and the statistics compared across seeds"
+name        = "🏅 evaluation"
+
+[[labels]]
+color       = "ff86c2"
+description = "The reward terms, the positions and milestones they pay for, and the flag that ends an episode"
+name        = "🍬 reward"
