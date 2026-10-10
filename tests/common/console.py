@@ -1,7 +1,7 @@
 """
-Defines `StandIn`, which answers for the members of `PyBoy` that a boot
-and a press reach, recording what each call received and each read of the
-screen.
+Defines `StandIn`, which stands in for the members of `PyBoy` that a boot,
+a press, and a read of memory reach, recording what each call received and
+each read of the screen.
 """
 
 from numpy import arange, tile, uint8
@@ -12,8 +12,9 @@ class StandIn:
     """
     Stands in for `PyBoy`, holding the arguments it was built with, each
     call a `GameBoy` makes on it and each read of its screen in the order
-    it made them, and an RGBA frame whose every pixel holds each channel's
-    index in that channel.
+    it made them, the 64 KiB the console addresses with zero in every byte
+    until a test writes one, and an RGBA frame whose every pixel holds each
+    channel's index in that channel.
     """
 
     def __init__(self, gamerom: object, **options: object):
@@ -23,6 +24,7 @@ class StandIn:
         self.calls   = []
         self.frame   = tile(arange(4, dtype=uint8), (144, 160, 1))
         self.gamerom = gamerom
+        self.memory  = bytearray(0x10000)
         self.options = options
 
     @property

@@ -8,8 +8,8 @@ Pins how `GameBoy` runs a cartridge through PyBoy, covering:
 - The press of any button, the one tick of the frames a step names, and
   the read of the screen after that tick
 - The screen a press returns, an RGB copy no later frame overwrites
-- The byte each symbol reads, the state a capture saves and a restore loads,
-  and the stop a close makes
+- The byte each symbol reads and the byte an offset past it reads, the
+  state a capture saves and a restore loads, and the stop a close makes
 """
 
 from collections.abc import Callable, Iterator
@@ -138,6 +138,18 @@ def test_a_press_sends_any_button_then_ticks_before_reading_the_screen(
     game_boy.press(button, 24)
 
     assert game_boy.emulator.calls == [*pressed, ("tick", 24), ("screen",)]
+
+
+def test_a_read_past_a_symbol_reads_the_byte_at_its_offset(game_boy: GameBoy):
+    """
+    Asserts that reading `offset` bytes past a symbol returns the byte at
+    that index of the array the symbol starts, where the symbol's own byte
+    holds another value.
+    """
+    game_boy.emulator.memory[Symbol.W_EVENT_FLAGS]     = 0x01
+    game_boy.emulator.memory[Symbol.W_EVENT_FLAGS + 4] = 0x5A
+
+    assert game_boy.read(Symbol.W_EVENT_FLAGS, 4) == 0x5A
 
 
 def test_a_restore_returns_the_console_to_its_capture(game_boy: GameBoy):
