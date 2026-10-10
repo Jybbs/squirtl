@@ -5,7 +5,8 @@ Pins how `GameBoy` runs a cartridge through PyBoy, covering:
   the SDL2 window PyBoy opens under SDL's dummy video driver
 - The save beside the cartridge, which a boot never reads and a close
   never writes
-- The press of any button and the one tick of the frames a step names
+- The press of any button, the one tick of the frames a step names, and
+  the read of the screen after that tick
 - The screen a press returns, an RGB copy no later frame overwrites
 - The byte each symbol reads, the state a capture saves and a restore loads,
   and the stop a close makes
@@ -122,19 +123,21 @@ def test_a_closed_console_runs_no_further_frame(cartridge: Cartridge):
         *(param(button, [("button", button)], id=button) for button in Button)
     ]
 )
-def test_a_press_sends_any_button_then_one_tick_of_its_frames(
+def test_a_press_sends_any_button_then_ticks_before_reading_the_screen(
     boot    : Boot,
     button  : Button | None,
     pressed : list[tuple[str, Button]]
 ):
     """
     Asserts that a press hands PyBoy the name of its button, where it has
-    one, and then advances every frame the step names in one tick.
+    one, then advances every frame the step names in one tick, and reads
+    the screen only after that tick, so the frame it returns is the one that
+    tick rendered.
     """
     game_boy = boot(EmulatorSettings())
     game_boy.press(button, 24)
 
-    assert game_boy.emulator.calls == [*pressed, ("tick", 24)]
+    assert game_boy.emulator.calls == [*pressed, ("tick", 24), ("screen",)]
 
 
 def test_a_restore_returns_the_console_to_its_capture(game_boy: GameBoy):

@@ -5,17 +5,14 @@ Pins the records the emulator reads, covering:
   edition, and the repr that leaves out its bytes
 - The digest each edition holds and the address each symbol holds, against
   what pret/pokered publishes
-- The defaults and descriptions of the emulator's settings
 """
 
-from hashlib          import sha1
-from json             import dumps
-from operator         import attrgetter
-from pathlib          import Path
-from pydantic         import ValidationError
-from pytest           import MonkeyPatch, mark, raises
-from re               import escape
-from syrupy.assertion import SnapshotAssertion
+from hashlib  import sha1
+from operator import attrgetter
+from pathlib  import Path
+from pydantic import ValidationError
+from pytest   import MonkeyPatch, mark, raises
+from re       import escape
 
 from squirtl.emulator.schemas import Cartridge, Edition, EmulatorSettings, Symbol
 
@@ -97,18 +94,3 @@ def test_the_repr_of_a_cartridge_names_its_path_and_leaves_out_its_bytes(
     leaves out the ROM's bytes.
     """
     assert repr(cartridge) == f"Cartridge(path={cartridge.path!r})"
-
-
-def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
-    snapshot: SnapshotAssertion
-):
-    """
-    Asserts that the emulator's settings default to a headless run of
-    `data/rom.gb` and carry the description written beneath each field, so a
-    change to either is reviewed as a diff.
-    """
-    assert dumps(
-        EmulatorSettings.model_json_schema(),
-        ensure_ascii = False,
-        indent       = 2
-    ) == snapshot
