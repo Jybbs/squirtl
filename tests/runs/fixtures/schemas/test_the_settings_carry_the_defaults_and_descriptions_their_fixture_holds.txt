@@ -105,8 +105,8 @@
         },
         "novelty": {
           "$ref": "#/$defs/UnitInterval",
-          "default": 0.005,
-          "description": "The reward a step earns for reaching a position the episode has not\nreached before, whose default is the reward Pleines et al. pay for each\nnew coordinate."
+          "default": 0.00025,
+          "description": "The reward a step earns for reaching a position the episode has not\nreached before, whose default is a 400th of the default milestone, the\nratio Pleines et al. pay one new coordinate against one completed event."
         },
         "starter": {
           "$ref": "#/$defs/UnitInterval",

@@ -133,11 +133,11 @@ In the context of Pokémon Blue, the state $`s`$ is represented by a tensor of s
 
 The reward function $`R(s, a, s')`$ sums three terms, each paying for what a step adds to its episode, and holds every step's reward within 1, the bound Mnih et al. clip each reward to,[^mnih2015] with the starter the largest term:
 
-$`\hspace{0.5cm} R(s, a, s') = 0.005 \cdot \mathbb{1}[p' \notin P] + 0.1 \cdot |M' \setminus M| + 0.6 \cdot \mathbb{1}[g' \land \lnot g]`$
+$`\hspace{0.5cm} R(s, a, s') = 0.00025 \cdot \mathbb{1}[p' \notin P] + 0.1 \cdot |M' \setminus M| + 0.6 \cdot \mathbb{1}[g' \land \lnot g]`$
 
 Where:
 
-- $`p'`$ is the map position the step ends on, read from `wCurMap`, `wXCoord`, and `wYCoord`, and $`P`$ is every position the episode reached before it, so the reward pays for a position once per episode, at the value Pleines et al. pay for each new coordinate[^pleines2025]
+- $`p'`$ is the map position the step ends on, read from `wCurMap`, `wXCoord`, and `wYCoord`, and $`P`$ is every position the episode reached before it, so the reward pays for a position once per episode, at a 400th of a milestone, the ratio Pleines et al. pay one new coordinate against one completed event[^pleines2025]
 - $`M`$ and $`M'`$ are the milestone flags in `wEventFlags` the episode has seen set before and after the step, meaning `EVENT_OAK_APPEARED_IN_PALLET`, `EVENT_FOLLOWED_OAK_INTO_LAB`, and `EVENT_OAK_ASKED_TO_CHOOSE_MON`
 - $`g`$ and $`g'`$ are whether `EVENT_GOT_STARTER` is set before and after the step, whose setting ends the episode as terminated
 

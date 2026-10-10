@@ -117,11 +117,11 @@ class RewardSettings(Record):
     whose flag it first sets.
     """
 
-    novelty: UnitInterval = 0.005
+    novelty: UnitInterval = 0.00025
     """
     The reward a step earns for reaching a position the episode has not
-    reached before, whose default is the reward Pleines et al. pay for each
-    new coordinate.
+    reached before, whose default is a 400th of the default milestone, the
+    ratio Pleines et al. pay one new coordinate against one completed event.
     """
 
     starter: UnitInterval = 0.6

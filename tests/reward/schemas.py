@@ -186,7 +186,7 @@ def test_the_settings_refuse_a_starter_that_is_not_the_largest_term(
 @mark.parametrize(
     ("settings", "past"),
     [
-        param({"milestone": 0.3, "starter": 0.31}, "0.215", id="by-a-share"),
+        param({"milestone": 0.3, "starter": 0.31}, "0.21", id="by-a-share"),
         param(
             {"milestone": 0.2, "novelty": 0.057, "starter": 0.343},
             "2.22e-16",
