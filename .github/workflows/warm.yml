@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   kit:
-    name            : 💾 Kit · ${{ matrix.tools }}
+    name            : 🏥 Kit · ${{ matrix.tools }}
     cache-mode      : write
     runs-on         : &runner ubuntu-26.04
     timeout-minutes : &timeout 15
@@ -42,7 +42,7 @@ jobs:
         with : { tools: "${{ matrix.tools }}" }
 
   prune:
-    name            : 🧹 Prune
+    name            : ✂️ Prune
     cache-mode      : none
     needs           : kit
     permissions     : { actions: write, contents: read }

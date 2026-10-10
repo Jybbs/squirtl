@@ -1,0 +1,151 @@
+{
+  "$defs": {
+    "AgentSettings": {
+      "additionalProperties": false,
+      "description": "The settings the agent reads, each a field of `RunSettings.agent` and a\nkey under `[tool.squirtl.agent]` in `pyproject.toml`.",
+      "properties": {
+        "batch_size": {
+          "default": 32,
+          "description": "The transitions each update draws from replay memory, whose default\nfollows Mnih et al.",
+          "exclusiveMinimum": 0,
+          "title": "Batch Size",
+          "type": "integer"
+        },
+        "capacity": {
+          "default": 100000,
+          "description": "The frames replay memory holds before it overwrites the oldest, four for\neach episode's reset observation and one for each step after it, whose\ndefault holds 72 by 80 frames in 576 MB.",
+          "exclusiveMinimum": 0,
+          "title": "Capacity",
+          "type": "integer"
+        },
+        "device": {
+          "description": "The device both networks and every batch sit on, which defaults to the\naccelerator torch reports and to the CPU where it reports none.",
+          "title": "Device",
+          "type": "string"
+        },
+        "discount": {
+          "$ref": "#/$defs/Fraction",
+          "default": 0.99,
+          "description": "The discount on the value of the state each step reaches, whose default\nfollows Mnih et al."
+        },
+        "epsilon_end": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.01,
+          "description": "The chance of a random action once exploration has annealed, whose\ndefault follows CleanRL's `dqn_atari.py`."
+        },
+        "epsilon_start": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 1.0,
+          "description": "The chance of a random action at the run's first step, whose default\nfollows CleanRL's `dqn_atari.py`."
+        },
+        "exploration_fraction": {
+          "$ref": "#/$defs/Fraction",
+          "default": 0.1,
+          "description": "The share of the run's steps over which the chance of a random action\nfalls linearly from `epsilon_start` to `epsilon_end`, whose default\nfollows CleanRL's `dqn_atari.py`."
+        },
+        "learning_rate": {
+          "default": 0.0001,
+          "description": "The step size Adam takes on every update, held constant across the run,\nwhose default follows CleanRL's `dqn_atari.py`.",
+          "exclusiveMinimum": 0,
+          "title": "Learning Rate",
+          "type": "number"
+        },
+        "max_grad_norm": {
+          "default": 10.0,
+          "description": "The norm each update's gradient is clipped to, whose default follows\nStable-Baselines3's DQN.",
+          "exclusiveMinimum": 0,
+          "title": "Max Grad Norm",
+          "type": "number"
+        },
+        "sync_steps": {
+          "default": 1000,
+          "description": "The environment steps between two copies of the online network into the\ntarget network, whose default follows CleanRL's `dqn_atari.py`.",
+          "exclusiveMinimum": 0,
+          "title": "Sync Steps",
+          "type": "integer"
+        }
+      },
+      "title": "AgentSettings",
+      "type": "object"
+    },
+    "EmulatorSettings": {
+      "additionalProperties": false,
+      "description": "The settings the emulator reads, each a field of `RunSettings.emulator`\nand a key under `[tool.squirtl.emulator]` in `pyproject.toml`.",
+      "properties": {
+        "cartridge": {
+          "default": "data/rom.gb",
+          "description": "The file holding the user's own ROM of the English Pokémon Red or Blue,\nwhich a run refuses unless pret/pokered lists its SHA-1.",
+          "format": "path",
+          "title": "Cartridge",
+          "type": "string"
+        },
+        "open_window": {
+          "default": false,
+          "description": "Whether PyBoy draws the last frame of each step in an SDL2 window,\npacing the steps at sixty a second, where otherwise a run draws nothing\nand advances as fast as the machine allows.",
+          "title": "Open Window",
+          "type": "boolean"
+        }
+      },
+      "title": "EmulatorSettings",
+      "type": "object"
+    },
+    "Fraction": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "type": "number"
+    },
+    "RewardSettings": {
+      "additionalProperties": false,
+      "description": "The settings the reward reads, each a field of `RunSettings.reward` and\na key under `[tool.squirtl.reward]` in `pyproject.toml`, holding what\neach member of `Term` pays a step.",
+      "properties": {
+        "milestone": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.1,
+          "description": "The reward a step earns for each milestone on the way to the starter\nwhose flag it first sets."
+        },
+        "novelty": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.005,
+          "description": "The reward a step earns for reaching a position the episode has not\nreached before, whose default is the reward Pleines et al. pay for each\nnew coordinate."
+        },
+        "starter": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.6,
+          "description": "The reward the step first setting `EVENT_GOT_STARTER` earns, which has\nto be the largest term."
+        }
+      },
+      "title": "RewardSettings",
+      "type": "object"
+    },
+    "UnitInterval": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The settings one run reads, where each field is a flag on any\ncommand that flattens the record through `Parameter(name=\"*\")` and\na key under `[tool.squirtl]` in `pyproject.toml`. A field holding\na subject's record takes that record's fields as flags under its\nname (`--emulator.cartridge`) and as keys of a table of its own\n(`[tool.squirtl.emulator]`). A bare `*` before the record in the\ncommand's signature keeps every field keyword-only, so no bare token\nfills one.",
+  "properties": {
+    "agent": {
+      "$ref": "#/$defs/AgentSettings",
+      "description": "The settings the agent reads."
+    },
+    "emulator": {
+      "$ref": "#/$defs/EmulatorSettings",
+      "description": "The settings the emulator reads."
+    },
+    "reward": {
+      "$ref": "#/$defs/RewardSettings",
+      "description": "The settings the reward reads."
+    },
+    "seed": {
+      "default": 1,
+      "description": "The seed every random draw in the run derives from, whose default\nfollows CleanRL's `dqn_atari.py`.",
+      "minimum": 0,
+      "title": "Seed",
+      "type": "integer"
+    }
+  },
+  "title": "RunSettings",
+  "type": "object"
+}

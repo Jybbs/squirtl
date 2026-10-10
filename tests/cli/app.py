@@ -8,7 +8,8 @@ Pins what the `squirtl` command itself defines, covering:
 
    - Each setting comes from its flag, then the `[tool.squirtl]` table of
      the working directory's `pyproject.toml`, then its default
-   - A key no setting declares and a bare token are both refused
+   - A key no setting declares, a bare token, and a `--no-` flag are each
+     refused
    - Reading the settings writes nothing
 """
 
@@ -127,6 +128,16 @@ def test_a_key_no_setting_declares_is_refused(manifest: str, read: Reader):
     """
     with raises(UnknownOptionError):
         read([], manifest)
+
+
+def test_a_bool_setting_takes_no_negative_flag(read: Reader):
+    """
+    Asserts that `--emulator.no-open-window` is refused rather than read
+    as `open_window = false`, since `Parameter(negative=())` in the app's
+    `default_parameter` gives a setting holding a `bool` no `--no-` flag.
+    """
+    with raises(UnknownOptionError):
+        read(["--emulator.no-open-window"], None)
 
 
 def test_a_setting_takes_no_positional_token(read: Reader):

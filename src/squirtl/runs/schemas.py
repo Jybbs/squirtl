@@ -17,6 +17,7 @@ from pydantic     import AwareDatetime, Field, NonNegativeInt, StringConstraints
 from subprocess   import check_output
 from typing       import Annotated, Self
 
+from squirtl.agent.schemas    import AgentSettings
 from squirtl.emulator.schemas import EmulatorSettings, Record
 from squirtl.reward.schemas   import RewardSettings
 
@@ -96,6 +97,11 @@ class RunSettings(Record):
     fills one.
     """
 
+    agent: AgentSettings = Field(default_factory=AgentSettings)
+    """
+    The settings the agent reads.
+    """
+
     emulator: EmulatorSettings = Field(default_factory=EmulatorSettings)
     """
     The settings the emulator reads.
@@ -125,11 +131,7 @@ class RunSettings(Record):
         """
         return {
             stream: child.generate_state(1, uint64).item()
-            for stream, child in zip(
-                Stream,
-                SeedSequence(self.seed).spawn(len(Stream)),
-                strict = True
-            )
+            for stream, child in zip(Stream, SeedSequence(self.seed).spawn(len(Stream)))
         }
 
 

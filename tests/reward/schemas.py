@@ -4,17 +4,15 @@ Pins the records the reward reads and writes, covering:
 - The index each event holds against pret/pokered, the bit each one reads,
   and the term each one earns
 - The position read from the symbols holding the map and the coordinates
-- The defaults and descriptions of the reward's settings, the term each one
-  pays, and the settings they refuse
+- The term each of the reward's settings pays, the ceiling they price,
+  and the settings they refuse
 - The total of a score's shares
 """
 
-from collections.abc  import Callable
-from json             import dumps
-from operator         import attrgetter
-from pydantic         import ValidationError
-from pytest           import mark, param, raises
-from syrupy.assertion import SnapshotAssertion
+from collections.abc import Callable
+from operator        import attrgetter
+from pydantic        import ValidationError
+from pytest          import mark, param, raises
 
 from squirtl.emulator.console import GameBoy
 from squirtl.emulator.schemas import Symbol
@@ -183,21 +181,6 @@ def test_the_settings_refuse_a_starter_that_is_not_the_largest_term(
     """
     with raises(ValidationError, match="where it has to be the largest term"):
         RewardSettings(**settings)
-
-
-def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
-    snapshot: SnapshotAssertion
-):
-    """
-    Asserts that the reward's settings carry the defaults and the
-    description written beneath each field that their fixture file holds, so
-    a change to either is reviewed as a diff.
-    """
-    assert dumps(
-        RewardSettings.model_json_schema(),
-        ensure_ascii = False,
-        indent       = 2
-    ) == snapshot
 
 
 @mark.parametrize(

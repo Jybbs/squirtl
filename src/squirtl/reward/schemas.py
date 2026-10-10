@@ -12,13 +12,11 @@ from collections     import Counter
 from collections.abc import Mapping
 from enum            import IntEnum, StrEnum, auto
 from math            import fsum
-from pydantic        import Field, model_validator
-from typing          import Annotated, Self
+from pydantic        import model_validator
+from typing          import Self
 
 from squirtl.emulator.console import GameBoy
-from squirtl.emulator.schemas import Record, Symbol
-
-type Pay = Annotated[float, Field(ge=0, le=1)]
+from squirtl.emulator.schemas import Record, Symbol, UnitInterval
 
 
 class Position(Record):
@@ -113,20 +111,20 @@ class RewardSettings(Record):
     each member of `Term` pays a step.
     """
 
-    milestone: Pay = 0.1
+    milestone: UnitInterval = 0.1
     """
     The reward a step earns for each milestone on the way to the starter
     whose flag it first sets.
     """
 
-    novelty: Pay = 0.005
+    novelty: UnitInterval = 0.005
     """
     The reward a step earns for reaching a position the episode has not
     reached before, whose default is the reward Pleines et al. pay for each
     new coordinate.
     """
 
-    starter: Pay = 0.6
+    starter: UnitInterval = 0.6
     """
     The reward the step first setting `EVENT_GOT_STARTER` earns, which has
     to be the largest term.

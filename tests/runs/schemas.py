@@ -2,7 +2,10 @@
 Pins the records one run reads and writes, covering:
 
 - Each record refusing a change once built and a key no field declares,
-  and the settings refusing a negative seed
+  from the run down to each subject's settings, and the settings refusing
+  a negative seed
+- The default, the bounds, and the description each field of the settings
+  declares, the run's own and each subject's
 - The seed each stream derives from the run's one seed
 - The revision read from a clone, what marks it dirty, and the output it
   refuses
@@ -11,8 +14,10 @@ Pins the records one run reads and writes, covering:
 """
 
 from datetime         import UTC, datetime
+from functools        import reduce
 from hashlib          import sha256
-from json             import loads
+from json             import dumps, loads
+from operator         import getitem
 from pathlib          import Path
 from pydantic         import ValidationError
 from pytest           import MonkeyPatch, mark, param, raises
@@ -165,9 +170,8 @@ def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
     seed, covering the adjacent pair an offset per stream would collide on
     and the pair a 64-bit mask on the run seed would.
     """
-    assert not (
-        set(RunSettings(seed=first).seeds.values())
-        & set(RunSettings(seed=second).seeds.values())
+    assert set(RunSettings(seed=first).seeds.values()).isdisjoint(
+        RunSettings(seed=second).seeds.values()
     )
 
 
@@ -267,15 +271,20 @@ def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
     assert "\n".join(f"{stream} {seed}" for stream, seed in seeds.items()) == snapshot
 
 
-def test_the_seed_carries_the_description_written_beneath_it():
+def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
+    snapshot: SnapshotAssertion
+):
     """
-    Asserts that `seed` carries the docstring written beneath it as its
-    description, which cyclopts renders as the help of `--seed`.
+    Asserts that the run's settings, and each subject's settings they
+    hold, carry the default and the bounds each field declares beside the
+    description written beneath it, which cyclopts renders as the help of
+    that field's flag, so a change to any of them is reviewed as a diff.
     """
-    assert RunSettings.model_fields["seed"].description == (
-        "The seed every random draw in the run derives from, whose default\n"
-        "follows CleanRL's `dqn_atari.py`."
-    )
+    assert dumps(
+        RunSettings.model_json_schema(),
+        ensure_ascii = False,
+        indent       = 2
+    ) == snapshot
 
 
 @mark.parametrize(
@@ -304,54 +313,56 @@ def test_the_settings_refuse_a_negative_seed():
 
 
 @mark.parametrize(
-    ("part", "field", "value"),
+    ("path", "field", "value"),
     [
-        param(None,       "started", datetime(2026, 10, 5, tzinfo=UTC), id="the-run"),
+        param((), "started", datetime(2026, 10, 5, tzinfo=UTC), id="the-run"),
+        param(("revision",),            "dirty",       True, id="the-revision"),
+        param(("settings",),            "seed",        2,    id="the-settings"),
+        param(("settings", "agent"),    "batch_size",  64,   id="the-agent-settings"),
         param(
-            "revision",
-            "dirty",
+            ("settings", "emulator"),
+            "open_window",
             True,
-            id = "the-revision"
+            id = "the-emulator-settings"
         ),
-        param(
-            "settings",
-            "seed",
-            2,
-            id = "the-settings"
-        )
+        param(("settings", "reward"),   "novelty",     0.01, id="the-reward-settings")
     ]
 )
 def test_a_record_refuses_a_change_once_built(
     field : str,
-    part  : str | None,
+    path  : tuple[str, ...],
     run   : Run,
     value : object
 ):
     """
-    Asserts that a run, its revision, and its settings each raise on an
-    assignment once built, so no step moves a setting another step has read
-    and a run's directory and record stay where its start put them.
+    Asserts that a run, its revision, its settings, and each subject's
+    settings they hold each raise on an assignment once built, so no step
+    moves a setting another step has read and a run's directory and record
+    stay where its start put them.
     """
     with raises(ValidationError, match="frozen"):
-        setattr(getattr(run, part) if part else run, field, value)
+        setattr(reduce(getattr, path, run), field, value)
 
 
 @mark.parametrize(
-    "field",
+    "path",
     [
-        param(None,       id="the-run"),
-        param("revision", id="the-revision"),
-        param("settings", id="the-settings")
+        param((),                       id="the-run"),
+        param(("revision",),            id="the-revision"),
+        param(("settings",),            id="the-settings"),
+        param(("settings", "agent"),    id="the-agent-settings"),
+        param(("settings", "emulator"), id="the-emulator-settings"),
+        param(("settings", "reward"),   id="the-reward-settings")
     ]
 )
-def test_a_run_record_refuses_a_key_no_field_declares(field: str | None, run: Run):
+def test_a_run_record_refuses_a_key_no_field_declares(path: tuple[str, ...], run: Run):
     """
     Asserts that a run record carrying a key no field declares, at its top
-    level or inside its revision or its settings, is refused rather than
-    read back with the key dropped.
+    level or inside its revision, its settings, or a subject's settings they
+    hold, is refused rather than read back with the key dropped.
     """
     record = run.model_dump()
-    (record[field] if field else record)["sead"] = 7
+    reduce(getitem, path, record)["sead"] = 7
 
     with raises(ValidationError, match="Extra inputs are not permitted"):
         Run.model_validate(record)

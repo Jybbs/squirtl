@@ -17,7 +17,7 @@ from pathlib         import Path
 from pytest          import Config, MonkeyPatch, fixture, mark, param
 from subprocess      import CompletedProcess, run
 
-INSTALL = "MISE_LOCKED_SCOPES=project mise install --dry-run --force --locked"
+INSTALL = "mise install --dry-run --force"
 
 
 @fixture
@@ -106,10 +106,6 @@ def stand_ins(
     and sets the `MISE_PROJECT_ROOT` both tasks source `.mise/lib/lock.sh`
     through.
 
-    Each call the stand-in writes starts with `MISE_LOCKED_SCOPES=<value>`
-    where that variable is set, so the fixture clears any value the shell
-    running the suite carries.
-
     The stand-in appends a line to `.mise/mise.lock` where its call matches
     the shell pattern `REWRITING` holds, prints `REPORT` to standard error
     when it answers `mise lock` unless `MISE_QUIET` or `MISE_LOG_LEVEL`
@@ -122,7 +118,6 @@ def stand_ins(
     received = tmp_path / "calls"
 
     install_stand_ins("stand-in.sh", "mise", "uv")
-    monkeypatch.delenv("MISE_LOCKED_SCOPES", raising=False)
     monkeypatch.setenv("CALLS", str(received))
     monkeypatch.setenv("MISE_PROJECT_ROOT", str(pytestconfig.rootpath))
 
@@ -154,9 +149,9 @@ def test_a_lockfile_in_step_with_its_pins_passes(
     """
     Pins that the task exits 0 once `uv lock --check` passes, `mise lock`
     leaves `.mise/mise.lock` as it found it, and the dry-run install finds
-    every tool the project pins in it, running the three in that order with
-    the install scoped to the project's tools, leaving the file in place
-    with its contents and inode unchanged, and leaving no snapshot behind.
+    every tool the project pins in it, running the three in that order,
+    leaving the file in place with its contents and inode unchanged, and
+    leaving no snapshot behind.
     """
     contents, inode = lockfile.read_bytes(), lockfile.stat().st_ino
 
@@ -168,8 +163,10 @@ def test_a_lockfile_in_step_with_its_pins_passes(
 
 @mark.parametrize(
     ("failing", "printed"),
-    [("", "+rewritten"), ("mise lock", "mise ERROR could not write the lockfile")],
-    ids = ["rewritten", "failing"]
+    [
+        param("", "+rewritten", id="rewritten"),
+        param("mise lock", "mise ERROR could not write the lockfile", id="failing")
+    ]
 )
 def test_a_lockfile_mise_lock_rewrites_comes_back_whole(
     checked     : Callable[[], CompletedProcess[str]],
@@ -199,8 +196,11 @@ def test_a_lockfile_mise_lock_rewrites_comes_back_whole(
 
 @mark.parametrize(
     "shell",
-    [{}, {"MISE_QUIET": "1"}, {"MISE_LOG_LEVEL": "error"}],
-    ids      = ["plain", "quiet", "errors-only"],
+    [
+        param({}, id="plain"),
+        param({"MISE_QUIET": "1"}, id="quiet"),
+        param({"MISE_LOG_LEVEL": "error"}, id="errors-only")
+    ],
     indirect = True
 )
 def test_an_unresolved_platform_fails_the_task(
