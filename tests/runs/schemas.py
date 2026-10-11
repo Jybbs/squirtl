@@ -319,7 +319,13 @@ def test_the_settings_refuse_a_negative_seed():
         param(("revision",),            "dirty",       True, id="the-revision"),
         param(("settings",),            "seed",        2,    id="the-settings"),
         param(("settings", "agent"),    "batch_size",  64,   id="the-agent-settings"),
-        param(("settings", "emulator"), "open_window", True, id="the-emulator-settings")
+        param(
+            ("settings", "emulator"),
+            "open_window",
+            True,
+            id = "the-emulator-settings"
+        ),
+        param(("settings", "reward"),   "novelty",     0.01, id="the-reward-settings")
     ]
 )
 def test_a_record_refuses_a_change_once_built(
@@ -345,7 +351,8 @@ def test_a_record_refuses_a_change_once_built(
         param(("revision",),            id="the-revision"),
         param(("settings",),            id="the-settings"),
         param(("settings", "agent"),    id="the-agent-settings"),
-        param(("settings", "emulator"), id="the-emulator-settings")
+        param(("settings", "emulator"), id="the-emulator-settings"),
+        param(("settings", "reward"),   id="the-reward-settings")
     ]
 )
 def test_a_run_record_refuses_a_key_no_field_declares(path: tuple[str, ...], run: Run):

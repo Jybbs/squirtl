@@ -19,6 +19,7 @@ from typing       import Annotated, Self
 
 from squirtl.agent.schemas    import AgentSettings
 from squirtl.emulator.schemas import EmulatorSettings, Record
+from squirtl.reward.schemas   import RewardSettings
 
 type Hexadecimal = Annotated[
     str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
@@ -104,6 +105,11 @@ class RunSettings(Record):
     emulator: EmulatorSettings = Field(default_factory=EmulatorSettings)
     """
     The settings the emulator reads.
+    """
+
+    reward: RewardSettings = Field(default_factory=RewardSettings)
+    """
+    The settings the reward reads.
     """
 
     seed: NonNegativeInt = 1

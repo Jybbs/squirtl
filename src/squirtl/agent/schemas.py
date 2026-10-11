@@ -15,11 +15,9 @@ from torch.accelerator import current_accelerator
 from typing            import Annotated, Self
 
 from squirtl.agent.networks   import QNetwork
-from squirtl.emulator.schemas import Record
+from squirtl.emulator.schemas import Record, UnitInterval
 
 type Fraction = Annotated[float, Field(gt=0, le=1)]
-
-type Probability = Annotated[float, Field(ge=0, le=1)]
 
 
 class AgentSettings(Record):
@@ -57,13 +55,13 @@ class AgentSettings(Record):
     follows Mnih et al.
     """
 
-    epsilon_end: Probability = 0.01
+    epsilon_end: UnitInterval = 0.01
     """
     The chance of a random action once exploration has annealed, whose
     default follows CleanRL's `dqn_atari.py`.
     """
 
-    epsilon_start: Probability = 1.0
+    epsilon_start: UnitInterval = 1.0
     """
     The chance of a random action at the run's first step, whose default
     follows CleanRL's `dqn_atari.py`.

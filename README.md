@@ -50,7 +50,7 @@ Reinforcement Learning (**RL**) is a paradigm of machine learning where an agent
 
 5. **Value Function**: Estimates the expected cumulative reward from a given state. In Pokémon Blue, many actions don't have immediate rewards, so the agent must learn to value states that lead to future rewards, like progressing through dialogue or moving towards important locations.
 
-6. **Experience Replay**: A technique where the agent stores and learns from past experiences. This is particularly important in this project due to the rarity of significant events (*like completing the intro or choosing a starter*). Experience replay allows the agent to learn efficiently from these rare but important experiences.
+6. **Experience Replay**: A technique where the agent stores and learns from past experiences. This is particularly important in this project due to the rarity of significant events (*like a milestone on the way to the starter, or choosing the starter itself*). Experience replay allows the agent to learn efficiently from these rare but important experiences.
 
 ### Deep Q-Networks (DQN)
 
@@ -131,16 +131,15 @@ This periodic update is reminiscent of the concept of "batching" in amortized an
 
 In the context of Pokémon Blue, the state $`s`$ is represented by a tensor of shape (144, 160, 4), corresponding to the game screen pixels. The action space $`A`$ consists of 7 discrete actions: 'a', 'b', 'up', 'down', 'left', 'right', and 'wait'.
 
-The reward function $`R(s, a, s')`$ is designed to encourage exploration and progress:
+The reward function $`R(s, a, s')`$ sums three terms, each paying for what a step adds to its episode, and holds every step's reward within 1, the bound Mnih et al. clip each reward to,[^mnih2015] with the starter the largest term:
 
-$`\hspace{0.5cm} R(s, a, s') = \begin{cases}
-10, & \text{if } s' \text{ is a new state} \\
--10, & \text{if } s' \text{ is a recent backtrack} \\
--1, & \text{if } a \text{ is ineffective} \\
-0.1, & \text{if } s' \text{ is a revisited state} \\
-1000, & \text{if intro is completed} \\
-10000, & \text{if starter is chosen}
-\end{cases}`$
+$`\hspace{0.5cm} R(s, a, s') = 0.00025 \cdot \mathbb{1}[p' \notin P] + 0.1 \cdot |M' \setminus M| + 0.6 \cdot \mathbb{1}[g' \land \lnot g]`$
+
+Where:
+
+- $`p'`$ is the map position the step ends on, read from `wCurMap`, `wXCoord`, and `wYCoord`, and $`P`$ is every position the episode reached before it, so the reward pays for a position once per episode, at a 400th of a milestone, the ratio Pleines et al. pay one new coordinate against one completed event[^pleines2025]
+- $`M`$ and $`M'`$ are the milestone flags in `wEventFlags` the episode has seen set before and after the step, meaning `EVENT_OAK_APPEARED_IN_PALLET`, `EVENT_FOLLOWED_OAK_INTO_LAB`, and `EVENT_OAK_ASKED_TO_CHOOSE_MON`
+- $`g`$ and $`g'`$ are whether `EVENT_GOT_STARTER` is set before and after the step, whose setting ends the episode as terminated
 
 This reward structure, combined with the DQN algorithm, allows SquiRtL to learn a policy that can navigate the complex, partially observable environment of Pokémon Blue, dealing with delayed rewards and a large state space.
 
@@ -153,6 +152,7 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 | `squirtl.agent` | *The deep Q-network agent, meaning the Q-network, replay memory holding each frame once, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from* |
 | `squirtl.cli` | *The `squirtl` command* |
 | `squirtl.emulator` | *The cartridge a run reads, refused unless its SHA-1 names an English release of Pokémon Red or Blue, and `GameBoy` running it headless through PyBoy with no save beside it, beside the buttons a step presses and the addresses in the game's memory the package reads* |
+| `squirtl.reward` | *The reward each step earns, meaning a novelty for each map position an episode reaches for the first time, a milestone for each event flag on the way to the starter, and the starter, which ends the episode, with every step's reward held within 1 and each term's share reported beside it* |
 | `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, and the directory under `data/runs/` recording each run's settings, its commit, and the digest of `uv.lock`* |
 
 ## Metrics & Analysis
@@ -232,9 +232,9 @@ Taking a moment to contextualize the SquiRtL implementation through the lens of 
 
    This complexity arises from the need to process each pixel of the input frame. Operations like convolution or simple transformations typically require touching each pixel at least once, leading to this linear complexity in the number of pixels. Therefore, this is constant for each state.
 
-5. **State Novelty Check**: $`\mathcal{O}(m wh)`$ in the worst case, where $`m`$ is the number of explored states.
+5. **State Novelty Check**: $`\mathcal{O}(1)`$ on average.
 
-   We need to compare the current state (*of size $`wh`$*) with all $`m`$ previously seen states. Each comparison takes $`\mathcal{O}(wh)`$ time, leading to a total complexity of essentially $`\mathcal{O}(m)`$, since $`wh`$ is a constant.
+   The reward looks the map position a step ends on up in a set of the positions the episode has reached, a hash lookup whose cost holds whatever the number of positions.
 
 6. **Action Selection**: $`\mathcal{O}(L n^2 + |A|)`$, where $`|A|`$ is the size of the action space.
 
@@ -250,10 +250,10 @@ The overall time complexity per step, expressed in terms of the dominant term, t
 - **Neural Network Parameters**: $`\mathcal{O}(L n^2)`$
   This accounts for storing all weights and biases of the network across L layers.
 
-- **Explored States**: $`\mathcal{O}(m wh)`$
-  We maintain a record of all unique states encountered, each of size wh, growing with exploration.
+- **Explored States**: $`\mathcal{O}(m)`$, where $`m`$ is the number of positions an episode reaches
+  Each position is a record of a map and two coordinates, read from three bytes of the game's memory and recorded once per episode.
 
-The total space complexity, likewise to **Time Complexity**, is $`\mathcal{O}(L n^2)`$. This is because the storage of explored states typically becomes the dominant factor as the agent explores more of the game environment, especially for high-resolution game screens.
+The total space complexity, likewise to **Time Complexity**, is $`\mathcal{O}(L n^2)`$, since the positions an episode can record are bounded by the squares the game's maps hold.
 
 ### Trade-offs & Optimizations
 
@@ -261,13 +261,7 @@ The total space complexity, likewise to **Time Complexity**, is $`\mathcal{O}(L 
 
 2. **State Representation**: The current pixel-based state representation (*$`wh`$ pixels*) is memory-intensive. Dimensionality reduction techniques could potentially reduce this, trading off some information for improved space efficiency.
 
-3. **Novelty Detection**: As $`m`$ grows, the $`\mathcal{O}(m wh)`$ novelty check becomes a significant bottleneck. Potential optimizations include:
-
-   - Using tree-based structures could reduce this to $`\mathcal{O}(\log m)`$ on average, at the cost of increased complexity in insertions.
-  
-   - Locality-sensitive hashing (**LSH**) could provide approximate nearest neighbor search in sublinear time.
-  
-   - Bloom filters could offer constant-time novelty checking with a small false positive rate.
+3. **Novelty Detection**: Reading novelty from the map position rather than the screen reduces the check to a set lookup and each explored state to a map and two coordinates, whereas a change on screen that leaves the player on the same square, such as a line of dialogue, earns no novelty at all.
 
 4. **Batch Processing**: The batch size $`b`$ presents a trade-off between computation time and learning stability. Larger batches provide more stable gradient estimates but increase per-step computation time.
 
@@ -275,7 +269,7 @@ The total space complexity, likewise to **Time Complexity**, is $`\mathcal{O}(L 
 
 6. **GPU Acceleration**: While not changing asymptotic complexity, GPU usage can significantly reduce practical computation time for neural network operations, as was often the case in my initial training.
 
-In conclusion, SquiRtL's complexity is primarily driven by the neural network operations, the size of the game state, and the number of explored states. As the agent explores more of the game, optimizations in state representation and novelty detection will become crucial for maintaining efficiency in long training runs.
+In conclusion, *SquiRtL*'s complexity is primarily driven by the neural network operations and the size of the game state. As the agent explores more of the game, optimizations in state representation will become crucial for maintaining efficiency in long training runs.
 
 ## References
 
@@ -296,3 +290,7 @@ In conclusion, SquiRtL's complexity is primarily driven by the neural network op
 This project was developed under the supervision and thoughtful direction of [Professor Weston Viles](https://roux.northeastern.edu/people/weston-viles/) during class *5800 - Algorithms* at the **Roux Institute of Northeastern University**. Wes has been an incredible supporter of me and my work for multiple summers now, and I'm thrilled to have had the opportunity to both learn from and get to know someone who's so passionate about this space. 
 
 I also would be remiss if I didn't thank **Sean Sullivan** for constantly helping me contextualize my thoughts and for his advocacy of my work and capabilities in all things technology. Thank you, Wes and Sean!
+
+[^mnih2015]: Mnih et al. 2015. "Human-level control through deep reinforcement learning." *Nature* 518(7540): 529–533. <https://doi.org/10.1038/nature14236>
+
+[^pleines2025]: Pleines et al. 2025. "Pokemon Red via Reinforcement Learning." arXiv:2502.19920. <https://arxiv.org/abs/2502.19920>

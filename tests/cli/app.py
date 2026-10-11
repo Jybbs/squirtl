@@ -24,6 +24,7 @@ from typing             import Annotated
 
 from squirtl.cli              import app
 from squirtl.emulator.schemas import EmulatorSettings
+from squirtl.reward.schemas   import RewardSettings
 from squirtl.runs.schemas     import RunSettings
 
 type Invoker = Callable[[list[str]], Invocation]
@@ -186,6 +187,12 @@ def test_a_table_above_the_working_directory_is_not_read(
                 emulator = EmulatorSettings(cartridge=Path("rom.gb"), open_window=True)
             ),
             id = "a-subject-table-beside-a-flag"
+        ),
+        param(
+            "[tool.squirtl.reward]\nmilestone = 0.05\n",
+            ["--reward.starter", "0.7"],
+            RunSettings(reward=RewardSettings(milestone=0.05, starter=0.7)),
+            id = "the-reward-table-beside-a-flag"
         )
     ]
 )

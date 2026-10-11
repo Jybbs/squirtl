@@ -5,11 +5,12 @@ Pins how `GameBoy` runs a cartridge through PyBoy, covering:
   the SDL2 window PyBoy opens under SDL's dummy video driver
 - The save beside the cartridge, which a boot never reads and a close
   never writes
-- The press of any button, the one tick of the frames a step names, and
-  the read of the screen after that tick
+- The press of any button for the frames the settings hold it, the one
+  tick of the frames a step names, the read of the screen after that tick,
+  and the press refused for holding its button past those frames
 - The screen a press returns, an RGB copy no later frame overwrites
-- The byte each symbol reads, the state a capture saves and a restore loads,
-  and the stop a close makes
+- The byte each symbol reads and the byte an offset past it reads, the
+  state a capture saves and a restore loads, and the stop a close makes
 """
 
 from collections.abc import Callable, Iterator
@@ -120,24 +121,50 @@ def test_a_closed_console_runs_no_further_frame(cartridge: Cartridge):
     ("button", "pressed"),
     [
         param(None, [], id="no-press"),
-        *(param(button, [("button", button)], id=button) for button in Button)
+        *(param(button, [("button", button, 3)], id=button) for button in Button)
     ]
 )
 def test_a_press_sends_any_button_then_ticks_before_reading_the_screen(
     boot    : Boot,
     button  : Button | None,
-    pressed : list[tuple[str, Button]]
+    pressed : list[tuple[str, Button, int]]
 ):
     """
     Asserts that a press hands PyBoy the name of its button, where it has
-    one, then advances every frame the step names in one tick, and reads
-    the screen only after that tick, so the frame it returns is the one that
-    tick rendered.
+    one, held for the `hold` its settings name, then advances every frame
+    the step names in one tick, and reads the screen only after that tick,
+    so the frame it returns is the one that tick rendered.
     """
-    game_boy = boot(EmulatorSettings())
+    game_boy = boot(EmulatorSettings(hold=3))
     game_boy.press(button, 24)
 
     assert game_boy.emulator.calls == [*pressed, ("tick", 24), ("screen",)]
+
+
+def test_a_press_holding_its_button_past_its_frames_is_refused(boot: Boot):
+    """
+    Asserts that a press advancing fewer frames than its settings hold the
+    button for raises before PyBoy receives the button, rather than leaving
+    it held into the next tick.
+    """
+    game_boy = boot(EmulatorSettings(hold=3))
+
+    with raises(ValueError, match="holds its button for 3 frames, more than the 2"):
+        game_boy.press(Button.A, 2)
+
+    assert game_boy.emulator.calls == []
+
+
+def test_a_read_past_a_symbol_reads_the_byte_at_its_offset(game_boy: GameBoy):
+    """
+    Asserts that reading `offset` bytes past a symbol returns the byte at
+    that index of the array the symbol starts, where the symbol's own byte
+    holds another value.
+    """
+    game_boy.emulator.memory[Symbol.W_EVENT_FLAGS]     = 0x01
+    game_boy.emulator.memory[Symbol.W_EVENT_FLAGS + 4] = 0x5A
+
+    assert game_boy.read(Symbol.W_EVENT_FLAGS, 4) == 0x5A
 
 
 def test_a_restore_returns_the_console_to_its_capture(game_boy: GameBoy):
@@ -172,9 +199,9 @@ def test_each_button_names_one_pyboy_presses(button: Button, game_boy: GameBoy):
     """
     Asserts that PyBoy takes the value of each button as the name of a
     button it presses, where it raises `PyBoyInvalidInputException` on a
-    name it does not know.
+    name it does not know, held for exactly the frames the press advances.
     """
-    game_boy.press(button, 1)
+    game_boy.press(button, game_boy.settings.hold)
 
 
 @mark.parametrize("symbol", Symbol, ids=attrgetter("name"))

@@ -2,6 +2,8 @@
 Defines the records the emulator reads:
 
 - `Record`, the base of a frozen record refusing a key no field declares
+- `UnitInterval`, a float from 0 to 1, which the settings of each subject
+  above the emulator bound a probability or a reward by
 - `Button`, the buttons a step presses
 - `Edition`, the releases of the game whose layout pret/pokered rebuilds
 - `Symbol`, the addresses in the game's memory the package reads
@@ -13,8 +15,10 @@ from enum      import IntEnum, StrEnum, auto
 from functools import cached_property
 from hashlib   import sha1
 from pathlib   import Path
-from pydantic  import BaseModel, Field, model_validator
+from pydantic  import BaseModel, Field, PositiveInt, model_validator
 from typing    import Annotated, Self
+
+type UnitInterval = Annotated[float, Field(ge=0, le=1)]
 
 
 class Button(StrEnum):
@@ -145,6 +149,14 @@ class EmulatorSettings(Record):
     """
     The file holding the user's own ROM of the English Pokémon Red or Blue,
     which a run refuses unless pret/pokered lists its SHA-1.
+    """
+
+    hold: PositiveInt = 2
+    """
+    The frames a press holds its button down, since pret/pokered's
+    `OverworldLoop` calls `DelayFrame` twice before each `JoypadOverworld`,
+    so the overworld reads the joypad every second frame and misses a press
+    held for one frame that falls between two reads.
     """
 
     open_window: bool = False

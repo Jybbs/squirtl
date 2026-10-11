@@ -5,6 +5,7 @@ Pins the records the emulator reads, covering:
   edition, and the repr that leaves out its bytes
 - The digest each edition holds and the address each symbol holds, against
   what pret/pokered publishes
+- The settings refusing a press held for no frames
 """
 
 from hashlib  import sha1
@@ -94,3 +95,12 @@ def test_the_repr_of_a_cartridge_names_its_path_and_leaves_out_its_bytes(
     leaves out the ROM's bytes.
     """
     assert repr(cartridge) == f"Cartridge(path={cartridge.path!r})"
+
+
+def test_the_settings_refuse_a_hold_of_no_frames():
+    """
+    Asserts that a press holding its button for no frames is refused, so
+    every press holds its button for one frame at least.
+    """
+    with raises(ValidationError, match="greater than 0"):
+        EmulatorSettings(hold=0)
