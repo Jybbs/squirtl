@@ -81,7 +81,7 @@
         },
         "hold": {
           "default": 2,
-          "description": "The frames a press holds its button down, since the overworld reads a\npress held for one frame only on alternate frames, whereas one held for\ntwo registers on every frame.",
+          "description": "The frames a press holds its button down, since pret/pokered's\n`OverworldLoop` calls `DelayFrame` twice before each `JoypadOverworld`,\nso the overworld reads the joypad every second frame and misses a press\nheld for one frame that falls between two reads.",
           "exclusiveMinimum": 0,
           "title": "Hold",
           "type": "integer"

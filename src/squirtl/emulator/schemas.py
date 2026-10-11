@@ -153,9 +153,10 @@ class EmulatorSettings(Record):
 
     hold: PositiveInt = 2
     """
-    The frames a press holds its button down, since the overworld reads a
-    press held for one frame only on alternate frames, whereas one held for
-    two registers on every frame.
+    The frames a press holds its button down, since pret/pokered's
+    `OverworldLoop` calls `DelayFrame` twice before each `JoypadOverworld`,
+    so the overworld reads the joypad every second frame and misses a press
+    held for one frame that falls between two reads.
     """
 
     open_window: bool = False
