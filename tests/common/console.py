@@ -40,11 +40,12 @@ class StandIn:
 
         return SimpleNamespace(ndarray=self.frame)
 
-    def button(self, input: str):
+    def button(self, input: str, delay: int = 1):
         """
-        Records the press of the button `input` names.
+        Records the press of the button `input` names beside the frames
+        `delay` holds it for.
         """
-        self.calls.append(("button", input))
+        self.calls.append(("button", input, delay))
 
     def tick(self, count: int):
         """

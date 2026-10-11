@@ -79,6 +79,13 @@
           "title": "Cartridge",
           "type": "string"
         },
+        "hold": {
+          "default": 2,
+          "description": "The frames a press holds its button down, since the overworld reads a\npress held for one frame only on alternate frames, whereas one held for\ntwo registers on every frame.",
+          "exclusiveMinimum": 0,
+          "title": "Hold",
+          "type": "integer"
+        },
         "open_window": {
           "default": false,
           "description": "Whether PyBoy draws the last frame of each step in an SDL2 window,\npacing the steps at sixty a second, where otherwise a run draws nothing\nand advances as fast as the machine allows.",

@@ -8,7 +8,7 @@ protocols naming the members of PyBoy that `GameBoy` calls:
 """
 
 from contextlib  import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from io          import BytesIO
 from numpy       import ndarray
 from pyboy       import PyBoy
@@ -49,9 +49,9 @@ class Emulator(Protocol):
     memory : Memory
     screen : Screen
 
-    def button(self, input: str):
+    def button(self, input: str, delay: int = 1):
         """
-        Presses the button `input` names for the next frame.
+        Presses the button `input` names for the next `delay` frames.
         """
 
     def load_state(self, file_like_object: BinaryIO):
@@ -70,9 +70,10 @@ class Emulator(Protocol):
         `save` is set.
         """
 
-    def tick(self, count: int) -> bool:
+    def tick(self, count: int = 1, render: bool = True, sound: bool = True) -> bool:
         """
-        Advances `count` frames, rendering only the last.
+        Advances `count` frames, rendering the last only where `render` is
+        set and sampling its sound only where `sound` is.
         """
 
 
@@ -87,6 +88,11 @@ class GameBoy(AbstractContextManager):
     emulator: Emulator
     """
     The emulator running the cartridge, `PyBoy` itself or a test's stand-in.
+    """
+
+    settings: EmulatorSettings = field(default_factory=EmulatorSettings)
+    """
+    The settings the console was booted with, whose `hold` each press takes.
     """
 
     def __exit__(self, *raised: object):
@@ -126,7 +132,8 @@ class GameBoy(AbstractContextManager):
                 log_level      = "ERROR",
                 sound_emulated = False,
                 window         = settings.window
-            )
+            ),
+            settings
         )
 
     def capture(self) -> bytes:
@@ -151,14 +158,26 @@ class GameBoy(AbstractContextManager):
 
     def press(self, button: Button | None, frames: int) -> ndarray:
         """
-        Presses `button` for the first frame, or nothing where it is `None`,
-        and advances `frames` frames in one tick, rendering only the last.
+        Presses `button` for the first `hold` frames the settings name,
+        or nothing where it is `None`, and advances `frames` frames in one
+        tick, rendering only the last.
+
+        Raises:
+            ValueError: Where `button` is held for more frames than the
+                        press advances, which would carry it into the next
+                        tick.
 
         Returns:
             The screen that last frame shows, as `screen` copies it.
         """
         if button:
-            self.emulator.button(button)
+            if frames < self.settings.hold:
+                raise ValueError(
+                    f"a press holds its button for {self.settings.hold} frames, "
+                    f"more than the {frames} it advances"
+                )
+
+            self.emulator.button(button, self.settings.hold)
 
         self.emulator.tick(frames)
 
