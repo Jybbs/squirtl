@@ -37,7 +37,8 @@ class AgentSettings(Record):
     The slots replay memory holds before it overwrites the oldest, four for
     each episode's reset observation and one for each step after it, whose
     default holds a 72 by 80 frame, a 48 by 48 grid, and four flags in
-    each slot in 808 MB.
+    each slot in 606 MB, the grid and the flags packed eight cells to a
+    byte.
     """
 
     device: str = Field(

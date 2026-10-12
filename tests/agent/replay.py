@@ -3,18 +3,18 @@ Pins replay memory, covering:
 
 - The transitions it holds, each drawn back as the observations, action,
   reward, and termination it was stored from, every entry stacked as deep
-  as its space declares
+  as its space declares and a binary entry unpacked as it was stored
 - The transitions it releases once their elements are overwritten
 - A reset observation drawn back element by element
 - The draws coming from the generator it is built with
 - The memory its default capacity takes at the observation the
-  environment makes
+  environment makes, each binary entry packed eight cells to a byte
 """
 
 from collections.abc  import Callable, Mapping
 from gymnasium.spaces import Box, Dict
 from itertools        import pairwise
-from numpy            import arange, array, ndarray, uint8
+from numpy            import arange, array, ndarray, uint8, zeros
 from numpy.random     import default_rng
 from pytest           import fixture, mark, param
 from torch.testing    import assert_close
@@ -29,23 +29,30 @@ type Stacked = Callable[[Mapping[str, ndarray], Dict], list[dict[str, ndarray]]]
 def tiny() -> Dict:
     """
     Declares an observation of four stacked one-pixel frames beside a vector
-    of two flags one deep, each element small enough to name the step it was
-    stored on.
+    of two flags and a binary 3 by 10 grid, each one deep and each element
+    small enough to name the step it was stored on, the grid's rows 10 cells
+    wide so packing them leaves a byte part full.
     """
-    return Dict(flags=Box(0, 255, (1, 2), uint8), frames=Box(0, 255, (4, 1, 1), uint8))
+    return Dict(
+        flags  = Box(0, 255, (1, 2), uint8),
+        frames = Box(0, 255, (4, 1, 1), uint8),
+        grid   = Box(0, 1, (1, 3, 10), uint8)
+    )
 
 
 def elements(index: int, steps: int) -> dict[str, ndarray]:
     """
     Builds the elements of episode `index`, `steps` steps long, each step's
-    frame holding its step plus 100 times `index` and its flags that value
-    and that value plus 50.
+    frame holding its step plus 100 times `index`, its flags that value
+    and that value plus 50, and its grid that value's eight bits, repeated
+    across the grid's cells.
     """
     values = arange(steps + 1, dtype=uint8) + 100 * index
 
     return {
         "flags"  : values[:, None] + array([0, 50], uint8),
-        "frames" : values[:, None, None]
+        "frames" : values[:, None, None],
+        "grid": values[:, None, None] >> arange(30, dtype=uint8).reshape(3, 10) % 8 & 1
     }
 
 
@@ -114,19 +121,26 @@ def test_replay_draws_back_each_transition_it_holds_and_nothing_else(
     } == set(stored[-held:])
 
 
-def test_replay_at_its_default_capacity_holds_its_arrays_under_a_gigabyte(space: Dict):
+def test_replay_at_its_default_capacity_packs_each_binary_entry_into_606_mb(
+    space: Dict
+):
     """
     Asserts that the arrays of replay memory at the default capacity take
-    less than 1 GB for the observation the environment makes, each slot
-    holding one `uint8` 72 by 80 frame, one 48 by 48 grid, and four flags.
+    606.3 MB for the observation the environment makes, each slot holding
+    one `uint8` 72 by 80 frame beside the 48 by 48 grid packed into 288
+    bytes and the four flags packed into one, as `packbits` packs eight
+    cells to a byte.
     """
     replay = Replay(AgentSettings().capacity, default_rng(0), space)
 
     assert sum(
         allocated.nbytes
-        for allocated in [*vars(replay).values(), *replay.observations.values()]
+        for allocated in [
+            *vars(replay).values(),
+            *(column.elements for column in replay.columns.values())
+        ]
         if isinstance(allocated, ndarray)
-    ) < 10**9
+    ) == 606_300_000
 
 
 def test_replay_draws_a_reset_observation_back_element_by_element(tiny: Dict):
@@ -138,8 +152,15 @@ def test_replay_draws_a_reset_observation_back_element_by_element(tiny: Dict):
     replay = Replay(16, default_rng(0), tiny)
     frames = arange(1, 6, dtype=uint8).reshape(5, 1, 1)
 
-    replay.begin({"flags": array([[1, 2]], uint8), "frames": frames[:4]})
-    replay.store(0, {"flags": array([[3, 4]], uint8), "frames": frames[1:]}, 0.0, False)
+    grid = zeros((1, 3, 10), uint8)
+
+    replay.begin({"flags": array([[1, 2]], uint8), "frames": frames[:4], "grid": grid})
+    replay.store(
+        0,
+        {"flags": array([[3, 4]], uint8), "frames": frames[1:], "grid": grid},
+        0.0,
+        False
+    )
 
     assert replay.sample("cpu", 1).observations["frames"].flatten().tolist() == [
         1, 2, 3, 4

@@ -1,23 +1,109 @@
 """
-Defines `Replay`, the replay memory the agent stores each transition in and
-draws each update's batch from.
+Defines the replay memory the agent stores each transition in and draws each
+update's batch from:
+
+- `Column`, the elements one entry of an observation holds across the slots
+- `Replay`, the replay memory itself
 """
 
 from collections.abc  import Mapping
-from gymnasium.spaces import Dict
-from numpy            import arange, count_nonzero, float32, int64, ndarray, zeros
+from dataclasses      import dataclass
+from gymnasium.spaces import Box, Dict
+from numpy            import arange, count_nonzero, float32, int64, ndarray, packbits, uint8, unpackbits, zeros
 from numpy.random     import Generator
 from torch            import as_tensor
+from typing           import Self
 
 from squirtl.agent.schemas import Batch
 
 
+@dataclass(frozen=True, kw_only=True)
+class Column:
+    """
+    The elements one entry of a `Dict` observation holds in replay memory,
+    one per slot, where a binary entry holds each element packed eight cells
+    to a byte along its last axis through `packbits`.
+    """
+
+    depth: int
+    """
+    The elements one observation of the entry stacks along its first axis.
+    """
+
+    elements: ndarray
+    """
+    The element each slot holds, packed along its last axis where `width`
+    is set.
+    """
+
+    width: int | None
+    """
+    The length of each element's last axis before packing, or `None` where
+    the column holds its elements as they are.
+    """
+
+    @classmethod
+    def allocate(cls, capacity: int, space: Box) -> Self:
+        """
+        Allocates `capacity` slots for the elements `space` stacks along its
+        first axis, packing them where `space` holds `uint8` cells bounded
+        at 0 and 1, since `unpackbits` returns `uint8`.
+        """
+        depth, *element = space.shape
+
+        if space.dtype == uint8 and (space.low == 0).all() and (space.high == 1).all():
+            return cls(
+                depth    = depth,
+                elements = zeros(
+                    (capacity, *packbits(zeros(element, uint8), axis=-1).shape),
+                    uint8
+                ),
+                width = element[-1]
+            )
+
+        return cls(
+            depth    = depth,
+            elements = zeros((capacity, *element), space.dtype),
+            width    = None
+        )
+
+    def window(self, slots: ndarray) -> ndarray:
+        """
+        Takes the `depth` elements ending at each of `slots` and the one
+        after it, wrapping past the last slot, and unpacks them where the
+        column packs its elements.
+
+        Returns:
+            A `(len(slots), depth + 1, *element)` array.
+        """
+        window = self.elements.take(
+            slots[:, None] + arange(1 - self.depth, 2),
+            axis = 0,
+            mode = "wrap"
+        )
+
+        return window if self.width is None else unpackbits(
+            window,
+            axis  = -1,
+            count = self.width
+        )
+
+    def write(self, element: ndarray, slot: int):
+        """
+        Writes `element` into `slot`, packing it where the column packs
+        its elements.
+        """
+        self.elements[slot] = element if self.width is None else packbits(
+            element,
+            axis = -1
+        )
+
+
 class Replay:
     """
-    Replay memory over arrays holding, for each entry of a `Dict`
-    observation, one element of that entry's stack per slot, beside the
-    action taken on the observation that slot ends, the reward it earned,
-    and whether it terminated the episode.
+    Replay memory over one `Column` for each entry of a `Dict` observation,
+    beside the action taken on the observation each slot ends, the reward it
+    earned, and whether it terminated the episode.
 
     An episode's reset observation is stored whole, every entry's stack
     ending at the same slot, and every step after it stores only the
@@ -34,14 +120,12 @@ class Replay:
         each entry stacked along its first axis, drawing every batch from
         `generator`.
         """
-        self.actions      = zeros(capacity, int64)
-        self.depths       = {key: subspace.shape[0] for key, subspace in space.items()}
-        self.generator    = generator
-        self.held         = zeros(capacity, bool)
-        self.observations = {
-            key: zeros((capacity, *subspace.shape[1:]), subspace.dtype)
-            for key, subspace in space.items()
+        self.actions = zeros(capacity, int64)
+        self.columns = {
+            key: Column.allocate(capacity, subspace) for key, subspace in space.items()
         }
+        self.generator  = generator
+        self.held       = zeros(capacity, bool)
         self.pushed     = 0
         self.rewards    = zeros(capacity, float32)
         self.terminated = zeros(capacity, bool)
@@ -58,7 +142,7 @@ class Replay:
         Reads the depth of the deepest entry's stack, the most slots one
         observation reads.
         """
-        return max(self.depths.values())
+        return max(column.depth for column in self.columns.values())
 
     def begin(self, observation: Mapping[str, ndarray]):
         """
@@ -82,7 +166,7 @@ class Replay:
         self.held.put(self.pushed + arange(self.depth), False, mode="wrap")
 
         for key, element in elements.items():
-            self.observations[key][self.pushed % len(self.held)] = element
+            self.columns[key].write(element, self.pushed % len(self.held))
 
         self.pushed += 1
 
@@ -103,16 +187,8 @@ class Replay:
             rewards    = as_tensor(self.rewards[slots], device=device),
             terminated = as_tensor(self.terminated[slots], device=device),
             windows    = {
-                key: as_tensor(
-                    array.take(
-                        # The `depth` elements ending at each slot and the one after.
-                        slots[:, None] + arange(1 - self.depths[key], 2),
-                        axis = 0,
-                        mode = "wrap"
-                    ),
-                    device = device
-                )
-                for key, array in self.observations.items()
+                key: as_tensor(column.window(slots), device=device)
+                for key, column in self.columns.items()
             }
         )
 

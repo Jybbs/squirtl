@@ -149,7 +149,7 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 
 | **Subpackage** | **What It Holds** |
 |---|---|
-| `squirtl.agent` | *The deep Q-network agent, meaning the Q-network reading each entry of an observation through an encoder of its own, replay memory holding each element of each entry once, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from* |
+| `squirtl.agent` | *The deep Q-network agent, meaning the Q-network reading each entry of an observation through an encoder of its own, replay memory holding each element of each entry once with each binary entry packed eight cells to a byte, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from* |
 | `squirtl.cli` | *The `squirtl` command* |
 | `squirtl.emulator` | *The cartridge a run reads, refused unless its SHA-1 names an English release of Pokémon Red or Blue, and `GameBoy` running it headless through PyBoy with no save beside it, beside the buttons a step presses and the addresses in the game's memory the package reads* |
 | `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Red's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, and the time limit truncating an episode* |

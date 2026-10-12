@@ -13,7 +13,7 @@
         },
         "capacity": {
           "default": 100000,
-          "description": "The slots replay memory holds before it overwrites the oldest, four for\neach episode's reset observation and one for each step after it, whose\ndefault holds a 72 by 80 frame, a 48 by 48 grid, and four flags in\neach slot in 808 MB.",
+          "description": "The slots replay memory holds before it overwrites the oldest, four for\neach episode's reset observation and one for each step after it, whose\ndefault holds a 72 by 80 frame, a 48 by 48 grid, and four flags in\neach slot in 606 MB, the grid and the flags packed eight cells to a\nbyte.",
           "exclusiveMinimum": 0,
           "title": "Capacity",
           "type": "integer"
