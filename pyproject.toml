@@ -4,7 +4,7 @@ requires      = ["hatchling==1.32.4"]
 
 [project]
 authors         = [{ name = "James Parkington" }]
-dependencies    = ["cyclopts", "numpy", "pyboy", "pydantic", "torch"]
+dependencies    = ["cyclopts", "gymnasium", "numpy", "opencv-python-headless", "pyboy", "pydantic", "torch"]
 description     = "Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and PyTorch."
 license         = "MIT"
 license-files   = ["LICENSE.md"]

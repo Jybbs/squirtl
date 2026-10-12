@@ -34,9 +34,10 @@ class AgentSettings(Record):
 
     capacity: PositiveInt = 100_000
     """
-    The frames replay memory holds before it overwrites the oldest, four for
+    The slots replay memory holds before it overwrites the oldest, four for
     each episode's reset observation and one for each step after it, whose
-    default holds 72 by 80 frames in 576 MB.
+    default holds a 72 by 80 frame, a 48 by 48 grid, and four flags in
+    each slot in 808 MB.
     """
 
     device: str = Field(
@@ -97,38 +98,38 @@ class AgentSettings(Record):
 class Batch:
     """
     The transitions one update draws from replay memory, each field a tensor
-    on the device the settings name, with the frames of both stacks a draw
-    reads held once in `window`.
+    on the device the settings name, with the elements of both observations
+    a draw reads held once in each entry's window.
     """
 
-    actions    : Tensor  # (batch,) int64
-    rewards    : Tensor  # (batch,) float32
-    terminated : Tensor  # (batch,) bool
-    window     : Tensor  # (batch, 5, 72, 80) uint8
+    actions    : Tensor             # (batch,) int64
+    rewards    : Tensor             # (batch,) float32
+    terminated : Tensor             # (batch,) bool
+    windows    : dict[str, Tensor]  # Each (batch, depth + 1, *element) uint8.
 
     @property
-    def next_observations(self) -> Tensor:
+    def next_observations(self) -> dict[str, Tensor]:
         """
-        Slices the stacks each draw's action reached out of `window`, its
-        frames after the first.
+        Slices the observations each draw's action reached out of `windows`,
+        each window's elements after the first.
         """
-        return self.window[:, 1:]
+        return {key: window[:, 1:] for key, window in self.windows.items()}
 
     @property
-    def observations(self) -> Tensor:
+    def observations(self) -> dict[str, Tensor]:
         """
-        Slices the stacks each draw's action was taken on out of `window`,
-        its frames before the last.
+        Slices the observations each draw's action was taken on out of
+        `windows`, each window's elements before the last.
         """
-        return self.window[:, :-1]
+        return {key: window[:, :-1] for key, window in self.windows.items()}
 
     @no_grad()
     def targets(self, discount: float, network: QNetwork) -> Tensor:
         """
         Values each draw at its reward plus `discount` times the highest
-        value `network` gives the stack its action reached, or at its reward
-        alone where the step terminated the episode, recording no autograd
-        graph.
+        value `network` gives the observation its action reached, or at its
+        reward alone where the step terminated the episode, recording no
+        autograd graph.
         """
         return (
             self.rewards
@@ -137,8 +138,8 @@ class Batch:
 
     def values(self, network: QNetwork) -> Tensor:
         """
-        Reads the value `network` gives each draw's action on the stack it
-        was taken on.
+        Reads the value `network` gives each draw's action on the
+        observation it was taken on.
         """
         return network(self.observations).gather(1, self.actions[:, None])[:, 0]
 

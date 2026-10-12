@@ -77,12 +77,12 @@ def test_a_batch_values_each_draw_at_the_action_it_took():
         actions    = tensor([2, 0]),
         rewards    = tensor([0.0, 0.0]),
         terminated = tensor([False, False]),
-        window     = arange(10, dtype=uint8).reshape(2, 5, 1, 1)
+        windows    = {"frames": arange(10, dtype=uint8).reshape(2, 5, 1, 1)}
     )
 
-    assert batch.values(lambda stacks: stacks[:, :, 0, 0].float()).tolist() == [
-        2.0, 5.0
-    ]
+    assert batch.values(
+        lambda observations: observations["frames"][:, :, 0, 0].float()
+    ).tolist() == [2.0, 5.0]
 
 
 def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
@@ -142,8 +142,11 @@ def test_a_batch_targets_its_reward_plus_the_discounted_highest_value_reached(
         actions    = tensor([0]),
         rewards    = tensor([1.0]),
         terminated = tensor([terminated]),
-        window     = arange(5, dtype=uint8).reshape(1, 5, 1, 1)
-    ).targets(0.5, lambda stacks: stacks[:, :, 0, 0].float().requires_grad_())
+        windows    = {"frames": arange(5, dtype=uint8).reshape(1, 5, 1, 1)}
+    ).targets(
+        0.5,
+        lambda observations: observations["frames"][:, :, 0, 0].float().requires_grad_()
+    )
 
     assert (targets.tolist(), targets.requires_grad) == ([target], False)
 

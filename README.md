@@ -40,9 +40,9 @@ Reinforcement Learning (**RL**) is a paradigm of machine learning where an agent
 
 ### Key Implemented Concepts
 
-1. **State Space**: Represented by the game screen pixels (*144x160x4 tensor*). This representation is crucial as it allows the agent to learn directly from raw pixel data, mimicking human visual input. It presents a challenge in processing high-dimensional input and extracting relevant features for decision-making.
+1. **State Space**: Represented by the last four screens, each in grayscale at half its resolution (*four stacked 72 by 80 frames*), beside a 48 by 48 grid marking each square of the current map the episode has reached around the player and the flags of the milestones and the starter, as Pleines et al. observe.[^pleines2025] The frames let the agent learn from raw pixel data and tell motion across steps, while the grid and the flags carry where the episode has been and which milestones it has reached.
 
-2. **Action Space**: Discrete set of possible game controls (*'a', 'b', 'up', 'down', 'left', 'right', 'wait'*). This limited, discrete action space reflects the actual game controls available to a human player. It simplifies the decision-making process compared to continuous action spaces, but still requires the agent to learn complex sequences of actions to achieve goals with nuance, like waiting for the opportune time to take an action.
+2. **Action Space**: Discrete set of possible game controls (*no press, A, B, and the four directions, since no step to the starter takes START or SELECT*). This limited, discrete action space reflects the actual game controls available to a human player. It simplifies the decision-making process compared to continuous action spaces, but still requires the agent to learn complex sequences of actions to achieve goals with nuance, like waiting for the opportune time to take an action.
 
 3. **Reward Function**: Designed to encourage exploration, progress, and optimal gameplay. The reward function is critical as it shapes the agent's behavior. In this project, it's particularly interesting because it needs to guide the agent through the complex, multi-step process of starting the game and choosing a starter Pokémon, without direct instruction.
 
@@ -129,7 +129,7 @@ This periodic update is reminiscent of the concept of "batching" in amortized an
 
 ### Application to Pokémon Blue
 
-In the context of Pokémon Blue, the state $`s`$ is represented by a tensor of shape (144, 160, 4), corresponding to the game screen pixels. The action space $`A`$ consists of 7 discrete actions: 'a', 'b', 'up', 'down', 'left', 'right', and 'wait'.
+In the context of Pokémon Blue, the state $`s`$ is a `Dict` observation holding the last four screens in grayscale at $`72 \times 80`$, a binary $`48 \times 48`$ grid marking each square of the current map the episode has reached, centered on the player, and a binary vector of the four milestone and starter flags. The action space $`A`$ consists of 7 discrete actions, meaning no press, A, B, and the four directions, each press holding its button for 2 of the 17 frames a step advances. An episode starts in Red's bedroom and ends as terminated at the starter or as truncated after 10,240 steps, the budget Pleines et al. start each episode with.[^pleines2025]
 
 The reward function $`R(s, a, s')`$ sums three terms, each paying for what a step adds to its episode, and holds every step's reward within 1, the bound Mnih et al. clip each reward to,[^mnih2015] with the starter the largest term:
 
@@ -149,9 +149,10 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 
 | **Subpackage** | **What It Holds** |
 |---|---|
-| `squirtl.agent` | *The deep Q-network agent, meaning the Q-network, replay memory holding each frame once, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from* |
+| `squirtl.agent` | *The deep Q-network agent, meaning the Q-network reading each entry of an observation through an encoder of its own, replay memory holding each element of each entry once, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from* |
 | `squirtl.cli` | *The `squirtl` command* |
 | `squirtl.emulator` | *The cartridge a run reads, refused unless its SHA-1 names an English release of Pokémon Red or Blue, and `GameBoy` running it headless through PyBoy with no save beside it, beside the buttons a step presses and the addresses in the game's memory the package reads* |
+| `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Red's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, and the time limit truncating an episode* |
 | `squirtl.reward` | *The reward each step earns, meaning a novelty for each map position an episode reaches for the first time, a milestone for each event flag on the way to the starter, and the starter, which ends the episode, with every step's reward held within 1 and each term's share reported beside it* |
 | `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, and the directory under `data/runs/` recording each run's settings, its commit, and the digest of `uv.lock`* |
 
@@ -291,6 +292,6 @@ This project was developed under the supervision and thoughtful direction of [Pr
 
 I also would be remiss if I didn't thank **Sean Sullivan** for constantly helping me contextualize my thoughts and for his advocacy of my work and capabilities in all things technology. Thank you, Wes and Sean!
 
-[^mnih2015]: Mnih et al. 2015. "Human-level control through deep reinforcement learning." *Nature* 518(7540): 529–533. <https://doi.org/10.1038/nature14236>
-
 [^pleines2025]: Pleines et al. 2025. "Pokemon Red via Reinforcement Learning." arXiv:2502.19920. <https://arxiv.org/abs/2502.19920>
+
+[^mnih2015]: Mnih et al. 2015. "Human-level control through deep reinforcement learning." *Nature* 518(7540): 529–533. <https://doi.org/10.1038/nature14236>

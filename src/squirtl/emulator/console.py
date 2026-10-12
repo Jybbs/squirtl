@@ -3,6 +3,7 @@ Defines `GameBoy`, which runs a verified cartridge through PyBoy, beside the
 protocols naming the members of PyBoy that `GameBoy` calls:
 
 - `Emulator`, the emulator itself
+- `GameWrapper`, the wrapper PyBoy loads for the game the cartridge holds
 - `Memory`, the view of the game's memory
 - `Screen`, the screen object holding the frame PyBoy renders
 """
@@ -15,6 +16,25 @@ from pyboy       import PyBoy
 from typing      import BinaryIO, Protocol, Self
 
 from squirtl.emulator.schemas import Button, Cartridge, EmulatorSettings, Symbol
+
+
+class GameWrapper(Protocol):
+    """
+    The members of the game wrapper `PyBoy.game_wrapper` holds that
+    `GameBoy` calls.
+    """
+
+    def reset_game(self, timer_div: int | None = None):
+        """
+        Loads the state `start_game` saved, then writes `timer_div` into the
+        DIV register.
+        """
+
+    def start_game(self, timer_div: int | None = None):
+        """
+        Plays through the game's intro to its first playable state, saves
+        that state, then writes `timer_div` into the DIV register.
+        """
 
 
 class Memory(Protocol):
@@ -46,8 +66,9 @@ class Emulator(Protocol):
     The members of `PyBoy` that `GameBoy` calls.
     """
 
-    memory : Memory
-    screen : Screen
+    game_wrapper : GameWrapper
+    memory       : Memory
+    screen       : Screen
 
     def button(self, input: str, delay: int = 1):
         """
@@ -191,9 +212,33 @@ class GameBoy(AbstractContextManager):
         """
         return self.emulator.memory[symbol + offset]
 
+    def reset(self, timer_div: int):
+        """
+        Loads the state `start` saved and writes `timer_div` into the DIV
+        register, the counter pret/pokered's `Random_` reads into the game's
+        random numbers on every frame.
+        """
+        self.emulator.game_wrapper.reset_game(timer_div)
+
     def restore(self, state: bytes):
         """
         Loads a state `capture` saved, returning the console to that
         instant.
         """
         self.emulator.load_state(BytesIO(state))
+
+    def start(self):
+        """
+        Plays through the game's intro to Red's bedroom, the first state
+        the player controls, through PyBoy's game wrapper, which saves that
+        state for `reset` to load.
+
+        Raises:
+            Exception: Where the cartridge holds Pokémon Red, since the
+                       wrapper checks for BLUE as the first name on the
+                       first naming screen and RED on the second, the order
+                       Pokémon Blue lists them in, where Red lists RED
+                       first.
+        """
+        # A `None` draws DIV from Python's global generator, which `reset` overwrites.
+        self.emulator.game_wrapper.start_game(0)

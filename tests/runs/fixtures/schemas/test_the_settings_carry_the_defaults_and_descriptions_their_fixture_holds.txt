@@ -13,7 +13,7 @@
         },
         "capacity": {
           "default": 100000,
-          "description": "The frames replay memory holds before it overwrites the oldest, four for\neach episode's reset observation and one for each step after it, whose\ndefault holds 72 by 80 frames in 576 MB.",
+          "description": "The slots replay memory holds before it overwrites the oldest, four for\neach episode's reset observation and one for each step after it, whose\ndefault holds a 72 by 80 frame, a 48 by 48 grid, and four flags in\neach slot in 808 MB.",
           "exclusiveMinimum": 0,
           "title": "Capacity",
           "type": "integer"
@@ -96,6 +96,63 @@
       "title": "EmulatorSettings",
       "type": "object"
     },
+    "EnvironmentSettings": {
+      "additionalProperties": false,
+      "description": "The settings the environment reads, each a field of\n`RunSettings.environment` and a key under `[tool.squirtl.environment]`\nin `pyproject.toml`.",
+      "properties": {
+        "frame_shape": {
+          "default": [
+            72,
+            80
+          ],
+          "description": "The height and width in pixels each frame is resized to, whose default\nis the grayscale screen at half its resolution that Pleines et al.\nobserve.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            }
+          ],
+          "title": "Frame Shape",
+          "type": "array"
+        },
+        "frame_stack": {
+          "default": 4,
+          "description": "The frames each observation stacks, the newest last, whose default\nfollows Mnih et al.",
+          "exclusiveMinimum": 0,
+          "title": "Frame Stack",
+          "type": "integer"
+        },
+        "frames_per_step": {
+          "default": 17,
+          "description": "The frames each step advances from its press, whose default is the\nfewest under which a direction pressed on open ground moves the player\none square on every press, whichever frame the press lands on.",
+          "exclusiveMinimum": 0,
+          "title": "Frames Per Step",
+          "type": "integer"
+        },
+        "grid_size": {
+          "default": 48,
+          "description": "The side in squares of the grid of reached positions each observation\ncenters on the player, whose default follows Pleines et al.",
+          "exclusiveMinimum": 0,
+          "title": "Grid Size",
+          "type": "integer"
+        },
+        "max_episode_steps": {
+          "default": 10240,
+          "description": "The steps after which `TimeLimit` truncates an episode, whose default\nis the budget Pleines et al. start each episode with.",
+          "exclusiveMinimum": 0,
+          "title": "Max Episode Steps",
+          "type": "integer"
+        }
+      },
+      "title": "EnvironmentSettings",
+      "type": "object"
+    },
     "Fraction": {
       "exclusiveMinimum": 0,
       "maximum": 1,
@@ -140,6 +197,10 @@
     "emulator": {
       "$ref": "#/$defs/EmulatorSettings",
       "description": "The settings the emulator reads."
+    },
+    "environment": {
+      "$ref": "#/$defs/EnvironmentSettings",
+      "description": "The settings the environment reads."
     },
     "reward": {
       "$ref": "#/$defs/RewardSettings",

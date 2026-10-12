@@ -4,7 +4,9 @@ each transition in replay memory, and trains its online network on batches
 drawn from it, counting every schedule in environment steps.
 """
 
+from collections.abc     import Mapping
 from copy                import deepcopy
+from gymnasium.spaces    import Dict
 from numpy               import interp, ndarray
 from numpy.random        import default_rng
 from torch               import as_tensor, default_generator, inference_mode
@@ -31,13 +33,13 @@ class Agent:
         actions  : int,
         seed     : int,
         settings : AgentSettings,
-        shape    : tuple[int, ...],
+        space    : Dict,
         steps    : int
     ):
         """
-        Builds both networks for `actions` actions over an observation of
-        `shape`, Adam over the online network, and empty replay memory, for
-        a run of `steps` environment steps.
+        Builds both networks for `actions` actions over the observations
+        `space` declares, Adam over the online network, and empty replay
+        memory, for a run of `steps` environment steps.
 
         Args:
             seed: The seed the online network's weights, the draws choosing
@@ -48,11 +50,11 @@ class Agent:
 
         with fork_rng(devices=[]):
             default_generator.manual_seed(seed)
-            self.online = QNetwork(actions, shape).to(settings.device)
+            self.online = QNetwork(actions, space).to(settings.device)
 
         self.actions   = actions
         self.optimizer = Adam(self.online.parameters(), lr=settings.learning_rate)
-        self.replay    = Replay(settings.capacity, sampling, shape)
+        self.replay    = Replay(settings.capacity, sampling, space)
         self.settings  = settings
         self.step      = 0
         self.steps     = steps
@@ -88,7 +90,7 @@ class Agent:
         )
 
     @inference_mode()
-    def act(self, observation: ndarray) -> int:
+    def act(self, observation: Mapping[str, ndarray]) -> int:
         """
         Chooses a random action with probability `epsilon`, and otherwise
         the action the online network values highest for `observation`,
@@ -98,12 +100,17 @@ class Agent:
             return self.exploration.integers(self.actions).item()
 
         return (
-            self.online(as_tensor(observation, device=self.settings.device)[None])
+            self.online(
+                {
+                    key: as_tensor(stack, device=self.settings.device)[None]
+                    for key, stack in observation.items()
+                }
+            )
                 .argmax()
                 .item()
         )
 
-    def begin(self, observation: ndarray):
+    def begin(self, observation: Mapping[str, ndarray]):
         """
         Stores the reset observation of the episode starting.
         """
@@ -112,7 +119,7 @@ class Agent:
     def remember(
         self,
         action      : int,
-        observation : ndarray,
+        observation : Mapping[str, ndarray],
         reward      : float,
         terminated  : bool
     ):

@@ -7,9 +7,12 @@ Pins how `Progress` scores each step of an episode, covering:
   starter, which ends the episode
 - A flag already set when the episode starts, which earns nothing
 - The share every term reports on every step, and the most one step earns
+- The grid of reached positions centered on the player, the squares it
+  leaves out, and the vector of flags in the order `Event` declares
 """
 
 from collections.abc import Callable
+from numpy           import argwhere
 from operator        import attrgetter
 from pytest          import mark, param
 
@@ -233,3 +236,85 @@ def test_a_milestone_whose_flag_clears_and_sets_again_earns_nothing_more(
     flag(event)
 
     assert progress.score() == earning()
+
+
+@mark.parametrize("size", [param(48, id="an-even-side"), param(5, id="an-odd-side")])
+def test_the_grid_of_a_new_episode_marks_the_players_square_alone(
+    progress : Progress,
+    size     : int
+):
+    """
+    Asserts that the grid of an episode that has taken no step marks the
+    square the player starts on alone, at row and column `size // 2`.
+    """
+    assert argwhere(progress.grid(size)).tolist() == [[size // 2, size // 2]]
+
+
+@mark.parametrize(
+    ("reached", "cells"),
+    [
+        param(Position(map=0, x=31, y=30), [[24, 24], [24, 25]], id="a-square-right"),
+        param(Position(map=0, x=29, y=30), [[24, 23], [24, 24]], id="a-square-left"),
+        param(Position(map=0, x=30, y=29), [[23, 24], [24, 24]], id="a-square-above"),
+        param(Position(map=0, x=30, y=31), [[24, 24], [25, 24]], id="a-square-below"),
+        param(Position(map=0, x=30, y=6), [[0, 24], [24, 24]], id="the-top-row"),
+        param(Position(map=0, x=30, y=53), [[24, 24], [47, 24]], id="the-bottom-row"),
+        param(Position(map=0, x=6, y=30), [[24, 0], [24, 24]], id="the-first-column"),
+        param(Position(map=0, x=53, y=30), [[24, 24], [24, 47]], id="the-last-column"),
+        param(Position(map=0, x=30, y=5), [[24, 24]], id="a-row-above-the-grid"),
+        param(Position(map=0, x=30, y=54), [[24, 24]], id="a-row-below-the-grid"),
+        param(Position(map=0, x=5, y=30), [[24, 24]], id="a-column-before-the-grid"),
+        param(Position(map=0, x=54, y=30), [[24, 24]], id="a-column-past-the-grid"),
+        param(Position(map=1, x=31, y=30), [[24, 24]], id="a-square-on-another-map")
+    ]
+)
+def test_the_grid_marks_each_reached_square_inside_it_at_its_offset(
+    cells    : list[list[int]],
+    game_boy : GameBoy,
+    move     : Callable[[Position], None],
+    reached  : Position,
+    settings : RewardSettings
+):
+    """
+    Asserts that a 48 by 48 grid around a player at `x` 30 and `y` 30 on map
+    0 marks a square the episode reached at its row and column offset from
+    the player's own square at row and column 24, rows running down the map
+    and columns across it, out to each edge the grid holds, 24 squares above
+    the player and to its left and 23 below it and to its right, and leaves
+    out a square one past any of those edges or on another map.
+    """
+    move(Position(map=0, x=30, y=30))
+    progress = Progress(game_boy, settings)
+
+    for position in (reached, Position(map=0, x=30, y=30)):
+        move(position)
+        progress.score()
+
+    assert argwhere(progress.grid(48)).tolist() == cells
+
+
+@mark.parametrize(
+    "events",
+    [
+        param(set(), id="no-flag"),
+        param({Event.EVENT_OAK_APPEARED_IN_PALLET}, id="one-milestone"),
+        param(set(Event), id="every-flag")
+    ]
+)
+def test_the_flags_mark_each_set_event_in_the_order_event_declares(
+    events   : set[Event],
+    flag     : Callable[[Event], None],
+    game_boy : GameBoy,
+    settings : RewardSettings
+):
+    """
+    Asserts that the flags hold 1 for each flag `Event` names that is set
+    and 0 for each that is not, one entry per member in the order `Event`
+    declares them.
+    """
+    for event in events:
+        flag(event)
+
+    assert Progress(game_boy, settings).flags.tolist() == [
+        int(event in events) for event in Event
+    ]
