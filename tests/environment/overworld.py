@@ -18,7 +18,7 @@ Pins how `Overworld` keeps Gymnasium's environment contract, covering:
 
 from collections.abc  import Callable
 from gymnasium        import Env, make
-from gymnasium.spaces import Discrete
+from gymnasium.spaces import Box, Discrete
 from gymnasium.utils.env_checker import check_env
 from numpy          import argwhere, uint8
 from numpy.random   import default_rng
@@ -292,16 +292,17 @@ def test_the_observation_takes_the_shapes_the_settings_name(
 ):
     """
     Asserts that each entry of the observation takes the shape the settings
-    name, the frames shrunk to `frame_shape` and stacked `frame_stack`
-    deep, the grid `grid_size` squares on a side, and the flags one per
-    `Event`, each one deep, and that a reset's observation lies in the space
-    declared.
+    name, the frames shrunk to `frame_shape` and stacked `frame_stack` deep,
+    the grid `grid_size` squares on a side, and the flags one per `Event`,
+    each one deep, that a reset's observation lies in the space declared,
+    and that the frames take the `uint8` space from 0 to 255.
     """
     env            = made(**fields)
     observation, _ = env.reset(seed=0)
 
     assert {key: value.shape for key, value in observation.items()} == shapes
     assert env.observation_space.contains(observation)
+    assert env.observation_space["frames"] == Box(0, 255, shapes["frames"], uint8)
 
 
 def test_the_render_is_the_rgb_screen(made: Callable[..., Env]):

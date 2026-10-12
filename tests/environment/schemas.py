@@ -17,14 +17,19 @@ from squirtl.environment.schemas import EnvironmentSettings
 
 def test_a_frame_shrinks_to_the_mean_of_each_block_rounding_a_half_up():
     """
-    Asserts that a 2 by 4 frame shrinks into a 1 by 2 frame of the mean of
-    each 2 by 2 block, rounding 2.5 up to 3 and 4.75 to 5, in `uint8`.
+    Asserts that a 4 by 4 frame shrinks into a 2 by 2 frame of the mean of
+    each 2 by 2 block, rounding 2.5 up to 3, 4.75 to 5, 254.75 to 255, and
+    9.25 to 9, in `uint8`, so neither a block near 255 overflows its sum nor
+    a row averages with one from another block.
     """
-    shrunk = EnvironmentSettings(frame_shape=(1, 2)).shrink(
-        array([[0, 1, 2, 3], [4, 5, 6, 8]], uint8)
+    shrunk = EnvironmentSettings(frame_shape=(2, 2)).shrink(
+        array(
+            [[0, 1, 2, 3], [4, 5, 6, 8], [255, 255, 9, 9], [255, 254, 9, 10]],
+            uint8
+        )
     )
 
-    assert (shrunk.tolist(), shrunk.dtype) == ([[3, 5]], uint8)
+    assert (shrunk.tolist(), shrunk.dtype) == ([[3, 5], [255, 9]], uint8)
 
 
 @mark.parametrize(

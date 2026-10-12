@@ -57,7 +57,8 @@ class Symbol(IntEnum):
     """
     The addresses in the game's memory the package reads, each member named
     for its label in pret/pokered's `ram/wram.asm` in SCREAMING_CASE, and
-    its value the address the symbol files of both editions give that label:
+    its value the address pret/pokered's symbol file for Pokémon Blue gives
+    that label:
 
     - `W_CUR_MAP`, the map the player stands on
     - `W_EVENT_FLAGS`, the first byte of the flag array recording each event
