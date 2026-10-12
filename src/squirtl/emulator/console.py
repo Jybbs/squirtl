@@ -231,14 +231,8 @@ class GameBoy(AbstractContextManager):
         """
         Plays through the game's intro to Red's bedroom, the first state
         the player controls, through PyBoy's game wrapper, which saves that
-        state for `reset` to load.
-
-        Raises:
-            Exception: Where the cartridge holds Pokémon Red, since the
-                       wrapper checks for BLUE as the first name on the
-                       first naming screen and RED on the second, the order
-                       Pokémon Blue lists them in, where Red lists RED
-                       first.
+        state for `reset` to load, writing 0 into DIV where a `None` would
+        draw it from Python's global generator.
         """
-        # A `None` draws DIV from Python's global generator, which `reset` overwrites.
+        # `start_game` navigates Blue's naming screens only, so `Edition` lists Blue.
         self.emulator.game_wrapper.start_game(0)

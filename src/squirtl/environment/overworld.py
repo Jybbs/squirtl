@@ -45,10 +45,6 @@ class Overworld(Env):
         Args:
             render_mode: `rgb_array`, under which `render` returns the
                          screen, or `None`, where `make` is given no mode.
-
-        Raises:
-            Exception: Where the cartridge holds Pokémon Red, as
-                       `GameBoy.start` raises.
         """
         self.game_boy = GameBoy.boot(cartridge, emulator)
         self.game_boy.start()

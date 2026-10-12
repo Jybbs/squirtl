@@ -1,8 +1,9 @@
 """
 Pins the records the emulator reads, covering:
 
-- The cartridge a read refuses, naming its path, the one it reads as an
-  edition, and the repr that leaves out its bytes
+- The cartridge a read refuses, naming its path, a Pokémon Red ROM refused
+  naming Pokémon Blue, the one it reads as an edition, and the repr that
+  leaves out its bytes
 - The digest each edition holds and the address each symbol holds, against
   what pret/pokered publishes
 - The settings refusing a press held for no frames
@@ -29,6 +30,25 @@ def test_a_missing_cartridge_raises_naming_its_path(tmp_path: Path):
         Cartridge.read(path)
 
 
+def test_a_pokemon_red_rom_is_refused_naming_pokemon_blue(
+    monkeypatch : MonkeyPatch,
+    rom         : Path
+):
+    """
+    Asserts that a ROM holding the SHA-1 the pret/pokered README lists for
+    the English Pokémon Red is refused with an error naming Pokémon Blue
+    as the ROM a run plays, the digest standing in for the hash of a ROM no
+    test may carry.
+    """
+    monkeypatch.setattr(Cartridge, "digest", "ea9bcae617fdf159b045185467ae58b2e4a48b9a")
+
+    with raises(
+        ValidationError,
+        match = "is not the English Pokémon Blue ROM a run plays"
+    ):
+        Cartridge.read(rom)
+
+
 def test_a_rom_pret_pokered_does_not_list_is_refused_naming_its_path(rom: Path):
     """
     Asserts that reading a ROM whose SHA-1 pret/pokered does not list raises
@@ -38,9 +58,9 @@ def test_a_rom_pret_pokered_does_not_list_is_refused_naming_its_path(rom: Path):
     with raises(
         ValidationError,
         match = escape(
-            f"{rom} is not an English Pokémon Red or Blue ROM, since its SHA-1 is "
-            f"{sha1(rom.read_bytes()).hexdigest()} where pret/pokered lists "
-            f"{Edition.BLUE} or {Edition.RED}"
+            f"{rom} is not the English Pokémon Blue ROM a run plays, since its SHA-1 "
+            f"is {sha1(rom.read_bytes()).hexdigest()} where pret/pokered lists "
+            f"{Edition.BLUE}"
         )
     ):
         Cartridge.read(rom)
@@ -52,8 +72,7 @@ def test_each_edition_holds_the_digest_pret_pokered_lists():
     for that release's ROM, and that no other release reads as an edition.
     """
     assert {edition.name: edition.value for edition in Edition} == {
-        "BLUE" : "d7037c83e1ae5b39bde3c30787637ba1d4c48ce2",
-        "RED"  : "ea9bcae617fdf159b045185467ae58b2e4a48b9a"
+        "BLUE": "d7037c83e1ae5b39bde3c30787637ba1d4c48ce2"
     }
 
 

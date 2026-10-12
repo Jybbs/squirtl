@@ -74,7 +74,7 @@
       "properties": {
         "cartridge": {
           "default": "data/rom.gb",
-          "description": "The file holding the user's own ROM of the English Pokémon Red or Blue,\nwhich a run refuses unless pret/pokered lists its SHA-1.",
+          "description": "The file holding the user's own ROM of the English Pokémon Blue, which a\nrun refuses unless pret/pokered lists its SHA-1 for that release.",
           "format": "path",
           "title": "Cartridge",
           "type": "string"

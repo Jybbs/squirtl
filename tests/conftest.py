@@ -118,9 +118,9 @@ def rom(tmp_path: Path) -> Path:
     `EmulatorSettings` reads by default, and beside it the save PyBoy reads
     for a cartridge at that path, which holds `0xAB` in each of its 32 KiB.
 
-    The cartridge's entry point jumps to itself, and its header declares the
-    MBC3 with battery-backed RAM that Pokémon Red and Blue use and carries
-    the checksum Pan Docs gives, so PyBoy boots it and runs that one loop.
+    The cartridge's entry point jumps to itself, and its header declares
+    the MBC3 with battery-backed RAM that Pokémon Blue uses and carries the
+    checksum Pan Docs gives, so PyBoy boots it and runs that one loop.
     """
     data              = bytearray(0x8000)
     data[0x100:0x102] = b"\x18\xfe"      # `jr @`, a relative jump back onto itself

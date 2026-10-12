@@ -5,7 +5,7 @@ Defines the records the emulator reads:
 - `UnitInterval`, a float from 0 to 1, which the settings of each subject
   above the emulator bound a probability or a reward by
 - `Button`, the buttons a step presses
-- `Edition`, the releases of the game whose layout pret/pokered rebuilds
+- `Edition`, the releases of the game a run plays
 - `Symbol`, the addresses in the game's memory the package reads
 - `Cartridge`, the ROM a run boots
 - `EmulatorSettings`, the settings the emulator reads
@@ -37,13 +37,12 @@ class Button(StrEnum):
 
 class Edition(StrEnum):
     """
-    The English releases of Pokémon Red and Blue, whose memory layout the
-    pret/pokered disassembly rebuilds, each member's value the SHA-1 digest
-    its README lists for that release's ROM.
+    The English releases of the game a run plays, meaning Pokémon Blue,
+    whose memory layout the pret/pokered disassembly rebuilds, each member's
+    value the SHA-1 digest its README lists for that release's ROM.
     """
 
     BLUE = "d7037c83e1ae5b39bde3c30787637ba1d4c48ce2"
-    RED  = "ea9bcae617fdf159b045185467ae58b2e4a48b9a"
 
 
 class Record(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True):
@@ -131,8 +130,8 @@ class Cartridge(Record):
         """
         if self.digest not in Edition:
             raise ValueError(
-                f"{self.path} is not an English Pokémon Red or Blue ROM, since its "
-                f"SHA-1 is {self.digest} where pret/pokered lists "
+                f"{self.path} is not the English Pokémon Blue ROM a run plays, "
+                f"since its SHA-1 is {self.digest} where pret/pokered lists "
                 f"{' or '.join(Edition)}"
             )
 
@@ -147,8 +146,8 @@ class EmulatorSettings(Record):
 
     cartridge: Path = Path("data/rom.gb")
     """
-    The file holding the user's own ROM of the English Pokémon Red or Blue,
-    which a run refuses unless pret/pokered lists its SHA-1.
+    The file holding the user's own ROM of the English Pokémon Blue, which a
+    run refuses unless pret/pokered lists its SHA-1 for that release.
     """
 
     hold: PositiveInt = 2
