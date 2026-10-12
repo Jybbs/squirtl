@@ -8,7 +8,7 @@ from gymnasium import Env
 from gymnasium.envs.registration import EnvSpec
 from gymnasium.spaces            import Box, Discrete
 from gymnasium.wrappers          import FrameStackObservation, GrayscaleObservation, RecordEpisodeStatistics
-from gymnasium.wrappers          import ResizeObservation
+from gymnasium.wrappers          import TransformObservation
 from numpy  import ndarray, uint8
 from typing import Any
 
@@ -85,7 +85,8 @@ class Overworld(Env):
         one listed before it:
 
         - `GrayscaleObservation`, which turns the screen gray
-        - `ResizeObservation`, which resizes it to `frame_shape`
+        - `TransformObservation`, which shrinks it to `frame_shape` through
+          `EnvironmentSettings.shrink`
         - `FrameStackObservation`, which stacks `frame_stack` frames
         - `ProgressObservation`, which sets the progress beside the frames
         - `RecordEpisodeStatistics`, which records each episode's return,
@@ -106,9 +107,10 @@ class Overworld(Env):
         return RecordEpisodeStatistics(
             ProgressObservation(
                 FrameStackObservation(
-                    ResizeObservation(
+                    TransformObservation(
                         GrayscaleObservation(overworld),
-                        environment.frame_shape
+                        environment.shrink,
+                        Box(0, 255, environment.frame_shape, uint8)
                     ),
                     environment.frame_stack
                 ),

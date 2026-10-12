@@ -2,8 +2,11 @@
 Defines `EnvironmentSettings`, the settings the environment reads.
 """
 
-from pyboy.utils import CLOCK_RATE, FRAME_CYCLES
-from pydantic    import PositiveInt
+from numpy               import ndarray, uint32, uint8
+from pyboy.api.constants import COLS, ROWS
+from pyboy.utils         import CLOCK_RATE, FRAME_CYCLES
+from pydantic            import PositiveInt, model_validator
+from typing              import Self
 
 from squirtl.emulator.schemas import Record
 
@@ -17,9 +20,9 @@ class EnvironmentSettings(Record):
 
     frame_shape: tuple[PositiveInt, PositiveInt] = (72, 80)
     """
-    The height and width in pixels each frame is resized to, whose default
-    is the grayscale screen at half its resolution that Pleines et al.
-    observe.
+    The height and width in pixels each frame shrinks to, each dividing the
+    screen's own, whose default is the grayscale screen at half its
+    resolution that Pleines et al. observe.
     """
 
     frame_stack: PositiveInt = 4
@@ -56,3 +59,44 @@ class EnvironmentSettings(Record):
         `frames_per_step`.
         """
         return CLOCK_RATE / FRAME_CYCLES / self.frames_per_step
+
+    def shrink(self, frame: ndarray) -> ndarray:
+        """
+        Shrinks a grayscale `frame` to `frame_shape` by averaging each block
+        of pixels one cell covers, in integers rounding a half up, the mean
+        OpenCV's `INTER_AREA` takes over a 2 by 2 block.
+
+        Returns:
+            A `frame_shape` array of `uint8`.
+        """
+        height, width = self.frame_shape
+        blocks        = frame.reshape(
+            height,
+            frame.shape[0] // height,
+            width,
+            frame.shape[1] // width
+        )
+        cells = blocks.shape[1] * blocks.shape[3]
+
+        return (
+            (blocks.sum(axis=(1, 3), dtype=uint32) + cells // 2) // cells
+        ).astype(uint8)
+
+    @model_validator(mode="after")
+    def verify(self) -> Self:
+        """
+        Refuses a `frame_shape` whose height or width does not divide the
+        screen's `ROWS` by `COLS` pixels evenly, since `shrink` averages
+        whole blocks.
+
+        Raises:
+            ValueError: Where either does not, which Pydantic raises as a
+                        `ValidationError`.
+        """
+        if ROWS % self.frame_shape[0] or COLS % self.frame_shape[1]:
+            raise ValueError(
+                f"a frame shape of {self.frame_shape} does not divide the "
+                f"{ROWS} by {COLS} screen evenly"
+            )
+
+        return self

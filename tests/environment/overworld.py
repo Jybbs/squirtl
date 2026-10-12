@@ -214,9 +214,11 @@ def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
     """
     Asserts that the environment's spec names it and every wrapper
     shaping its observation, in the order each wraps the last, and that
-    `gymnasium.make` makes an environment of that same spec from it.
+    `gymnasium.make` makes from it an environment of the same settings,
+    wrappers, and observation space.
     """
-    spec = made().spec
+    env  = made()
+    spec = env.spec
 
     assert (
         spec.id, spec.max_episode_steps,
@@ -224,13 +226,21 @@ def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
     ) == (
         "squirtl/Overworld-v0", 10_240,
         [
-            "GrayscaleObservation", "ResizeObservation", "FrameStackObservation",
+            "GrayscaleObservation", "TransformObservation", "FrameStackObservation",
             "ProgressObservation", "RecordEpisodeStatistics"
         ]
     )
 
     with make(spec) as remade:
-        assert remade.spec == spec
+        assert (
+            remade.spec.kwargs,
+            [wrapper.name for wrapper in remade.spec.additional_wrappers],
+            remade.observation_space
+        ) == (
+            spec.kwargs,
+            [wrapper.name for wrapper in spec.additional_wrappers],
+            env.observation_space
+        )
 
 
 def test_the_observation_carries_the_grid_and_the_flags_of_the_episodes_progress(
@@ -282,7 +292,7 @@ def test_the_observation_takes_the_shapes_the_settings_name(
 ):
     """
     Asserts that each entry of the observation takes the shape the settings
-    name, the frames resized to `frame_shape` and stacked `frame_stack`
+    name, the frames shrunk to `frame_shape` and stacked `frame_stack`
     deep, the grid `grid_size` squares on a side, and the flags one per
     `Event`, each one deep, and that a reset's observation lies in the space
     declared.
