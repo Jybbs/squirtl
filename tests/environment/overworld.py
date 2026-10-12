@@ -148,7 +148,7 @@ def test_a_reset_writes_a_div_its_seed_draws(overworld: Overworld, seed: int):
     """
     Asserts that a seeded reset hands the game wrapper the `timer_div` the
     seed's generator draws first from the 256 values DIV holds, as Gymnasium
-    seeds `np_random` through `default_rng`.
+    seeds `np_random` with the `PCG64` generator `default_rng` also builds.
     """
     overworld.game_boy.emulator.calls.clear()
     overworld.reset(seed=seed)
@@ -296,16 +296,16 @@ def test_the_observation_takes_the_shapes_the_settings_name(
 
 def test_the_render_is_the_rgb_screen(made: Callable[..., Env]):
     """
-    Asserts that the unwrapped environment renders the RGB screen it
-    observes, a `(144, 160, 3)` array of `uint8` equal to the screen its
-    reset returned.
+    Asserts that the environment made in the `rgb_array` mode its metadata
+    declares renders the screen the console shows, a `(144, 160, 3)` array
+    of `uint8` holding its RGB channels.
     """
-    overworld = made().unwrapped
-    screen, _ = overworld.reset(seed=0)
-    render    = overworld.render()
+    with make(made().spec, render_mode="rgb_array") as env:
+        env.reset(seed=0)
+        render = env.render()
 
-    assert (render.shape, render.dtype) == ((144, 160, 3), uint8)
-    assert_array_equal(render, screen)
+        assert (render.shape, render.dtype) == ((144, 160, 3), uint8)
+        assert_array_equal(render, env.unwrapped.game_boy.screen)
 
 
 def test_the_render_rate_is_one_frame_per_step_at_the_consoles_speed(
@@ -314,8 +314,8 @@ def test_the_render_rate_is_one_frame_per_step_at_the_consoles_speed(
     """
     Asserts that the environment declares rendering at the steps a Game Boy
     running at its own speed takes each second, one rendered frame for each
-    `frames_per_step` frames it draws, from the 59.7275 frames a second Pan
-    Docs gives the console's screen.
+    `frames_per_step` frames it draws, from the 4.194304 MHz clock and the
+    70224 dots a frame takes that Pan Docs gives, 59.7275 frames a second.
     """
     assert made(frames_per_step=20).metadata["render_fps"] == approx(59.7275 / 20)
 

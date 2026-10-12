@@ -13,8 +13,8 @@ class QNetwork(Module):
     """
     The Q-network the agent trains, which reads each entry of a `Dict`
     observation through an encoder of its own and concatenates the encodings
-    before its head, as Pleines et al. encode their inputs. Its layers are
-    the ones Mnih et al. set, with no batch normalization.
+    before its head, as Pleines et al. encode their inputs. Its convolutions
+    and its head are the ones Mnih et al. set, with no batch normalization.
 
     Each entry stacks along its first axis, so for each draw the
     network reads:
@@ -46,8 +46,9 @@ class QNetwork(Module):
         """
         Builds the encoder an entry of `shape` takes, Mnih et al.'s three
         convolutions over a stack of images, its depth read as channels, and
-        one fully connected layer of the 64 units the configuration Pleines
-        et al. publish gives their game state over a stack of vectors.
+        one fully connected layer of 64 units, the width the configuration
+        Pleines et al. publish gives the last layer of each vector encoder,
+        over a stack of vectors.
 
         Raises:
             ValueError: Where `shape` is neither a stack of images nor a

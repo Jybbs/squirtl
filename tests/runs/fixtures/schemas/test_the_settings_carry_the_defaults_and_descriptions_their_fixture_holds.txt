@@ -137,7 +137,7 @@
         },
         "grid_size": {
           "default": 48,
-          "description": "The side in squares of the grid of reached positions each observation\ncenters on the player, whose default follows Pleines et al.",
+          "description": "The side in squares of the grid of reached positions each observation\ncenters on the player, whose default covers one square for each of the\n48 cells a side of the crop Pleines et al. observe.",
           "exclusiveMinimum": 0,
           "title": "Grid Size",
           "type": "integer"

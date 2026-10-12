@@ -20,7 +20,7 @@ class ProgressObservation(ObservationWrapper, RecordConstructorArgs):
     - `flags`, one deep, from `Progress.flags`
     - `frames`, the stack the wrapped environment observes
     - `grid`, one deep, from `Progress.grid`, so the grid marks the
-      positions whose novelty the reward has paid
+      positions the novelty term checks each step against
     """
 
     def __init__(self, env: Env, size: int):

@@ -40,7 +40,7 @@ Reinforcement Learning (**RL**) is a paradigm of machine learning where an agent
 
 ### Key Implemented Concepts
 
-1. **State Space**: Represented by the last four screens, each in grayscale at half its resolution (*four stacked 72 by 80 frames*), beside a 48 by 48 grid marking each square of the current map the episode has reached around the player and the flags of the milestones and the starter, as Pleines et al. observe.[^pleines2025] The frames let the agent learn from raw pixel data and tell motion across steps, while the grid and the flags carry where the episode has been and which milestones it has reached.
+1. **State Space**: Represented by the last four screens, each in grayscale at half its resolution, the size Pleines et al. observe[^pleines2025] (*four stacked 72 by 80 frames*), beside a 48 by 48 grid marking each square of the current map the episode has reached around the player and the flags of the milestones and the starter, the two inputs Pleines et al. also observe beside the screen. The frames let the agent learn from raw pixel data and tell motion across steps, while the grid and the flags carry where the episode has been and which milestones it has reached.
 
 2. **Action Space**: Discrete set of possible game controls (*no press, A, B, and the four directions, since no step to the starter takes START or SELECT*). This limited, discrete action space reflects the actual game controls available to a human player. It simplifies the decision-making process compared to continuous action spaces, but still requires the agent to learn complex sequences of actions to achieve goals with nuance, like waiting for the opportune time to take an action.
 
@@ -129,7 +129,7 @@ This periodic update is reminiscent of the concept of "batching" in amortized an
 
 ### Application to Pokémon Blue
 
-In the context of Pokémon Blue, the state $`s`$ is a `Dict` observation holding the last four screens in grayscale at $`72 \times 80`$, a binary $`48 \times 48`$ grid marking each square of the current map the episode has reached, centered on the player, and a binary vector of the four milestone and starter flags. The action space $`A`$ consists of 7 discrete actions, meaning no press, A, B, and the four directions, each press holding its button for 2 of the 17 frames a step advances. An episode starts in Red's bedroom and ends as terminated at the starter or as truncated after 10,240 steps, the budget Pleines et al. start each episode with.[^pleines2025]
+In the context of Pokémon Blue, the state $`s`$ is a `Dict` observation holding the last four screens in grayscale at $`72 \times 80`$, a binary $`48 \times 48`$ grid marking each square of the current map the episode has reached, centered on the player, and a binary vector of the milestone and starter flags. The action space $`A`$ holds one discrete action for no press and one for each of A, B, and the four directions, each press holding its button for 2 of the 17 frames a step advances. An episode starts in Red's bedroom and ends as terminated at the starter or as truncated after 10,240 steps, the budget Pleines et al. start each episode with.[^pleines2025]
 
 The reward function $`R(s, a, s')`$ sums three terms, each paying for what a step adds to its episode, and holds every step's reward within 1, the bound Mnih et al. clip each reward to,[^mnih2015] with the starter the largest term:
 

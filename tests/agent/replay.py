@@ -5,6 +5,7 @@ Pins replay memory, covering:
   reward, and termination it was stored from, every entry stacked as deep
   as its space declares
 - The transitions it releases once their elements are overwritten
+- A reset observation drawn back element by element
 - The draws coming from the generator it is built with
 - The memory its default capacity takes at the observation the
   environment makes
@@ -126,6 +127,23 @@ def test_replay_at_its_default_capacity_holds_its_arrays_under_a_gigabyte(space:
         for allocated in [*vars(replay).values(), *replay.observations.values()]
         if isinstance(allocated, ndarray)
     ) < 10**9
+
+
+def test_replay_draws_a_reset_observation_back_element_by_element(tiny: Dict):
+    """
+    Asserts that replay memory draws back a reset observation whose frames
+    differ from one another as the observation the first action was taken
+    on, each frame in the slot it was stored in.
+    """
+    replay = Replay(16, default_rng(0), tiny)
+    frames = arange(1, 6, dtype=uint8).reshape(5, 1, 1)
+
+    replay.begin({"flags": array([[1, 2]], uint8), "frames": frames[:4]})
+    replay.store(0, {"flags": array([[3, 4]], uint8), "frames": frames[1:]}, 0.0, False)
+
+    assert replay.sample("cpu", 1).observations["frames"].flatten().tolist() == [
+        1, 2, 3, 4
+    ]
 
 
 def test_replay_draws_each_batch_from_the_generator_it_is_built_with(

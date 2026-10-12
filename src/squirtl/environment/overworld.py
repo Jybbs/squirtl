@@ -1,5 +1,5 @@
 """
-Defines `Overworld`, the environment an agent plays Pokémon Red or Blue in
+Defines `Overworld`, the environment an agent plays Pokémon Blue in
 from Red's bedroom to the starter, which `Overworld.make` builds through
 `gymnasium.make` and shapes through Gymnasium's observation wrappers.
 """
@@ -44,7 +44,7 @@ class Overworld(Env):
 
         Args:
             render_mode: `rgb_array`, under which `render` returns the
-                         screen, or `None`, as Gymnasium's `make` passes it.
+                         screen, or `None`, where `make` is given no mode.
 
         Raises:
             Exception: Where the cartridge holds Pokémon Red, as

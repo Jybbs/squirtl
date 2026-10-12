@@ -38,7 +38,8 @@ class EnvironmentSettings(Record):
     grid_size: PositiveInt = 48
     """
     The side in squares of the grid of reached positions each observation
-    centers on the player, whose default follows Pleines et al.
+    centers on the player, whose default covers one square for each of the
+    48 cells a side of the crop Pleines et al. observe.
     """
 
     max_episode_steps: PositiveInt = 10_240
