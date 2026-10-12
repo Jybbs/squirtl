@@ -19,7 +19,7 @@ mise doctor project
 
 `mise trust squirtl` marks the clone's `.mise/config.toml` as a file mise may read, and `mise -C squirtl install` installs the tools it pins before the shell enters the clone. Once `cd` runs, the activated mise puts the pinned `uv` and the `.mise/bin` folder holding the `squirtl` script on the path, even when the block is pasted whole. That script starts `squirtl` through `uv run --exact --locked`, which installs the package into `.venv` from `uv.lock` on its first run and refuses a `uv.lock` that lags `pyproject.toml`. `mise doctor project` then reports each thing the clone still needs beside the command that supplies it.
 
-*SquiRtL* ships no part of the game, so it runs on your own legal copy of the English Pokémon Red or Blue ROM, which never enters the repository. It sits at `data/rom.gb`, which `.gitignore` keeps out of `git status` and `mise doctor project` checks for, and a run refuses any ROM there whose SHA-1 is not one the [pret/pokered](https://github.com/pret/pokered) disassembly lists for those two releases.
+*SquiRtL* ships no part of the game, so it runs on your own legal copy of the English Pokémon Blue ROM, which never enters the repository. It sits at `data/rom.gb`, which `.gitignore` keeps out of `git status` and `mise doctor project` checks for, and a run refuses any ROM there whose SHA-1 is not one the [pret/pokered](https://github.com/pret/pokered) disassembly lists for the English Red and Blue releases. A Red ROM passes that check and then raises when the environment is built, since PyBoy's game wrapper plays the intro by checking for the names Pokémon Blue lists on its naming screens.
 
 Each step of the development loop runs as a mise task, which `mise tasks` lists in full:
 
@@ -40,7 +40,7 @@ Reinforcement Learning (**RL**) is a paradigm of machine learning where an agent
 
 ### Key Implemented Concepts
 
-1. **State Space**: Represented by the last four screens, each in grayscale at half its resolution, the size Pleines et al. observe[^pleines2025] (*four stacked 72 by 80 frames*), beside a 48 by 48 grid marking each square of the current map the episode has reached around the player and the flags of the milestones and the starter, the two inputs Pleines et al. also observe beside the screen. The frames let the agent learn from raw pixel data and tell motion across steps, while the grid and the flags carry where the episode has been and which milestones it has reached.
+1. **State Space**: Represented by the last four screens (*four stacked 72 by 80 frames*), each in grayscale at half its resolution, the size Pleines et al. observe,[^pleines2025] beside a 48 by 48 grid marking each square of the current map the episode has reached around the player and the flags of the milestones and the starter, two of the inputs Pleines et al. also observe beside the screen. The frames let the agent learn from raw pixel data and tell motion across steps, while the grid and the flags carry where the episode has been and which milestones it has reached.
 
 2. **Action Space**: Discrete set of possible game controls (*no press, A, B, and the four directions, since no step to the starter takes START or SELECT*). This limited, discrete action space reflects the actual game controls available to a human player. It simplifies the decision-making process compared to continuous action spaces, but still requires the agent to learn complex sequences of actions to achieve goals with nuance, like waiting for the opportune time to take an action.
 
