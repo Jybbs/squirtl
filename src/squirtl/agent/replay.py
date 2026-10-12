@@ -27,7 +27,8 @@ class Column:
 
     depth: int
     """
-    The elements one observation of the entry stacks along its first axis.
+    The number of elements one observation of the entry stacks along its
+    first axis.
     """
 
     elements: ndarray
@@ -51,7 +52,7 @@ class Column:
         """
         depth, *element = space.shape
 
-        if space.dtype == uint8 and (space.low == 0).all() and (space.high == 1).all():
+        if space.dtype == uint8 and (space.high == 1).all():
             return cls(
                 depth    = depth,
                 elements = zeros(

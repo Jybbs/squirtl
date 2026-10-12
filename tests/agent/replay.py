@@ -5,7 +5,8 @@ Pins replay memory, covering:
   reward, and termination it was stored from, every entry stacked as deep
   as its space declares and a binary entry unpacked as it was stored
 - The transitions it releases once their elements are overwritten
-- A reset observation drawn back element by element
+- A reset observation drawn back element by element, and a binary entry of
+  another dtype drawn back as it was stored
 - The draws coming from the generator it is built with
 - The memory its default capacity takes at the observation the
   environment makes, each binary entry packed eight cells to a byte
@@ -14,7 +15,7 @@ Pins replay memory, covering:
 from collections.abc  import Callable, Mapping
 from gymnasium.spaces import Box, Dict
 from itertools        import pairwise
-from numpy            import arange, array, ndarray, uint8, zeros
+from numpy            import arange, array, float32, ndarray, uint8, zeros
 from numpy.random     import default_rng
 from pytest           import fixture, mark, param
 from torch.testing    import assert_close
@@ -129,7 +130,8 @@ def test_replay_at_its_default_capacity_packs_each_binary_entry_into_606_mb(
     606.3 MB for the observation the environment makes, each slot holding
     one `uint8` 72 by 80 frame beside the 48 by 48 grid packed into 288
     bytes and the four flags packed into one, as `packbits` packs eight
-    cells to a byte.
+    cells to a byte, and 14 bytes for its action, reward, termination, and
+    whether it holds a transition.
     """
     replay = Replay(AgentSettings().capacity, default_rng(0), space)
 
@@ -141,6 +143,21 @@ def test_replay_at_its_default_capacity_packs_each_binary_entry_into_606_mb(
         ]
         if isinstance(allocated, ndarray)
     ) == 606_300_000
+
+
+def test_replay_draws_a_binary_entry_of_another_dtype_back_in_that_dtype():
+    """
+    Asserts that replay memory stores an entry bounded at 0 and 1 in a dtype
+    other than `uint8` as it is, drawing it back in that dtype.
+    """
+    replay = Replay(8, default_rng(0), Dict(flags=Box(0, 1, (1, 2), float32)))
+
+    replay.begin({"flags": array([[0, 1]], float32)})
+    replay.store(0, {"flags": array([[1, 0]], float32)}, 0.0, False)
+
+    assert replay.sample("cpu", 1).windows["flags"].tolist() == [
+        [[0.0, 1.0], [1.0, 0.0]]
+    ]
 
 
 def test_replay_draws_a_reset_observation_back_element_by_element(tiny: Dict):
