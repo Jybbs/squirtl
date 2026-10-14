@@ -1,12 +1,14 @@
 """
-Defines `StandIn`, which stands in for the members of `PyBoy` that a boot, a
-press, a read of memory, the game wrapper, and a stop reach, recording what
-each call received and each read of the screen, beside the writes that stand
-the player on a position and set a flag in its memory.
+Defines `StandIn`, which stands in for the members of `PyBoy` that a boot,
+a press, a read of memory, the game wrapper, and a stop reach, recording
+what each call received and each read of the screen, beside `set_event`
+and `stand`, which set a flag and the player's position in the memory of
+`StandIn` and of `PyBoy` alike.
 """
 
-from numpy import arange, tile, uint8
-from types import SimpleNamespace
+from collections.abc import MutableSequence
+from numpy           import arange, tile, uint8
+from types           import SimpleNamespace
 
 from squirtl.emulator.schemas import Symbol
 from squirtl.reward.schemas   import Event, Position
@@ -66,25 +68,6 @@ class StandIn:
         """
         self.calls.append(("button", input, delay))
 
-    def set_event(self, event: Event):
-        """
-        Sets the flag of `event` in memory as pret/pokered's `SetEvent`
-        macro does, meaning bit `index % 8` of the byte `index // 8` bytes
-        past `wEventFlags`, leaving every other bit as it was.
-        """
-        byte, bit = divmod(event, 8)
-
-        self.memory[Symbol.W_EVENT_FLAGS + byte] |= 1 << bit
-
-    def stand(self, position: Position):
-        """
-        Stands the player on `position` by writing its map and coordinates
-        into `wCurMap`, `wXCoord`, and `wYCoord`.
-        """
-        self.memory[Symbol.W_CUR_MAP] = position.map
-        self.memory[Symbol.W_X_COORD] = position.x
-        self.memory[Symbol.W_Y_COORD] = position.y
-
     def stop(self, save: bool):
         """
         Records a stop beside whether it saved.
@@ -96,3 +79,24 @@ class StandIn:
         Records an advance of `count` frames.
         """
         self.calls.append(("tick", count))
+
+
+def set_event(event: Event, memory: MutableSequence[int]):
+    """
+    Sets the flag of `event` in `memory` as pret/pokered's `SetEvent`
+    macro does, meaning bit `index % 8` of the byte `index // 8` bytes past
+    `wEventFlags`, leaving every other bit as it was.
+    """
+    byte, bit = divmod(event, 8)
+
+    memory[Symbol.W_EVENT_FLAGS + byte] |= 1 << bit
+
+
+def stand(memory: MutableSequence[int], position: Position):
+    """
+    Stands the player on `position` by writing its map and coordinates into
+    `wCurMap`, `wXCoord`, and `wYCoord` in `memory`.
+    """
+    memory[Symbol.W_CUR_MAP] = position.map
+    memory[Symbol.W_X_COORD] = position.x
+    memory[Symbol.W_Y_COORD] = position.y

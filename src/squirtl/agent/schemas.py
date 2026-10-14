@@ -7,9 +7,8 @@ Defines the records the agent reads and writes:
   training from
 """
 
-from dataclasses       import dataclass
 from pathlib           import Path
-from pydantic          import Field, PositiveFloat, PositiveInt
+from pydantic          import Field, InstanceOf, PositiveFloat, PositiveInt
 from torch             import Tensor, load, no_grad, save
 from torch.accelerator import current_accelerator
 from typing            import Annotated, Self
@@ -95,32 +94,46 @@ class AgentSettings(Record):
     """
 
 
-@dataclass(frozen=True, kw_only=True)
-class Batch:
+class Batch(Record):
     """
-    The transitions one update draws from replay memory, each field a tensor
-    on the device the settings name, with the elements of both observations
-    a draw reads held once in each entry's window.
+    The transitions one update draws from replay memory, each field on the
+    device the settings name.
     """
 
-    actions    : Tensor             # (batch,) int64
-    rewards    : Tensor             # (batch,) float32
-    terminated : Tensor             # (batch,) bool
-    windows    : dict[str, Tensor]  # Each (batch, depth + 1, *element) uint8.
+    actions: InstanceOf[Tensor]
+    """
+    The action each draw took, a `(batch,)` tensor of `int64`.
+    """
+
+    rewards: InstanceOf[Tensor]
+    """
+    The reward each draw earned, a `(batch,)` tensor of `float32`.
+    """
+
+    terminated: InstanceOf[Tensor]
+    """
+    Whether each draw ended its episode, a `(batch,)` tensor of `bool`.
+    """
+
+    windows: dict[str, InstanceOf[Tensor]]
+    """
+    The elements both observations of each draw read, one tensor per entry
+    of shape `(batch, depth + 1, *element)`, the first `depth` elements the
+    observation acted on and the last `depth` the one reached.
+    """
 
     @property
     def next_observations(self) -> dict[str, Tensor]:
         """
-        Slices the observations each draw's action reached out of `windows`,
-        each window's elements after the first.
+        Slices the observation each draw's action reached out of `windows`.
         """
         return {key: window[:, 1:] for key, window in self.windows.items()}
 
     @property
     def observations(self) -> dict[str, Tensor]:
         """
-        Slices the observations each draw's action was taken on out of
-        `windows`, each window's elements before the last.
+        Slices the observation each draw's action was taken on out of
+        `windows`.
         """
         return {key: window[:, :-1] for key, window in self.windows.items()}
 
@@ -128,9 +141,8 @@ class Batch:
     def targets(self, discount: float, network: QNetwork) -> Tensor:
         """
         Values each draw at its reward plus `discount` times the highest
-        value `network` gives the observation its action reached, or at its
-        reward alone where the step terminated the episode, recording no
-        autograd graph.
+        value `network` gives the observation it reached, or at its reward
+        alone where it terminated the episode, recording no autograd graph.
         """
         return (
             self.rewards
@@ -145,21 +157,41 @@ class Batch:
         return network(self.observations).gather(1, self.actions[:, None])[:, 0]
 
 
-@dataclass(frozen=True, kw_only=True)
-class Checkpoint:
+class Checkpoint(Record):
     """
-    Everything a resumed run continues training from, meaning both networks,
-    the optimizer, the step count, and the state of each generator the agent
-    draws from, which `torch.save` writes as one dictionary of tensors and
-    plain values.
+    Everything a resumed run continues training from, which `torch.save`
+    writes as one dictionary of tensors and plain values.
     """
 
-    exploration : dict[str, object]
-    online      : dict[str, Tensor]
-    optimizer   : dict[str, object]
-    sampling    : dict[str, object]
-    step        : int
-    target      : dict[str, Tensor]
+    exploration: dict[str, object]
+    """
+    The state of the generator choosing each random action.
+    """
+
+    online: dict[str, InstanceOf[Tensor]]
+    """
+    The online network's `state_dict`.
+    """
+
+    optimizer: dict[str, object]
+    """
+    Adam's `state_dict`.
+    """
+
+    sampling: dict[str, object]
+    """
+    The state of the generator drawing each batch from replay memory.
+    """
+
+    step: int
+    """
+    The environment steps the agent has remembered.
+    """
+
+    target: dict[str, InstanceOf[Tensor]]
+    """
+    The target network's `state_dict`.
+    """
 
     @classmethod
     def from_path(cls, path: Path) -> Self:
@@ -168,10 +200,10 @@ class Checkpoint:
         default `weights_only=True`, which unpickles tensors and plain
         values alone.
         """
-        return cls(**load(path, map_location="cpu"))
+        return cls.model_validate(load(path, map_location="cpu"))
 
     def save(self, path: Path):
         """
         Writes the checkpoint to `path` through `torch.save`.
         """
-        save(vars(self), path)
+        save(self.model_dump(), path)

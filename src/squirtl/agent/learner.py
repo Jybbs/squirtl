@@ -63,9 +63,8 @@ class Agent:
     @property
     def checkpoint(self) -> Checkpoint:
         """
-        Gathers the state a resumed run continues training from, whose
-        tensors are the networks' and the optimizer's own rather than
-        copies, so it holds the values they carry when it is saved.
+        Gathers the state a resumed run continues training from, which holds
+        the networks' and the optimizer's own tensors uncopied.
         """
         return Checkpoint(
             exploration = self.exploration.bit_generator.state,
@@ -124,10 +123,9 @@ class Agent:
         terminated  : bool
     ):
         """
-        Stores the transition `action` made, which reached `observation`,
-        earned `reward`, and `terminated` the episode or not, as one
-        environment step. Copies the online network into the target network
-        on every step that `sync_steps` divides.
+        Stores the transition `action` made as one environment step, and
+        copies the online network into the target network on every step
+        `sync_steps` divides.
         """
         self.replay.store(action, observation, reward, terminated)
         self.step += 1
@@ -150,11 +148,10 @@ class Agent:
 
     def update(self):
         """
-        Takes one gradient step on the Huber loss between the values the
-        online network gives a batch drawn from replay memory and the
-        targets the target network gives it, clipping the gradient's norm at
-        `max_grad_norm` before the step, and takes none while replay memory
-        holds fewer transitions than `batch_size`.
+        Takes one gradient step on the Huber loss between the online
+        network's values for a batch from replay memory and the target
+        network's targets, its gradient's norm clipped at `max_grad_norm`,
+        and none while replay memory holds less than one batch.
         """
         if len(self.replay) < self.settings.batch_size:
             return

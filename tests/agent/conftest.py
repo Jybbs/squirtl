@@ -12,15 +12,16 @@ Defines the fixtures the tests of `squirtl.agent` request:
 """
 
 from collections.abc  import Callable, Mapping
-from gymnasium.spaces import Box, Dict
+from gymnasium.spaces import Box, Dict, MultiBinary, flatten_space
 from itertools        import pairwise
 from numpy            import arange, ndarray, pad, uint8
 from numpy.random     import default_rng
 from pathlib          import Path
 from pytest           import fixture
 
-from squirtl.agent.learner import Agent
-from squirtl.agent.schemas import AgentSettings, Checkpoint
+from squirtl.agent.learner       import Agent
+from squirtl.agent.schemas       import AgentSettings, Checkpoint
+from squirtl.environment.schemas import Entry
 
 type Observations = list[dict[str, ndarray]]
 
@@ -69,7 +70,7 @@ def episode(
         return stacked(
             {
                 key: rng.integers(
-                    entry.high.max(),
+                    flatten_space(entry).high.max(),
                     dtype    = uint8,
                     endpoint = True,
                     size     = (steps + 1, *entry.shape[1:])
@@ -141,24 +142,25 @@ def resume(build: Callable[..., Agent], tmp_path: Path) -> Callable[[Agent], Age
 def space() -> Dict:
     """
     Declares the observation the environment makes, each entry stacked along
-    its first axis, meaning four stacked 72 by 80 frames beside a 48 by 48
-    grid and four flags that each stack one deep.
+    its first axis, meaning four stacked 72 by 80 frames beside a binary 48
+    by 48 grid and four binary flags that each stack one deep.
     """
     return Dict(
-        flags  = Box(0, 1, (1, 4), uint8),
-        frames = Box(0, 255, (4, 72, 80), uint8),
-        grid   = Box(0, 1, (1, 48, 48), uint8)
+        {
+            Entry.FLAGS  : MultiBinary((1, 4)),
+            Entry.FRAMES : Box(0, 255, (4, 72, 80), uint8),
+            Entry.GRID   : MultiBinary((1, 48, 48))
+        }
     )
 
 
 @fixture
 def stacked() -> Callable[[Mapping[str, ndarray], Dict], Observations]:
     """
-    Builds a function stacking an episode's elements, the reset element of
-    each entry first, into one observation per element. Each entry stacks as
-    deep as the space the function is given declares, padded as Gymnasium's
-    `FrameStackObservation` pads under its default `reset` padding, which
-    repeats the first element.
+    Builds a function stacking an episode's elements, the reset element
+    first, into one observation per element, each entry as deep as its
+    space declares and padded with its first element, as Gymnasium's
+    `FrameStackObservation` pads under its default `reset` padding.
     """
 
     def stacked(elements: Mapping[str, ndarray], space: Dict) -> Observations:

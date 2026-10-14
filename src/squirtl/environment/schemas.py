@@ -1,14 +1,28 @@
 """
-Defines `EnvironmentSettings`, the settings the environment reads.
+Defines the records the environment reads:
+
+- `Entry`, the entries of the observation the environment makes
+- `EnvironmentSettings`, the settings the environment reads
 """
 
-from numpy               import ndarray, uint8
+from enum                import StrEnum, auto
 from pyboy.api.constants import COLS, ROWS
 from pyboy.utils         import CLOCK_RATE, FRAME_CYCLES
 from pydantic            import PositiveInt, model_validator
 from typing              import Self
 
 from squirtl.emulator.schemas import Record
+
+
+class Entry(StrEnum):
+    """
+    The entries of the `Dict` observation the environment makes, each
+    member's value its key there.
+    """
+
+    FLAGS  = auto()
+    FRAMES = auto()
+    GRID   = auto()
 
 
 class EnvironmentSettings(Record):
@@ -60,32 +74,11 @@ class EnvironmentSettings(Record):
         """
         return CLOCK_RATE / FRAME_CYCLES / self.frames_per_step
 
-    def shrink(self, frame: ndarray) -> ndarray:
-        """
-        Shrinks a grayscale `frame` to `frame_shape` by averaging each block
-        of pixels one cell covers, in integers rounding a half up.
-
-        Returns:
-            A `frame_shape` array of `uint8`.
-        """
-        height, width = self.frame_shape
-        blocks        = frame.reshape(
-            height,
-            frame.shape[0] // height,
-            width,
-            frame.shape[1] // width
-        )
-        cells = blocks.shape[1] * blocks.shape[3]
-
-        return (
-            (blocks.sum(axis=(1, 3)) + cells // 2) // cells
-        ).astype(uint8)
-
     @model_validator(mode="after")
     def verify(self) -> Self:
         """
         Refuses a `frame_shape` whose height or width does not divide the
-        screen's `ROWS` by `COLS` pixels evenly, since `shrink` averages
+        screen's `ROWS` by `COLS` pixels, since `ShrinkObservation` averages
         whole blocks.
 
         Raises:

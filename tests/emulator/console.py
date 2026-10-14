@@ -1,18 +1,12 @@
 """
 Pins how `GameBoy` runs a cartridge through PyBoy, covering:
 
-- The arguments a boot hands PyBoy under each setting of the window, and
-  the SDL2 window PyBoy opens under SDL's dummy video driver
-- The save beside the cartridge, which a boot never reads and a close
-  never writes
-- The press of any button for the frames the settings hold it, the one
-  tick of the frames a step names, the read of the screen after that tick,
-  and the press refused for holding its button past those frames
-- The screen a press returns, an RGB copy no later frame overwrites
-- The byte each symbol reads and the byte an offset past it reads, the
-  state a capture saves and a restore loads, and the stop a close makes
-- The intro a start plays through PyBoy's game wrapper, and the state and
-  the DIV register a reset returns the console to
+- The arguments a boot hands PyBoy, the SDL2 window it opens, and the save
+  beside the cartridge that a boot never reads and a close never writes
+- Each press, its one tick, the screen read after it as an RGB copy, and a
+  press refused for holding its button past its frames
+- The byte each symbol reads, a capture and its restore, the stop a close
+  makes, the intro a start plays, and the state and DIV a reset returns to
 """
 
 from collections.abc import Callable, Iterator

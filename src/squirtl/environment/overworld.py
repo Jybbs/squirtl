@@ -8,14 +8,13 @@ from gymnasium import Env
 from gymnasium.envs.registration import EnvSpec
 from gymnasium.spaces            import Box, Discrete
 from gymnasium.wrappers          import FrameStackObservation, GrayscaleObservation, RecordEpisodeStatistics
-from gymnasium.wrappers          import TransformObservation
 from numpy  import ndarray, uint8
 from typing import Any
 
 from squirtl.emulator.console     import GameBoy
 from squirtl.emulator.schemas     import Button, Cartridge, EmulatorSettings
 from squirtl.environment.schemas  import EnvironmentSettings
-from squirtl.environment.wrappers import ProgressObservation
+from squirtl.environment.wrappers import ProgressObservation, ShrinkObservation
 from squirtl.reward.progress      import Progress
 from squirtl.reward.schemas       import RewardSettings, Term
 
@@ -85,8 +84,7 @@ class Overworld(Env):
         one listed before it:
 
         - `GrayscaleObservation`, which turns the screen gray
-        - `TransformObservation`, which shrinks it to `frame_shape` through
-          `EnvironmentSettings.shrink`
+        - `ShrinkObservation`, which shrinks it to `frame_shape`
         - `FrameStackObservation`, which stacks `frame_stack` frames
         - `ProgressObservation`, which sets the progress beside the frames
         - `RecordEpisodeStatistics`, which records each episode's return,
@@ -107,10 +105,9 @@ class Overworld(Env):
         return RecordEpisodeStatistics(
             ProgressObservation(
                 FrameStackObservation(
-                    TransformObservation(
+                    ShrinkObservation(
                         GrayscaleObservation(overworld),
-                        environment.shrink,
-                        Box(0, 255, environment.frame_shape, uint8)
+                        environment.frame_shape
                     ),
                     environment.frame_stack
                 ),
@@ -132,13 +129,10 @@ class Overworld(Env):
         seed    : int | None            = None
     ) -> tuple[ndarray, dict[str, Any]]:
         """
-        Loads Red's bedroom back into the console with a DIV register drawn
-        from the environment's generator, which `seed` reseeds where it is
-        given, and starts the episode's progress there.
-
-        The state `GameBoy.start` saves holds a blank screen, since PyBoy
-        plays the intro without rendering a frame, so the reset advances one
-        frame with no press to draw the bedroom it returns.
+        Loads Red's bedroom with a DIV drawn from the environment's
+        generator, which `seed` reseeds, and starts the episode's progress
+        there, then advances one frame with no press, since the state
+        `GameBoy.start` saves holds no rendered screen.
 
         Returns:
             The bedroom's screen beside an empty info dict.

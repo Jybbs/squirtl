@@ -1,29 +1,31 @@
 """
 Pins the Q-network, covering the layers it carries, the values it maps a
-batch of `uint8` observations to, the scaling it applies to each entry, the
-absence of any layer whose output depends on the batch or the mode, and the
-entry it refuses.
+batch of observations to, the scaling it applies to each entry, the absence
+of any layer whose output depends on the batch or the mode, and the entry
+it refuses.
 """
 
-from gymnasium.spaces import Box, Dict
-from pytest           import mark, param, raises
+from gymnasium.spaces       import Box, Dict
+from gymnasium.vector.utils import batch_space
+from pytest                 import mark, param, raises
 from re               import escape
 from syrupy.assertion import SnapshotAssertion
-from torch            import Tensor, cat, equal, manual_seed, randint, uint8
+from torch            import Tensor, as_tensor, cat, equal, manual_seed
 from torch.testing    import assert_close
 
-from squirtl.agent.networks import QNetwork
+from squirtl.agent.networks      import QNetwork
+from squirtl.environment.schemas import Entry
 
 
 def draw(batch: int, space: Dict) -> dict[str, Tensor]:
     """
-    Draws `batch` random observations of `space`, each entry within the
-    bound its space declares.
+    Draws `batch` random observations of `space` from seed 0, each entry
+    within the bounds its space declares.
     """
-    return {
-        key: randint(int(entry.high.max()) + 1, (batch, *entry.shape), dtype=uint8)
-        for key, entry in space.items()
-    }
+    batched = batch_space(space, batch)
+    batched.seed(0)
+
+    return {key: as_tensor(entry) for key, entry in batched.sample().items()}
 
 
 @mark.parametrize(
@@ -43,7 +45,9 @@ def test_the_network_maps_each_observation_to_one_value_per_action(
     observation, the first linear layer of its head reading whatever width
     the encoders leave.
     """
-    resized = Dict(dict(space) | {"frames": Box(0, 255, frames, space["frames"].dtype)})
+    resized = Dict(
+        dict(space) | {Entry.FRAMES: Box(0, 255, frames, space[Entry.FRAMES].dtype)}
+    )
     manual_seed(0)
 
     assert QNetwork(7, resized)(draw(3, resized)).shape == (3, 7)
@@ -54,12 +58,10 @@ def test_the_network_carries_the_layers_mnih_et_al_set(
     space    : Dict
 ):
     """
-    Asserts that the network for seven actions over the observation the
-    environment makes carries its own copy of the three convolutions Mnih
-    et al. set for the frames and for the grid, one fully connected layer of
-    64 units for the flags, and the two linear layers Mnih et al. set as its
-    head, with no batch normalization, so a change to any layer is reviewed
-    as a diff.
+    Asserts that the network over the environment's observation carries Mnih
+    et al.'s three convolutions for the frames and for the grid each, one
+    fully connected layer of 64 units for the flags, and Mnih et al.'s head,
+    with no batch normalization, so a change is reviewed as a diff.
     """
     assert str(QNetwork(7, space)) == snapshot
 
@@ -79,9 +81,9 @@ def test_the_network_scales_each_entry_into_the_unit_interval(space: Dict):
         network.head(
             cat(
                 [
-                    network.encoders["flags"](observations["flags"].float()),
-                    network.encoders["frames"](observations["frames"] / 255),
-                    network.encoders["grid"](observations["grid"].float())
+                    network.encoders[Entry.FLAGS](observations[Entry.FLAGS].float()),
+                    network.encoders[Entry.FRAMES](observations[Entry.FRAMES] / 255),
+                    network.encoders[Entry.GRID](observations[Entry.GRID].float())
                 ],
                 1
             )

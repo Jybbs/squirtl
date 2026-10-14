@@ -37,9 +37,9 @@ class Button(StrEnum):
 
 class Edition(StrEnum):
     """
-    The English releases of the game a run plays, meaning Pokémon Blue,
-    whose memory layout the pret/pokered disassembly rebuilds, each member's
-    value the SHA-1 digest its README lists for that release's ROM.
+    The English release of the game a run plays, Pokémon Blue, whose memory
+    layout the pret/pokered disassembly rebuilds and whose value is the
+    SHA-1 digest its README lists for that ROM.
     """
 
     BLUE = "d7037c83e1ae5b39bde3c30787637ba1d4c48ce2"

@@ -1,27 +1,25 @@
 """
 Pins replay memory, covering:
 
-- The transitions it holds, each drawn back as the observations, action,
-  reward, and termination it was stored from, every entry stacked as deep
-  as its space declares and a binary entry unpacked as it was stored
-- The transitions it releases once their elements are overwritten
-- A reset observation drawn back element by element, and a binary entry of
-  another dtype drawn back as it was stored
-- The draws coming from the generator it is built with
-- The memory its default capacity takes at the observation the
-  environment makes, each binary entry packed eight cells to a byte
+- Each transition it holds drawn back as it was stored, every entry as deep
+  as its space declares, and each one it releases once overwritten
+- A reset observation drawn back element by element, and a `Box` bounded
+  at 0 and 1 held unpacked in its own dtype
+- The generator its draws come from, and the memory its default capacity
+  takes with each `MultiBinary` entry packed eight cells to a byte
 """
 
 from collections.abc  import Callable, Mapping
-from gymnasium.spaces import Box, Dict
+from gymnasium.spaces import Box, Dict, MultiBinary
 from itertools        import pairwise
 from numpy            import arange, array, float32, ndarray, uint8, zeros
 from numpy.random     import default_rng
 from pytest           import fixture, mark, param
 from torch.testing    import assert_close
 
-from squirtl.agent.replay  import Replay
-from squirtl.agent.schemas import AgentSettings
+from squirtl.agent.replay        import Replay
+from squirtl.agent.schemas       import AgentSettings
+from squirtl.environment.schemas import Entry
 
 type Stacked = Callable[[Mapping[str, ndarray], Dict], list[dict[str, ndarray]]]
 
@@ -35,9 +33,11 @@ def tiny() -> Dict:
     wide so packing them leaves a byte part full.
     """
     return Dict(
-        flags  = Box(0, 255, (1, 2), uint8),
-        frames = Box(0, 255, (4, 1, 1), uint8),
-        grid   = Box(0, 1, (1, 3, 10), uint8)
+        {
+            Entry.FLAGS  : Box(0, 255, (1, 2), uint8),
+            Entry.FRAMES : Box(0, 255, (4, 1, 1), uint8),
+            Entry.GRID   : MultiBinary((1, 3, 10))
+        }
     )
 
 
@@ -51,9 +51,12 @@ def elements(index: int, steps: int) -> dict[str, ndarray]:
     values = arange(steps + 1, dtype=uint8) + 100 * index
 
     return {
-        "flags"  : values[:, None] + array([0, 50], uint8),
-        "frames" : values[:, None, None],
-        "grid": values[:, None, None] >> arange(30, dtype=uint8).reshape(3, 10) % 8 & 1
+        Entry.FLAGS  : values[:, None] + array([0, 50], uint8),
+        Entry.FRAMES : values[:, None, None],
+        Entry.GRID   : values[:, None, None] >> arange(30, dtype=uint8).reshape(
+            3,
+            10
+        ) % 8 & 1
     }
 
 
@@ -74,14 +77,10 @@ def test_replay_draws_back_each_transition_it_holds_and_nothing_else(
 ):
     """
     Asserts that replay memory draws back exactly the last `held`
-    transitions stored, each as the observation its action was taken on and
-    the one it reached, its action, its reward, and whether it terminated
-    the episode, and never an observation reaching across two episodes or
-    into an element written since.
-
-    Each episode ends on its last step, terminated where its row says so
-    and otherwise truncated, as a time limit ends one, whose last transition
-    keeps the observation it reached.
+    transitions stored, each with both observations, its action, its reward,
+    and its termination, and never one reaching across two episodes or into
+    an element written since, each episode terminated or truncated by its
+    row.
     """
     replay = Replay(capacity, default_rng(0), tiny)
     stored = []
@@ -126,12 +125,10 @@ def test_replay_at_its_default_capacity_packs_each_binary_entry_into_606_mb(
     space: Dict
 ):
     """
-    Asserts that the arrays of replay memory at the default capacity take
-    606.3 MB for the observation the environment makes, each slot holding
-    one `uint8` 72 by 80 frame beside the 48 by 48 grid packed into 288
-    bytes and the four flags packed into one, as `packbits` packs eight
-    cells to a byte, and 14 bytes for its action, reward, termination, and
-    whether it holds a transition.
+    Asserts that replay memory at the default capacity takes 606.3 MB for
+    the environment's observation, a slot holding a 72 by 80 frame, the grid
+    packed into 288 bytes, the flags into one, and 14 bytes for its action,
+    reward, termination, and whether it holds a transition.
     """
     replay = Replay(AgentSettings().capacity, default_rng(0), space)
 
@@ -145,21 +142,6 @@ def test_replay_at_its_default_capacity_packs_each_binary_entry_into_606_mb(
     ) == 606_300_000
 
 
-def test_replay_draws_a_binary_entry_of_another_dtype_back_in_that_dtype():
-    """
-    Asserts that replay memory stores an entry bounded at 0 and 1 in a dtype
-    other than `uint8` as it is, drawing it back in that dtype.
-    """
-    replay = Replay(8, default_rng(0), Dict(flags=Box(0, 1, (1, 2), float32)))
-
-    replay.begin({"flags": array([[0, 1]], float32)})
-    replay.store(0, {"flags": array([[1, 0]], float32)}, 0.0, False)
-
-    assert replay.sample("cpu", 1).windows["flags"].tolist() == [
-        [[0.0, 1.0], [1.0, 0.0]]
-    ]
-
-
 def test_replay_draws_a_reset_observation_back_element_by_element(tiny: Dict):
     """
     Asserts that replay memory draws back a reset observation whose frames
@@ -171,15 +153,25 @@ def test_replay_draws_a_reset_observation_back_element_by_element(tiny: Dict):
 
     grid = zeros((1, 3, 10), uint8)
 
-    replay.begin({"flags": array([[1, 2]], uint8), "frames": frames[:4], "grid": grid})
+    replay.begin(
+        {
+            Entry.FLAGS  : array([[1, 2]], uint8),
+            Entry.FRAMES : frames[:4],
+            Entry.GRID   : grid
+        }
+    )
     replay.store(
         0,
-        {"flags": array([[3, 4]], uint8), "frames": frames[1:], "grid": grid},
+        {
+            Entry.FLAGS  : array([[3, 4]], uint8),
+            Entry.FRAMES : frames[1:],
+            Entry.GRID   : grid
+        },
         0.0,
         False
     )
 
-    assert replay.sample("cpu", 1).observations["frames"].flatten().tolist() == [
+    assert replay.sample("cpu", 1).observations[Entry.FRAMES].flatten().tolist() == [
         1, 2, 3, 4
     ]
 
@@ -203,4 +195,19 @@ def test_replay_draws_each_batch_from_the_generator_it_is_built_with(
 
     first, second = (replay.sample("cpu", 32) for replay in replays)
 
-    assert_close(vars(first), vars(second), atol=0, rtol=0)
+    assert_close(first.model_dump(), second.model_dump(), atol=0, rtol=0)
+
+
+def test_replay_holds_a_box_bounded_at_0_and_1_unpacked_in_its_dtype():
+    """
+    Asserts that replay memory stores a `Box` entry bounded at 0 and 1 as it
+    is rather than packed, drawing it back in its own dtype.
+    """
+    replay = Replay(8, default_rng(0), Dict({Entry.FLAGS: Box(0, 1, (1, 2), float32)}))
+
+    replay.begin({Entry.FLAGS: array([[0, 1]], float32)})
+    replay.store(0, {Entry.FLAGS: array([[1, 0]], float32)}, 0.0, False)
+
+    assert replay.sample("cpu", 1).windows[Entry.FLAGS].tolist() == [
+        [[0.0, 1.0], [1.0, 0.0]]
+    ]

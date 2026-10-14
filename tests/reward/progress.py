@@ -276,12 +276,10 @@ def test_the_grid_marks_each_reached_square_inside_it_at_its_offset(
     settings : RewardSettings
 ):
     """
-    Asserts that a 48 by 48 grid around a player at `x` 30 and `y` 30 on map
-    0 marks a square the episode reached at its row and column offset from
-    the player's own square at row and column 24, rows running down the map
-    and columns across it, out to each edge the grid holds, 24 squares above
-    the player and to its left and 23 below it and to its right, and leaves
-    out a square one past any of those edges or on another map.
+    Asserts that a 48 by 48 grid around a player at `x` 30 and `y` 30 marks
+    a reached square at its offset from the player's cell at row and column
+    24, out to 24 squares above and left and 23 below and right, and leaves
+    out a square one past those edges or on another map.
     """
     move(Position(map=0, x=30, y=30))
     progress = Progress(game_boy, settings)

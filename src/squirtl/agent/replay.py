@@ -7,72 +7,46 @@ update's batch from:
 """
 
 from collections.abc  import Mapping
-from dataclasses      import dataclass
-from gymnasium.spaces import Box, Dict
-from numpy            import arange, count_nonzero, float32, int64, ndarray, packbits, uint8, unpackbits, zeros
+from gymnasium.spaces import Box, Dict, MultiBinary
+from numpy            import arange, count_nonzero, flatnonzero, float32, int64, ndarray, packbits, uint8, unpackbits
+from numpy            import zeros
 from numpy.random     import Generator
 from torch            import as_tensor
-from typing           import Self
 
 from squirtl.agent.schemas import Batch
 
 
-@dataclass(frozen=True, kw_only=True)
 class Column:
     """
     The elements one entry of a `Dict` observation holds in replay memory,
-    one per slot, where a binary entry holds each element packed eight cells
-    to a byte along its last axis through `packbits`.
+    one per slot, each element of a `MultiBinary` entry packed eight cells
+    to a byte along its last axis.
     """
 
-    depth: int
-    """
-    The number of elements one observation of the entry stacks along its
-    first axis.
-    """
-
-    elements: ndarray
-    """
-    The element each slot holds, packed along its last axis where `width`
-    is set.
-    """
-
-    width: int | None
-    """
-    The length of each element's last axis before packing, or `None` where
-    the column holds its elements as they are.
-    """
-
-    @classmethod
-    def allocate(cls, capacity: int, space: Box) -> Self:
+    def __init__(self, capacity: int, space: Box | MultiBinary):
         """
-        Allocates `capacity` slots for the elements `space` stacks along its
-        first axis, packing them where `space` holds `uint8` cells bounded
-        at 0 and 1, since `unpackbits` returns `uint8`.
+        Allocates `capacity` slots for the elements `space` stacks along
+        its first axis, `depth` holding how many one observation stacks
+        and `width` the length of an element's last axis before packing, or
+        `None` where the column holds each element as it is.
         """
-        depth, *element = space.shape
+        self.depth, *element = space.shape
 
-        if space.dtype == uint8 and (space.high == 1).all():
-            return cls(
-                depth    = depth,
-                elements = zeros(
-                    (capacity, *packbits(zeros(element, uint8), axis=-1).shape),
-                    uint8
-                ),
-                width = element[-1]
+        if isinstance(space, MultiBinary):
+            self.elements = zeros(
+                (capacity, *packbits(zeros(element, uint8), axis=-1).shape),
+                uint8
             )
-
-        return cls(
-            depth    = depth,
-            elements = zeros((capacity, *element), space.dtype),
-            width    = None
-        )
+            self.width = element[-1]
+        else:
+            self.elements = zeros((capacity, *element), space.dtype)
+            self.width    = None
 
     def window(self, slots: ndarray) -> ndarray:
         """
         Takes the `depth` elements ending at each of `slots` and the one
-        after it, wrapping past the last slot, and unpacks them where the
-        column packs its elements.
+        after it, wrapping past the last slot, unpacked where they are
+        packed.
 
         Returns:
             A `(len(slots), depth + 1, *element)` array.
@@ -91,8 +65,7 @@ class Column:
 
     def write(self, element: ndarray, slot: int):
         """
-        Writes `element` into `slot`, packing it where the column packs
-        its elements.
+        Writes `element` into `slot`, packed where the column packs.
         """
         self.elements[slot] = element if self.width is None else packbits(
             element,
@@ -102,29 +75,24 @@ class Column:
 
 class Replay:
     """
-    Replay memory over one `Column` for each entry of a `Dict` observation,
-    beside the action taken on the observation each slot ends, the reward it
-    earned, and whether it terminated the episode.
+    Replay memory over one `Column` per entry of a `Dict` observation,
+    beside the action taken on the observation each slot ends, its reward,
+    and whether it terminated the episode.
 
-    An episode's reset observation is stored whole, every entry's stack
-    ending at the same slot, and every step after it stores only the
-    newest element of each entry, so the stacks ending at a slot are the
-    observation the policy acted on and those ending one slot later are
-    the one the action reached. A slot holds a transition only where both
-    observations lie within one episode and no element of either has been
-    overwritten since.
+    A reset observation is stored whole, each entry's stack ending at one
+    slot, and each later step stores the newest element of each entry,
+    so the stacks ending at a slot are the observation acted on and those
+    ending one slot later the one reached. A slot holds a transition only
+    while both lie in one episode and neither has been overwritten.
     """
 
     def __init__(self, capacity: int, generator: Generator, space: Dict):
         """
-        Allocates room for `capacity` slots of each entry `space` declares,
-        each entry stacked along its first axis, drawing every batch from
-        `generator`.
+        Allocates `capacity` slots of each entry `space` declares, drawing
+        every batch from `generator`.
         """
-        self.actions = zeros(capacity, int64)
-        self.columns = {
-            key: Column.allocate(capacity, subspace) for key, subspace in space.items()
-        }
+        self.actions    = zeros(capacity, int64)
+        self.columns    = {key: Column(capacity, entry) for key, entry in space.items()}
         self.generator  = generator
         self.held       = zeros(capacity, bool)
         self.pushed     = 0
@@ -173,15 +141,10 @@ class Replay:
 
     def sample(self, device: str, size: int) -> Batch:
         """
-        Draws `size` transitions uniformly with replacement from those held,
-        redrawing each draw landing on a slot that holds none, and moves
-        them onto `device` as one batch.
+        Draws `size` transitions uniformly with replacement from those held
+        and moves them onto `device` as one batch.
         """
-        filled = min(self.pushed, len(self.held))
-        slots  = self.generator.integers(filled, size=size)
-
-        while (missed := ~self.held[slots]).any():
-            slots[missed] = self.generator.integers(filled, size=count_nonzero(missed))
+        slots = self.generator.choice(flatnonzero(self.held), size)
 
         return Batch(
             actions    = as_tensor(self.actions[slots], device=device),
@@ -202,9 +165,9 @@ class Replay:
     ):
         """
         Records `action`, taken on the observation ending at the newest
-        slot, with the `reward` it earned and whether it `terminated`
-        the episode, then stores the newest element of each entry of the
-        `observation` it reached.
+        slot, with its `reward` and whether it `terminated` the episode,
+        then stores the newest element of each entry of the `observation`
+        reached.
         """
         slot = (self.pushed - 1) % len(self.held)
 

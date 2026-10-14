@@ -8,12 +8,11 @@ protocols naming the members of PyBoy that `GameBoy` calls:
 - `Screen`, the screen object holding the frame PyBoy renders
 """
 
-from contextlib  import AbstractContextManager
-from dataclasses import dataclass, field
-from io          import BytesIO
-from numpy       import ndarray
-from pyboy       import PyBoy
-from typing      import BinaryIO, Protocol, Self
+from contextlib import AbstractContextManager
+from io         import BytesIO
+from numpy      import ndarray
+from pyboy      import PyBoy
+from typing     import BinaryIO, Protocol, Self
 
 from squirtl.emulator.schemas import Button, Cartridge, EmulatorSettings, Symbol
 
@@ -98,22 +97,11 @@ class Emulator(Protocol):
         """
 
 
-@dataclass(frozen=True)
 class GameBoy(AbstractContextManager):
     """
     The console running a verified cartridge through the emulator it
     composes, pressing at most one button a step and reading the game's
     memory.
-    """
-
-    emulator: Emulator
-    """
-    The emulator running the cartridge, `PyBoy` itself or a test's stand-in.
-    """
-
-    settings: EmulatorSettings = field(default_factory=EmulatorSettings)
-    """
-    The settings the console was booted with, whose `hold` each press takes.
     """
 
     def __exit__(self, *raised: object):
@@ -122,6 +110,14 @@ class GameBoy(AbstractContextManager):
         block raised.
         """
         self.close()
+
+    def __init__(self, emulator: Emulator, settings: EmulatorSettings):
+        """
+        Composes `emulator`, `PyBoy` itself or a test's stand-in, under the
+        `settings` whose `hold` each press takes.
+        """
+        self.emulator = emulator
+        self.settings = settings
 
     @property
     def screen(self) -> ndarray:
@@ -229,11 +225,10 @@ class GameBoy(AbstractContextManager):
 
     def start(self):
         """
-        Plays through the game's intro to Red's bedroom, the first state
-        the player controls, through PyBoy's game wrapper, which ticks every
-        frame of it unrendered and saves that state for `reset` to load.
-        It writes 0 into DIV, which `reset` overwrites with the `timer_div`
-        each episode draws.
+        Plays the game's intro to Red's bedroom through PyBoy's game
+        wrapper, which renders none of its frames and saves that state for
+        `reset`, writing 0 into DIV until `reset` writes each episode's
+        `timer_div`.
         """
         # `start_game` navigates the naming screens of Pokémon Blue alone.
         self.emulator.game_wrapper.start_game(0)

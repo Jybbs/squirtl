@@ -1,23 +1,17 @@
 """
 Pins how `Overworld` keeps Gymnasium's environment contract, covering:
 
-- Gymnasium's own `check_env` on the unwrapped environment, and the agent
-  the environment imports nothing from
-- The intro a build plays, the press each action makes, the frames each
-  step advances, and the stop a close makes
-- The DIV register each reset draws from the environment's generator, the
-  idle frame it then draws its screen in, and the progress each reset
-  starts afresh
-- The reward, the termination, and the shares of each step, the truncation
-  `TimeLimit` reports, and the statistics each episode records
-- The wrappers and the observation space the environment is made with,
-  the grid and the flags each observation carries from the episode's
-  progress, the RGB screen it renders, and the rate it declares rendering at
-- An agent built over those spaces learning from the observations the
-  environment makes
+- `check_env` on the unwrapped environment, which imports nothing from the
+  agent, and the intro, the presses, the frames, and the close it makes
+- The DIV each reset draws, its idle frame, and the progress it restarts
+- Each step's reward, termination, and shares, and the truncation and the
+  statistics each episode records
+- The wrappers, spaces, grid, flags, render, and render rate it is made
+  with, and an agent learning from its observations
 """
 
 from collections.abc  import Callable
+from common.console   import set_event, stand
 from gymnasium        import Env, make
 from gymnasium.spaces import Box, Discrete
 from gymnasium.utils.env_checker import check_env
@@ -32,8 +26,9 @@ from torch.nn.utils import parameters_to_vector
 
 from squirtl.agent.learner         import Agent
 from squirtl.agent.schemas         import AgentSettings
-from squirtl.emulator.schemas      import Button, Symbol
+from squirtl.emulator.schemas      import Button
 from squirtl.environment.overworld import Overworld
+from squirtl.environment.schemas   import Entry
 from squirtl.reward.schemas        import Event, Position, RewardSettings, Term
 
 
@@ -61,13 +56,13 @@ def test_a_reset_starts_the_progress_afresh(overworld: Overworld):
     Asserts that a position an earlier episode reached earns novelty again
     in the episode after a reset, since each reset starts its own progress.
     """
-    emulator = overworld.game_boy.emulator
-    rewards  = []
+    memory  = overworld.game_boy.emulator.memory
+    rewards = []
 
     for _ in range(2):
-        emulator.stand(Position(map=0, x=0, y=0))
+        stand(memory, Position(map=0, x=0, y=0))
         overworld.reset(seed=0)
-        emulator.stand(Position(map=0, x=1, y=0))
+        stand(memory, Position(map=0, x=1, y=0))
         rewards.append(overworld.step(0)[1])
 
     assert rewards == [0.0625, 0.0625]
@@ -206,7 +201,7 @@ def test_a_step_returns_its_score_and_never_truncates(
     reports, and each term's share as its info dict.
     """
     overworld.reset(seed=0)
-    overworld.game_boy.emulator.set_event(event)
+    set_event(event, overworld.game_boy.emulator.memory)
     screen, earned, ended, truncated, info = overworld.step(0)
 
     assert_array_equal(screen, overworld.render())
@@ -220,11 +215,9 @@ def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
     """
     Asserts that the environment's spec names it and every wrapper
     shaping its observation, in the order each wraps the last, and that
-    `gymnasium.make` makes from it an environment of the same settings,
-    wrappers, and observation space.
+    `gymnasium.make` remakes from it an environment of an equal spec.
     """
-    env  = made()
-    spec = env.spec
+    spec = made().spec
 
     assert (
         spec.id, spec.max_episode_steps,
@@ -232,45 +225,35 @@ def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
     ) == (
         "squirtl/Overworld-v0", 10_240,
         [
-            "GrayscaleObservation", "TransformObservation", "FrameStackObservation",
+            "GrayscaleObservation", "ShrinkObservation", "FrameStackObservation",
             "ProgressObservation", "RecordEpisodeStatistics"
         ]
     )
 
     with make(spec) as remade:
-        assert (
-            remade.spec.kwargs,
-            [wrapper.name for wrapper in remade.spec.additional_wrappers],
-            remade.observation_space
-        ) == (
-            spec.kwargs,
-            [wrapper.name for wrapper in spec.additional_wrappers],
-            env.observation_space
-        )
+        assert remade.spec == spec
 
 
 def test_the_observation_carries_the_grid_and_the_flags_of_the_episodes_progress(
     made: Callable[..., Env]
 ):
     """
-    Asserts that the observation a reset makes marks the player's square
-    alone, and that a step to a new square setting a milestone's flag
-    observes the square left beside the player's own and that flag set,
-    while its reward pays the novelty and the milestone the grid and the
-    flags record.
+    Asserts that a reset's grid marks the player's square alone, and that a
+    step to a new square setting a milestone's flag observes the square left
+    beside the player's own and that flag set, paying the novelty and the
+    milestone both record.
     """
     env        = made()
     started, _ = env.reset(seed=0)
     memory     = env.unwrapped.game_boy.emulator.memory
-    byte, bit  = divmod(Event.EVENT_OAK_APPEARED_IN_PALLET, 8)
 
-    memory[Symbol.W_X_COORD]             = 1
-    memory[Symbol.W_EVENT_FLAGS + byte] |= 1 << bit
+    stand(memory, Position(map=0, x=1, y=0))
+    set_event(Event.EVENT_OAK_APPEARED_IN_PALLET, memory)
     stepped, reward, *_ = env.step(0)
 
-    assert argwhere(started["grid"][0]).tolist() == [[24, 24]]
-    assert argwhere(stepped["grid"][0]).tolist() == [[24, 23], [24, 24]]
-    assert stepped["flags"][0].tolist() == [
+    assert argwhere(started[Entry.GRID][0]).tolist() == [[24, 24]]
+    assert argwhere(stepped[Entry.GRID][0]).tolist() == [[24, 23], [24, 24]]
+    assert stepped[Entry.FLAGS][0].tolist() == [
         int(event is Event.EVENT_OAK_APPEARED_IN_PALLET) for event in Event
     ]
     assert reward == approx(RewardSettings().milestone + RewardSettings().novelty)
@@ -281,12 +264,12 @@ def test_the_observation_carries_the_grid_and_the_flags_of_the_episodes_progress
     [
         param(
             {},
-            {"flags": (1, 4), "frames": (4, 72, 80), "grid": (1, 48, 48)},
+            {Entry.FLAGS: (1, 4), Entry.FRAMES: (4, 72, 80), Entry.GRID: (1, 48, 48)},
             id = "the-defaults"
         ),
         param(
             {"frame_stack": 2, "grid_size": 9, "frame_shape": (36, 40)},
-            {"flags": (1, 4), "frames": (2, 36, 40), "grid": (1, 9, 9)},
+            {Entry.FLAGS: (1, 4), Entry.FRAMES: (2, 36, 40), Entry.GRID: (1, 9, 9)},
             id = "other-shapes"
         )
     ]
@@ -294,21 +277,25 @@ def test_the_observation_carries_the_grid_and_the_flags_of_the_episodes_progress
 def test_the_observation_takes_the_shapes_the_settings_name(
     made   : Callable[..., Env],
     fields : dict[str, object],
-    shapes : dict[str, tuple[int, ...]]
+    shapes : dict[Entry, tuple[int, ...]]
 ):
     """
-    Asserts that each entry of the observation takes the shape the settings
-    name, the frames shrunk to `frame_shape` and stacked `frame_stack` deep,
-    the grid `grid_size` squares on a side, and the flags one per `Event`,
-    each one deep, that a reset's observation lies in the space declared,
-    and that the frames take the `uint8` space from 0 to 255.
+    Asserts that each entry takes the shape the settings name, the frames
+    `frame_stack` deep at `frame_shape` in the `uint8` `Box` from 0 to
+    255, the grid `grid_size` a side, and one flag per `Event`, and that a
+    reset's observation lies in the space declared.
     """
     env            = made(**fields)
     observation, _ = env.reset(seed=0)
 
     assert {key: value.shape for key, value in observation.items()} == shapes
     assert env.observation_space.contains(observation)
-    assert env.observation_space["frames"] == Box(0, 255, shapes["frames"], uint8)
+    assert env.observation_space[Entry.FRAMES] == Box(
+        0,
+        255,
+        shapes[Entry.FRAMES],
+        uint8
+    )
 
 
 def test_the_render_is_the_rgb_screen(made: Callable[..., Env]):

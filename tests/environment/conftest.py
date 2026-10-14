@@ -51,11 +51,10 @@ def overworld(
     settings    : RewardSettings
 ) -> Overworld:
     """
-    Builds an `Overworld` on `StandIn` in place of `PyBoy`, with the
-    emulator holding each press for three frames, each step advancing 20,
-    and the reward paying what `settings` pays, so a test reads back each
-    call `GameBoy` makes and writes the player's position and the flags into
-    its memory.
+    Builds an `Overworld` on `StandIn` in place of `PyBoy`, each press held
+    for three frames, each step advancing 20, and the reward paying what
+    `settings` pays, so a test reads back each call `GameBoy` makes and
+    writes the position and the flags into its memory.
     """
     monkeypatch.setattr(console, "PyBoy", StandIn)
 

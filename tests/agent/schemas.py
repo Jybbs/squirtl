@@ -6,7 +6,8 @@ Pins the records the agent reads and writes, covering:
 - The value a batch reads for each draw's action and the target it sets
   each draw
 - A checkpoint reading back as the one written, and refusing a file that
-  holds anything beyond tensors and plain values
+  holds anything beyond tensors and plain values or a network's entry that
+  is no tensor
 """
 
 from pathlib  import Path
@@ -15,7 +16,8 @@ from pydantic import ValidationError
 from pytest   import MonkeyPatch, mark, param, raises
 from torch    import arange, device, equal, save, tensor, uint8
 
-from squirtl.agent.schemas import AgentSettings, Batch, Checkpoint
+from squirtl.agent.schemas       import AgentSettings, Batch, Checkpoint
+from squirtl.environment.schemas import Entry
 
 
 @mark.parametrize(
@@ -77,11 +79,11 @@ def test_a_batch_values_each_draw_at_the_action_it_took():
         actions    = tensor([2, 0]),
         rewards    = tensor([0.0, 0.0]),
         terminated = tensor([False, False]),
-        windows    = {"frames": arange(10, dtype=uint8).reshape(2, 5, 1, 1)}
+        windows    = {Entry.FRAMES: arange(10, dtype=uint8).reshape(2, 5, 1, 1)}
     )
 
     assert batch.values(
-        lambda observations: observations["frames"][:, :, 0, 0].float()
+        lambda observations: observations[Entry.FRAMES][:, :, 0, 0].float()
     ).tolist() == [2.0, 5.0]
 
 
@@ -120,6 +122,27 @@ def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path)
         Checkpoint.from_path(tmp_path / "checkpoint.pt")
 
 
+def test_a_checkpoint_refuses_a_network_entry_that_is_no_tensor(tmp_path: Path):
+    """
+    Asserts that reading a checkpoint refuses a file whose online network
+    holds a list where a tensor goes, naming that entry.
+    """
+    save(
+        {
+            "step"        : 0,
+            "exploration" : {},
+            "online"      : {"weight": [1.0, 2.0]},
+            "optimizer"   : {},
+            "sampling"    : {},
+            "target"      : {}
+        },
+        tmp_path / "checkpoint.pt"
+    )
+
+    with raises(ValidationError, match=r"online\.weight"):
+        Checkpoint.from_path(tmp_path / "checkpoint.pt")
+
+
 @mark.parametrize(
     ("terminated", "target"),
     [
@@ -142,10 +165,14 @@ def test_a_batch_targets_its_reward_plus_the_discounted_highest_value_reached(
         actions    = tensor([0]),
         rewards    = tensor([1.0]),
         terminated = tensor([terminated]),
-        windows    = {"frames": arange(5, dtype=uint8).reshape(1, 5, 1, 1)}
+        windows    = {Entry.FRAMES: arange(5, dtype=uint8).reshape(1, 5, 1, 1)}
     ).targets(
         0.5,
-        lambda observations: observations["frames"][:, :, 0, 0].float().requires_grad_()
+        lambda observations: (
+            observations[Entry.FRAMES][:, :, 0, 0]
+            .float()
+            .requires_grad_()
+        )
     )
 
     assert (targets.tolist(), targets.requires_grad) == ([target], False)
