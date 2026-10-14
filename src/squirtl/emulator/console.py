@@ -230,10 +230,10 @@ class GameBoy(AbstractContextManager):
     def start(self):
         """
         Plays through the game's intro to Red's bedroom, the first state
-        the player controls, through PyBoy's game wrapper, which saves that
-        state for `reset` to load, and writes 0 into DIV, where a `None`
-        would draw from Python's global generator and `reset` overwrites
-        either with the `timer_div` each episode draws.
+        the player controls, through PyBoy's game wrapper, which ticks every
+        frame of it unrendered and saves that state for `reset` to load.
+        It writes 0 into DIV, which `reset` overwrites with the `timer_div`
+        each episode draws.
         """
-        # `start_game` navigates Blue's naming screens only, so `Edition` lists Blue.
+        # `start_game` navigates the naming screens of Pokémon Blue alone.
         self.emulator.game_wrapper.start_game(0)

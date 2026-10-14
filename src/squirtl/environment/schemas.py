@@ -2,7 +2,7 @@
 Defines `EnvironmentSettings`, the settings the environment reads.
 """
 
-from numpy               import ndarray, uint32, uint8
+from numpy               import ndarray, uint8
 from pyboy.api.constants import COLS, ROWS
 from pyboy.utils         import CLOCK_RATE, FRAME_CYCLES
 from pydantic            import PositiveInt, model_validator
@@ -63,8 +63,7 @@ class EnvironmentSettings(Record):
     def shrink(self, frame: ndarray) -> ndarray:
         """
         Shrinks a grayscale `frame` to `frame_shape` by averaging each block
-        of pixels one cell covers, in integers rounding a half up, the mean
-        OpenCV's `INTER_AREA` takes over a 2 by 2 block.
+        of pixels one cell covers, in integers rounding a half up.
 
         Returns:
             A `frame_shape` array of `uint8`.
@@ -79,7 +78,7 @@ class EnvironmentSettings(Record):
         cells = blocks.shape[1] * blocks.shape[3]
 
         return (
-            (blocks.sum(axis=(1, 3), dtype=uint32) + cells // 2) // cells
+            (blocks.sum(axis=(1, 3)) + cells // 2) // cells
         ).astype(uint8)
 
     @model_validator(mode="after")

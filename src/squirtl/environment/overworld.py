@@ -136,6 +136,10 @@ class Overworld(Env):
         from the environment's generator, which `seed` reseeds where it is
         given, and starts the episode's progress there.
 
+        The state `GameBoy.start` saves holds a blank screen, since PyBoy
+        plays the intro without rendering a frame, so the reset advances one
+        frame with no press to draw the bedroom it returns.
+
         Returns:
             The bedroom's screen beside an empty info dict.
         """
@@ -144,7 +148,7 @@ class Overworld(Env):
         self.game_boy.reset(int(self.np_random.integers(256)))
         self.progress = Progress(self.game_boy, self.reward)
 
-        return self.game_boy.screen, {}
+        return self.game_boy.press(None, 1), {}
 
     def step(self, action: int) -> tuple[ndarray, float, bool, bool, dict[Term, float]]:
         """

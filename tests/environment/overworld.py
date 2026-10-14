@@ -5,8 +5,9 @@ Pins how `Overworld` keeps Gymnasium's environment contract, covering:
   the environment imports nothing from
 - The intro a build plays, the press each action makes, the frames each
   step advances, and the stop a close makes
-- The DIV register each reset draws from the environment's generator, and
-  the progress each reset starts afresh
+- The DIV register each reset draws from the environment's generator, the
+  idle frame it then draws its screen in, and the progress each reset
+  starts afresh
 - The reward, the termination, and the shares of each step, the truncation
   `TimeLimit` reports, and the statistics each episode records
 - The wrappers and the observation space the environment is made with,
@@ -144,17 +145,22 @@ def test_resets_with_no_seed_draw_on_from_the_seeded_generator(overworld: Overwo
 
 
 @mark.parametrize("seed", [param(0, id="seed-0"), param(1, id="seed-1")])
-def test_a_reset_writes_a_div_its_seed_draws(overworld: Overworld, seed: int):
+def test_a_reset_writes_a_div_its_seed_draws_then_draws_one_idle_frame(
+    overworld : Overworld,
+    seed      : int
+):
     """
     Asserts that a seeded reset hands the game wrapper the `timer_div` the
     seed's generator draws first from the 256 values DIV holds, as Gymnasium
-    seeds `np_random` with the `PCG64` generator `default_rng` also builds.
+    seeds `np_random` with the `PCG64` generator `default_rng` also builds,
+    then advances one frame with no press and reads the screen it returns.
     """
     overworld.game_boy.emulator.calls.clear()
     overworld.reset(seed=seed)
 
     assert overworld.game_boy.emulator.calls == [
         ("reset_game", default_rng(seed).integers(256)),
+        ("tick", 1),
         ("screen",)
     ]
 
