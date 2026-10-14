@@ -122,24 +122,32 @@ def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path)
         Checkpoint.from_path(tmp_path / "checkpoint.pt")
 
 
-def test_a_checkpoint_refuses_a_network_entry_that_is_no_tensor(tmp_path: Path):
+@mark.parametrize(
+    "network",
+    [param("online", id="the-online-network"), param("target", id="the-target-network")]
+)
+def test_a_checkpoint_refuses_a_network_entry_that_is_no_tensor(
+    network  : str,
+    tmp_path : Path
+):
     """
-    Asserts that reading a checkpoint refuses a file whose online network
-    holds a list where a tensor goes, naming that entry.
+    Asserts that reading a checkpoint refuses a file whose online or target
+    network holds a list where a tensor goes, naming that entry.
     """
     save(
         {
             "step"        : 0,
             "exploration" : {},
-            "online"      : {"weight": [1.0, 2.0]},
+            "online"      : {},
             "optimizer"   : {},
             "sampling"    : {},
             "target"      : {}
-        },
+        }
+        | {network: {"weight": [1.0, 2.0]}},
         tmp_path / "checkpoint.pt"
     )
 
-    with raises(ValidationError, match=r"online\.weight"):
+    with raises(ValidationError, match=rf"{network}\.weight"):
         Checkpoint.from_path(tmp_path / "checkpoint.pt")
 
 

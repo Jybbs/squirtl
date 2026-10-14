@@ -198,7 +198,12 @@ class Checkpoint(Record):
         """
         Reads the checkpoint at `path` onto the CPU under `torch.load`'s
         default `weights_only=True`, which unpickles tensors and plain
-        values alone.
+        values alone, and validates each field.
+
+        Raises:
+            ValidationError: Where the file lacks a field, holds a key no
+                             field declares, or holds a network entry that
+                             is no tensor.
         """
         return cls.model_validate(load(path, map_location="cpu"))
 

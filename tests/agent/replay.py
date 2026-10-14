@@ -12,7 +12,7 @@ Pins replay memory, covering:
 from collections.abc  import Callable, Mapping
 from gymnasium.spaces import Box, Dict, MultiBinary
 from itertools        import pairwise
-from numpy            import arange, array, float32, ndarray, uint8, zeros
+from numpy            import arange, array, ndarray, uint8, zeros
 from numpy.random     import default_rng
 from pytest           import fixture, mark, param
 from torch.testing    import assert_close
@@ -200,14 +200,13 @@ def test_replay_draws_each_batch_from_the_generator_it_is_built_with(
 
 def test_replay_holds_a_box_bounded_at_0_and_1_unpacked_in_its_dtype():
     """
-    Asserts that replay memory stores a `Box` entry bounded at 0 and 1 as it
-    is rather than packed, drawing it back in its own dtype.
+    Asserts that replay memory stores a `uint8` `Box` entry bounded at 0 and
+    1 as it is, one byte per cell, packing a `MultiBinary` entry alone.
     """
-    replay = Replay(8, default_rng(0), Dict({Entry.FLAGS: Box(0, 1, (1, 2), float32)}))
+    replay = Replay(8, default_rng(0), Dict({Entry.FLAGS: Box(0, 1, (1, 2), uint8)}))
 
-    replay.begin({Entry.FLAGS: array([[0, 1]], float32)})
-    replay.store(0, {Entry.FLAGS: array([[1, 0]], float32)}, 0.0, False)
+    replay.begin({Entry.FLAGS: array([[0, 1]], uint8)})
+    replay.store(0, {Entry.FLAGS: array([[1, 0]], uint8)}, 0.0, False)
 
-    assert replay.sample("cpu", 1).windows[Entry.FLAGS].tolist() == [
-        [[0.0, 1.0], [1.0, 0.0]]
-    ]
+    assert replay.columns[Entry.FLAGS].elements.shape == (8, 2)
+    assert replay.sample("cpu", 1).windows[Entry.FLAGS].tolist() == [[[0, 1], [1, 0]]]
