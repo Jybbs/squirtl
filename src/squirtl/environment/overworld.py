@@ -3,12 +3,14 @@ Defines `Overworld`, the environment an agent plays Pokémon Blue in from
 Red's bedroom to the starter, which `Overworld.make` builds and wraps.
 """
 
+from functools import reduce
 from gymnasium import Env
 from gymnasium.envs.registration import EnvSpec
 from gymnasium.spaces            import Box, Discrete
 from gymnasium.wrappers          import FrameStackObservation, GrayscaleObservation, RecordEpisodeStatistics
-from numpy  import ndarray, uint8
-from typing import Any
+from numpy    import ndarray, uint8
+from operator import add
+from typing   import Any
 
 from squirtl.emulator.console     import GameBoy
 from squirtl.emulator.schemas     import Button, Cartridge, EmulatorSettings
@@ -130,12 +132,13 @@ class Overworld(Env):
         holds, which the emulator plays to the frames the episode drew.
 
         Returns:
-            The reward its steps total, summed in the order they ran, as
-            `RecordEpisodeStatistics` sums an episode's return.
+            The reward its steps total, each added in turn to 0.0 as
+            `RecordEpisodeStatistics` adds an episode's return, where `sum`
+            compensates for rounding and can differ in the last bit.
         """
         self.reset(options={"recording": recording})
 
-        return sum(self.step(action)[1] for action in recording.presses)
+        return reduce(add, (self.step(action)[1] for action in recording.presses), 0.0)
 
     def render(self) -> ndarray:
         """

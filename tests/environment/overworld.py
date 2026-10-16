@@ -5,7 +5,8 @@ Pins how `Overworld` keeps Gymnasium's environment contract, covering:
   agent, and the intro, the presses, the frames, and the close it makes
 - The DIV each reset draws, its idle frame, and the progress it restarts
 - The recording each episode keeps, the reset that starts from one, and the
-  return playing it back reaches
+  return playing it back reaches, to the last bit `RecordEpisodeStatistics`
+  records
 - Each step's reward, termination, and shares, and the truncation and the
   statistics each episode records
 - The wrappers, spaces, grid, flags, render, and render rate it is made
@@ -17,6 +18,7 @@ from common.console   import set_event, stand
 from gymnasium        import Env, make
 from gymnasium.spaces import Box, Discrete
 from gymnasium.utils.env_checker import check_env
+from gymnasium.wrappers          import RecordEpisodeStatistics, TimeLimit
 from numpy          import argwhere, uint8
 from numpy.random   import default_rng
 from numpy.testing  import assert_array_equal
@@ -420,4 +422,30 @@ def test_playing_a_recording_reaches_the_return_its_episode_earned(
         ("button", Button.A, 3),
         ("button", Button.LEFT, 3),
         ("button", Button.LEFT, 3)
+    ] * 2
+
+
+@mark.parametrize(
+    "settings",
+    [param(
+        RewardSettings(milestone=0.125, novelty=0.1, starter=0.5),
+        id = "a-tenth-a-square"
+    )]
+)
+@mark.usefixtures("walking")
+def test_playing_a_recording_reaches_the_return_gymnasium_records_to_the_last_bit(
+    overworld: Overworld
+):
+    """
+    Asserts that playing back eight steps that each reach a new square
+    at 0.1 reaches the return `RecordEpisodeStatistics` records for them,
+    adding each reward in turn to 0.7999999999999999, where `sum` reaches
+    0.8.
+    """
+    recorded = RecordEpisodeStatistics(TimeLimit(overworld, 8))
+    recorded.reset(seed=0)
+    *_, info = [recorded.step(0)[4] for _ in range(8)]
+
+    assert [overworld.play(overworld.recording), info["episode"]["r"]] == [
+        0.7999999999999999
     ] * 2

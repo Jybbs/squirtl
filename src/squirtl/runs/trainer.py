@@ -82,7 +82,8 @@ class Trainer(AbstractContextManager):
         Plays episodes until the run takes its `steps` or is stopped
         at an episode's end, yielding the agent's step count after each
         step. It writes a checkpoint at the first episode end past each
-        `checkpoint_steps` and once the loop ends, unless one just landed.
+        `checkpoint_steps` and once the loop ends, unless the run's own
+        checkpoint already holds the last step.
         """
         while self.agent.step < self.run.settings.steps and not self.stopping:
             yield from self.play()
@@ -90,7 +91,14 @@ class Trainer(AbstractContextManager):
             if self.agent.step >= self.due:
                 self.checkpoint()
 
-        if self.saved < self.agent.step:
+        if self.run.stop.exists():
+            logger.warning(
+                "Stopping at the end of episode {:,} on finding {}",
+                self.finished,
+                self.run.stop
+            )
+
+        if self.saved < self.agent.step or not self.run.checkpoint.exists():
             self.checkpoint()
 
     @property
@@ -98,7 +106,8 @@ class Trainer(AbstractContextManager):
         """
         Reads the step past which the next episode's end writes a
         checkpoint, the first multiple of `checkpoint_steps` after the step
-        the run's last checkpoint landed at, or after 0 before its first.
+        the last checkpoint landed at, the one a resumed run continues from
+        included, or after 0 before the first.
         """
         interval = self.run.settings.checkpoint_steps
 
@@ -240,12 +249,14 @@ class Trainer(AbstractContextManager):
 
     def resume(self, checkpoint: Checkpoint, previous: Run):
         """
-        Restores the agent from `checkpoint`, the last one `previous` wrote,
-        and copies the episodes `previous` recorded up to it into this
-        run's `episodes`, dropping any past it, so the run goes on as though
-        `previous` had never stopped.
+        Restores the agent from `checkpoint`, the last one `previous`
+        wrote, counting the next checkpoint on from its step, and copies the
+        episodes `previous` recorded up to it into this run's `episodes`,
+        dropping any past it, so the run goes on as though `previous` had
+        never stopped.
         """
         self.agent.restore(checkpoint)
+        self.saved = checkpoint.step
 
         for episode in previous.ended_by(checkpoint.step):
             self.write(episode)

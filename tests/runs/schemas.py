@@ -11,9 +11,9 @@ Pins the records one run reads and writes, covering:
   refuses
 - The directory a run creates under `data/runs/`, the record it writes
   there, and the run a resumed one names
-- The paths a run keeps in its directory, a run read back from it, the
-  directories that read refuses, and the episodes a run's `episodes` holds,
-  each line read only once drawn
+- The paths a run keeps in its directory, a run read back from it or from
+  a copy outside the clone, a directory holding no run, and the episodes a
+  run's `episodes` holds, each line read only once drawn
 """
 
 from collections.abc  import Callable
@@ -24,7 +24,7 @@ from json             import dumps, loads
 from operator         import getitem
 from pathlib          import Path
 from pydantic         import ValidationError
-from pytest           import MonkeyPatch, mark, param, raises
+from pytest           import MonkeyPatch, TempPathFactory, mark, param, raises
 from shutil           import copytree
 from subprocess       import CalledProcessError, check_output
 from syrupy.assertion import SnapshotAssertion
@@ -102,11 +102,17 @@ def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path
     """
     Asserts that reading the directory a run started in returns that run,
     whether the directory is named relative to the working directory or
-    absolutely.
+    absolutely, each read keeping its paths in the directory it names.
     """
     run = Run.start(RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
 
-    assert Run.read(run.directory) == Run.read(clone / run.directory) == run
+    assert [
+        (read.model_dump(), read.directory)
+        for read in map(Run.read, (run.directory, clone / run.directory))
+    ] == [
+        (run.model_dump(), run.directory),
+        (run.model_dump(), clone / run.directory)
+    ]
 
 
 @mark.parametrize(
@@ -404,17 +410,25 @@ def test_each_file_a_run_writes_sits_in_its_directory(
     assert path.fget(run) == run.directory / name
 
 
-def test_reading_a_run_outside_its_own_directory_raises(clone: Path, tmp_path: Path):
+@mark.usefixtures("clone")
+def test_a_run_read_from_outside_the_clone_keeps_its_files_where_it_was_read(
+    monkeypatch      : MonkeyPatch,
+    tmp_path_factory : TempPathFactory
+):
     """
-    Asserts that reading a copy of a run's directory from a path other than
-    the one under `data/runs/` its name gives raises, naming where a command
-    reads that run from, since every path of the run is read from there.
+    Asserts that a copy of a run's directory outside the clone, read from a
+    working directory there, holds the run that started and keeps each file
+    of the run in that copy.
     """
-    run = Run.start(RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
-    copytree(run.directory, clone / "elsewhere")
+    run  = Run.start(RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
+    copy = copytree(run.directory, tmp_path_factory.mktemp("shell") / run.name)
+    monkeypatch.chdir(copy.parent)
+    copied = Run.read(copy)
 
-    with raises(ValueError, match="which a command reads from data/runs/20261004"):
-        Run.read(clone / "elsewhere")
+    assert copied.model_dump() == run.model_dump()
+    assert [copied.checkpoint, copied.episodes, copied.record, copied.stop] == [
+        copy / name for name in ("checkpoint.npz", "episodes.jsonl", "run.json", "stop")
+    ]
 
 
 def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(

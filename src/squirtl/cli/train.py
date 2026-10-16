@@ -7,6 +7,7 @@ from cyclopts      import Parameter
 from datetime      import UTC, datetime
 from pathlib       import Path
 from rich.progress import Progress
+from subprocess    import CalledProcessError
 from typing        import Annotated
 
 from squirtl.agent.schemas    import Checkpoint
@@ -42,18 +43,18 @@ def train(
     An interrupt, a termination signal, or `squirtl stop` ends the run
     at the end of its episode with a checkpoint and exits 0, and a second
     interrupt ends it at once on the last checkpoint and exits 130. A
-    `--resume` directory holding no run or no checkpoint, or a cartridge the
-    emulator refuses, exits 1 before any directory is made.
+    `--resume` directory holding no run or no checkpoint, a cartridge the
+    emulator refuses, or a working directory no git clone holds exits 1
+    before any directory is made.
     """
     console = listen(verbose)
 
-    with refusing(OSError, ValueError):
+    with refusing(CalledProcessError, OSError, ValueError):
         previous   = resume and Run.read(resume)
         checkpoint = previous and Checkpoint.from_path(previous.checkpoint)
         settings   = previous.settings if previous else settings or RunSettings()
         cartridge  = Cartridge.read(settings.emulator.cartridge)
-
-    run = Run.start(settings, datetime.now(UTC), previous and previous.name)
+        run        = Run.start(settings, datetime.now(UTC), previous and previous.name)
 
     with Trainer(cartridge, run) as trainer, Progress(console=console) as progress:
         if previous:

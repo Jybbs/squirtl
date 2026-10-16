@@ -8,8 +8,8 @@ directory of its own under data/runs/, which it prints once the run ends.
 An interrupt, a termination signal, or squirtl stop ends the run at the end of  
 its episode with a checkpoint and exits 0, and a second interrupt ends it at    
 once on the last checkpoint and exits 130. A --resume directory holding no run  
-or no checkpoint, or a cartridge the emulator refuses, exits 1 before any       
-directory is made.
+or no checkpoint, a cartridge the emulator refuses, or a working directory no   
+git clone holds exits 1 before any directory is made.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────╮
 │ --resume PATH                 The directory of a stopped run to continue     │

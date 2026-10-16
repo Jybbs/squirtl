@@ -17,7 +17,7 @@ from itertools       import islice
 from numpy           import uint64
 from numpy.random    import SeedSequence
 from pathlib         import Path
-from pydantic        import AwareDatetime, Field, NonNegativeInt, PositiveInt, StringConstraints
+from pydantic        import AwareDatetime, Field, NonNegativeInt, PositiveInt, PrivateAttr, StringConstraints
 from subprocess      import check_output
 from typing          import Annotated, Self
 
@@ -180,6 +180,12 @@ class Run(Record):
     spell it in UTC.
     """
 
+    _read_from: Path | None = PrivateAttr(None)
+    """
+    The directory `read` read the run from, or `None` for a run built in
+    the working directory.
+    """
+
     resumes: str | None = None
     """
     The name of the run this one continues, or `None` for a run starting
@@ -197,10 +203,11 @@ class Run(Record):
     @property
     def directory(self) -> Path:
         """
-        Locates the directory under `data/runs/` holding everything the
-        run writes.
+        Locates the directory holding everything the run writes, the one
+        `read` read it from, or otherwise the one under `data/runs/` its
+        name gives.
         """
-        return Path("data/runs", self.name)
+        return self._read_from or Path("data/runs", self.name)
 
     @property
     def episodes(self) -> Path:
@@ -282,24 +289,17 @@ class Run(Record):
     @classmethod
     def read(cls, directory: Path) -> Self:
         """
-        Reads the run whose record `directory` holds.
+        Reads the run whose record `directory` holds, every path of which
+        then sits in `directory`, whatever the working directory.
 
         Raises:
             FileNotFoundError : Where `directory` holds no record.
             ValidationError   : Where the record holds no run.
-            ValueError        : Where `directory` is not the directory under
-                                `data/runs/` the run's name gives, the place
-                                every path of the run is read from.
         """
         run = cls.model_validate_json(
             (directory / "run.json").read_text(encoding="utf-8")
         )
-
-        if directory.resolve() != run.directory.resolve():
-            raise ValueError(
-                f"{directory} holds the run {run.name}, which a command reads "
-                f"from {run.directory} under the working directory"
-            )
+        run._read_from = directory
 
         return run
 

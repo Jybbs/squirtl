@@ -12,15 +12,15 @@ from squirtl.runs.schemas import Run
 
 def stop(directory: Path):
     """
-    Writes the stop file that ends the run training in the directory
-    given at the end of the episode it is playing, where the run writes a
-    checkpoint and exits 0 as it does on a first interrupt, from any shell
-    whose working directory holds the run under `data/runs/`.
+    Writes the stop file that ends the run training in the directory given
+    at the end of the episode it is playing, from any shell, where the run
+    writes a checkpoint and exits 0 as it does on a first interrupt.
 
     A directory holding no run exits 1.
 
     Args:
-        directory: The run's directory under `data/runs/`.
+        directory: The run's directory, under `data/runs/` in the clone it
+                   trains in.
     """
     listen()
 

@@ -2,8 +2,9 @@
 Pins what `squirtl train` does, covering:
 
 - The run it writes under `data/runs/` and the directory it prints
-- The cartridge and the `--resume` directory it refuses before making any
-  directory, a run holding no checkpoint among them
+- The cartridge, the `--resume` directory, and the working directory outside
+  a clone it refuses before making any directory, a run holding no checkpoint
+  among them
 - A resume into a new directory under the settings the stopped run recorded
 - The line each episode logs and the line each step logs under `--verbose`
 - The emulator's window `--emulator.open-window` opens
@@ -11,7 +12,7 @@ Pins what `squirtl train` does, covering:
 
 from common.cli import Invoker
 from pathlib    import Path
-from pytest     import mark, param
+from pytest     import MonkeyPatch, mark, param
 
 from squirtl.agent.schemas import Checkpoint
 from squirtl.runs.schemas  import Run
@@ -89,6 +90,26 @@ def test_a_resume_of_a_run_holding_no_checkpoint_exits_1_before_making_any_direc
 
     assert (invocation.code, "checkpoint.npz" in invocation.log) == (1, True)
     assert list(Path("data/runs").iterdir()) == [trained]
+
+
+@mark.usefixtures("accepted", "rom")
+def test_a_working_directory_no_clone_holds_exits_1_before_making_any_directory(
+    invoke      : Invoker,
+    monkeypatch : MonkeyPatch,
+    quick       : list[str],
+    tmp_path    : Path
+):
+    """
+    Asserts that a run started where no git clone holds the working
+    directory exits 1, logging the `git` command that failed in place of a
+    traceback, and makes no directory there.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    invocation = invoke(["train", *quick])
+
+    assert (invocation.code, "git', 'rev-parse', 'HEAD'" in invocation.log) == (1, True)
+    assert not Path("data/runs").exists()
 
 
 @mark.usefixtures("clone")

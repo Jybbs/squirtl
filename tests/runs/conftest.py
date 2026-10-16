@@ -1,13 +1,16 @@
 """
 Defines the fixtures the tests of `squirtl.runs` request, meaning a
 directory no clone holds, the stand-in records a test reading no clone
-builds on, the record of one episode, a writer of a run's episodes, and the
-settings of a short run beside a factory of trainers starting one.
+builds on, the record of one episode, a writer of a run's episodes, the
+settings of a short run beside a factory of trainers starting one, and the
+messages loguru logs during a test.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib      import ExitStack
 from datetime        import UTC, datetime, timedelta
 from itertools       import count
+from loguru          import logger
 from pathlib         import Path
 from pytest          import MonkeyPatch, fixture
 
@@ -137,3 +140,23 @@ def holding(monkeypatch: MonkeyPatch, run: Run, tmp_path: Path) -> Callable[[str
         return run
 
     return write
+
+
+@fixture
+def logged() -> Iterator[list[str]]:
+    """
+    Adds a place loguru writes each message it logs during the test, and
+    removes it once the test ends.
+
+    Yields:
+        The message of each line logged, in the order logged.
+    """
+    messages = []
+
+    with ExitStack() as stack:
+        stack.callback(
+            logger.remove,
+            logger.add(lambda line: messages.append(line.record["message"]))
+        )
+
+        yield messages

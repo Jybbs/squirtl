@@ -5,10 +5,10 @@ Pins the training loop of one run on the CPU, covering:
   episode the run's end cuts short and leaves out, and the updates an
   episode's line averages
 - The checkpoint at the first episode end past each interval and at the
-  run's end
-- A `stop` file, an interrupt, or a termination signal ending the run at an
-  episode's end, a second interrupt ending it at once, and the signal
-  handlers the loop puts back
+  run's end, a resumed run counting the interval on from its checkpoint
+- A `stop` file, logged once found, an interrupt, or a termination signal
+  ending the run at an episode's end, a second interrupt ending it at once,
+  and the signal handlers the loop puts back
 - A run stopped halfway and resumed ending with the weights and the lines
   of a run that never stopped, and the lines a resume drops past its
   checkpoint
@@ -24,6 +24,25 @@ from squirtl.agent.schemas  import Checkpoint
 from squirtl.reward.schemas import Event, RewardSettings, Term
 from squirtl.runs.schemas   import Run
 from squirtl.runs.trainer   import Trainer
+
+
+def checkpoints(monkeypatch: MonkeyPatch, trainer: Trainer) -> list[int]:
+    """
+    Makes each checkpoint `trainer` writes record the step it lands at
+    before writing it.
+
+    Returns:
+        The steps, in the order the checkpoints land.
+    """
+    steps   = []
+    written = trainer.checkpoint
+    monkeypatch.setattr(
+        trainer,
+        "checkpoint",
+        lambda: steps.append(trainer.agent.step) or written()
+    )
+
+    return steps
 
 
 def finish(
@@ -71,14 +90,8 @@ def test_a_checkpoint_lands_at_the_first_episode_end_past_each_interval_and_the_
     20 for an interval of 10 steps, and at every episode end and the end for
     an interval of 6.
     """
-    built    = trainer(checkpoint_steps=interval)
-    steps    = []
-    original = built.checkpoint
-    monkeypatch.setattr(
-        built,
-        "checkpoint",
-        lambda: steps.append(built.agent.step) or original()
-    )
+    built = trainer(checkpoint_steps=interval)
+    steps = checkpoints(monkeypatch, built)
 
     finish(built)
 
@@ -106,6 +119,28 @@ def test_a_resume_drops_the_lines_past_the_checkpoint_it_continues_from(
         2,
         "".join(lines[:2])
     )
+
+
+def test_a_resumed_run_writes_its_checkpoints_where_a_run_that_never_stopped_does(
+    monkeypatch : MonkeyPatch,
+    trainer     : Callable[..., Trainer]
+):
+    """
+    Asserts that a run stopped on step 12 writes a checkpoint there and its
+    resumption one at step 20, the steps the same run taken through in one
+    go writes them at, the resumed run counting its next interval on from
+    step 12.
+    """
+    unbroken, stopped = trainer(), trainer()
+    steps = [checkpoints(monkeypatch, built) for built in (unbroken, stopped)]
+    finish(unbroken)
+    finish(stopped, stop_at_eight)
+    resumed = trainer(resumes=stopped.run.name)
+    steps.append(checkpoints(monkeypatch, resumed))
+    resumed.resume(Checkpoint.from_path(stopped.run.checkpoint), stopped.run)
+    finish(resumed)
+
+    assert steps == [[12, 20], [12], [20]]
 
 
 def test_a_run_stopped_halfway_and_resumed_ends_as_a_run_that_never_stopped(
@@ -177,11 +212,13 @@ def test_a_signal_ends_the_run_at_the_end_of_its_episode(
 
 
 def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
-    trainer: Callable[..., Trainer]
+    logged  : list[str],
+    trainer : Callable[..., Trainer]
 ):
     """
     Asserts that a `stop` file written on step 8 ends the run at the end of
-    its episode on step 12, with that episode's line and a checkpoint there.
+    its episode on step 12, with that episode's line and a checkpoint there,
+    and logs the file it found.
     """
     run = finish(trainer(), stop_at_eight)
 
@@ -189,6 +226,7 @@ def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
         len(list(run.recorded)),
         Checkpoint.from_path(run.checkpoint).step
     ) == (2, 12)
+    assert f"Stopping at the end of episode 2 on finding {run.stop}" in logged
 
 
 def test_an_episode_reaching_the_starter_writes_a_terminated_line(
