@@ -3,7 +3,9 @@ Defines the fixtures the suite shares, each described where it is defined.
 
 The autouse `environment` fixture isolates every test from the machine
 running it, and the collection hook lets a test open a network connection
-only when it carries the `network` mark.
+only when it carries the `network` mark. The `rom`, `cartridge`, and
+`settings` fixtures serve the tests of the emulator, the reward, and the
+environment, so none needs the user's own ROM.
 """
 
 from collections.abc   import Callable, Iterable, Iterator, Mapping
@@ -11,6 +13,9 @@ from io                import StringIO
 from pathlib           import Path
 from pytest            import FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, mark
 from pytest_subprocess import FakeProcess
+
+from squirtl.emulator.schemas import Cartridge, EmulatorSettings
+from squirtl.reward.schemas   import RewardSettings
 
 CLEARED = (
     "COLORTERM", "FORCE_COLOR", "GITHUB_ACTIONS", "GITHUB_OUTPUT",
@@ -121,3 +126,41 @@ def pytest_collection_modifyitems(items: Iterable[Item]):
         if item.get_closest_marker("network"):
             item.add_marker(mark.enable_socket)
 
+
+@fixture
+def cartridge(rom: Path) -> Cartridge:
+    """
+    Builds the record of the cartridge `rom` writes without the check
+    `Cartridge.read` runs, since pret/pokered lists no digest of that ROM.
+    """
+    return Cartridge.model_construct(data=rom.read_bytes(), path=rom)
+
+
+@fixture
+def rom(tmp_path: Path) -> Path:
+    """
+    Writes a 32 KiB cartridge holding no game at the path `EmulatorSettings`
+    reads by default under `tmp_path`, its header checksummed as Pan Docs
+    gives so PyBoy boots it into one loop. Beside it sits the save PyBoy
+    reads for that path, holding `0xAB` in each of its 32 KiB.
+    """
+    data              = bytearray(0x8000)
+    data[0x100:0x102] = b"\x18\xfe"      # `jr @`, a relative jump back onto itself
+    data[0x147:0x14A] = b"\x13\x00\x03"  # MBC3+RAM+BATTERY, 32 KiB of ROM and of RAM
+    data[0x14D]       = -sum(byte + 1 for byte in data[0x134:0x14D]) % 256
+
+    path = tmp_path / EmulatorSettings().cartridge
+    path.parent.mkdir()
+    path.write_bytes(data)
+    Path(f"{path}.ram").write_bytes(b"\xab" * 0x8000)
+
+    return path
+
+
+@fixture
+def settings() -> RewardSettings:
+    """
+    Builds reward settings paying powers of two apart from the defaults and
+    from one another, so every sum a step earns is exact.
+    """
+    return RewardSettings(milestone=0.125, novelty=0.0625, starter=0.5)

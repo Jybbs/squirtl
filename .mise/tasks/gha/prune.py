@@ -2,7 +2,7 @@
 # MISE description = "Delete the Actions cache entries that newer entries replaced"
 """
 Deletes the Actions cache entries that newer entries have replaced, as
-the `gha:prune` task the `🧹 Prune` job of `🕹️ Warm` runs on the runner's
+the `gha:prune` task the `✂️ Prune` job of `🕹️ Warm` runs on the runner's
 own interpreter and the `gh` it carries. `Caches` reads every entry as an
 `Entry`, keeps the newest entry of each generation, and deletes the rest
 through `gh cache delete`, which needs the `actions: write` permission the
@@ -20,9 +20,6 @@ from typing      import Self
 def gh(*arguments: str) -> CompletedProcess[str]:
     """
     Runs `gh` with `arguments`, capturing both output streams as text.
-
-    Returns:
-        The finished process.
     """
     return run(["gh", *arguments], capture_output=True, text=True)
 

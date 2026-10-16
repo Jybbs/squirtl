@@ -1,8 +1,9 @@
 """
-Pins what each `gha` task decides from its inputs, meaning the output format
-`gha:lint` hands zizmor for the shell it runs in, the verdict and summary
-`gha:brief` writes for the jobs a gate waited on, and which cache entries
-`gha:prune` treats as replaced and how it deletes one.
+Pins what each `gha` task decides from its inputs, meaning the output
+format `gha:lint` hands zizmor for the shell it runs in beside the further
+arguments it forwards, the verdict and summary `gha:brief` writes for
+the jobs a gate waited on, and which cache entries `gha:prune` treats as
+replaced and how it deletes one.
 
 The stand-in under `fixtures/` answers for `zizmor`, printing each argument
 it receives on a line of its own, and the `fp` fixture pytest-subprocess
@@ -497,13 +498,7 @@ def test_the_closing_line_counts_only_the_deletes_github_accepted(
     prune.Caches(
         [
             prune.Entry(**entry("mise-v1-zizmor-aaa", size_bytes=5)),
-            prune.Entry(
-                **entry(
-                    cache_id = 2,
-                    created  = LATER,
-                    key      = "mise-v1-zizmor-bbb"
-                )
-            )
+            prune.Entry(**entry("mise-v1-zizmor-bbb", cache_id=2, created=LATER))
         ]
     ).prune()
 
@@ -529,12 +524,14 @@ def test_lint_hands_zizmor_the_format_its_shell_reads(
     """
     Pins that `gha:lint` asks zizmor for annotations under GitHub Actions
     and for plain diagnostics elsewhere, offline and failing on a file it
-    cannot collect, over every workflow and action under `.github`.
+    cannot collect, over every workflow and action under `.github`, and
+    forwards each further argument after its own flags and ahead of that
+    folder.
     """
     install_stand_ins("echo.sh", "zizmor")
 
-    assert printed("gha/lint") == [
-        "--format", kind, "--offline", "--strict-collection", ".github"
+    assert printed("gha/lint", "--pedantic") == [
+        "--format", kind, "--offline", "--strict-collection", "--pedantic", ".github"
     ]
 
 

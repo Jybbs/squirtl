@@ -4,7 +4,7 @@ requires      = ["hatchling==1.32.4"]
 
 [project]
 authors         = [{ name = "James Parkington" }]
-dependencies    = ["cyclopts", "numpy", "pydantic"]
+dependencies    = ["cyclopts", "gymnasium", "numpy", "pyboy", "pydantic", "torch"]
 description     = "Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and PyTorch."
 keywords        = [
     "deep-learning",
@@ -78,7 +78,10 @@ addopts                  = [
 ]
 cache_dir                = ".cache/pytest"
 empty_parameter_set_mark = "fail_at_collect"
-filterwarnings           = ["error"]
+filterwarnings           = [
+    "error",
+    "ignore:Using SDL2 binaries from pysdl2-dll:UserWarning:sdl2._internal"
+]
 markers                  = [
     "network: reaches a service over the network, so the default run deselects it and a selected run lets it open a connection",
     "slow: runs longer than a few seconds, so a fast local run deselects it"
@@ -100,3 +103,11 @@ build-constraint-dependencies = [
 python-downloads              = "never"
 python-preference             = "only-system"
 required-version              = "==0.12.13"
+
+[[tool.uv.index]]
+explicit = true
+name     = "pytorch-cpu"
+url      = "https://download.pytorch.org/whl/cpu"
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu", marker = "sys_platform == 'linux'" }
