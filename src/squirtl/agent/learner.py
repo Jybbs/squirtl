@@ -37,14 +37,13 @@ class Agent:
         steps    : int
     ):
         """
-        Builds both networks for `actions` actions over the observations
-        `space` declares, Adam over the online network, and empty replay
-        memory, for a run of `steps` environment steps.
+        Builds both networks for `actions` actions over `space`, Adam over
+        the online network, and empty replay memory for a run of `steps`
+        steps.
 
         Args:
-            seed: The seed the online network's weights, the draws choosing
-                  a random action, and the draws sampling replay memory each
-                  start from, a 64-bit unsigned integer.
+            seed: The unsigned 64-bit seed the weights, the random actions,
+                  and the replay draws each start from.
         """
         self.exploration, sampling = default_rng(seed).spawn(2)
 
@@ -63,8 +62,8 @@ class Agent:
     @property
     def checkpoint(self) -> Checkpoint:
         """
-        Gathers the state a resumed run continues training from, which holds
-        the networks' and the optimizer's own tensors uncopied.
+        Gathers the state a resumed run continues training from, holding the
+        networks' own `state_dict`s and the optimizer's tensors uncopied.
         """
         return Checkpoint(
             exploration = self.exploration.bit_generator.state,
@@ -123,9 +122,9 @@ class Agent:
         terminated  : bool
     ):
         """
-        Stores the transition `action` made as one environment step, and
-        copies the online network into the target network on every step
-        `sync_steps` divides.
+        Stores the transition `action` made as one environment step,
+        copying the online network into the target on each step `sync_steps`
+        divides.
         """
         self.replay.store(action, observation, reward, terminated)
         self.step += 1
@@ -149,9 +148,9 @@ class Agent:
     def update(self):
         """
         Takes one gradient step on the Huber loss between the online
-        network's values for a batch from replay memory and the target
-        network's targets, its gradient's norm clipped at `max_grad_norm`,
-        and none while replay memory holds less than one batch.
+        network's values for a batch and the target network's targets, its
+        gradient's norm clipped at `max_grad_norm`, and none before replay
+        memory holds a batch.
         """
         if len(self.replay) < self.settings.batch_size:
             return

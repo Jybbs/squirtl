@@ -1,13 +1,12 @@
 """
 Pins the records the agent reads and writes, covering:
 
-- The device the settings default to, the values each setting refuses,
-  and the bound a fraction accepts
-- The value a batch reads for each draw's action and the target it sets
-  each draw
-- A checkpoint reading back as the one written, and refusing a file that
-  holds anything beyond tensors and plain values or a network's entry that
-  is no tensor
+- The device the settings default to, the values they refuse, and the
+  bound a fraction accepts
+- The value and the target a batch reads for each draw
+- A checkpoint reading back as written with each `state_dict`'s metadata,
+  and refusing a file holding more than tensors and plain values or a
+  network entry that is no tensor
 """
 
 from pathlib  import Path
@@ -15,6 +14,7 @@ from pickle   import UnpicklingError
 from pydantic import ValidationError
 from pytest   import MonkeyPatch, mark, param, raises
 from torch    import arange, device, equal, save, tensor, uint8
+from torch.nn import Linear
 
 from squirtl.agent.schemas       import AgentSettings, Batch, Checkpoint
 from squirtl.environment.schemas import Entry
@@ -85,6 +85,31 @@ def test_a_batch_values_each_draw_at_the_action_it_took():
     assert batch.values(
         lambda observations: observations[Entry.FRAMES][:, :, 0, 0].float()
     ).tolist() == [2.0, 5.0]
+
+
+def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path):
+    """
+    Asserts that a checkpoint holds each network's `state_dict` itself, and
+    that one read back from its file still carries the `_metadata` holding
+    each module's version, which `load_state_dict` reads.
+    """
+    online, target = Linear(2, 1).state_dict(), Linear(2, 1).state_dict()
+    written        = Checkpoint(
+        exploration = {},
+        online      = online,
+        optimizer   = {},
+        sampling    = {},
+        step        = 0,
+        target      = target
+    )
+    written.save(tmp_path / "checkpoint.pt")
+    read = Checkpoint.from_path(tmp_path / "checkpoint.pt")
+
+    assert written.online is online and written.target is target
+    assert (read.online._metadata, read.target._metadata) == (
+        {"": {"version": 1}},
+        {"": {"version": 1}}
+    )
 
 
 def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):

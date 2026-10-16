@@ -34,10 +34,9 @@ from squirtl.reward.schemas        import Event, Position, RewardSettings, Term
 
 def test_a_build_plays_the_intro_before_any_reset(overworld: Overworld):
     """
-    Asserts that building the environment plays through the intro once,
-    handing the game wrapper a `timer_div` of 0, and resets nothing, its
-    one other call the read of the screen its observation space takes its
-    shape from.
+    Asserts that building the environment plays the intro once at a
+    `timer_div` of 0 and resets nothing, its one other call the read of the
+    screen that sizes its observation space.
     """
     assert overworld.game_boy.emulator.calls == [("start_game", 0), ("screen",)]
 
@@ -114,10 +113,9 @@ def test_each_action_makes_its_press_then_advances_the_steps_frames(
     pressed   : list[tuple[str, Button, int]]
 ):
     """
-    Asserts that action 0 presses nothing and each later action presses the
-    `Button` at its place in the order `Button` declares them, held for the
-    emulator's `hold`, before one tick of `frames_per_step` frames and the
-    read of the screen it ends on.
+    Asserts that action 0 presses nothing and action `n` the `n`th `Button`
+    as declared, held for `hold`, before one tick of `frames_per_step`
+    frames and the read of the screen it ends on.
     """
     overworld.reset(seed=0)
     overworld.game_boy.emulator.calls.clear()
@@ -145,10 +143,10 @@ def test_a_reset_writes_a_div_its_seed_draws_then_draws_one_idle_frame(
     seed      : int
 ):
     """
-    Asserts that a seeded reset hands the game wrapper the `timer_div` the
-    seed's generator draws first from the 256 values DIV holds, as Gymnasium
-    seeds `np_random` with the `PCG64` generator `default_rng` also builds,
-    then advances one frame with no press and reads the screen it returns.
+    Asserts that a seeded reset hands the game wrapper the first of DIV's
+    256 values its seed draws, from the `PCG64` generator Gymnasium and
+    `default_rng` both build, then advances one idle frame and reads its
+    screen.
     """
     overworld.game_boy.emulator.calls.clear()
     overworld.reset(seed=seed)
@@ -239,9 +237,8 @@ def test_the_observation_carries_the_grid_and_the_flags_of_the_episodes_progress
 ):
     """
     Asserts that a reset's grid marks the player's square alone, and that a
-    step to a new square setting a milestone's flag observes the square left
-    beside the player's own and that flag set, paying the novelty and the
-    milestone both record.
+    step onto a new square setting a milestone's flag observes both squares
+    and that flag, paying the novelty and the milestone.
     """
     env        = made()
     started, _ = env.reset(seed=0)
@@ -274,7 +271,7 @@ def test_the_observation_carries_the_grid_and_the_flags_of_the_episodes_progress
         )
     ]
 )
-def test_the_observation_takes_the_shapes_the_settings_name(
+def test_the_observation_lies_in_its_space_at_the_shapes_the_settings_name(
     made   : Callable[..., Env],
     fields : dict[str, object],
     shapes : dict[Entry, tuple[int, ...]]
@@ -283,12 +280,16 @@ def test_the_observation_takes_the_shapes_the_settings_name(
     Asserts that each entry takes the shape the settings name, the frames
     `frame_stack` deep at `frame_shape` in the `uint8` `Box` from 0 to
     255, the grid `grid_size` a side, and one flag per `Event`, and that a
-    reset's observation lies in the space declared.
+    reset's observation lies in the space declared in each entry's dtype,
+    which `MultiBinary.contains` leaves unchecked.
     """
     env            = made(**fields)
     observation, _ = env.reset(seed=0)
 
     assert {key: value.shape for key, value in observation.items()} == shapes
+    assert {key: value.dtype for key, value in observation.items()} == {
+        key: entry.dtype for key, entry in env.observation_space.items()
+    }
     assert env.observation_space.contains(observation)
     assert env.observation_space[Entry.FRAMES] == Box(
         0,
@@ -316,10 +317,10 @@ def test_the_render_rate_is_one_frame_per_step_at_the_consoles_speed(
     made: Callable[..., Env]
 ):
     """
-    Asserts that the environment declares rendering at the steps a Game Boy
-    running at its own speed takes each second, one rendered frame for each
-    `frames_per_step` frames it draws, from the 4.194304 MHz clock and the
-    70224 dots a frame takes that Pan Docs gives, 59.7275 frames a second.
+    Asserts that the environment renders at the steps a Game Boy takes
+    a second at its own speed, the 59.7275 frames a second that Pan
+    Docs's 4.194304 MHz clock and 70224 dots a frame give, divided by
+    `frames_per_step`.
     """
     assert made(frames_per_step=20).metadata["render_fps"] == approx(59.7275 / 20)
 
@@ -327,9 +328,8 @@ def test_the_render_rate_is_one_frame_per_step_at_the_consoles_speed(
 def test_the_time_limit_truncates_the_episode_and_records_it(made: Callable[..., Env]):
     """
     Asserts that the environment truncates an episode on its
-    `max_episode_steps`-th step and not before, never terminating
-    it, and reports that episode's length in the statistics
-    `RecordEpisodeStatistics` adds to the last step's info dict.
+    `max_episode_steps`-th step and not before, never terminating it, and
+    reports its length in the statistics `RecordEpisodeStatistics` adds.
     """
     env = made(max_episode_steps=3)
     env.reset(seed=0)
@@ -346,8 +346,8 @@ def test_the_time_limit_truncates_the_episode_and_records_it(made: Callable[...,
 def test_the_unwrapped_environment_passes_gymnasiums_checks(made: Callable[..., Env]):
     """
     Asserts that Gymnasium's `check_env` passes on the unwrapped environment
-    with every warning it issues raised as an error, which `filterwarnings`
-    in `[tool.pytest]` sets, covering its spaces, a seeded reset's
-    determinism, a step's returns, the RGB render, and a second close.
+    with every warning it issues raised as an error, covering its spaces,
+    a seeded reset's determinism, a step's returns, the RGB render, and a
+    second close.
     """
     check_env(made().unwrapped)

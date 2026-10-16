@@ -13,7 +13,7 @@
         },
         "capacity": {
           "default": 100000,
-          "description": "The slots replay memory holds before it overwrites the oldest, four for\neach episode's reset observation and one for each step after it, whose\ndefault holds a 72 by 80 frame, a 48 by 48 grid, and four flags in\neach slot in 606 MB, the grid and the flags packed eight cells to a\nbyte.",
+          "description": "The slots replay memory holds before overwriting the oldest, four per\nreset observation and one per step, whose default takes 606 MB with the\ngrid and the flags packed eight cells to a byte.",
           "exclusiveMinimum": 0,
           "title": "Capacity",
           "type": "integer"
@@ -74,7 +74,7 @@
       "properties": {
         "cartridge": {
           "default": "data/rom.gb",
-          "description": "The file holding the user's own ROM of the English Pokémon Blue, which a\nrun refuses unless pret/pokered lists its SHA-1 for that release.",
+          "description": "The file holding the user's own ROM of the English Pokémon Blue, refused\nunless its SHA-1 is the one pret/pokered lists.",
           "format": "path",
           "title": "Cartridge",
           "type": "string"
@@ -105,7 +105,7 @@
             72,
             80
           ],
-          "description": "The height and width in pixels each frame shrinks to, each dividing the\nscreen's own, whose default is the grayscale screen at half its\nresolution that Pleines et al. observe.",
+          "description": "The height and width in pixels each frame shrinks to, each dividing the\nscreen's own, whose default is the half-resolution grayscale screen\nPleines et al. observe.",
           "maxItems": 2,
           "minItems": 2,
           "prefixItems": [
@@ -130,21 +130,21 @@
         },
         "frames_per_step": {
           "default": 17,
-          "description": "The frames each step advances from its press, whose default is the\nfewest under which a direction pressed on open ground moves the player\none square on every press, whichever frame the press lands on.",
+          "description": "The frames a step advances from its press, by default the fewest under\nwhich a direction pressed on open ground moves the player one square\nwhichever frame the press lands on.",
           "exclusiveMinimum": 0,
           "title": "Frames Per Step",
           "type": "integer"
         },
         "grid_size": {
           "default": 48,
-          "description": "The side in squares of the grid of reached positions each observation\ncenters on the player, whose default covers one square for each of the\n48 cells a side of the crop Pleines et al. observe.",
+          "description": "The side in squares of the grid of reached positions centered on the\nplayer, by default one square per cell of the 48 by 48 crop Pleines et\nal. observe.",
           "exclusiveMinimum": 0,
           "title": "Grid Size",
           "type": "integer"
         },
         "max_episode_steps": {
           "default": 10240,
-          "description": "The steps after which `TimeLimit` truncates an episode, whose default\nis the budget Pleines et al. start each episode with.",
+          "description": "The steps after which `TimeLimit` truncates an episode, by default the\nbudget Pleines et al. start each episode with.",
           "exclusiveMinimum": 0,
           "title": "Max Episode Steps",
           "type": "integer"

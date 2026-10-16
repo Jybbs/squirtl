@@ -8,7 +8,7 @@ Defines the records the agent reads and writes:
 """
 
 from pathlib           import Path
-from pydantic          import Field, InstanceOf, PositiveFloat, PositiveInt
+from pydantic          import Field, InstanceOf, PositiveFloat, PositiveInt, ValidatorFunctionWrapHandler, WrapValidator
 from torch             import Tensor, load, no_grad, save
 from torch.accelerator import current_accelerator
 from typing            import Annotated, Self
@@ -16,7 +16,24 @@ from typing            import Annotated, Self
 from squirtl.agent.networks   import QNetwork
 from squirtl.emulator.schemas import Record, UnitInterval
 
-type Fraction = Annotated[float, Field(gt=0, le=1)]
+type Fraction  = Annotated[float, Field(gt=0, le=1)]
+type StateDict = Annotated[
+    dict[str, InstanceOf[Tensor]], WrapValidator(validate_in_place)
+]
+
+
+def validate_in_place(  # prose: ignore[unsorted-positionals]
+    state   : object,
+    handler : ValidatorFunctionWrapHandler
+) -> object:
+    """
+    Validates each entry of `state` as a tensor through `handler`, then
+    returns `state` itself, since the dict `handler` rebuilds drops the
+    `_metadata` holding each module's version.
+    """
+    handler(state)
+
+    return state
 
 
 class AgentSettings(Record):
@@ -33,11 +50,9 @@ class AgentSettings(Record):
 
     capacity: PositiveInt = 100_000
     """
-    The slots replay memory holds before it overwrites the oldest, four for
-    each episode's reset observation and one for each step after it, whose
-    default holds a 72 by 80 frame, a 48 by 48 grid, and four flags in
-    each slot in 606 MB, the grid and the flags packed eight cells to a
-    byte.
+    The slots replay memory holds before overwriting the oldest, four per
+    reset observation and one per step, whose default takes 606 MB with the
+    grid and the flags packed eight cells to a byte.
     """
 
     device: str = Field(
@@ -117,23 +132,21 @@ class Batch(Record):
 
     windows: dict[str, InstanceOf[Tensor]]
     """
-    The elements both observations of each draw read, one tensor per entry
-    of shape `(batch, depth + 1, *element)`, the first `depth` elements the
-    observation acted on and the last `depth` the one reached.
+    One `(batch, depth + 1, *element)` tensor per entry, its first `depth`
+    elements the observation acted on and its last `depth` the one reached.
     """
 
     @property
     def next_observations(self) -> dict[str, Tensor]:
         """
-        Slices the observation each draw's action reached out of `windows`.
+        Slices the observation each draw reached out of `windows`.
         """
         return {key: window[:, 1:] for key, window in self.windows.items()}
 
     @property
     def observations(self) -> dict[str, Tensor]:
         """
-        Slices the observation each draw's action was taken on out of
-        `windows`.
+        Slices the observation each draw acted on out of `windows`.
         """
         return {key: window[:, :-1] for key, window in self.windows.items()}
 
@@ -141,8 +154,8 @@ class Batch(Record):
     def targets(self, discount: float, network: QNetwork) -> Tensor:
         """
         Values each draw at its reward plus `discount` times the highest
-        value `network` gives the observation it reached, or at its reward
-        alone where it terminated the episode, recording no autograd graph.
+        value `network` gives the observation reached, or the reward alone
+        where it terminated, recording no autograd graph.
         """
         return (
             self.rewards
@@ -152,7 +165,7 @@ class Batch(Record):
     def values(self, network: QNetwork) -> Tensor:
         """
         Reads the value `network` gives each draw's action on the
-        observation it was taken on.
+        observation it acted on.
         """
         return network(self.observations).gather(1, self.actions[:, None])[:, 0]
 
@@ -168,7 +181,7 @@ class Checkpoint(Record):
     The state of the generator choosing each random action.
     """
 
-    online: dict[str, InstanceOf[Tensor]]
+    online: StateDict
     """
     The online network's `state_dict`.
     """
@@ -188,7 +201,7 @@ class Checkpoint(Record):
     The environment steps the agent has remembered.
     """
 
-    target: dict[str, InstanceOf[Tensor]]
+    target: StateDict
     """
     The target network's `state_dict`.
     """
@@ -201,14 +214,14 @@ class Checkpoint(Record):
         values alone, and validates each field.
 
         Raises:
-            ValidationError: Where the file lacks a field, holds a key no
-                             field declares, or holds a network entry that
-                             is no tensor.
+            ValidationError: Where a field is missing or unknown, or a
+                             network entry is no tensor.
         """
         return cls.model_validate(load(path, map_location="cpu"))
 
     def save(self, path: Path):
         """
-        Writes the checkpoint to `path` through `torch.save`.
+        Writes each field as it is to `path` through `torch.save`, so each
+        `state_dict` keeps its `_metadata`.
         """
-        save(self.model_dump(), path)
+        save(dict(self), path)

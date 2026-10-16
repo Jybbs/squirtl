@@ -1,9 +1,7 @@
 """
-Defines the replay memory the agent stores each transition in and draws each
-update's batch from:
-
-- `Column`, the elements one entry of an observation holds across the slots
-- `Replay`, the replay memory itself
+Defines `Replay`, the replay memory the agent stores each transition in
+and samples each batch from, and `Column`, one entry's elements across its
+slots.
 """
 
 from collections.abc  import Mapping
@@ -18,17 +16,15 @@ from squirtl.agent.schemas import Batch
 
 class Column:
     """
-    The elements one entry of a `Dict` observation holds in replay memory,
-    one per slot, each element of a `MultiBinary` entry packed eight cells
-    to a byte along its last axis.
+    One entry's elements in replay memory, one per slot, each element of a
+    `MultiBinary` entry packed eight cells to a byte along its last axis.
     """
 
     def __init__(self, capacity: int, space: Box | MultiBinary):
         """
-        Allocates `capacity` slots for the elements `space` stacks along
-        its first axis, `depth` holding how many one observation stacks
-        and `width` the length of an element's last axis before packing, or
-        `None` where the column holds each element as it is.
+        Allocates `capacity` slots for the elements `space` stacks, with
+        `depth` the number one observation stacks and `width` the last
+        axis's length before packing, or `None` where nothing packs.
         """
         self.depth, *element = space.shape
 
@@ -45,8 +41,7 @@ class Column:
     def window(self, slots: ndarray) -> ndarray:
         """
         Takes the `depth` elements ending at each of `slots` and the one
-        after it, wrapping past the last slot, unpacked where they are
-        packed.
+        after, wrapping past the last slot and unpacking packed elements.
 
         Returns:
             A `(len(slots), depth + 1, *element)` array.
@@ -76,14 +71,13 @@ class Column:
 class Replay:
     """
     Replay memory over one `Column` per entry of a `Dict` observation,
-    beside the action taken on the observation each slot ends, its reward,
-    and whether it terminated the episode.
+    beside each slot's action, reward, and termination.
 
-    A reset observation is stored whole, each entry's stack ending at one
-    slot, and each later step stores the newest element of each entry,
-    so the stacks ending at a slot are the observation acted on and those
-    ending one slot later the one reached. A slot holds a transition only
-    while both lie in one episode and neither has been overwritten.
+    A reset observation is stored whole and each later step stores
+    each entry's newest element, so the stacks ending at a slot are the
+    observation acted on and those one slot later the one reached. A
+    slot holds a transition while both lie in one episode and neither is
+    overwritten.
     """
 
     def __init__(self, capacity: int, generator: Generator, space: Dict):
@@ -108,16 +102,16 @@ class Replay:
     @property
     def depth(self) -> int:
         """
-        Reads the depth of the deepest entry's stack, the most slots one
-        observation reads.
+        Reads the deepest entry's depth, the most slots one observation
+        reads.
         """
         return max(column.depth for column in self.columns.values())
 
     def begin(self, observation: Mapping[str, ndarray]):
         """
-        Stores every element of an episode's reset observation, each entry's
-        stack ending at the newest slot and an entry shallower than `depth`
-        repeating its oldest element over the slots before its stack.
+        Stores each element of a reset observation, every stack ending at
+        the newest slot and a shallower entry repeating its oldest element
+        before its stack.
         """
         for index in range(-self.depth, 0):
             self.push(
@@ -165,9 +159,8 @@ class Replay:
     ):
         """
         Records `action`, taken on the observation ending at the newest
-        slot, with its `reward` and whether it `terminated` the episode,
-        then stores the newest element of each entry of the `observation`
-        reached.
+        slot, with its `reward` and `terminated`, then stores each entry's
+        newest element of the `observation` reached.
         """
         slot = (self.pushed - 1) % len(self.held)
 

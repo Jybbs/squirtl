@@ -2,13 +2,11 @@
 Defines the fixtures the tests of `squirtl.agent` request:
 
 - `space`, the observation space the environment declares
-- `build`, a factory building an agent on the CPU over it
-- `stacked`, a function stacking each entry of an episode's observations as
-  a frame stack does
-- `episode` and `observation`, random episodes and one random observation of
-  that space
-- `play`, a function playing an episode through an agent
-- `resume`, a function restoring an agent's checkpoint into another
+- `build`, agents over that space on the CPU
+- `episode`, `observation`, and `stacked`, random episodes and observations
+  of that space, stacked as a frame stack stacks them
+- `play` and `resume`, which play an episode through an agent and restore
+  its checkpoint into another
 """
 
 from collections.abc  import Callable, Mapping
@@ -29,10 +27,9 @@ type Observations = list[dict[str, ndarray]]
 @fixture
 def build(space: Dict) -> Callable[..., Agent]:
     """
-    Builds a factory of agents for seven actions over `space`, on the CPU,
-    where a training step is pinned, from seed 1 for a run of 1,000 steps
-    unless the call names another seed or run length, with any other keyword
-    setting a field of its settings.
+    Builds a factory of agents for seven actions over `space` on the CPU,
+    from seed 1 for a 1,000-step run unless the call names another seed or
+    length, any other keyword setting a field of its settings.
     """
 
     def build(seed: int = 1, steps: int = 1000, **settings: object) -> Agent:
@@ -57,9 +54,9 @@ def episode(
     stacked : Callable[[Mapping[str, ndarray], Dict], Observations]
 ) -> Callable[[int], Observations]:
     """
-    Builds a function drawing the `steps + 1` observations of one episode
-    of random elements of `space`, the reset observation first, from a
-    generator seeded at 0, so each call draws another episode.
+    Builds a function drawing the `steps + 1` observations of one random
+    episode of `space`, the reset first, from a generator seeded at 0, so
+    each call draws another.
     """
     rng = default_rng(0)
 
@@ -71,7 +68,7 @@ def episode(
             {
                 key: rng.integers(
                     flatten_space(entry).high.max(),
-                    dtype    = uint8,
+                    dtype    = entry.dtype,
                     endpoint = True,
                     size     = (steps + 1, *entry.shape[1:])
                 )
@@ -97,9 +94,8 @@ def observation(space: Dict) -> dict[str, ndarray]:
 def play(episode: Callable[[int], Observations]) -> Callable[..., None]:
     """
     Builds a function playing `steps` steps of one random episode through
-    an agent, each step taking the action the agent chooses, reaching the
-    next observation, earning a reward of one, and stored as terminating the
-    episode wherever `terminated` is set, with no update taken.
+    an agent, each taking the agent's action, earning a reward of one, and
+    stored as terminating wherever `terminated` is set, with no update.
     """
 
     def play(agent: Agent, steps: int, terminated: bool = False):
@@ -141,9 +137,8 @@ def resume(build: Callable[..., Agent], tmp_path: Path) -> Callable[[Agent], Age
 @fixture
 def space() -> Dict:
     """
-    Declares the observation the environment makes, each entry stacked along
-    its first axis, meaning four stacked 72 by 80 frames beside a binary 48
-    by 48 grid and four binary flags that each stack one deep.
+    Declares the environment's observation, four stacked 72 by 80 frames
+    beside a binary 48 by 48 grid and four binary flags, those two one deep.
     """
     return Dict(
         {
@@ -157,10 +152,9 @@ def space() -> Dict:
 @fixture
 def stacked() -> Callable[[Mapping[str, ndarray], Dict], Observations]:
     """
-    Builds a function stacking an episode's elements, the reset element
-    first, into one observation per element, each entry as deep as its
-    space declares and padded with its first element, as Gymnasium's
-    `FrameStackObservation` pads under its default `reset` padding.
+    Builds a function stacking an episode's elements, the reset first, into
+    one observation each, every entry as deep as its space and padded with
+    its first element, as `FrameStackObservation` pads by default.
     """
 
     def stacked(elements: Mapping[str, ndarray], space: Dict) -> Observations:

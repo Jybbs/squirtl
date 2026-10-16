@@ -3,10 +3,9 @@ Defines the fixtures the suite shares, each described where it is defined.
 
 The autouse `environment` fixture isolates every test from the machine
 running it, and the collection hook lets a test open a network connection
-only when it carries the `network` mark. The `rom` and `cartridge` fixtures
-give the tests of the emulator and the environment a cartridge holding no
-game, so no test needs the user's own, and the `settings` fixture gives the
-tests of the reward and the environment one set of reward settings.
+only when it carries the `network` mark. The `rom`, `cartridge`, and
+`settings` fixtures serve the tests of the emulator, the reward, and the
+environment, so none needs the user's own ROM.
 """
 
 from collections.abc  import Iterable, Iterator
@@ -114,13 +113,10 @@ def cartridge(rom: Path) -> Cartridge:
 @fixture
 def rom(tmp_path: Path) -> Path:
     """
-    Writes a 32 KiB cartridge holding no game under `tmp_path`, at the path
-    `EmulatorSettings` reads by default, and beside it the save PyBoy reads
-    for a cartridge at that path, which holds `0xAB` in each of its 32 KiB.
-
-    The cartridge's entry point jumps to itself, and its header declares
-    the MBC3 with battery-backed RAM that Pokémon Blue uses and carries the
-    checksum Pan Docs gives, so PyBoy boots it and runs that one loop.
+    Writes a 32 KiB cartridge holding no game at the path `EmulatorSettings`
+    reads by default under `tmp_path`, its header checksummed as Pan Docs
+    gives so PyBoy boots it into one loop. Beside it sits the save PyBoy
+    reads for that path, holding `0xAB` in each of its 32 KiB.
     """
     data              = bytearray(0x8000)
     data[0x100:0x102] = b"\x18\xfe"      # `jr @`, a relative jump back onto itself
@@ -138,8 +134,7 @@ def rom(tmp_path: Path) -> Path:
 @fixture
 def settings() -> RewardSettings:
     """
-    Builds reward settings whose terms pay values apart from the defaults
-    and from one another, each a power of two so every sum a step earns
-    is exact.
+    Builds reward settings paying powers of two apart from the defaults and
+    from one another, so every sum a step earns is exact.
     """
     return RewardSettings(milestone=0.125, novelty=0.0625, starter=0.5)

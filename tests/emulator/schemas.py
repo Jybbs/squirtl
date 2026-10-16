@@ -35,10 +35,9 @@ def test_a_pokemon_red_rom_is_refused_naming_pokemon_blue(
     rom         : Path
 ):
     """
-    Asserts that a ROM holding the SHA-1 the pret/pokered README lists for
-    the English Pokémon Red is refused with an error naming Pokémon Blue
-    as the ROM a run plays, the digest standing in for the hash of a ROM no
-    test may carry.
+    Asserts that a ROM with the SHA-1 pret/pokered lists for the English
+    Pokémon Red is refused naming Pokémon Blue as the ROM a run plays, the
+    digest patched in since no test may carry that ROM.
     """
     monkeypatch.setattr(Cartridge, "digest", "ea9bcae617fdf159b045185467ae58b2e4a48b9a")
 

@@ -1,9 +1,7 @@
 """
-Defines `StandIn`, which stands in for the members of `PyBoy` that a boot,
-a press, a read of memory, the game wrapper, and a stop reach, recording
-what each call received and each read of the screen, beside `set_event`
-and `stand`, which set a flag and the player's position in the memory of
-`StandIn` and of `PyBoy` alike.
+Defines `StandIn`, which records each call `GameBoy` makes on `PyBoy` and
+each read of its screen, beside `set_event` and `stand`, which set a flag
+and the player's position in the memory of `StandIn` or of `PyBoy`.
 """
 
 from collections.abc import MutableSequence
@@ -36,12 +34,8 @@ class StandIn:
     @property
     def game_wrapper(self) -> SimpleNamespace:
         """
-        Stands in for the game wrapper, recording each call of its
-        `start_game` and `reset_game` beside the `timer_div` it received.
-
-        Returns:
-            An object whose `start_game` and `reset_game` record their call,
-            as `PyBoy.game_wrapper` holds the wrapper of the game loaded.
+        Builds a stand-in for the game wrapper, whose `start_game` and
+        `reset_game` each record their call beside the `timer_div` it took.
         """
         return SimpleNamespace(
             reset_game = lambda timer_div: self.calls.append(("reset_game", timer_div)),
@@ -83,9 +77,9 @@ class StandIn:
 
 def set_event(event: Event, memory: MutableSequence[int]):
     """
-    Sets the flag of `event` in `memory` as pret/pokered's `SetEvent`
-    macro does, meaning bit `index % 8` of the byte `index // 8` bytes past
-    `wEventFlags`, leaving every other bit as it was.
+    Sets bit `event % 8` of the byte `event // 8` past `wEventFlags` in
+    `memory`, as pret/pokered's `SetEvent` macro does, leaving every other
+    bit as it was.
     """
     byte, bit = divmod(event, 8)
 

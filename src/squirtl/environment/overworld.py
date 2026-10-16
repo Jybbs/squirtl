@@ -1,7 +1,6 @@
 """
-Defines `Overworld`, the environment an agent plays Pokémon Blue in
-from Red's bedroom to the starter, which `Overworld.make` builds through
-`gymnasium.make` and shapes through Gymnasium's observation wrappers.
+Defines `Overworld`, the environment an agent plays Pokémon Blue in from
+Red's bedroom to the starter, which `Overworld.make` builds and wraps.
 """
 
 from gymnasium import Env
@@ -21,10 +20,9 @@ from squirtl.reward.schemas       import RewardSettings, Term
 
 class Overworld(Env):
     """
-    The game from Red's bedroom to the starter, as Gymnasium's `Env` sets an
-    environment out, where each action is one of `presses`, each observation
-    is the RGB screen the step ends on, and an episode terminates on the
-    step `Progress.score` finds the starter on.
+    The game from Red's bedroom to the starter as a Gymnasium `Env`, whose
+    actions are `presses`, whose observation is the RGB screen a step ends
+    on, and whose episode terminates at the starter.
     """
 
     metadata = {"render_modes": ["rgb_array"]}
@@ -38,12 +36,12 @@ class Overworld(Env):
         render_mode : str | None = None
     ):
         """
-        Boots `cartridge` and plays through its intro to Red's bedroom, the
-        state every episode starts from.
+        Boots `cartridge` and plays its intro to Red's bedroom, where every
+        episode starts.
 
         Args:
             render_mode: `rgb_array`, under which `render` returns the
-                         screen, or `None`, where `make` is given no mode.
+                         screen, or `None` where `make` names no mode.
         """
         self.game_boy = GameBoy.boot(cartridge, emulator)
         self.game_boy.start()
@@ -58,8 +56,8 @@ class Overworld(Env):
     @property
     def presses(self) -> tuple[Button | None, ...]:
         """
-        Lists the press each action makes, `None` for no press and then each
-        `Button` in the order it declares them.
+        Lists each action's press, `None` and then each `Button` in its
+        declared order.
         """
         return (None, *Button)
 
@@ -78,17 +76,15 @@ class Overworld(Env):
         reward      : RewardSettings
     ) -> Env:
         """
-        Builds the environment through `gymnasium.make` on an `EnvSpec`,
-        which truncates each episode at `max_episode_steps` through
-        `TimeLimit`, then wraps it in the wrappers below, each around the
-        one listed before it:
+        Builds the environment through `gymnasium.make` on an `EnvSpec`
+        truncating each episode at `max_episode_steps` through `TimeLimit`,
+        and wraps it in these, each around the one before:
 
-        - `GrayscaleObservation`, which turns the screen gray
-        - `ShrinkObservation`, which shrinks it to `frame_shape`
-        - `FrameStackObservation`, which stacks `frame_stack` frames
-        - `ProgressObservation`, which sets the progress beside the frames
-        - `RecordEpisodeStatistics`, which records each episode's return,
-          length, and time
+        - `GrayscaleObservation`, `ShrinkObservation` to `frame_shape`, and
+          `FrameStackObservation` of `frame_stack` frames
+        - `ProgressObservation`, setting the progress beside the frames
+        - `RecordEpisodeStatistics`, recording each episode's return, length,
+          and time
         """
         overworld = EnvSpec(
             "squirtl/Overworld-v0",
@@ -117,8 +113,7 @@ class Overworld(Env):
 
     def render(self) -> ndarray:
         """
-        Copies the screen the last step or reset ended on, as
-        `GameBoy.screen` does.
+        Copies the screen the last step or reset ended on.
         """
         return self.game_boy.screen
 
@@ -129,10 +124,10 @@ class Overworld(Env):
         seed    : int | None            = None
     ) -> tuple[ndarray, dict[str, Any]]:
         """
-        Loads Red's bedroom with a DIV drawn from the environment's
-        generator, which `seed` reseeds, and starts the episode's progress
-        there, then advances one frame with no press, since the state
-        `GameBoy.start` saves holds no rendered screen.
+        Loads Red's bedroom with a DIV from the environment's generator,
+        which `seed` reseeds, and starts the episode's progress. It then
+        advances one frame with no press, since the state `GameBoy.start`
+        saves holds no rendered screen.
 
         Returns:
             The bedroom's screen beside an empty info dict.

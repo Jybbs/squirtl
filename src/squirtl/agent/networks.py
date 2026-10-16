@@ -11,20 +11,19 @@ from torch.nn         import Conv2d, Flatten, LazyConv2d, LazyLinear, Linear, Mo
 
 class QNetwork(Module):
     """
-    The Q-network the agent trains, reading each entry of a `Dict`
-    observation through an encoder of its own and concatenating the
-    encodings before its head, as Pleines et al. encode their inputs,
-    with the convolutions and the head Mnih et al. set and no batch
-    normalization. Each draw stacks every entry along its first axis,
-    reading a `(4, 72, 80)` stack of frames, a `(1, 48, 48)` grid, and a
-    `(1, 4)` vector of flags.
+    The Q-network the agent trains, which reads each entry of a `Dict`
+    observation through its own encoder and concatenates the encodings
+    before its head, as Pleines et al. do, with Mnih et al.'s convolutions
+    and head and no batch normalization. Each observation it reads holds
+    a `(4, 72, 80)` stack of frames, a `(1, 48, 48)` grid, and a `(1, 4)`
+    vector of flags.
     """
 
     def __init__(self, actions: int, space: Dict):
         """
-        Builds an encoder for each entry `space` declares and the head, then
-        runs one observation of zeros through them, which sets the depth and
-        the width each lazy layer reads.
+        Builds an encoder per entry `space` declares and the head, then runs
+        an observation of zeros through them, which sets each lazy layer's
+        depth and width.
         """
         super().__init__()
 
@@ -42,13 +41,12 @@ class QNetwork(Module):
     def encoder(shape: tuple[int, ...]) -> Sequential:
         """
         Builds Mnih et al.'s three convolutions for a stack of images,
-        its depth read as channels, and for a stack of vectors one fully
+        its depth read as channels, or for a stack of vectors one fully
         connected layer of 64 units, the width Pleines et al.'s published
-        configuration gives each vector encoder.
+        configuration gives.
 
         Raises:
-            ValueError: Where `shape` is neither a stack of images nor a
-                        stack of vectors.
+            ValueError: Where `shape` is neither stack.
         """
         match shape:
             case (_, _, _):
@@ -70,9 +68,9 @@ class QNetwork(Module):
 
     def forward(self, observations: Mapping[str, Tensor]) -> Tensor:
         """
-        Scales each entry of `observations` into the unit interval by the
-        bound its space declares, as CleanRL's `dqn_atari.py` scales its
-        frames, before its encoder reads it.
+        Scales each entry into the unit interval by the bound its space
+        declares, as CleanRL's `dqn_atari.py` scales frames, before its
+        encoder reads it.
         """
         return self.head(
             cat(

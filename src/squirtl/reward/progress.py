@@ -1,11 +1,10 @@
 """
-Defines `Progress`, the positions one episode has reached and the flags set
-in it, which scores each step on what that step adds and lays both out as
-arrays an observation carries.
+Defines `Progress`, the positions an episode has reached and the flags set
+in it, which scores each step and lays both out for the observation.
 """
 
 from collections import Counter
-from numpy       import array, ndarray, uint8, zeros
+from numpy       import array, int8, ndarray, zeros
 
 from squirtl.emulator.console import GameBoy
 from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Term
@@ -14,9 +13,8 @@ from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Ter
 class Progress:
     """
     The progress one episode has made toward the starter, meaning each
-    position the player has reached in it, the one the player stands on,
-    and each flag `Event` names that is set, which `score` pays each step
-    against before recording what the step added.
+    position reached, the one the player stands on, and each `Event` flag
+    set, against which `score` pays each step.
     """
 
     def __init__(self, game_boy: GameBoy, settings: RewardSettings):
@@ -33,23 +31,22 @@ class Progress:
     @property
     def flags(self) -> ndarray:
         """
-        Marks each flag `Event` names with 1 where it is set and 0 where it
-        is not, in the order `Event` declares them.
+        Marks each flag `Event` names with 1 where set and 0 where not, in
+        the order `Event` declares them, in the `int8` `MultiBinary` holds.
         """
-        return array([event in self.events for event in Event], uint8)
+        return array([event in self.events for event in Event], int8)
 
     def grid(self, size: int) -> ndarray:
         """
-        Marks each position the episode has reached on the map the player
-        stands on in a `size` by `size` grid of squares, one cell per
-        square, with the player's own square at row and column `size // 2`.
+        Marks each position the episode has reached on the player's map in a
+        `size` by `size` grid, one cell per square, the player's own at row
+        and column `size // 2`.
 
         Returns:
-            A `(size, size)` array of `uint8`, 1 in each cell the episode has
-            reached and 0 in every other, rows running down the map and
-            columns across it.
+            A `(size, size)` array of `int8`, 1 in each reached cell and 0
+            elsewhere, rows running down the map and columns across.
         """
-        reached = zeros((size, size), uint8)
+        reached = zeros((size, size), int8)
         offsets = array(
             [
                 (position.y - self.position.y, position.x - self.position.x)

@@ -1,7 +1,6 @@
 """
-Pins the mean `ShrinkObservation` takes over each block of a frame, checked
-against frames small enough to average by hand, in square blocks and in
-oblong ones.
+Pins the mean `ShrinkObservation` takes over each square or oblong block of
+a frame small enough to average by hand.
 """
 
 from numpy  import array, uint8
@@ -35,10 +34,10 @@ def test_a_frame_shrinks_to_the_mean_of_each_block_rounding_a_half_up(
     shrunk    : list[list[int]]
 ):
     """
-    Asserts that a frame shrinks into `shape` cells of `uint8`, each the
-    mean of its block with a half rounded up, so 2.5 becomes 3, 7.5 becomes
-    8, and 9.25 becomes 9, square or oblong, with no sum overflowing near
-    255 and no block taking in its neighbors' pixels.
+    Asserts that a frame shrinks into `shape` cells of `uint8`, each its
+    block's mean with a half rounded up, so 2.5 becomes 3, 7.5 becomes 8,
+    and 9.25 becomes 9, with no sum overflowing near 255 and no block taking
+    in its neighbors' pixels.
     """
     result = ShrinkObservation(overworld, shape).observation(array(frame, uint8))
 

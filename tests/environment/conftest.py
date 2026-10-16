@@ -1,7 +1,7 @@
 """
-Defines the fixtures the tests of `squirtl.environment` request, meaning a
-factory making the wrapped environment on PyBoy from a cartridge holding no
-game, and an `Overworld` on `StandIn`, whose memory a test writes.
+Defines the fixtures the tests of `squirtl.environment` request, `made`,
+which makes the wrapped environment on PyBoy, and `overworld`, an
+`Overworld` on `StandIn`.
 """
 
 from collections.abc import Callable, Iterator
@@ -20,17 +20,15 @@ from squirtl.reward.schemas        import RewardSettings
 @fixture
 def made(cartridge: Cartridge) -> Iterator[Callable[..., Env]]:
     """
-    Builds a factory making the environment through `Overworld.make` on
-    PyBoy from `cartridge`, under the default settings with any keyword
-    setting a field of `EnvironmentSettings`, and closes each one it made
-    once the test ends.
+    Builds a factory making the environment on PyBoy from `cartridge`
+    through `Overworld.make` under the default settings, any keyword setting
+    a field of `EnvironmentSettings`, and closing each with the test.
     """
     with ExitStack() as stack:
 
         def make(**environment: object) -> Env:
             """
-            Makes the environment `environment` describes, closed with the
-            test.
+            Makes the environment `environment` describes.
             """
             return stack.enter_context(
                 Overworld.make(
@@ -51,10 +49,9 @@ def overworld(
     settings    : RewardSettings
 ) -> Overworld:
     """
-    Builds an `Overworld` on `StandIn` in place of `PyBoy`, each press held
-    for three frames, each step advancing 20, and the reward paying what
-    `settings` pays, so a test reads back each call `GameBoy` makes and
-    writes the position and the flags into its memory.
+    Builds an `Overworld` on `StandIn` with each press held three frames,
+    each step advancing 20, and the reward paying `settings`, so a test
+    reads each call `GameBoy` makes and writes into its memory.
     """
     monkeypatch.setattr(console, "PyBoy", StandIn)
 

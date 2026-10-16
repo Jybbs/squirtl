@@ -1,8 +1,7 @@
 """
-Pins the Q-network, covering the layers it carries, the values it maps a
-batch of observations to, the scaling it applies to each entry, the absence
-of any layer whose output depends on the batch or the mode, and the entry
-it refuses.
+Pins the Q-network's layers, the values it maps observations to, the scaling
+of each entry, its sameness across batches and modes, and the entry it
+refuses.
 """
 
 from gymnasium.spaces       import Box, Dict
@@ -19,8 +18,7 @@ from squirtl.environment.schemas import Entry
 
 def draw(batch: int, space: Dict) -> dict[str, Tensor]:
     """
-    Draws `batch` random observations of `space` from seed 0, each entry
-    within the bounds its space declares.
+    Draws `batch` random observations of `space` from seed 0.
     """
     batched = batch_space(space, batch)
     batched.seed(0)
@@ -40,10 +38,9 @@ def test_the_network_maps_each_observation_to_one_value_per_action(
     space  : Dict
 ):
     """
-    Asserts that the network maps a batch of observations whose frames
-    take any size its convolutions reach to one value per action for each
-    observation, the first linear layer of its head reading whatever width
-    the encoders leave.
+    Asserts that the network maps observations whose frames take any
+    size its convolutions reach to one value per action, its head reading
+    whatever width the encoders leave.
     """
     resized = Dict(
         dict(space) | {Entry.FRAMES: Box(0, 255, frames, space[Entry.FRAMES].dtype)}
@@ -58,19 +55,17 @@ def test_the_network_carries_the_layers_mnih_et_al_set(
     space    : Dict
 ):
     """
-    Asserts that the network over the environment's observation carries Mnih
-    et al.'s three convolutions for the frames and for the grid each, one
-    fully connected layer of 64 units for the flags, and Mnih et al.'s head,
-    with no batch normalization, so a change is reviewed as a diff.
+    Asserts that the network carries Mnih et al.'s convolutions for the
+    frames and the grid each, 64 fully connected units for the flags, and
+    Mnih et al.'s head, with no batch normalization.
     """
     assert str(QNetwork(7, space)) == snapshot
 
 
 def test_the_network_scales_each_entry_into_the_unit_interval(space: Dict):
     """
-    Asserts that the network divides each entry by the bound its space
-    declares before that entry's encoder reads it, the frames by 255 and the
-    grid and the flags by 1.
+    Asserts that the network divides each entry by its space's bound before
+    its encoder reads it, the frames by 255 and the grid and the flags by 1.
     """
     manual_seed(0)
     network      = QNetwork(7, space)
@@ -95,9 +90,9 @@ def test_the_network_values_an_observation_alike_in_training_and_in_evaluation(
     space: Dict
 ):
     """
-    Asserts that the network values an observation the same in training
-    mode as in evaluation mode and the same alone as inside a batch, which a
-    batch normalization layer's running statistics would break.
+    Asserts that the network values an observation alike in training and in
+    evaluation mode and alone or batched, which batch normalization would
+    break.
     """
     manual_seed(0)
     network      = QNetwork(7, space)

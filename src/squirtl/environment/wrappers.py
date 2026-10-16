@@ -1,10 +1,6 @@
 """
-Defines the observation wrappers `Overworld.make` applies beside
-Gymnasium's own:
-
-- `ShrinkObservation`, which shrinks each grayscale frame
-- `ProgressObservation`, which sets the progress the reward reads beside the
-  stacked frames
+Defines `ProgressObservation` and `ShrinkObservation`, the observation
+wrappers `Overworld.make` applies beside Gymnasium's own.
 """
 
 from gymnasium        import Env, ObservationWrapper
@@ -23,14 +19,13 @@ class ProgressObservation(ObservationWrapper, RecordConstructorArgs):
 
     - `FLAGS`, one deep, from `Progress.flags`
     - `FRAMES`, the stack the wrapped environment observes
-    - `GRID`, one deep, from `Progress.grid`, marking the positions the
-      novelty term checks each step against
+    - `GRID`, one deep, from `Progress.grid`, marking each position reached
     """
 
     def __init__(self, env: Env, size: int):
         """
-        Wraps `env`, whose observation is the stack of frames, laying out
-        the grid `size` squares on a side.
+        Wraps `env`, whose observation is the frame stack, with a grid
+        `size` squares a side.
         """
         RecordConstructorArgs.__init__(self, size=size)
         ObservationWrapper.__init__(self, env)
@@ -46,9 +41,8 @@ class ProgressObservation(ObservationWrapper, RecordConstructorArgs):
 
     def observation(self, observation: ndarray) -> dict[Entry, ndarray]:
         """
-        Sets the stacked frames `observation` holds beside the flags and the
-        grid of the `Progress` the unwrapped environment keeps once the step
-        or the reset that made `observation` has run.
+        Sets the frame stack beside the flags and the grid of the unwrapped
+        environment's `Progress`, read once the step or the reset has run.
         """
         progress = self.get_wrapper_attr("progress")
 
@@ -67,8 +61,7 @@ class ShrinkObservation(ObservationWrapper, RecordConstructorArgs):
 
     def __init__(self, env: Env, shape: tuple[int, int]):
         """
-        Wraps `env`, whose observation is a grayscale frame each side of
-        `shape` divides.
+        Wraps `env`, whose grayscale frame each side of `shape` divides.
         """
         RecordConstructorArgs.__init__(self, shape=shape)
         ObservationWrapper.__init__(self, env)

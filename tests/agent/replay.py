@@ -1,18 +1,17 @@
 """
 Pins replay memory, covering:
 
-- Each transition it holds drawn back as it was stored, every entry as deep
-  as its space declares, and each one it releases once overwritten
+- Each transition drawn back as stored, every entry as deep as its space,
+  and each released once overwritten
 - A reset observation drawn back element by element, and a `Box` bounded
-  at 0 and 1 held unpacked in its own dtype
-- The generator its draws come from, and the memory its default capacity
-  takes with each `MultiBinary` entry packed eight cells to a byte
+  at 0 and 1 held unpacked
+- The generator its draws come from, and its 606 MB at the default capacity
 """
 
 from collections.abc  import Callable, Mapping
 from gymnasium.spaces import Box, Dict, MultiBinary
 from itertools        import pairwise
-from numpy            import arange, array, ndarray, uint8, zeros
+from numpy            import arange, array, int8, ndarray, uint8, zeros
 from numpy.random     import default_rng
 from pytest           import fixture, mark, param
 from torch.testing    import assert_close
@@ -27,10 +26,9 @@ type Stacked = Callable[[Mapping[str, ndarray], Dict], list[dict[str, ndarray]]]
 @fixture
 def tiny() -> Dict:
     """
-    Declares an observation of four stacked one-pixel frames beside a vector
-    of two flags and a binary 3 by 10 grid, each one deep and each element
-    small enough to name the step it was stored on, the grid's rows 10 cells
-    wide so packing them leaves a byte part full.
+    Declares four stacked one-pixel frames beside two flags and a binary 3
+    by 10 grid, those two one deep, every element small enough to name its
+    step and the grid's 10-cell rows leaving a byte part full when packed.
     """
     return Dict(
         {
@@ -43,20 +41,18 @@ def tiny() -> Dict:
 
 def elements(index: int, steps: int) -> dict[str, ndarray]:
     """
-    Builds the elements of episode `index`, `steps` steps long, each step's
-    frame holding its step plus 100 times `index`, its flags that value
-    and that value plus 50, and its grid that value's eight bits, repeated
-    across the grid's cells.
+    Builds episode `index`'s elements for `steps` steps, each frame holding
+    its step plus 100 times `index`, its flags that value and 50 more, and
+    its grid that value's eight bits in the `int8` `MultiBinary` holds.
     """
     values = arange(steps + 1, dtype=uint8) + 100 * index
 
     return {
         Entry.FLAGS  : values[:, None] + array([0, 50], uint8),
         Entry.FRAMES : values[:, None, None],
-        Entry.GRID   : values[:, None, None] >> arange(30, dtype=uint8).reshape(
-            3,
-            10
-        ) % 8 & 1
+        Entry.GRID   : (
+            values[:, None, None] >> arange(30, dtype=uint8).reshape(3, 10) % 8 & 1
+        ).astype(int8)
     }
 
 
@@ -77,10 +73,9 @@ def test_replay_draws_back_each_transition_it_holds_and_nothing_else(
 ):
     """
     Asserts that replay memory draws back exactly the last `held`
-    transitions stored, each with both observations, its action, its reward,
-    and its termination, and never one reaching across two episodes or into
-    an element written since, each episode terminated or truncated by its
-    row.
+    transitions stored, each with both observations, its action, reward,
+    and termination, and none reaching across episodes or into an element
+    written since.
     """
     replay = Replay(capacity, default_rng(0), tiny)
     stored = []
@@ -125,10 +120,9 @@ def test_replay_at_its_default_capacity_packs_each_binary_entry_into_606_mb(
     space: Dict
 ):
     """
-    Asserts that replay memory at the default capacity takes 606.3 MB for
-    the environment's observation, a slot holding a 72 by 80 frame, the grid
-    packed into 288 bytes, the flags into one, and 14 bytes for its action,
-    reward, termination, and whether it holds a transition.
+    Asserts that replay memory takes 606.3 MB at the default capacity, a
+    slot holding a 72 by 80 frame, the grid in 288 bytes, the flags in one,
+    and 14 bytes for its action, reward, termination, and `held` flag.
     """
     replay = Replay(AgentSettings().capacity, default_rng(0), space)
 
@@ -144,9 +138,9 @@ def test_replay_at_its_default_capacity_packs_each_binary_entry_into_606_mb(
 
 def test_replay_draws_a_reset_observation_back_element_by_element(tiny: Dict):
     """
-    Asserts that replay memory draws back a reset observation whose frames
-    differ from one another as the observation the first action was taken
-    on, each frame in the slot it was stored in.
+    Asserts that replay memory draws back a reset observation of differing
+    frames as the first action's observation, each frame from the slot it
+    went into.
     """
     replay = Replay(16, default_rng(0), tiny)
     frames = arange(1, 6, dtype=uint8).reshape(5, 1, 1)

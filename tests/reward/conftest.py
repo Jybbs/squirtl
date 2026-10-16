@@ -1,8 +1,7 @@
 """
-Defines the fixtures the tests of `squirtl.reward` share, meaning a console
-whose memory a test writes, the writers that move the player and set a flag
-there, and the progress of an episode starting on that console under the
-reward settings `tests/conftest.py` builds.
+Defines the fixtures the tests of `squirtl.reward` share, a `game_boy` over
+`StandIn`, the `flag` and `move` writers into its memory, and the `progress`
+of an episode on it.
 """
 
 from collections.abc import Callable

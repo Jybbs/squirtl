@@ -1,14 +1,11 @@
 """
 Defines the records the emulator reads:
 
-- `Record`, the base of a frozen record refusing a key no field declares
-- `UnitInterval`, a float from 0 to 1, which the settings of each subject
-  above the emulator bound a probability or a reward by
-- `Button`, the buttons a step presses
-- `Edition`, the releases of the game a run plays
-- `Symbol`, the addresses in the game's memory the package reads
-- `Cartridge`, the ROM a run boots
-- `EmulatorSettings`, the settings the emulator reads
+- `Record`, the frozen base every subject's records build on, and
+  `UnitInterval`, the 0-to-1 float bounding a probability or a reward
+- `Button`, `Edition`, and `Symbol`, the buttons a step presses, the
+  release a run plays, and the addresses it reads in the game's memory
+- `Cartridge`, the ROM a run boots, and `EmulatorSettings`
 """
 
 from enum      import IntEnum, StrEnum, auto
@@ -37,9 +34,8 @@ class Button(StrEnum):
 
 class Edition(StrEnum):
     """
-    The English release of the game a run plays, Pokémon Blue, whose memory
-    layout the pret/pokered disassembly rebuilds and whose value is the
-    SHA-1 digest its README lists for that ROM.
+    The English release of the game a run plays, Pokémon Blue, valued at the
+    SHA-1 digest pret/pokered's README lists for its ROM.
     """
 
     BLUE = "d7037c83e1ae5b39bde3c30787637ba1d4c48ce2"
@@ -55,15 +51,14 @@ class Record(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=Tr
 
 class Symbol(IntEnum):
     """
-    The addresses in the game's memory the package reads, each member named
-    for its label in pret/pokered's `ram/wram.asm` in SCREAMING_CASE, and
-    its value the address pret/pokered's symbol file for Pokémon Blue gives
-    that label:
+    The addresses in the game's memory the package reads, each named for
+    its `ram/wram.asm` label in pret/pokered and valued at the address its
+    Pokémon Blue symbol file gives:
 
     - `W_CUR_MAP`, the map the player stands on
-    - `W_EVENT_FLAGS`, the first byte of the flag array recording each event
-    - `W_X_COORD` and `W_Y_COORD`, the square of 2x2 tiles the player stands
-      on in that map
+    - `W_EVENT_FLAGS`, the first byte of the event flag array
+    - `W_X_COORD` and `W_Y_COORD`, the player's square of 2x2 tiles on the
+      current map
     """
 
     W_CUR_MAP     = 0xD35E
@@ -147,8 +142,8 @@ class EmulatorSettings(Record):
 
     cartridge: Path = Path("data/rom.gb")
     """
-    The file holding the user's own ROM of the English Pokémon Blue, which a
-    run refuses unless pret/pokered lists its SHA-1 for that release.
+    The file holding the user's own ROM of the English Pokémon Blue, refused
+    unless its SHA-1 is the one pret/pokered lists.
     """
 
     hold: PositiveInt = 2
