@@ -42,8 +42,9 @@ def tiny() -> Dict:
 def elements(index: int, steps: int) -> dict[str, ndarray]:
     """
     Builds episode `index`'s elements for `steps` steps, each frame holding
-    its step plus 100 times `index`, its flags that value and 50 more, and
-    its grid that value's eight bits in the `int8` `MultiBinary` holds.
+    its step plus 100 times `index`, its flags that value and 50 more,
+    and its grid that value's eight bits repeated across its cells, in the
+    `int8` `MultiBinary` holds.
     """
     values = arange(steps + 1, dtype=uint8) + 100 * index
 
@@ -145,7 +146,7 @@ def test_replay_draws_a_reset_observation_back_element_by_element(tiny: Dict):
     replay = Replay(16, default_rng(0), tiny)
     frames = arange(1, 6, dtype=uint8).reshape(5, 1, 1)
 
-    grid = zeros((1, 3, 10), uint8)
+    grid = zeros((1, 3, 10), int8)
 
     replay.begin(
         {

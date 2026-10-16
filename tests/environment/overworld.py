@@ -345,9 +345,10 @@ def test_the_time_limit_truncates_the_episode_and_records_it(made: Callable[...,
 
 def test_the_unwrapped_environment_passes_gymnasiums_checks(made: Callable[..., Env]):
     """
-    Asserts that Gymnasium's `check_env` passes on the unwrapped environment
-    with every warning it issues raised as an error, covering its spaces,
-    a seeded reset's determinism, a step's returns, the RGB render, and a
+    Asserts that Gymnasium's `check_env` passes on the unwrapped
+    environment with every warning it issues raised as an error under the
+    `filterwarnings` that `[tool.pytest]` sets, covering its spaces, a
+    seeded reset's determinism, a step's returns, the RGB render, and a
     second close.
     """
     check_env(made().unwrapped)

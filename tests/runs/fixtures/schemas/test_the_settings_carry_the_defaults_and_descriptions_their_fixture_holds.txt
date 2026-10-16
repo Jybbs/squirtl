@@ -13,7 +13,7 @@
         },
         "capacity": {
           "default": 100000,
-          "description": "The slots replay memory holds before overwriting the oldest, four per\nreset observation and one per step, whose default takes 606 MB with the\ngrid and the flags packed eight cells to a byte.",
+          "description": "The slots replay memory holds before overwriting the oldest, four per\nreset observation and one per step, whose default takes 606 MB for a 72\nby 80 frame, a 48 by 48 grid, and four flags, the grid and the flags\npacked eight cells to a byte.",
           "exclusiveMinimum": 0,
           "title": "Capacity",
           "type": "integer"

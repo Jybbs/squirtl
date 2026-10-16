@@ -51,8 +51,9 @@ class AgentSettings(Record):
     capacity: PositiveInt = 100_000
     """
     The slots replay memory holds before overwriting the oldest, four per
-    reset observation and one per step, whose default takes 606 MB with the
-    grid and the flags packed eight cells to a byte.
+    reset observation and one per step, whose default takes 606 MB for a 72
+    by 80 frame, a 48 by 48 grid, and four flags, the grid and the flags
+    packed eight cells to a byte.
     """
 
     device: str = Field(

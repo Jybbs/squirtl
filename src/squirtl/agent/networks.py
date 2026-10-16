@@ -14,9 +14,9 @@ class QNetwork(Module):
     The Q-network the agent trains, which reads each entry of a `Dict`
     observation through its own encoder and concatenates the encodings
     before its head, as Pleines et al. do, with Mnih et al.'s convolutions
-    and head and no batch normalization. Each observation it reads holds
-    a `(4, 72, 80)` stack of frames, a `(1, 48, 48)` grid, and a `(1, 4)`
-    vector of flags.
+    and head and no batch normalization. Each entry stacks along its first
+    axis, so at the default settings an observation holds a `(4, 72, 80)`
+    stack of frames, a `(1, 48, 48)` grid, and a `(1, 4)` vector of flags.
     """
 
     def __init__(self, actions: int, space: Dict):
