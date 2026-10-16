@@ -85,8 +85,8 @@ def windows(monkeypatch: MonkeyPatch) -> list[str]:
 def quick() -> list[str]:
     """
     Builds the flags of a 10-step run on the CPU, its episodes truncated
-    after 4 steps, a checkpoint past every 4 steps, and each update drawing
-    4 transitions from 64 slots.
+    after 4 steps, a checkpoint every 4 steps, and each update drawing 4
+    transitions from 64 slots.
     """
     return [
         "--agent.batch-size", "4", "--agent.capacity", "64",

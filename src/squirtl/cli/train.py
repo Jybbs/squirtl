@@ -36,15 +36,17 @@ def train(
     """
     Trains the agent for the run's `--steps` environment steps, headless
     unless `--emulator.open-window` is set, logging a line per episode above
-    a progress bar. It writes the run's record, a line per episode, and
-    a checkpoint into a directory of its own under `data/runs/`, which it
-    prints once the run ends.
+    a progress bar.
 
-    An interrupt, a termination signal, or `squirtl stop` ends the run
-    at the end of its episode with a checkpoint and exits 0, and a second
-    interrupt ends it at once on the last checkpoint and exits 130. A
-    `--resume` directory holding no run or no checkpoint, a cartridge the
-    emulator refuses, or a working directory no git clone holds exits 1
+    The run writes its record, a line per episode, and a checkpoint into a
+    directory of its own under `data/runs/`, which the command prints once
+    the run ends. An interrupt, a termination signal, or `squirtl stop` ends
+    the run at the end of its episode with a checkpoint and exits 0, and a
+    second interrupt ends it at once on the last checkpoint and exits
+    130.
+
+    A `--resume` directory holding no run or no checkpoint, a cartridge
+    the emulator refuses, or a working directory no git clone holds exits 1
     before any directory is made.
     """
     console = listen(verbose)

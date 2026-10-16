@@ -144,10 +144,16 @@ class Replay:
         holding it.
 
         Raises:
-            ValueError: Where an array's shape does not broadcast to the
-                        shape of the one it replaces.
+            ValueError: Where an array's shape differs from the shape of the
+                        one it replaces.
         """
         for name, array in self.arrays.items():
+            if arrays[name].shape != array.shape:
+                raise ValueError(
+                    f"replay memory holds `{name}` at the shape {array.shape}, "
+                    f"where the arrays loaded hold {arrays[name].shape}"
+                )
+
             copyto(array, arrays[name])
 
         self.pushed = arrays["pushed"].item()

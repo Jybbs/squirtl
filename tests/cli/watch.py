@@ -2,17 +2,21 @@
 Pins what `squirtl watch` does, covering:
 
 - An episode played back through the emulator's window to the return the
-  run recorded, the last by default and any other the flag names
+  run recorded, the last by default and any other the flag names, a nonzero
+  return under the reward settings the run recorded among them
 - The playback reaching another return, an episode the run never recorded,
   and a directory holding no run, each exiting 1
 """
 
 from common.cli import Invoker
 from json       import dumps, loads
+from numpy      import ndarray
 from pathlib    import Path
-from pytest     import mark, param
+from pytest     import MonkeyPatch, mark, param
 
-from squirtl.runs.schemas import Run
+from squirtl.emulator.console import GameBoy
+from squirtl.emulator.schemas import Symbol
+from squirtl.runs.schemas     import Run
 
 
 @mark.parametrize(
@@ -35,6 +39,39 @@ def test_an_episode_plays_back_in_the_window_to_the_return_the_run_recorded(
 
     assert (invocation.code, windows) == (0, ["SDL2"])
     assert "reached the return of 0.0 the run recorded" in invocation.log
+
+
+@mark.usefixtures("accepted", "clone", "rom", "windows")
+def test_a_playback_reaches_a_nonzero_return_under_the_recorded_reward(
+    invoke      : Invoker,
+    monkeypatch : MonkeyPatch,
+    quick       : list[str]
+):
+    """
+    Asserts that an episode whose every step reaches a new square under a
+    novelty of 0.0625 plays back to the return of 0.25 the run recorded for
+    its four steps, under the reward settings the run recorded.
+    """
+    press = GameBoy.press
+
+    def walk(game_boy: GameBoy, button: object, frames: int) -> ndarray:  # prose: ignore[unsorted-positionals]
+        """
+        Moves the player a square right before each press.
+        """
+        game_boy.emulator.memory[Symbol.W_X_COORD] += 1
+
+        return press(game_boy, button, frames)
+
+    monkeypatch.setattr(GameBoy, "press", walk)
+    trained = Path(
+        invoke(["train", *quick, "--reward.novelty", "0.0625"]).output.strip()
+    )
+    invocation = invoke(["watch", str(trained)])
+
+    assert (
+        invocation.code,
+        "reached the return of 0.25 the run recorded" in invocation.log
+    ) == (0, True)
 
 
 def test_a_playback_reaching_another_return_exits_1(

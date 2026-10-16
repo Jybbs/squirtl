@@ -1,9 +1,9 @@
 """
-Defines the fixtures the tests of `squirtl.runs` request, meaning a
-directory no clone holds, the stand-in records a test reading no clone
-builds on, the record of one episode, a writer of a run's episodes, the
-settings of a short run beside a factory of trainers starting one, and the
-messages loguru logs during a test.
+Defines the fixtures the tests of `squirtl.runs` request, meaning the
+stand-in records a test reading no clone builds on, the record of one
+episode, a writer of a run's episodes, the settings of a short run beside
+a factory of trainers starting one, and the messages loguru logs during
+a test.
 """
 
 from collections.abc import Callable, Iterator
@@ -20,18 +20,6 @@ from squirtl.environment.schemas import EnvironmentSettings, Recording
 from squirtl.reward.schemas      import Term
 from squirtl.runs.schemas        import Episode, Revision, Run, RunSettings
 from squirtl.runs.trainer        import Trainer
-
-
-@fixture
-def outside(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
-    """
-    Makes `tmp_path` the working directory, where `GIT_CEILING_DIRECTORIES`
-    stops git looking for a clone above it, so no clone holds it.
-    """
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
-
-    return tmp_path
 
 
 @fixture
@@ -82,8 +70,8 @@ def short(clone: Path, rom: Path) -> RunSettings:
     """
     Builds the settings of a 20-step run in `clone` on the CPU, reading
     the cartridge `rom` writes, its episodes truncated after 6 steps, a
-    checkpoint past every 10 steps, and each update drawing 8 transitions
-    from 64 slots.
+    checkpoint at the first episode end reaching each multiple of 10 steps,
+    and each update drawing 8 transitions from 64 slots.
     """
     return RunSettings(
         agent            = AgentSettings(batch_size=8, capacity=64, device="cpu"),

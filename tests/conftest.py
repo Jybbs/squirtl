@@ -5,8 +5,9 @@ The autouse `environment` fixture isolates every test from the machine
 running it, and the collection hook lets a test open a network connection
 only when it carries the `network` mark. The `rom`, `cartridge`, and
 `settings` fixtures serve the tests of the emulator, the reward, and the
-environment, so none needs the user's own ROM, and `clone` serves every test
-starting a run, which reads the clone it runs in.
+environment, so none needs the user's own ROM, `clone` serves every test
+starting a run, which reads the clone it runs in, and `outside` every test
+reading a working directory no clone holds.
 """
 
 from collections.abc  import Iterable, Iterator
@@ -141,6 +142,18 @@ def settings() -> RewardSettings:
     from one another, so every sum a step earns is exact.
     """
     return RewardSettings(milestone=0.125, novelty=0.0625, starter=0.5)
+
+
+@fixture
+def outside(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
+    """
+    Makes `tmp_path` the working directory, where `GIT_CEILING_DIRECTORIES`
+    stops git looking for a clone above it, so no clone holds it.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+
+    return tmp_path
 
 
 @fixture

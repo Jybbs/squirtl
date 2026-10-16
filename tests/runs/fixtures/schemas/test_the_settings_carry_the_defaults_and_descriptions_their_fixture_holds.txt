@@ -196,7 +196,7 @@
     },
     "checkpoint_steps": {
       "default": 250000,
-      "description": "The environment steps past which the next episode's end writes a\ncheckpoint, whose default is the 250,000 steps of each iteration\nDopamine's DQN checkpoints after.",
+      "description": "The environment steps between checkpoints, each written at the first\nepisode end reaching a multiple of them, whose default is the 250,000\nsteps of each iteration Dopamine's DQN checkpoints after.",
       "exclusiveMinimum": 0,
       "title": "Checkpoint Steps",
       "type": "integer"

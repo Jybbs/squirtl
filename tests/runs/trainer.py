@@ -2,10 +2,11 @@
 Pins the training loop of one run on the CPU, covering:
 
 - The line each finished episode writes, a terminated one's included, the
-  episode the run's end cuts short and leaves out, and the updates an
-  episode's line averages
-- The checkpoint at the first episode end past each interval and at the
-  run's end, a resumed run counting the interval on from its checkpoint
+  episode the run's end cuts short and leaves out, and the return, the
+  positions, the chance of a random action, and the update means each line
+  holds
+- The checkpoint at the first episode end reaching each interval and at
+  the run's end, a resumed run counting the interval on from its checkpoint
 - A `stop` file, logged once found, an interrupt, or a termination signal
   ending the run at an episode's end, a second interrupt ending it at once,
   and the signal handlers the loop puts back
@@ -15,13 +16,13 @@ Pins the training loop of one run on the CPU, covering:
 """
 
 from collections.abc import Callable
-from common.console  import set_event
-from pytest          import MonkeyPatch, mark, param, raises
+from common.console  import set_event, stand
+from pytest          import MonkeyPatch, approx, mark, param, raises
 from signal          import SIGINT, SIGTERM, getsignal, raise_signal
 from torch.testing   import assert_close
 
-from squirtl.agent.schemas  import Checkpoint
-from squirtl.reward.schemas import Event, RewardSettings, Term
+from squirtl.agent.schemas  import AgentSettings, Checkpoint, Update
+from squirtl.reward.schemas import Event, Position, RewardSettings, Term
 from squirtl.runs.schemas   import Run
 from squirtl.runs.trainer   import Trainer
 
@@ -78,7 +79,7 @@ def stop_at_eight(step: int, trainer: Trainer):
         param(6,  [6, 12, 18, 20], id="on-each-interval")
     ]
 )
-def test_a_checkpoint_lands_at_the_first_episode_end_past_each_interval_and_the_end(
+def test_a_checkpoint_lands_at_the_first_episode_end_reaching_each_interval_and_the_end(
     interval    : int,
     monkeypatch : MonkeyPatch,
     trainer     : Callable[..., Trainer],
@@ -291,6 +292,59 @@ def test_an_episodes_line_averages_the_updates_its_steps_took(
         (True, True),
         (False, False),
         (False, False)
+    ]
+
+
+def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
+    monkeypatch : MonkeyPatch,
+    trainer     : Callable[..., Trainer]
+):
+    """
+    Asserts that each line holds the return its steps earned, the positions
+    it reached, the chance of a random action at its last step, and the mean
+    loss and value of the updates its steps took, the first episode stepping
+    onto a new square on its second step and reaching the starter on its
+    third.
+    """
+    built = trainer(
+        agent = AgentSettings(
+            batch_size           = 8,
+            capacity             = 64,
+            device               = "cpu",
+            exploration_fraction = 1.0
+        )
+    )
+    monkeypatch.setattr(
+        built.agent,
+        "update",
+        lambda: Update(loss=built.agent.step, value=-built.agent.step)
+    )
+
+    def move_then_choose(step: int, trainer: Trainer):
+        """
+        Stands the player on a new square after the first step and sets the
+        starter's flag after the second.
+        """
+        memory = trainer.env.unwrapped.game_boy.emulator.memory
+
+        if step == 1:
+            stand(memory, Position(map=1, x=1, y=1))
+
+        if step == 2:
+            set_event(Event.EVENT_GOT_STARTER, memory)
+
+    settings = RewardSettings()
+
+    assert [
+        (
+            episode.reward, episode.positions, episode.epsilon,
+            episode.loss, episode.value
+        )
+        for episode in finish(built, move_then_choose).recorded
+    ] == [
+        (approx(settings.novelty + settings.starter), 2, approx(0.8515), 2.0, -2.0),
+        (0.0, 1, approx(0.5545), 6.5, -6.5),
+        (0.0, 1, approx(0.2575), 12.5, -12.5)
     ]
 
 

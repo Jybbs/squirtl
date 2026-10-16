@@ -12,9 +12,9 @@ from squirtl.runs.schemas import Run
 
 def stop(directory: Path):
     """
-    Writes the stop file that ends the run training in the directory given
-    at the end of the episode it is playing, from any shell, where the run
-    writes a checkpoint and exits 0 as it does on a first interrupt.
+    Writes the stop file into a training run's directory from any shell,
+    ending the run at the end of the episode it is playing with a checkpoint
+    and exit status 0, as a first interrupt does.
 
     A directory holding no run exits 1.
 

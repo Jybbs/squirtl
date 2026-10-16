@@ -25,8 +25,9 @@ class Trainer(AbstractContextManager):
     The training loop of one run, which plays each episode of `Overworld`
     through `Agent` from outside the environment and appends each one to the
     run's `episodes`. It writes the agent's checkpoint at the first episode
-    end past each `checkpoint_steps` and at the run's end, and runs until
-    the run takes its `steps` or is stopped at an episode's end.
+    end reaching each multiple of `checkpoint_steps` and at the run's end,
+    and runs until the run takes its `steps` or is stopped at an episode's
+    end.
     """
 
     def __enter__(self) -> Self:
@@ -79,10 +80,10 @@ class Trainer(AbstractContextManager):
 
     def __iter__(self) -> Iterator[int]:
         """
-        Plays episodes until the run takes its `steps` or is stopped
-        at an episode's end, yielding the agent's step count after each
-        step. It writes a checkpoint at the first episode end past each
-        `checkpoint_steps` and once the loop ends, unless the run's own
+        Plays episodes until the run takes its `steps` or is stopped at an
+        episode's end, yielding the agent's step count after each step. It
+        writes a checkpoint at the first episode end reaching each multiple
+        of `checkpoint_steps` and once the loop ends, unless the run's own
         checkpoint already holds the last step.
         """
         while self.agent.step < self.run.settings.steps and not self.stopping:
@@ -104,7 +105,7 @@ class Trainer(AbstractContextManager):
     @property
     def due(self) -> int:
         """
-        Reads the step past which the next episode's end writes a
+        Reads the step an episode's end has to reach to write the next
         checkpoint, the first multiple of `checkpoint_steps` after the step
         the last checkpoint landed at, the one a resumed run continues from
         included, or after 0 before the first.
@@ -166,9 +167,8 @@ class Trainer(AbstractContextManager):
         self.interrupted = True
 
         logger.warning(
-            "Stopping at the end of episode {:,}, where another interrupt ends "
-            "the run at once on its last checkpoint",
-            self.finished + 1
+            "Stopping at the end of the episode, where another interrupt ends the "
+            "run at once on its last checkpoint"
         )
 
     def play(self) -> Iterator[int]:
@@ -234,8 +234,8 @@ class Trainer(AbstractContextManager):
         self.write(episode)
 
         logger.info(
-            "Episode {:,} {} after {:,} steps in {:.1f} s with a return of {:.4f}, "
-            "{:,} positions, epsilon {:.3f}, loss {}, and value {}",
+            "Episode {:,} {} after {:,} steps in {:.1f} s: return {:.4f}, "
+            "positions {:,}, epsilon {:.3f}, loss {}, value {}",
             self.finished,
             "terminated" if episode.terminated else "truncated",
             episode.length,
@@ -243,8 +243,9 @@ class Trainer(AbstractContextManager):
             episode.reward,
             episode.positions,
             episode.epsilon,
-            episode.loss,
-            episode.value
+            *("none" if mean is None else f"{mean:.4g}" for mean in (
+                episode.loss, episode.value
+            ))
         )
 
     def resume(self, checkpoint: Checkpoint, previous: Run):

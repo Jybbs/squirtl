@@ -1,8 +1,8 @@
 Usage: squirtl watch [OPTIONS] DIRECTORY
 
-Plays back through the emulator's window an episode the run in the directory    
-given recorded, from the state its reset left to the return the run recorded for
-it, at the sixty steps a second the window paces.                               
+Opens the emulator's window and plays back one episode the run recorded, from   
+the state its reset left to the return the run recorded for it, at the sixty    
+steps a second the window paces.                                                
 
 A directory holding no run, an episode the run never recorded, or a cartridge   
 the emulator refuses exits 1 before the window opens, and a playback reaching a 

@@ -12,7 +12,7 @@ Pins what `squirtl train` does, covering:
 
 from common.cli import Invoker
 from pathlib    import Path
-from pytest     import MonkeyPatch, mark, param
+from pytest     import mark, param
 
 from squirtl.agent.schemas import Checkpoint
 from squirtl.runs.schemas  import Run
@@ -92,20 +92,16 @@ def test_a_resume_of_a_run_holding_no_checkpoint_exits_1_before_making_any_direc
     assert list(Path("data/runs").iterdir()) == [trained]
 
 
-@mark.usefixtures("accepted", "rom")
+@mark.usefixtures("accepted", "outside", "rom")
 def test_a_working_directory_no_clone_holds_exits_1_before_making_any_directory(
-    invoke      : Invoker,
-    monkeypatch : MonkeyPatch,
-    quick       : list[str],
-    tmp_path    : Path
+    invoke : Invoker,
+    quick  : list[str]
 ):
     """
     Asserts that a run started where no git clone holds the working
     directory exits 1, logging the `git` command that failed in place of a
     traceback, and makes no directory there.
     """
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
     invocation = invoke(["train", *quick])
 
     assert (invocation.code, "git', 'rev-parse', 'HEAD'" in invocation.log) == (1, True)
@@ -136,11 +132,14 @@ def test_each_episode_logs_a_line_and_each_step_one_under_verbose(
 ):
     """
     Asserts that a run logs a line for each of its two episodes, and under
-    `--verbose` a line for each of its ten steps beside them.
+    `--verbose` a line for each of its ten steps beside them, above the
+    progress bar at its last step.
     """
     log = invoke(["train", *quick, *flags]).log
 
-    assert (log.count("Episode "), log.count("Step ")) == (2, logged)
+    assert (log.count("Episode "), log.count("Step "), "━ 100% " in log) == (
+        2, logged, True
+    )
 
 
 def test_a_run_writes_its_record_lines_and_checkpoint_and_prints_its_directory(

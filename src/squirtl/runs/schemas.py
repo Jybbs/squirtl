@@ -109,9 +109,9 @@ class RunSettings(Record):
 
     checkpoint_steps: PositiveInt = 250_000
     """
-    The environment steps past which the next episode's end writes a
-    checkpoint, whose default is the 250,000 steps of each iteration
-    Dopamine's DQN checkpoints after.
+    The environment steps between checkpoints, each written at the first
+    episode end reaching a multiple of them, whose default is the 250,000
+    steps of each iteration Dopamine's DQN checkpoints after.
     """
 
     emulator: EmulatorSettings = Field(default_factory=EmulatorSettings)
@@ -367,7 +367,8 @@ class Episode(Record):
 
     positions: int
     """
-    The positions the episode reached, the one it started on included.
+    The number of positions the episode reached, the one it started on
+    included.
     """
 
     recording: Recording

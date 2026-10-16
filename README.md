@@ -51,7 +51,7 @@ Each run writes into a directory of its own under `data/runs/`, named for the in
 |---|---|
 | `run.json` | *The settings the run read, the commit and the digest of `uv.lock` it ran on, the instant it started, and the run it resumes* |
 | `episodes.jsonl` | *One line per episode, holding its return, length, and wall time, whether it reached the starter, each reward term's total, the positions it reached, $`\varepsilon`$, the mean loss and value over its updates, and the start and presses it played from, both compressed with zstd, beside the `timer_div` its reset wrote* |
-| `checkpoint.npz` | *The networks, Adam's state, the generators, and replay memory, written at the first episode end past every `--checkpoint-steps` steps and at the run's end, each write taking the file's name only once whole* |
+| `checkpoint.npz` | *The networks, Adam's state, the generators, and replay memory, written at the first episode end reaching each multiple of `--checkpoint-steps` and at the run's end, each write taking the file's name only once whole* |
 
 An interrupt, a termination signal, or `squirtl stop` from another shell ends a run at the end of its episode with a checkpoint, and a second interrupt ends it at once on the last checkpoint. `squirtl train --resume` continues a stopped run in a new directory under the settings that run recorded and ends with the weights it would have reached had it never stopped, while `squirtl watch` plays a recorded episode back through the emulator's window to the return the run recorded for it.
 

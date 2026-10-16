@@ -4,19 +4,15 @@ Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and
 PyTorch.
 
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ stop         Writes the stop file that ends the run training in the          │
-│              directory given at the end of the episode it is playing, from   │
-│              any shell, where the run writes a checkpoint and exits 0 as it  │
-│              does on a first interrupt.                                      │
+│ stop         Writes the stop file into a training run's directory from any   │
+│              shell, ending the run at the end of the episode it is playing   │
+│              with a checkpoint and exit status 0, as a first interrupt does. │
 │ train        Trains the agent for the run's --steps environment steps,       │
 │              headless unless --emulator.open-window is set, logging a line   │
-│              per episode above a progress bar. It writes the run's record, a │
-│              line per episode, and a checkpoint into a directory of its own  │
-│              under data/runs/, which it prints once the run ends.            │
-│ watch        Plays back through the emulator's window an episode the run in  │
-│              the directory given recorded, from the state its reset left to  │
-│              the return the run recorded for it, at the sixty steps a second │
-│              the window paces.                                               │
+│              per episode above a progress bar.                               │
+│ watch        Opens the emulator's window and plays back one episode the run  │
+│              recorded, from the state its reset left to the return the run   │
+│              recorded for it, at the sixty steps a second the window paces.  │
 │ --help (-h)  Display this message and exit.                                  │
 │ --version    Display application version.                                    │
 ╰──────────────────────────────────────────────────────────────────────────────╯

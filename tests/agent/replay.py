@@ -267,13 +267,22 @@ def test_replay_loaded_from_another_replays_arrays_draws_and_stores_as_it_would(
     )
 
 
-def test_replay_refuses_the_arrays_of_another_capacity(stacked: Stacked, tiny: Dict):
+@mark.parametrize(
+    "capacity",
+    [param(16, id="a-larger-one"), param(1, id="one-slot-broadcasting-to-all")]
+)
+def test_replay_refuses_the_arrays_of_another_capacity(
+    capacity : int,
+    stacked  : Stacked,
+    tiny     : Dict
+):
     """
     Asserts that replay memory refuses arrays gathered at another capacity
-    rather than loading them into slots they do not fit.
+    rather than loading them into slots they do not fit, a single slot that
+    would broadcast across all twelve among them.
     """
-    saved = Replay(16, default_rng(0), tiny)
+    saved = Replay(capacity, default_rng(0), tiny)
     fill(saved, stacked, tiny)
 
-    with raises(ValueError, match="broadcast"):
+    with raises(ValueError, match="where the arrays loaded hold"):
         Replay(12, default_rng(0), tiny).load(saved.arrays)
