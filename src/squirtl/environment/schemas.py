@@ -1,15 +1,35 @@
 """
-Defines `Entry`, the entries of the observation the environment makes, and
-`EnvironmentSettings`, the settings it reads.
+Defines the records the environment reads and writes:
+
+- `Entry`, the entries of the observation the environment makes
+- `EnvironmentSettings`, the settings it reads
+- `Recording`, the start and the presses of one episode, which the emulator
+  plays to the same frames again
 """
 
+from compression.zstd    import compress, decompress
 from enum                import StrEnum, auto
 from pyboy.api.constants import COLS, ROWS
 from pyboy.utils         import CLOCK_RATE, FRAME_CYCLES
-from pydantic            import PositiveInt, model_validator
-from typing              import Self
+from pydantic            import AfterValidator, Field, PlainSerializer, PositiveInt, ValidationInfo, model_validator
+from typing              import Annotated, Self
 
 from squirtl.emulator.schemas import Record
+
+type Compressed = Annotated[
+    bytes,
+    AfterValidator(validate_compressed),
+    PlainSerializer(compress, return_type=bytes, when_used="json")
+]
+
+
+def validate_compressed(value: bytes, info: ValidationInfo) -> bytes:  # prose: ignore[unsorted-positionals]
+    """
+    Decompresses `value` where the validation reads JSON, whose base64 the
+    record's configuration has decoded, and returns it as it is otherwise,
+    so a record built in Python holds the bytes it was given.
+    """
+    return decompress(value) if info.mode == "json" else value
 
 
 class Entry(StrEnum):
@@ -88,3 +108,28 @@ class EnvironmentSettings(Record):
             )
 
         return self
+
+
+class Recording(Record, ser_json_bytes="base64", val_json_bytes="base64"):
+    """
+    One episode as the state its reset started from, the `timer_div` that
+    reset wrote into DIV, and the action each step took, which the emulator
+    plays from that state to the same frames again. JSON holds each `bytes`
+    field as the URL-safe base64 of its zstd compression.
+    """
+
+    presses: Compressed
+    """
+    The action each step took, one byte a step.
+    """
+
+    start: Compressed
+    """
+    The state the episode's reset left the console in, as `GameBoy.capture`
+    saves it.
+    """
+
+    timer_div: Annotated[int, Field(ge=0, le=255)]
+    """
+    The value the episode's reset wrote into DIV.
+    """

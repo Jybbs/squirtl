@@ -3,8 +3,9 @@ Pins the agent, each training step on the CPU under a fixed seed, covering:
 
 - An update changing the online network and leaving the target alone, no
   update until replay memory holds a batch, the target each update moves
-  toward, the norm it clips the gradient to, and the gradient it computes
-  afresh rather than adding to the one a parameter held
+  toward, the norm it clips the gradient to, the gradient it computes
+  afresh rather than adding to the one a parameter held, and the loss and
+  value it returns
 - The capacity of replay memory and Adam's learning rate, each read from
   the settings the agent is built with
 - The target network copying the online network every `sync_steps` steps
@@ -12,15 +13,16 @@ Pins the agent, each training step on the CPU under a fixed seed, covering:
   draws, and the greedy action it evaluates with no autograd graph
 - The weights a seed builds, which leave each of torch's global generators
   alone
-- A restored checkpoint training and drawing as the saved agent would
+- A restored checkpoint training and drawing as the saved agent would,
+  replay memory included
 """
 
 from collections.abc     import Callable
 from copy                import deepcopy
 from numpy               import ndarray
 from pytest              import MonkeyPatch, approx, mark, param
-from torch               import as_tensor, equal, full, get_rng_state, is_inference_mode_enabled, manual_seed, no_grad
-from torch               import ones_like
+from torch               import Tensor, as_tensor, equal, full, get_rng_state, is_inference_mode_enabled, manual_seed
+from torch               import no_grad, ones_like
 from torch.nn.functional import huber_loss
 from torch.nn.utils      import parameters_to_vector
 from torch.testing       import assert_close
@@ -67,17 +69,18 @@ def test_an_update_waits_for_replay_to_hold_a_batch(
     steps : int
 ):
     """
-    Asserts that an update leaves the online network as it was while replay
-    memory holds fewer transitions than `batch_size`, and moves it once
-    replay holds that many.
+    Asserts that an update leaves the online network as it was and returns
+    `None` while replay memory holds fewer transitions than `batch_size`,
+    and moves it and returns what it read once replay holds that many.
     """
     agent = build()
     play(agent, steps)
     online = parameters_to_vector(agent.online.parameters())
 
-    agent.update()
-
-    assert (not equal(parameters_to_vector(agent.online.parameters()), online)) is moved
+    assert (
+        agent.update() is not None,
+        not equal(parameters_to_vector(agent.online.parameters()), online)
+    ) == (moved, moved)
 
 
 @mark.parametrize(
@@ -229,6 +232,55 @@ def test_a_restored_agent_draws_what_the_saved_agent_would(
     assert first == second
 
 
+def test_a_restored_agent_holds_the_saved_agents_replay_memory(
+    build  : Callable[..., Agent],
+    play   : Callable[..., None],
+    resume : Callable[[Agent], Agent]
+):
+    """
+    Asserts that an agent restoring a checkpoint holds every transition
+    the saved agent's replay memory held, drawing the batch the saved agent
+    draws.
+    """
+    saved = build()
+    play(saved, 40)
+    restored = resume(saved)
+
+    assert len(restored.replay) == len(saved.replay) == 40
+    assert_close(
+        restored.replay.sample("cpu", 32).model_dump(),
+        saved.replay.sample("cpu", 32).model_dump(),
+        atol = 0,
+        rtol = 0
+    )
+
+
+@mark.parametrize(
+    ("seed", "same"),
+    [param(1, True, id="the-same-seed"), param(2, False, id="another-seed")]
+)
+def test_a_seed_builds_the_online_networks_weights(
+    build : Callable[..., Agent],
+    same  : bool,
+    seed  : int
+):
+    """
+    Asserts that agents built from one seed start from the same weights, and
+    from different weights under different seeds, with the target network
+    starting as a copy of the online network.
+    """
+    first, second = build(seed=1), build(seed=seed)
+
+    assert equal(
+        parameters_to_vector(first.online.parameters()),
+        parameters_to_vector(second.online.parameters())
+    ) is same
+    assert equal(
+        parameters_to_vector(second.online.parameters()),
+        parameters_to_vector(second.target.parameters())
+    )
+
+
 def test_a_restored_agent_keeps_training_from_the_saved_state(
     build  : Callable[..., Agent],
     play   : Callable[..., None],
@@ -260,32 +312,6 @@ def test_a_restored_agent_keeps_training_from_the_saved_state(
 
     assert not equal(parameters_to_vector(restored.online.parameters()), online)
     assert {state["step"].item() for state in restored.optimizer.state.values()} == {3}
-
-
-@mark.parametrize(
-    ("seed", "same"),
-    [param(1, True, id="the-same-seed"), param(2, False, id="another-seed")]
-)
-def test_a_seed_builds_the_online_networks_weights(
-    build : Callable[..., Agent],
-    same  : bool,
-    seed  : int
-):
-    """
-    Asserts that agents built from one seed start from the same weights, and
-    from different weights under different seeds, with the target network
-    starting as a copy of the online network.
-    """
-    first, second = build(seed=1), build(seed=seed)
-
-    assert equal(
-        parameters_to_vector(first.online.parameters()),
-        parameters_to_vector(second.online.parameters())
-    ) is same
-    assert equal(
-        parameters_to_vector(second.online.parameters()),
-        parameters_to_vector(second.target.parameters())
-    )
 
 
 def test_an_update_changes_the_online_network_and_leaves_the_target_alone(
@@ -333,30 +359,6 @@ def test_an_update_clips_the_gradient_norm_at_max_grad_norm(
     agent.update()
 
     assert norms == [approx(1e-3, rel=1e-4)]
-
-
-def test_an_update_computes_its_gradient_afresh(
-    build : Callable[..., Agent],
-    play  : Callable[..., None]
-):
-    """
-    Asserts that an update leaves each parameter holding the gradient of its
-    own batch alone, whatever gradient the parameter held before it.
-    """
-    agent = build()
-    play(agent, 32)
-    twin = deepcopy(agent)
-
-    for parameter in agent.online.parameters():
-        parameter.grad = ones_like(parameter)
-
-    agent.update()
-    twin.update()
-
-    assert equal(
-        parameters_to_vector(parameter.grad for parameter in agent.online.parameters()),
-        parameters_to_vector(parameter.grad for parameter in twin.online.parameters())
-    )
 
 
 @mark.parametrize(
@@ -412,6 +414,59 @@ def test_building_an_agent_reseeds_no_accelerators_generator(
     build()
 
     assert reseeded == []
+
+
+def test_an_update_computes_its_gradient_afresh(
+    build : Callable[..., Agent],
+    play  : Callable[..., None]
+):
+    """
+    Asserts that an update leaves each parameter holding the gradient of its
+    own batch alone, whatever gradient the parameter held before it.
+    """
+    agent = build()
+    play(agent, 32)
+    twin = deepcopy(agent)
+
+    for parameter in agent.online.parameters():
+        parameter.grad = ones_like(parameter)
+
+    agent.update()
+    twin.update()
+
+    assert equal(
+        parameters_to_vector(parameter.grad for parameter in agent.online.parameters()),
+        parameters_to_vector(parameter.grad for parameter in twin.online.parameters())
+    )
+
+
+def test_an_update_returns_the_loss_it_steps_on_and_the_batchs_mean_value(
+    build       : Callable[..., Agent],
+    monkeypatch : MonkeyPatch,
+    play        : Callable[..., None]
+):
+    """
+    Asserts that an update returns the Huber loss it takes its gradient
+    step on and the mean of the values the online network gave the batch's
+    actions, both read before the step moves the network.
+    """
+    agent = build()
+    read  = []
+    play(agent, 32)
+
+    def spy(values: Tensor, targets: Tensor) -> Tensor:  # prose: ignore[unsorted-positionals]
+        """
+        Computes the update's loss, recording it beside the mean value.
+        """
+        loss = huber_loss(values, targets)
+        read.extend([loss.item(), values.mean().item()])
+
+        return loss
+
+    monkeypatch.setattr("squirtl.agent.learner.huber_loss", spy)
+    update = agent.update()
+
+    assert [update.loss, update.value] == read
 
 
 def test_building_an_agent_leaves_torchs_global_generator_alone(

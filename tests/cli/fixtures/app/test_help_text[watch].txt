@@ -1,0 +1,15 @@
+Usage: squirtl watch [OPTIONS] DIRECTORY
+
+Plays back through the emulator's window an episode the run in the directory    
+given recorded, from the state its reset left to the return the run recorded for
+it, at the sixty steps a second the window paces.                               
+
+A directory holding no run, an episode the run never recorded, or a cartridge   
+the emulator refuses exits 1 before the window opens, and a playback reaching a 
+return other than the one recorded exits 1 once it ends.
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────╮
+│ *  DIRECTORY --directory  The run's directory under data/runs/. [required]   │
+│    --episode INT          The episode to play, counting from 1, or none for  │
+│                           the last.                                          │
+╰──────────────────────────────────────────────────────────────────────────────╯

@@ -1,7 +1,7 @@
 """
 Defines the fixtures the tests of `squirtl.environment` request, `made`,
-which makes the wrapped environment on PyBoy, and `overworld`, an
-`Overworld` on `StandIn`.
+which makes the wrapped environment on PyBoy, `overworld`, an `Overworld` on
+`StandIn`, and `walking`, which moves the player along each tick of it.
 """
 
 from collections.abc import Callable, Iterator
@@ -11,7 +11,7 @@ from gymnasium       import Env
 from pytest          import MonkeyPatch, fixture
 
 from squirtl.emulator              import console
-from squirtl.emulator.schemas      import Cartridge, EmulatorSettings
+from squirtl.emulator.schemas      import Cartridge, EmulatorSettings, Symbol
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings
 from squirtl.reward.schemas        import RewardSettings
@@ -61,3 +61,21 @@ def overworld(
         EnvironmentSettings(frames_per_step=20),
         settings
     )
+
+
+@fixture
+def walking(monkeypatch: MonkeyPatch, overworld: Overworld):
+    """
+    Makes each tick of the stand-in under `overworld` move the player one
+    square right on the map it stands on, recording the tick as before.
+    """
+    emulator = overworld.game_boy.emulator
+
+    def tick(count: int):
+        """
+        Records an advance of `count` frames and moves the player a square.
+        """
+        emulator.calls.append(("tick", count))
+        emulator.memory[Symbol.W_X_COORD] += 1
+
+    monkeypatch.setattr(emulator, "tick", tick)

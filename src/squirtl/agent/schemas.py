@@ -4,14 +4,20 @@ Defines the records the agent reads and writes:
 - `AgentSettings`, every setting the agent reads
 - `Batch`, the transitions one update draws from replay memory
 - `Checkpoint`, the file holding everything a resumed run continues
-  training from
+  training from, replay memory included
+- `Update`, the loss and the value one update reads
 """
 
+from io                import BytesIO
+from numpy             import load as load_npz, ndarray, save as save_npy
+from os                import fsync
 from pathlib           import Path
 from pydantic          import Field, InstanceOf, PositiveFloat, PositiveInt, ValidatorFunctionWrapHandler, WrapValidator
+from tempfile          import NamedTemporaryFile
 from torch             import Tensor, load, no_grad, save
 from torch.accelerator import current_accelerator
 from typing            import Annotated, Self
+from zipfile           import ZIP_ZSTANDARD, ZipFile
 
 from squirtl.agent.networks   import QNetwork
 from squirtl.emulator.schemas import Record, UnitInterval
@@ -173,8 +179,8 @@ class Batch(Record):
 
 class Checkpoint(Record):
     """
-    Everything a resumed run continues training from, which `torch.save`
-    writes as one dictionary of tensors and plain values.
+    Everything a resumed run continues training from, which `save` writes as
+    one `.npz` holding replay memory's arrays beside the agent.
     """
 
     exploration: dict[str, object]
@@ -190,6 +196,11 @@ class Checkpoint(Record):
     optimizer: dict[str, object]
     """
     Adam's `state_dict`.
+    """
+
+    replay: dict[str, InstanceOf[ndarray]]
+    """
+    Each array replay memory holds, named as `Replay.arrays` names it.
     """
 
     sampling: dict[str, object]
@@ -210,19 +221,60 @@ class Checkpoint(Record):
     @classmethod
     def from_path(cls, path: Path) -> Self:
         """
-        Reads the checkpoint at `path` onto the CPU under `torch.load`'s
+        Reads the checkpoint `save` wrote at `path`, its `agent.pt` member
+        onto the CPU and every other member as an array of `replay`, then
+        validates each field. `torch.load` reads that member under its
         default `weights_only=True`, which unpickles tensors and plain
-        values alone, and validates each field.
+        values alone.
 
         Raises:
             ValidationError: Where a field is missing or unknown, or a
                              network entry is no tensor.
         """
-        return cls.model_validate(load(path, map_location="cpu"))
+        with load_npz(path) as archive:
+            agent  = load(BytesIO(archive["agent.pt"]), map_location="cpu")
+            replay = {
+                name: archive[name] for name in archive.files if name != "agent.pt"
+            }
+
+        return cls.model_validate(agent | {"replay": replay})
 
     def save(self, path: Path):
         """
-        Writes each field as it is to `path` through `torch.save`, so each
-        `state_dict` keeps its `_metadata`.
+        Writes the checkpoint to `path` as an `.npz` whose members `zipfile`
+        compresses with zstd, an `.npy` member for each array of `replay`
+        beside an `agent.pt` member. `torch.save` writes that member
+        holding every other field as it is, so each `state_dict` keeps its
+        `_metadata`. The file takes its name once written whole and flushed
+        to disk, so an interrupt leaves the checkpoint at `path` as it was.
         """
-        save(dict(self), path)
+        with NamedTemporaryFile(delete_on_close=False, dir=path.parent) as file:
+            with ZipFile(file, "w", ZIP_ZSTANDARD) as archive:
+                with archive.open("agent.pt", "w") as member:
+                    save({key: value for key, value in self if key != "replay"}, member)
+
+                for name, array in self.replay.items():
+                    # ZIP64 lets the frames of a large replay memory pass 2 GiB.
+                    with archive.open(f"{name}.npy", "w", force_zip64=True) as member:
+                        save_npy(member, array)
+
+            file.flush()
+            fsync(file.fileno())
+            Path(file.name).replace(path)
+
+
+class Update(Record):
+    """
+    The loss and the mean value one update reads from the batch it draws,
+    which an episode's record averages over the updates its steps take.
+    """
+
+    loss: float
+    """
+    The Huber loss the update takes its gradient step on.
+    """
+
+    value: float
+    """
+    The mean value the online network gives each draw's action.
+    """

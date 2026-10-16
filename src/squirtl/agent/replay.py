@@ -6,8 +6,8 @@ slots.
 
 from collections.abc  import Mapping
 from gymnasium.spaces import Box, Dict, MultiBinary
-from numpy            import arange, count_nonzero, flatnonzero, float32, int64, ndarray, packbits, uint8, unpackbits
-from numpy            import zeros
+from numpy            import arange, asarray, copyto, count_nonzero, flatnonzero, float32, int64, ndarray, packbits
+from numpy            import uint8, unpackbits, zeros
 from numpy.random     import Generator
 from torch            import as_tensor
 
@@ -100,6 +100,22 @@ class Replay:
         return count_nonzero(self.held)
 
     @property
+    def arrays(self) -> dict[str, ndarray]:
+        """
+        Gathers each array replay memory holds, uncopied, under its name,
+        each column's elements under the key of its entry, beside `pushed`
+        as an array of no dimensions.
+        """
+        return {
+            "actions"    : self.actions,
+            "held"       : self.held,
+            "pushed"     : asarray(self.pushed),
+            "rewards"    : self.rewards,
+            "terminated" : self.terminated,
+            **{key: column.elements for key, column in self.columns.items()}
+        }
+
+    @property
     def depth(self) -> int:
         """
         Reads the deepest entry's depth, the most slots one observation
@@ -120,6 +136,21 @@ class Replay:
                     for key, stack in observation.items()
                 }
             )
+
+    def load(self, arrays: Mapping[str, ndarray]):
+        """
+        Copies each array of `arrays` into the one `self.arrays` holds under
+        its name, then reads `pushed` back from the array of no dimensions
+        holding it.
+
+        Raises:
+            ValueError: Where an array's shape does not broadcast to the
+                        shape of the one it replaces.
+        """
+        for name, array in self.arrays.items():
+            copyto(array, arrays[name])
+
+        self.pushed = arrays["pushed"].item()
 
     def push(self, elements: Mapping[str, ndarray]):
         """

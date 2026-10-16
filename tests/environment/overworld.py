@@ -4,6 +4,8 @@ Pins how `Overworld` keeps Gymnasium's environment contract, covering:
 - `check_env` on the unwrapped environment, which imports nothing from the
   agent, and the intro, the presses, the frames, and the close it makes
 - The DIV each reset draws, its idle frame, and the progress it restarts
+- The recording each episode keeps, the reset that starts from one, and the
+  return playing it back reaches
 - Each step's reward, termination, and shares, and the truncation and the
   statistics each episode records
 - The wrappers, spaces, grid, flags, render, and render rate it is made
@@ -28,7 +30,7 @@ from squirtl.agent.learner         import Agent
 from squirtl.agent.schemas         import AgentSettings
 from squirtl.emulator.schemas      import Button
 from squirtl.environment.overworld import Overworld
-from squirtl.environment.schemas   import Entry
+from squirtl.environment.schemas   import Entry, Recording
 from squirtl.reward.schemas        import Event, Position, RewardSettings, Term
 
 
@@ -50,6 +52,27 @@ def test_a_close_stops_the_emulator_without_saving(overworld: Overworld):
     assert overworld.game_boy.emulator.calls[-1] == ("stop", False)
 
 
+def test_a_reset_given_a_recording_loads_its_start_and_takes_its_timer_div(
+    overworld: Overworld
+):
+    """
+    Asserts that a reset given a recording in its options loads the state
+    the recording started from in place of the game wrapper's, draws no DIV,
+    and starts a recording of its own from that state and `timer_div`.
+    """
+    recording = Recording(presses=b"", start=bytes(range(256)) * 256, timer_div=77)
+    overworld.game_boy.emulator.calls.clear()
+    overworld.reset(options={"recording": recording})
+
+    assert overworld.game_boy.emulator.calls == [
+        ("load_state",),
+        ("save_state",),
+        ("tick", 1),
+        ("screen",)
+    ]
+    assert overworld.recording == recording
+
+
 def test_a_reset_starts_the_progress_afresh(overworld: Overworld):
     """
     Asserts that a position an earlier episode reached earns novelty again
@@ -65,6 +88,33 @@ def test_a_reset_starts_the_progress_afresh(overworld: Overworld):
         rewards.append(overworld.step(0)[1])
 
     assert rewards == [0.0625, 0.0625]
+
+
+@mark.parametrize(
+    ("action", "pressed"),
+    [
+        param(0, [], id="no-press"),
+        *(
+            param(action, [("button", button, 3)], id=button)
+            for action, button in enumerate(Button, start=1)
+        )
+    ]
+)
+def test_each_action_makes_its_press_then_advances_the_steps_frames(
+    action    : int,
+    overworld : Overworld,
+    pressed   : list[tuple[str, Button, int]]
+):
+    """
+    Asserts that action 0 presses nothing and action `n` the `n`th `Button`
+    as declared, held for `hold`, before one tick of `frames_per_step`
+    frames and the read of the screen it ends on.
+    """
+    overworld.reset(seed=0)
+    overworld.game_boy.emulator.calls.clear()
+    overworld.step(action)
+
+    assert overworld.game_boy.emulator.calls == [*pressed, ("tick", 20), ("screen",)]
 
 
 def test_an_agent_learns_from_the_observations_the_environment_makes(
@@ -97,31 +147,26 @@ def test_an_agent_learns_from_the_observations_the_environment_makes(
     assert not equal(parameters_to_vector(agent.online.parameters()), online)
 
 
-@mark.parametrize(
-    ("action", "pressed"),
-    [
-        param(0, [], id="no-press"),
-        *(
-            param(action, [("button", button, 3)], id=button)
-            for action, button in enumerate(Button, start=1)
-        )
-    ]
-)
-def test_each_action_makes_its_press_then_advances_the_steps_frames(
-    action    : int,
+@mark.parametrize("seed", [param(0, id="seed-0"), param(1, id="seed-1")])
+def test_a_reset_writes_a_div_its_seed_draws_then_draws_one_idle_frame(
     overworld : Overworld,
-    pressed   : list[tuple[str, Button, int]]
+    seed      : int
 ):
     """
-    Asserts that action 0 presses nothing and action `n` the `n`th `Button`
-    as declared, held for `hold`, before one tick of `frames_per_step`
-    frames and the read of the screen it ends on.
+    Asserts that a seeded reset hands the game wrapper the first of DIV's
+    256 values its seed draws, from the `PCG64` generator Gymnasium and
+    `default_rng` both build, saves the state that leaves for the episode's
+    recording, then advances one idle frame and reads its screen.
     """
-    overworld.reset(seed=0)
     overworld.game_boy.emulator.calls.clear()
-    overworld.step(action)
+    overworld.reset(seed=seed)
 
-    assert overworld.game_boy.emulator.calls == [*pressed, ("tick", 20), ("screen",)]
+    assert overworld.game_boy.emulator.calls == [
+        ("reset_game", default_rng(seed).integers(256)),
+        ("save_state",),
+        ("tick", 1),
+        ("screen",)
+    ]
 
 
 def test_resets_with_no_seed_draw_on_from_the_seeded_generator(overworld: Overworld):
@@ -137,47 +182,12 @@ def test_resets_with_no_seed_draw_on_from_the_seeded_generator(overworld: Overwo
     ] == default_rng(5).integers(256, size=3).tolist()
 
 
-@mark.parametrize("seed", [param(0, id="seed-0"), param(1, id="seed-1")])
-def test_a_reset_writes_a_div_its_seed_draws_then_draws_one_idle_frame(
-    overworld : Overworld,
-    seed      : int
-):
-    """
-    Asserts that a seeded reset hands the game wrapper the first of DIV's
-    256 values its seed draws, from the `PCG64` generator Gymnasium and
-    `default_rng` both build, then advances one idle frame and reads its
-    screen.
-    """
-    overworld.game_boy.emulator.calls.clear()
-    overworld.reset(seed=seed)
-
-    assert overworld.game_boy.emulator.calls == [
-        ("reset_game", default_rng(seed).integers(256)),
-        ("tick", 1),
-        ("screen",)
-    ]
-
-
 def test_the_action_space_offers_no_press_and_each_button(overworld: Overworld):
     """
     Asserts that the action space holds one action for no press and one for
     each `Button`, so no action presses START or SELECT.
     """
     assert overworld.action_space == Discrete(len(Button) + 1)
-
-
-def test_the_environment_imports_nothing_from_the_agent():
-    """
-    Asserts that importing the environment's modules in a fresh interpreter
-    imports no module of `squirtl.agent`.
-    """
-    assert "squirtl.agent" not in check_output(
-        [
-            executable, "-c",
-            "import sys, squirtl.environment.overworld; print(*sys.modules)"
-        ],
-        text = True
-    )
 
 
 @mark.parametrize(
@@ -207,6 +217,20 @@ def test_a_step_returns_its_score_and_never_truncates(
     assert info == {term: reward if term is event.term else 0.0 for term in Term}
 
 
+def test_the_environment_imports_nothing_from_the_agent():
+    """
+    Asserts that importing the environment's modules in a fresh interpreter
+    imports no module of `squirtl.agent`.
+    """
+    assert "squirtl.agent" not in check_output(
+        [
+            executable, "-c",
+            "import sys, squirtl.environment.overworld; print(*sys.modules)"
+        ],
+        text = True
+    )
+
+
 def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
     made: Callable[..., Env]
 ):
@@ -230,30 +254,6 @@ def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
 
     with make(spec) as remade:
         assert remade.spec == spec
-
-
-def test_the_observation_carries_the_grid_and_the_flags_of_the_episodes_progress(
-    made: Callable[..., Env]
-):
-    """
-    Asserts that a reset's grid marks the player's square alone, and that a
-    step onto a new square setting a milestone's flag observes both squares
-    and that flag, paying the novelty and the milestone.
-    """
-    env        = made()
-    started, _ = env.reset(seed=0)
-    memory     = env.unwrapped.game_boy.emulator.memory
-
-    stand(memory, Position(map=0, x=1, y=0))
-    set_event(Event.EVENT_OAK_APPEARED_IN_PALLET, memory)
-    stepped, reward, *_ = env.step(0)
-
-    assert argwhere(started[Entry.GRID][0]).tolist() == [[24, 24]]
-    assert argwhere(stepped[Entry.GRID][0]).tolist() == [[24, 23], [24, 24]]
-    assert stepped[Entry.FLAGS][0].tolist() == [
-        int(event is Event.EVENT_OAK_APPEARED_IN_PALLET) for event in Event
-    ]
-    assert reward == approx(RewardSettings().milestone + RewardSettings().novelty)
 
 
 @mark.parametrize(
@@ -297,6 +297,30 @@ def test_the_observation_lies_in_its_space_at_the_shapes_the_settings_name(
         shapes[Entry.FRAMES],
         uint8
     )
+
+
+def test_the_observation_carries_the_grid_and_the_flags_of_the_episodes_progress(
+    made: Callable[..., Env]
+):
+    """
+    Asserts that a reset's grid marks the player's square alone, and that a
+    step onto a new square setting a milestone's flag observes both squares
+    and that flag, paying the novelty and the milestone.
+    """
+    env        = made()
+    started, _ = env.reset(seed=0)
+    memory     = env.unwrapped.game_boy.emulator.memory
+
+    stand(memory, Position(map=0, x=1, y=0))
+    set_event(Event.EVENT_OAK_APPEARED_IN_PALLET, memory)
+    stepped, reward, *_ = env.step(0)
+
+    assert argwhere(started[Entry.GRID][0]).tolist() == [[24, 24]]
+    assert argwhere(stepped[Entry.GRID][0]).tolist() == [[24, 23], [24, 24]]
+    assert stepped[Entry.FLAGS][0].tolist() == [
+        int(event is Event.EVENT_OAK_APPEARED_IN_PALLET) for event in Event
+    ]
+    assert reward == approx(RewardSettings().milestone + RewardSettings().novelty)
 
 
 def test_the_render_is_the_rgb_screen(made: Callable[..., Env]):
@@ -343,6 +367,28 @@ def test_the_time_limit_truncates_the_episode_and_records_it(made: Callable[...,
     assert steps[-1][-1]["episode"]["l"] == 3
 
 
+@mark.usefixtures("walking")
+def test_an_episode_keeps_its_start_its_timer_div_and_each_action_as_its_recording(
+    overworld: Overworld
+):
+    """
+    Asserts that an episode's recording holds the state its reset left the
+    console in, read before the idle frame moves the player, the `timer_div`
+    that reset drew, and each step's action in the order the steps took
+    them.
+    """
+    overworld.reset(seed=0)
+
+    for action in (2, 0, 6):
+        overworld.step(action)
+
+    assert overworld.recording == Recording(
+        presses   = bytes([2, 0, 6]),
+        start     = bytes(0x10000),
+        timer_div = default_rng(0).integers(256)
+    )
+
+
 def test_the_unwrapped_environment_passes_gymnasiums_checks(made: Callable[..., Env]):
     """
     Asserts that Gymnasium's `check_env` passes on the unwrapped
@@ -352,3 +398,26 @@ def test_the_unwrapped_environment_passes_gymnasiums_checks(made: Callable[..., 
     second close.
     """
     check_env(made().unwrapped)
+
+
+@mark.usefixtures("walking")
+def test_playing_a_recording_reaches_the_return_its_episode_earned(
+    overworld: Overworld
+):
+    """
+    Asserts that playing an episode's recording back presses each of its
+    buttons again from its start and reaches the return the episode's steps
+    summed, three new squares at 0.0625 each.
+    """
+    calls = overworld.game_boy.emulator.calls
+    overworld.reset(seed=0)
+
+    assert [
+        sum(overworld.step(action)[1] for action in (1, 4, 4)),
+        overworld.play(overworld.recording)
+    ] == [0.1875, 0.1875]
+    assert [call for call in calls if call[0] == "button"] == [
+        ("button", Button.A, 3),
+        ("button", Button.LEFT, 3),
+        ("button", Button.LEFT, 3)
+    ] * 2

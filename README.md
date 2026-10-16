@@ -34,6 +34,27 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise run gha:lint` | *Audits the workflows and the composite action under `.github/` through zizmor* |
 | `mise ci` | *Runs the lockfile check, the workflow audit, the formatter's check, and the suite under coverage in one sweep* |
 
+## Training
+
+`squirtl train` trains the agent headless for `--steps` environment steps, 10,000,000 by default as CleanRL's `dqn_atari.py` sets, logging a line per episode above a progress bar and printing the run's directory once the run ends. Every setting is a flag (*`squirtl train --help` lists each one beside its default*) or a key under `[tool.squirtl]` in `pyproject.toml`, and `--emulator.open-window` draws the game in a window:
+
+```bash
+squirtl train --steps 1000000
+squirtl stop data/runs/<run>
+squirtl train --resume data/runs/<run>
+squirtl watch data/runs/<run> --episode 12
+```
+
+Each run writes into a directory of its own under `data/runs/`, named for the instant it started:
+
+| **File** | **What It Holds** |
+|---|---|
+| `run.json` | *The settings the run read, the commit and the digest of `uv.lock` it ran on, the instant it started, and the run it resumes* |
+| `episodes.jsonl` | *One line per episode, holding its return, length, and wall time, whether it reached the starter, each reward term's total, the positions it reached, $`\varepsilon`$, the mean loss and value over its updates, and the start and presses it played from, both compressed with zstd, beside the `timer_div` its reset wrote* |
+| `checkpoint.npz` | *The networks, Adam's state, the generators, and replay memory, written at the first episode end past every `--checkpoint-steps` steps and at the run's end, each write taking the file's name only once whole* |
+
+An interrupt, a termination signal, or `squirtl stop` from another shell ends a run at the end of its episode with a checkpoint, and a second interrupt ends it at once on the last checkpoint. `squirtl train --resume` continues a stopped run in a new directory under the settings that run recorded and ends with the weights it would have reached had it never stopped, while `squirtl watch` plays a recorded episode back through the emulator's window to the return the run recorded for it.
+
 ## Reinforcement Learning
 
 Reinforcement Learning (**RL**) is a paradigm of machine learning where an agent learns to make decisions by interacting with an environment. In the context of Pokémon Blue, RL is particularly interesting due to the game's complex state space, delayed rewards, and sequential decision-making nature.
@@ -149,12 +170,12 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 
 | **Subpackage** | **What It Holds** |
 |---|---|
-| `squirtl.agent` | *The deep Q-network agent, meaning the Q-network reading each entry of an observation through an encoder of its own, replay memory holding each element of each entry once with each binary entry packed eight cells to a byte, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from* |
-| `squirtl.cli` | *The `squirtl` command* |
+| `squirtl.agent` | *The deep Q-network agent, meaning the Q-network reading each entry of an observation through an encoder of its own, replay memory holding each element of each entry once with each binary entry packed eight cells to a byte, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from, replay memory included* |
+| `squirtl.cli` | *The `squirtl` command and its `train`, `stop`, and `watch` subcommands* |
 | `squirtl.emulator` | *The cartridge a run reads, refused unless its SHA-1 is the one pret/pokered lists for the English Pokémon Blue, and `GameBoy` running it headless through PyBoy with no save beside it, beside the buttons a step presses and the addresses in the game's memory the package reads* |
-| `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Red's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, and the time limit truncating an episode* |
+| `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Red's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, the time limit truncating an episode, and the recording of each episode's start and presses* |
 | `squirtl.reward` | *The reward each step earns, meaning a novelty for each map position an episode reaches for the first time, a milestone for each event flag on the way to the starter, and the starter, which ends the episode, with every step's reward held within 1 and each term's share reported beside it* |
-| `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, and the directory under `data/runs/` recording each run's settings, its commit, and the digest of `uv.lock`* |
+| `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, the training loop driving the environment and the agent, and the directory under `data/runs/` recording each run's settings, its commit, the digest of `uv.lock`, its episodes, and its checkpoint* |
 
 ## Metrics & Analysis
 

@@ -6,7 +6,8 @@ Pins how `Progress` scores each step of an episode, covering:
 - The milestone each flag earns once, on the step it first sets, and the
   starter, which ends the episode
 - A flag already set when the episode starts, which earns nothing
-- The share every term reports on every step, and the most one step earns
+- The share every term reports on every step, the most one step earns, and
+  each term's total across the episode's steps
 - The grid of reached positions centered on the player, the squares it
   leaves out, and the vector of flags in the order `Event` declares
 """
@@ -198,18 +199,35 @@ def test_the_most_one_step_earns_is_the_ceiling_the_settings_hold(
     assert score.total <= 1
 
 
-def test_the_starter_earns_its_term_and_ends_the_episode(
+def test_the_shares_total_what_each_term_earned_across_the_episodes_steps(
     flag     : Callable[[Event], None],
+    move     : Callable[[Position], None],
     progress : Progress,
     settings : RewardSettings
 ):
     """
-    Asserts that the step first setting `EVENT_GOT_STARTER` earns the
-    starter term and ends the episode.
+    Asserts that the episode's shares total each term across its steps, two
+    new positions paying the novelty twice and a milestone and the starter
+    once each, and zero for no step at all.
     """
-    flag(Event.EVENT_GOT_STARTER)
+    totals = [progress.shares]
 
-    assert progress.score() == earning(starter=settings.starter, terminated=True)
+    move(Position(map=0, x=1, y=0))
+    flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
+    progress.score()
+    move(Position(map=0, x=2, y=0))
+    flag(Event.EVENT_GOT_STARTER)
+    progress.score()
+    totals.append(progress.shares)
+
+    assert totals == [
+        dict.fromkeys(Term, 0),
+        {
+            Term.MILESTONE : settings.milestone,
+            Term.NOVELTY   : 2 * settings.novelty,
+            Term.STARTER   : settings.starter
+        }
+    ]
 
 
 @mark.parametrize(
@@ -316,3 +334,17 @@ def test_the_flags_mark_each_set_event_in_the_order_event_declares(
     assert Progress(game_boy, settings).flags.tolist() == [
         int(event in events) for event in Event
     ]
+
+
+def test_the_starter_earns_its_term_and_ends_the_episode(
+    flag     : Callable[[Event], None],
+    progress : Progress,
+    settings : RewardSettings
+):
+    """
+    Asserts that the step first setting `EVENT_GOT_STARTER` earns the
+    starter term and ends the episode.
+    """
+    flag(Event.EVENT_GOT_STARTER)
+
+    assert progress.score() == earning(starter=settings.starter, terminated=True)

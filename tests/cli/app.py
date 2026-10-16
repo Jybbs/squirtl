@@ -1,8 +1,8 @@
 """
 Pins what the `squirtl` command itself defines, covering:
 
-- The help text its metadata renders and the version that metadata carries,
-  each call to the app read back as an `Invocation`
+- The help text each command renders, beside the version the package
+  metadata carries
 - The script `[project.scripts]` points at the app
 - How a command reads its settings:
 
@@ -14,11 +14,11 @@ Pins what the `squirtl` command itself defines, covering:
 """
 
 from collections.abc    import Callable
+from common.cli         import Invoker
 from cyclopts           import App, Parameter, UnknownOptionError, UnusedCliTokensError
-from dataclasses        import dataclass
 from importlib.metadata import EntryPoint, entry_points, version
 from pathlib            import Path
-from pytest             import CaptureFixture, MonkeyPatch, fixture, mark, param, raises
+from pytest             import MonkeyPatch, fixture, mark, param, raises
 from syrupy.assertion   import SnapshotAssertion
 from typing             import Annotated
 
@@ -27,38 +27,7 @@ from squirtl.emulator.schemas import EmulatorSettings
 from squirtl.reward.schemas   import RewardSettings
 from squirtl.runs.schemas     import RunSettings
 
-type Invoker = Callable[[list[str]], Invocation]
-type Reader  = Callable[[list[str], str | None], RunSettings]
-
-
-@dataclass(frozen=True)
-class Invocation:
-    """
-    The status one call to the app exits with and what it prints to standard
-    output.
-    """
-
-    code   : int | str | None
-    output : str
-
-
-@fixture
-def invoke(capsys: CaptureFixture[str]) -> Invoker:
-    """
-    Builds a caller that passes `argv` to the app and records the status it
-    exits with beside what it prints.
-    """
-    def call(argv: list[str]) -> Invocation:
-        """
-        Passes `argv` to the app and reads the status it exits with beside
-        what it prints to standard output.
-        """
-        with raises(SystemExit) as raised:
-            app(argv)
-
-        return Invocation(raised.value.code, capsys.readouterr().out)
-
-    return call
+type Reader = Callable[[list[str], str | None], RunSettings]
 
 
 @fixture
@@ -213,13 +182,30 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
     assert read(argv, manifest) == settings
 
 
-def test_help_text(invoke: Invoker, snapshot: SnapshotAssertion):
+@mark.parametrize(
+    "command",
+    [
+        param([],        id="the-app"),
+        param(["stop"],  id="stop"),
+        param(["train"], id="train"),
+        param(["watch"], id="watch")
+    ]
+)
+def test_help_text(
+    command     : list[str],
+    invoke      : Invoker,
+    monkeypatch : MonkeyPatch,
+    snapshot    : SnapshotAssertion
+):
     """
     Asserts that `--help` exits zero and prints the help text its fixture
-    file holds, carrying the description the manifest declares, so a change
-    to what the command documents is reviewed as a diff.
+    file holds, the app's carrying the description the manifest declares
+    and each command's its docstring and each flag's, so a change to what a
+    command documents is reviewed as a diff. The device defaults to the CPU
+    here, whatever accelerator the machine running the suite reports.
     """
-    invocation = invoke(["--help"])
+    monkeypatch.setattr("squirtl.agent.schemas.current_accelerator", lambda **_: None)
+    invocation = invoke([*command, "--help"])
 
     assert invocation.code == 0
     assert invocation.output == snapshot
