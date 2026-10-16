@@ -4,31 +4,34 @@ clone in a directory the test owns, a directory no clone holds, and the
 stand-in records a test reading no clone builds on.
 """
 
-from datetime   import UTC, datetime
-from os         import devnull
-from pathlib    import Path
-from pytest     import MonkeyPatch, fixture
-from subprocess import check_call
+from collections.abc import Callable, Mapping
+from datetime        import UTC, datetime
+from os              import devnull
+from pathlib         import Path
+from pytest          import MonkeyPatch, fixture
+from subprocess      import check_call
 
 from squirtl.runs.schemas import Revision, Run, RunSettings
 
 
 @fixture
-def clone(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
+def clone(
+    checkout    : Callable[[Mapping[str, str]], None],
+    monkeypatch : MonkeyPatch,
+    tmp_path    : Path
+) -> Path:
     """
-    Makes `tmp_path` the working directory and a git clone whose one
-    commit holds a `uv.lock` and a `.gitignore` covering `data/`, as the
-    repository's own `.gitignore` does.
+    Makes `tmp_path`, the working directory `checkout` sets, a git clone
+    whose one commit holds a `uv.lock` and a `.gitignore` covering `data/`,
+    as the repository's own `.gitignore` does.
 
     `GIT_CONFIG_NOSYSTEM` keeps the machine's system-wide git configuration
     out of the clone, and `GIT_CONFIG_GLOBAL` pointed at the null device
     keeps the developer's own out.
     """
-    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", devnull)
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
-    (tmp_path / ".gitignore").write_text("/data/\n", encoding="utf-8")
-    (tmp_path / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    checkout({".gitignore": "/data/\n", "uv.lock": "version = 1\n"})
 
     for command in (["init"], ["add", "."], ["commit", "--message", "Lock"]):
         check_call(
