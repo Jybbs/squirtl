@@ -7,9 +7,8 @@ Defines the records the agent reads and writes:
   training from
 """
 
-from dataclasses       import dataclass
 from pathlib           import Path
-from pydantic          import Field, PositiveFloat, PositiveInt
+from pydantic          import Field, InstanceOf, PositiveFloat, PositiveInt, ValidatorFunctionWrapHandler, WrapValidator
 from torch             import Tensor, load, no_grad, save
 from torch.accelerator import current_accelerator
 from typing            import Annotated, Self
@@ -17,7 +16,24 @@ from typing            import Annotated, Self
 from squirtl.agent.networks   import QNetwork
 from squirtl.emulator.schemas import Record, UnitInterval
 
-type Fraction = Annotated[float, Field(gt=0, le=1)]
+type Fraction  = Annotated[float, Field(gt=0, le=1)]
+type StateDict = Annotated[
+    dict[str, InstanceOf[Tensor]], WrapValidator(validate_in_place)
+]
+
+
+def validate_in_place(  # prose: ignore[unsorted-positionals]
+    state   : object,
+    handler : ValidatorFunctionWrapHandler
+) -> object:
+    """
+    Validates each entry of `state` as a tensor through `handler`, then
+    returns `state` itself, since the dict `handler` rebuilds drops the
+    `_metadata` holding each module's version.
+    """
+    handler(state)
+
+    return state
 
 
 class AgentSettings(Record):
@@ -34,9 +50,10 @@ class AgentSettings(Record):
 
     capacity: PositiveInt = 100_000
     """
-    The frames replay memory holds before it overwrites the oldest, four for
-    each episode's reset observation and one for each step after it, whose
-    default holds 72 by 80 frames in 576 MB.
+    The slots replay memory holds before overwriting the oldest, four per
+    reset observation and one per step, whose default takes 606 MB for a 72
+    by 80 frame, a 48 by 48 grid, and four flags, the grid and the flags
+    packed eight cells to a byte.
     """
 
     device: str = Field(
@@ -93,42 +110,53 @@ class AgentSettings(Record):
     """
 
 
-@dataclass(frozen=True, kw_only=True)
-class Batch:
+class Batch(Record):
     """
-    The transitions one update draws from replay memory, each field a tensor
-    on the device the settings name, with the frames of both stacks a draw
-    reads held once in `window`.
+    The transitions one update draws from replay memory, each field on the
+    device the settings name.
     """
 
-    actions    : Tensor  # (batch,) int64
-    rewards    : Tensor  # (batch,) float32
-    terminated : Tensor  # (batch,) bool
-    window     : Tensor  # (batch, 5, 72, 80) uint8
+    actions: InstanceOf[Tensor]
+    """
+    The action each draw took, a `(batch,)` tensor of `int64`.
+    """
+
+    rewards: InstanceOf[Tensor]
+    """
+    The reward each draw earned, a `(batch,)` tensor of `float32`.
+    """
+
+    terminated: InstanceOf[Tensor]
+    """
+    Whether each draw ended its episode, a `(batch,)` tensor of `bool`.
+    """
+
+    windows: dict[str, InstanceOf[Tensor]]
+    """
+    One `(batch, depth + 1, *element)` tensor per entry, its first `depth`
+    elements the observation acted on and its last `depth` the one reached.
+    """
 
     @property
-    def next_observations(self) -> Tensor:
+    def next_observations(self) -> dict[str, Tensor]:
         """
-        Slices the stacks each draw's action reached out of `window`, its
-        frames after the first.
+        Slices the observation each draw reached out of `windows`.
         """
-        return self.window[:, 1:]
+        return {key: window[:, 1:] for key, window in self.windows.items()}
 
     @property
-    def observations(self) -> Tensor:
+    def observations(self) -> dict[str, Tensor]:
         """
-        Slices the stacks each draw's action was taken on out of `window`,
-        its frames before the last.
+        Slices the observation each draw acted on out of `windows`.
         """
-        return self.window[:, :-1]
+        return {key: window[:, :-1] for key, window in self.windows.items()}
 
     @no_grad()
     def targets(self, discount: float, network: QNetwork) -> Tensor:
         """
         Values each draw at its reward plus `discount` times the highest
-        value `network` gives the stack its action reached, or at its reward
-        alone where the step terminated the episode, recording no autograd
-        graph.
+        value `network` gives the observation reached, or the reward alone
+        where it terminated, recording no autograd graph.
         """
         return (
             self.rewards
@@ -137,39 +165,64 @@ class Batch:
 
     def values(self, network: QNetwork) -> Tensor:
         """
-        Reads the value `network` gives each draw's action on the stack it
-        was taken on.
+        Reads the value `network` gives each draw's action on the
+        observation it acted on.
         """
         return network(self.observations).gather(1, self.actions[:, None])[:, 0]
 
 
-@dataclass(frozen=True, kw_only=True)
-class Checkpoint:
+class Checkpoint(Record):
     """
-    Everything a resumed run continues training from, meaning both networks,
-    the optimizer, the step count, and the state of each generator the agent
-    draws from, which `torch.save` writes as one dictionary of tensors and
-    plain values.
+    Everything a resumed run continues training from, which `torch.save`
+    writes as one dictionary of tensors and plain values.
     """
 
-    exploration : dict[str, object]
-    online      : dict[str, Tensor]
-    optimizer   : dict[str, object]
-    sampling    : dict[str, object]
-    step        : int
-    target      : dict[str, Tensor]
+    exploration: dict[str, object]
+    """
+    The state of the generator choosing each random action.
+    """
+
+    online: StateDict
+    """
+    The online network's `state_dict`.
+    """
+
+    optimizer: dict[str, object]
+    """
+    Adam's `state_dict`.
+    """
+
+    sampling: dict[str, object]
+    """
+    The state of the generator drawing each batch from replay memory.
+    """
+
+    step: int
+    """
+    The environment steps the agent has remembered.
+    """
+
+    target: StateDict
+    """
+    The target network's `state_dict`.
+    """
 
     @classmethod
     def from_path(cls, path: Path) -> Self:
         """
         Reads the checkpoint at `path` onto the CPU under `torch.load`'s
         default `weights_only=True`, which unpickles tensors and plain
-        values alone.
+        values alone, and validates each field.
+
+        Raises:
+            ValidationError: Where a field is missing or unknown, or a
+                             network entry is no tensor.
         """
-        return cls(**load(path, map_location="cpu"))
+        return cls.model_validate(load(path, map_location="cpu"))
 
     def save(self, path: Path):
         """
-        Writes the checkpoint to `path` through `torch.save`.
+        Writes each field as it is to `path` through `torch.save`, so each
+        `state_dict` keeps its `_metadata`.
         """
-        save(vars(self), path)
+        save(dict(self), path)

@@ -1,38 +1,92 @@
 """
-Defines `Replay`, the replay memory the agent stores each transition in and
-draws each update's batch from.
+Defines `Replay`, the replay memory the agent stores each transition in
+and samples each batch from, and `Column`, one entry's elements across its
+slots.
 """
 
-from numpy        import arange, count_nonzero, float32, int64, ndarray, uint8, zeros
-from numpy.random import Generator
-from torch        import as_tensor
+from collections.abc  import Mapping
+from gymnasium.spaces import Box, Dict, MultiBinary
+from numpy            import arange, count_nonzero, flatnonzero, float32, int64, ndarray, packbits, uint8, unpackbits
+from numpy            import zeros
+from numpy.random     import Generator
+from torch            import as_tensor
 
 from squirtl.agent.schemas import Batch
 
 
+class Column:
+    """
+    One entry's elements in replay memory, one per slot, each element of a
+    `MultiBinary` entry packed eight cells to a byte along its last axis.
+    """
+
+    def __init__(self, capacity: int, space: Box | MultiBinary):
+        """
+        Allocates `capacity` slots for the elements `space` stacks, with
+        `depth` the number one observation stacks and `width` the last
+        axis's length before packing, or `None` where nothing packs.
+        """
+        self.depth, *element = space.shape
+
+        if isinstance(space, MultiBinary):
+            self.elements = zeros(
+                (capacity, *packbits(zeros(element, uint8), axis=-1).shape),
+                uint8
+            )
+            self.width = element[-1]
+        else:
+            self.elements = zeros((capacity, *element), space.dtype)
+            self.width    = None
+
+    def window(self, slots: ndarray) -> ndarray:
+        """
+        Takes the `depth` elements ending at each of `slots` and the one
+        after, wrapping past the last slot and unpacking packed elements.
+
+        Returns:
+            A `(len(slots), depth + 1, *element)` array.
+        """
+        window = self.elements.take(
+            slots[:, None] + arange(1 - self.depth, 2),
+            axis = 0,
+            mode = "wrap"
+        )
+
+        return window if self.width is None else unpackbits(
+            window,
+            axis  = -1,
+            count = self.width
+        )
+
+    def write(self, element: ndarray, slot: int):
+        """
+        Writes `element` into `slot`, packed where the column packs.
+        """
+        self.elements[slot] = element if self.width is None else packbits(
+            element,
+            axis = -1
+        )
+
+
 class Replay:
     """
-    Replay memory over `uint8` arrays holding one frame per slot, beside
-    the action taken on the stack of frames that slot ends, the reward it
-    earned, and whether it terminated the episode.
+    Replay memory over one `Column` per entry of a `Dict` observation,
+    beside each slot's action, reward, and termination.
 
-    An episode's reset observation is stored whole, and every step after it
-    stores only the newest frame of the observation it reaches, so the stack
-    ending at a slot is the observation the policy acted on and the stack
-    ending one slot later is the one the action reached. A slot holds a
-    transition only where both stacks lie within one episode and no frame of
-    either has been overwritten since.
+    A reset observation is stored whole and each later step stores
+    each entry's newest element, so the stacks ending at a slot are the
+    observation acted on and those one slot later the one reached. A
+    slot holds a transition while both lie in one episode and neither is
+    overwritten.
     """
 
-    def __init__(self, capacity: int, generator: Generator, shape: tuple[int, ...]):
+    def __init__(self, capacity: int, generator: Generator, space: Dict):
         """
-        Allocates room for `capacity` frames of an observation of `shape`,
-        stacked along its first axis, drawing every batch from `generator`.
+        Allocates `capacity` slots of each entry `space` declares, drawing
+        every batch from `generator`.
         """
-        self.depth, *frame = shape
-
         self.actions    = zeros(capacity, int64)
-        self.frames     = zeros((capacity, *frame), uint8)
+        self.columns    = {key: Column(capacity, entry) for key, entry in space.items()}
         self.generator  = generator
         self.held       = zeros(capacity, bool)
         self.pushed     = 0
@@ -45,66 +99,73 @@ class Replay:
         """
         return count_nonzero(self.held)
 
-    def begin(self, observation: ndarray):
+    @property
+    def depth(self) -> int:
         """
-        Stores every frame of an episode's reset observation, in the order
-        it stacks them.
+        Reads the deepest entry's depth, the most slots one observation
+        reads.
         """
-        for frame in observation:
-            self.push(frame)
+        return max(column.depth for column in self.columns.values())
 
-    def push(self, frame: ndarray):
+    def begin(self, observation: Mapping[str, ndarray]):
         """
-        Writes `frame` into the oldest slot, releasing each transition whose
-        action was taken on a stack reading that slot.
+        Stores each element of a reset observation, every stack ending at
+        the newest slot and a shallower entry repeating its oldest element
+        before its stack.
+        """
+        for index in range(-self.depth, 0):
+            self.push(
+                {
+                    key: stack[max(index, -len(stack))]
+                    for key, stack in observation.items()
+                }
+            )
+
+    def push(self, elements: Mapping[str, ndarray]):
+        """
+        Writes one element of each entry into the oldest slot, releasing
+        each transition whose observations read that slot.
         """
         self.held.put(self.pushed + arange(self.depth), False, mode="wrap")
-        self.frames[self.pushed % len(self.frames)] = frame
+
+        for key, element in elements.items():
+            self.columns[key].write(element, self.pushed % len(self.held))
+
         self.pushed += 1
 
     def sample(self, device: str, size: int) -> Batch:
         """
-        Draws `size` transitions uniformly with replacement from those held,
-        redrawing each draw landing on a slot that holds none, and moves
-        them onto `device` as one batch.
+        Draws `size` transitions uniformly with replacement from those held
+        and moves them onto `device` as one batch.
         """
-        filled = min(self.pushed, len(self.frames))
-        slots  = self.generator.integers(filled, size=size)
-
-        while (missed := ~self.held[slots]).any():
-            slots[missed] = self.generator.integers(filled, size=count_nonzero(missed))
+        slots = self.generator.choice(flatnonzero(self.held), size)
 
         return Batch(
             actions    = as_tensor(self.actions[slots], device=device),
             rewards    = as_tensor(self.rewards[slots], device=device),
             terminated = as_tensor(self.terminated[slots], device=device),
-            window     = as_tensor(
-                self.frames.take(
-                    # The `depth` frames ending at each slot, then the frame after it.
-                    slots[:, None] + arange(1 - self.depth, 2),
-                    axis = 0,
-                    mode = "wrap"
-                ),
-                device = device
-            )
+            windows    = {
+                key: as_tensor(column.window(slots), device=device)
+                for key, column in self.columns.items()
+            }
         )
 
     def store(
         self,
         action      : int,
-        observation : ndarray,
+        observation : Mapping[str, ndarray],
         reward      : float,
         terminated  : bool
     ):
         """
-        Records `action`, taken on the stack ending at the newest frame,
-        with the `reward` it earned and whether it `terminated` the episode,
-        then stores the newest frame of the `observation` it reached.
+        Records `action`, taken on the observation ending at the newest
+        slot, with its `reward` and `terminated`, then stores each entry's
+        newest element of the `observation` reached.
         """
-        slot = (self.pushed - 1) % len(self.frames)
+        slot = (self.pushed - 1) % len(self.held)
 
         self.actions[slot]    = action
         self.held[slot]       = True
         self.rewards[slot]    = reward
         self.terminated[slot] = terminated
-        self.push(observation[-1])
+        self.push({key: stack[-1] for key, stack in observation.items()})

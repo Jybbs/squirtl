@@ -24,7 +24,8 @@ from pytest           import MonkeyPatch, mark, param, raises
 from subprocess       import CalledProcessError, check_output
 from syrupy.assertion import SnapshotAssertion
 
-from squirtl.runs.schemas import Revision, Run, RunSettings, Stream
+from squirtl.emulator.schemas import Record
+from squirtl.runs.schemas     import Revision, Run, RunSettings, Stream
 
 
 def test_a_clean_clone_reads_as_its_commit_and_its_lockfile(clone: Path):
@@ -325,6 +326,12 @@ def test_the_settings_refuse_a_negative_seed():
             True,
             id = "the-emulator-settings"
         ),
+        param(
+            ("settings", "environment"),
+            "frames_per_step",
+            24,
+            id = "the-environment-settings"
+        ),
         param(("settings", "reward"),   "novelty",     0.01, id="the-reward-settings")
     ]
 )
@@ -347,12 +354,14 @@ def test_a_record_refuses_a_change_once_built(
 @mark.parametrize(
     "path",
     [
-        param((),                       id="the-run"),
-        param(("revision",),            id="the-revision"),
-        param(("settings",),            id="the-settings"),
-        param(("settings", "agent"),    id="the-agent-settings"),
-        param(("settings", "emulator"), id="the-emulator-settings"),
-        param(("settings", "reward"),   id="the-reward-settings")
+        param((),            id="the-run"),
+        param(("revision",), id="the-revision"),
+        param(("settings",), id="the-settings"),
+        *(
+            param(("settings", subject), id=f"the-{subject}-settings")
+            for subject, value in RunSettings()
+            if isinstance(value, Record)
+        )
     ]
 )
 def test_a_run_record_refuses_a_key_no_field_declares(path: tuple[str, ...], run: Run):

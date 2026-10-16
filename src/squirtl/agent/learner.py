@@ -4,7 +4,9 @@ each transition in replay memory, and trains its online network on batches
 drawn from it, counting every schedule in environment steps.
 """
 
+from collections.abc     import Mapping
 from copy                import deepcopy
+from gymnasium.spaces    import Dict
 from numpy               import interp, ndarray
 from numpy.random        import default_rng
 from torch               import as_tensor, default_generator, inference_mode
@@ -31,28 +33,27 @@ class Agent:
         actions  : int,
         seed     : int,
         settings : AgentSettings,
-        shape    : tuple[int, ...],
+        space    : Dict,
         steps    : int
     ):
         """
-        Builds both networks for `actions` actions over an observation of
-        `shape`, Adam over the online network, and empty replay memory, for
-        a run of `steps` environment steps.
+        Builds both networks for `actions` actions over `space`, Adam over
+        the online network, and empty replay memory for a run of `steps`
+        steps.
 
         Args:
-            seed: The seed the online network's weights, the draws choosing
-                  a random action, and the draws sampling replay memory each
-                  start from, a 64-bit unsigned integer.
+            seed: The unsigned 64-bit seed the weights, the random actions,
+                  and the replay draws each start from.
         """
         self.exploration, sampling = default_rng(seed).spawn(2)
 
         with fork_rng(devices=[]):
             default_generator.manual_seed(seed)
-            self.online = QNetwork(actions, shape).to(settings.device)
+            self.online = QNetwork(actions, space).to(settings.device)
 
         self.actions   = actions
         self.optimizer = Adam(self.online.parameters(), lr=settings.learning_rate)
-        self.replay    = Replay(settings.capacity, sampling, shape)
+        self.replay    = Replay(settings.capacity, sampling, space)
         self.settings  = settings
         self.step      = 0
         self.steps     = steps
@@ -61,9 +62,8 @@ class Agent:
     @property
     def checkpoint(self) -> Checkpoint:
         """
-        Gathers the state a resumed run continues training from, whose
-        tensors are the networks' and the optimizer's own rather than
-        copies, so it holds the values they carry when it is saved.
+        Gathers the state a resumed run continues training from, holding the
+        networks' own `state_dict`s and the optimizer's tensors uncopied.
         """
         return Checkpoint(
             exploration = self.exploration.bit_generator.state,
@@ -88,7 +88,7 @@ class Agent:
         )
 
     @inference_mode()
-    def act(self, observation: ndarray) -> int:
+    def act(self, observation: Mapping[str, ndarray]) -> int:
         """
         Chooses a random action with probability `epsilon`, and otherwise
         the action the online network values highest for `observation`,
@@ -98,12 +98,17 @@ class Agent:
             return self.exploration.integers(self.actions).item()
 
         return (
-            self.online(as_tensor(observation, device=self.settings.device)[None])
+            self.online(
+                {
+                    key: as_tensor(stack, device=self.settings.device)[None]
+                    for key, stack in observation.items()
+                }
+            )
                 .argmax()
                 .item()
         )
 
-    def begin(self, observation: ndarray):
+    def begin(self, observation: Mapping[str, ndarray]):
         """
         Stores the reset observation of the episode starting.
         """
@@ -112,15 +117,14 @@ class Agent:
     def remember(
         self,
         action      : int,
-        observation : ndarray,
+        observation : Mapping[str, ndarray],
         reward      : float,
         terminated  : bool
     ):
         """
-        Stores the transition `action` made, which reached `observation`,
-        earned `reward`, and `terminated` the episode or not, as one
-        environment step. Copies the online network into the target network
-        on every step that `sync_steps` divides.
+        Stores the transition `action` made as one environment step,
+        copying the online network into the target on each step `sync_steps`
+        divides.
         """
         self.replay.store(action, observation, reward, terminated)
         self.step += 1
@@ -143,11 +147,10 @@ class Agent:
 
     def update(self):
         """
-        Takes one gradient step on the Huber loss between the values the
-        online network gives a batch drawn from replay memory and the
-        targets the target network gives it, clipping the gradient's norm at
-        `max_grad_norm` before the step, and takes none while replay memory
-        holds fewer transitions than `batch_size`.
+        Takes one gradient step on the Huber loss between the online
+        network's values for a batch and the target network's targets, its
+        gradient's norm clipped at `max_grad_norm`, and none before replay
+        memory holds a batch.
         """
         if len(self.replay) < self.settings.batch_size:
             return

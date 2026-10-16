@@ -1,68 +1,121 @@
 """
-Pins the Q-network, covering the layers it carries, the values it maps a
-batch of stacked `uint8` frames to, the scaling it applies to them, and the
-absence of any layer whose output depends on the batch or the mode.
+Pins the Q-network's layers, the values it maps observations to, the scaling
+of each entry, its sameness across batches and modes, and the entry it
+refuses.
 """
 
-from pytest           import mark, param
+from gymnasium.spaces       import Box, Dict
+from gymnasium.vector.utils import batch_space
+from pytest                 import mark, param, raises
+from re               import escape
 from syrupy.assertion import SnapshotAssertion
-from torch            import equal, manual_seed, randint, uint8
-from torch.nn         import Sequential
+from torch            import Tensor, as_tensor, cat, equal, manual_seed
 from torch.testing    import assert_close
 
-from squirtl.agent.networks import QNetwork
+from squirtl.agent.networks      import QNetwork
+from squirtl.environment.schemas import Entry
+
+
+def draw(batch: int, space: Dict) -> dict[str, Tensor]:
+    """
+    Draws `batch` random observations of `space` from seed 0.
+    """
+    batched = batch_space(space, batch)
+    batched.seed(0)
+
+    return {key: as_tensor(entry) for key, entry in batched.sample().items()}
 
 
 @mark.parametrize(
-    "shape",
+    "frames",
     [
         param((4, 72, 80), id="four-72-by-80-frames"),
         param((4, 36, 36), id="four-36-by-36-frames")
     ]
 )
-def test_the_network_maps_each_stack_to_one_value_per_action(shape: tuple[int, ...]):
+def test_the_network_maps_each_observation_to_one_value_per_action(
+    frames : tuple[int, ...],
+    space  : Dict
+):
     """
-    Asserts that the network maps a batch of stacks of any frame size its
-    convolutions reach to one value per action for each stack, the first
-    linear layer reading whatever width the convolutions leave.
+    Asserts that the network maps observations whose frames take any
+    size its convolutions reach to one value per action, its head reading
+    whatever width the encoders leave.
     """
+    resized = Dict(
+        dict(space) | {Entry.FRAMES: Box(0, 255, frames, space[Entry.FRAMES].dtype)}
+    )
     manual_seed(0)
 
-    assert QNetwork(7, shape)(randint(256, (3, *shape), dtype=uint8)).shape == (3, 7)
+    assert QNetwork(7, resized)(draw(3, resized)).shape == (3, 7)
 
 
-def test_the_network_carries_the_layers_mnih_et_al_set(snapshot: SnapshotAssertion):
+def test_the_network_carries_the_layers_mnih_et_al_set(
+    snapshot : SnapshotAssertion,
+    space    : Dict
+):
     """
-    Asserts that the network for seven actions over four stacked 72 by 80
-    frames carries the three convolutions and two linear layers Mnih et al.
-    set, with no batch normalization, so a change to any layer is reviewed
-    as a diff.
+    Asserts that the network carries Mnih et al.'s convolutions for the
+    frames and the grid each, 64 fully connected units for the flags, and
+    Mnih et al.'s head, with no batch normalization.
     """
-    assert str(QNetwork(7, (4, 72, 80))) == snapshot
+    assert str(QNetwork(7, space)) == snapshot
 
 
-def test_the_network_scales_each_frame_into_the_unit_interval():
+def test_the_network_scales_each_entry_into_the_unit_interval(space: Dict):
     """
-    Asserts that the network reads a stack of `uint8` frames as the layers
-    read that stack divided by 255.
-    """
-    manual_seed(0)
-    network      = QNetwork(7, (4, 72, 80))
-    observations = randint(256, (2, 4, 72, 80), dtype=uint8)
-
-    assert equal(network(observations), Sequential.forward(network, observations / 255))
-
-
-def test_the_network_values_a_stack_alike_in_training_and_in_evaluation():
-    """
-    Asserts that the network values a stack the same in training mode as
-    in evaluation mode and the same alone as inside a batch, which a batch
-    normalization layer's running statistics would break.
+    Asserts that the network divides each entry by its space's bound before
+    its encoder reads it, the frames by 255 and the grid and the flags by 1.
     """
     manual_seed(0)
-    network      = QNetwork(7, (4, 72, 80))
-    observations = randint(256, (5, 4, 72, 80), dtype=uint8)
+    network      = QNetwork(7, space)
+    observations = draw(2, space)
+
+    assert equal(
+        network(observations),
+        network.head(
+            cat(
+                [
+                    network.encoders[Entry.FLAGS](observations[Entry.FLAGS].float()),
+                    network.encoders[Entry.FRAMES](observations[Entry.FRAMES] / 255),
+                    network.encoders[Entry.GRID](observations[Entry.GRID].float())
+                ],
+                1
+            )
+        )
+    )
+
+
+def test_the_network_values_an_observation_alike_in_training_and_in_evaluation(
+    space: Dict
+):
+    """
+    Asserts that the network values an observation alike in training and in
+    evaluation mode and alone or batched, which batch normalization would
+    break.
+    """
+    manual_seed(0)
+    network      = QNetwork(7, space)
+    observations = draw(5, space)
     trained      = network.train()(observations)
 
     assert equal(network.eval()(observations), trained)
-    assert_close(network(observations[:1]), trained[:1])
+    assert_close(
+        network({key: entry[:1] for key, entry in observations.items()}),
+        trained[:1]
+    )
+
+
+@mark.parametrize(
+    "shape",
+    [param((4,), id="a-vector"), param((1, 4, 72, 80), id="a-stack-of-stacks")]
+)
+def test_the_network_refuses_an_entry_neither_images_nor_vectors(
+    shape: tuple[int, ...]
+):
+    """
+    Asserts that the network refuses an entry whose shape is neither a stack
+    of images nor a stack of vectors, naming that shape.
+    """
+    with raises(ValueError, match=escape(f"shape {shape} ")):
+        QNetwork(7, Dict(entry=Box(0, 1, shape)))

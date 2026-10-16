@@ -30,7 +30,7 @@ from squirtl.agent.learner import Agent
 
 def test_a_greedy_action_is_the_one_the_online_network_values_highest(
     build       : Callable[..., Agent],
-    observation : ndarray
+    observation : dict[str, ndarray]
 ):
     """
     Asserts that at a chance of zero the agent chooses the action the online
@@ -41,7 +41,9 @@ def test_a_greedy_action_is_the_one_the_online_network_values_highest(
     modes = []
 
     with no_grad():
-        values = agent.online(as_tensor(observation)[None])
+        values = agent.online(
+            {key: as_tensor(stack)[None] for key, stack in observation.items()}
+        )
 
     agent.online.register_forward_hook(
         lambda *_: modes.append(is_inference_mode_enabled())
@@ -104,8 +106,8 @@ def test_an_update_targets_each_reward_plus_the_discounted_value_that_follows(
     targets = []
 
     with no_grad():
-        agent.target[-1].weight.zero_()
-        agent.target[-1].bias.fill_(1)
+        agent.target.head[-1].weight.zero_()
+        agent.target.head[-1].bias.fill_(1)
 
     play(agent, 8, terminated)
     monkeypatch.setattr(
@@ -125,7 +127,7 @@ def test_an_update_targets_each_reward_plus_the_discounted_value_that_follows(
 def test_an_action_is_a_python_int(
     build       : Callable[..., Agent],
     chance      : float,
-    observation : ndarray
+    observation : dict[str, ndarray]
 ):
     """
     Asserts that the agent chooses each action as a Python `int`, greedy or
@@ -136,7 +138,7 @@ def test_an_action_is_a_python_int(
 
 def test_a_random_action_reaches_every_action_the_network_values(
     build       : Callable[..., Agent],
-    observation : ndarray
+    observation : dict[str, ndarray]
 ):
     """
     Asserts that at a chance of one the agent draws its actions from its own
@@ -169,7 +171,7 @@ def test_the_target_copies_the_online_network_every_sync_steps(
     agent = build(sync_steps=4)
 
     with no_grad():
-        agent.online[-1].bias.add_(1)
+        agent.online.head[-1].bias.add_(1)
 
     play(agent, steps)
 
@@ -363,8 +365,8 @@ def test_an_update_computes_its_gradient_afresh(
         param(
             "capacity",
             64,
-            lambda agent: len(agent.replay.frames),
-            id = "the-frames-replay-memory-holds"
+            lambda agent: len(agent.replay.held),
+            id = "the-slots-replay-memory-holds"
         ),
         param(
             "learning_rate",

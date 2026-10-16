@@ -1,12 +1,12 @@
 """
 Pins the records the agent reads and writes, covering:
 
-- The device the settings default to, the values each setting refuses,
-  and the bound a fraction accepts
-- The value a batch reads for each draw's action and the target it sets
-  each draw
-- A checkpoint reading back as the one written, and refusing a file that
-  holds anything beyond tensors and plain values
+- The device the settings default to, the values they refuse, and the
+  bound a fraction accepts
+- The value and the target a batch reads for each draw
+- A checkpoint reading back as written with each `state_dict`'s metadata,
+  and refusing a file holding more than tensors and plain values or a
+  network entry that is no tensor
 """
 
 from pathlib  import Path
@@ -14,8 +14,10 @@ from pickle   import UnpicklingError
 from pydantic import ValidationError
 from pytest   import MonkeyPatch, mark, param, raises
 from torch    import arange, device, equal, save, tensor, uint8
+from torch.nn import Linear
 
-from squirtl.agent.schemas import AgentSettings, Batch, Checkpoint
+from squirtl.agent.schemas       import AgentSettings, Batch, Checkpoint
+from squirtl.environment.schemas import Entry
 
 
 @mark.parametrize(
@@ -77,12 +79,37 @@ def test_a_batch_values_each_draw_at_the_action_it_took():
         actions    = tensor([2, 0]),
         rewards    = tensor([0.0, 0.0]),
         terminated = tensor([False, False]),
-        window     = arange(10, dtype=uint8).reshape(2, 5, 1, 1)
+        windows    = {Entry.FRAMES: arange(10, dtype=uint8).reshape(2, 5, 1, 1)}
     )
 
-    assert batch.values(lambda stacks: stacks[:, :, 0, 0].float()).tolist() == [
-        2.0, 5.0
-    ]
+    assert batch.values(
+        lambda observations: observations[Entry.FRAMES][:, :, 0, 0].float()
+    ).tolist() == [2.0, 5.0]
+
+
+def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path):
+    """
+    Asserts that a checkpoint holds each network's `state_dict` itself, and
+    that one read back from its file still carries the `_metadata` holding
+    each module's version, which `load_state_dict` reads.
+    """
+    online, target = Linear(2, 1).state_dict(), Linear(2, 1).state_dict()
+    written        = Checkpoint(
+        exploration = {},
+        online      = online,
+        optimizer   = {},
+        sampling    = {},
+        step        = 0,
+        target      = target
+    )
+    written.save(tmp_path / "checkpoint.pt")
+    read = Checkpoint.from_path(tmp_path / "checkpoint.pt")
+
+    assert written.online is online and written.target is target
+    assert (read.online._metadata, read.target._metadata) == (
+        {"": {"version": 1}},
+        {"": {"version": 1}}
+    )
 
 
 def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
@@ -121,6 +148,35 @@ def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path)
 
 
 @mark.parametrize(
+    "network",
+    [param("online", id="the-online-network"), param("target", id="the-target-network")]
+)
+def test_a_checkpoint_refuses_a_network_entry_that_is_no_tensor(
+    network  : str,
+    tmp_path : Path
+):
+    """
+    Asserts that reading a checkpoint refuses a file whose online or target
+    network holds a list where a tensor goes, naming that entry.
+    """
+    save(
+        {
+            "step"        : 0,
+            "exploration" : {},
+            "online"      : {},
+            "optimizer"   : {},
+            "sampling"    : {},
+            "target"      : {}
+        }
+        | {network: {"weight": [1.0, 2.0]}},
+        tmp_path / "checkpoint.pt"
+    )
+
+    with raises(ValidationError, match=rf"{network}\.weight"):
+        Checkpoint.from_path(tmp_path / "checkpoint.pt")
+
+
+@mark.parametrize(
     ("terminated", "target"),
     [
         param(False, 3.0, id="a-step-the-episode-goes-on-from"),
@@ -142,8 +198,15 @@ def test_a_batch_targets_its_reward_plus_the_discounted_highest_value_reached(
         actions    = tensor([0]),
         rewards    = tensor([1.0]),
         terminated = tensor([terminated]),
-        window     = arange(5, dtype=uint8).reshape(1, 5, 1, 1)
-    ).targets(0.5, lambda stacks: stacks[:, :, 0, 0].float().requires_grad_())
+        windows    = {Entry.FRAMES: arange(5, dtype=uint8).reshape(1, 5, 1, 1)}
+    ).targets(
+        0.5,
+        lambda observations: (
+            observations[Entry.FRAMES][:, :, 0, 0]
+            .float()
+            .requires_grad_()
+        )
+    )
 
     assert (targets.tolist(), targets.requires_grad) == ([target], False)
 

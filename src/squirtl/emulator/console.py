@@ -1,20 +1,34 @@
 """
-Defines `GameBoy`, which runs a verified cartridge through PyBoy, beside the
-protocols naming the members of PyBoy that `GameBoy` calls:
-
-- `Emulator`, the emulator itself
-- `Memory`, the view of the game's memory
-- `Screen`, the screen object holding the frame PyBoy renders
+Defines `GameBoy`, which runs a verified cartridge through PyBoy, beside
+the protocols naming the PyBoy members it calls: `Emulator`, `GameWrapper`,
+`Memory`, and `Screen`.
 """
 
-from contextlib  import AbstractContextManager
-from dataclasses import dataclass, field
-from io          import BytesIO
-from numpy       import ndarray
-from pyboy       import PyBoy
-from typing      import BinaryIO, Protocol, Self
+from contextlib import AbstractContextManager
+from io         import BytesIO
+from numpy      import ndarray
+from pyboy      import PyBoy
+from typing     import BinaryIO, Protocol, Self
 
 from squirtl.emulator.schemas import Button, Cartridge, EmulatorSettings, Symbol
+
+
+class GameWrapper(Protocol):
+    """
+    The members of `PyBoy.game_wrapper` that `GameBoy` calls.
+    """
+
+    def reset_game(self, timer_div: int | None = None):
+        """
+        Loads the state `start_game` saved, then writes `timer_div` into
+        DIV.
+        """
+
+    def start_game(self, timer_div: int | None = None):
+        """
+        Plays the intro to the first playable state and saves it, then
+        writes `timer_div` into DIV.
+        """
 
 
 class Memory(Protocol):
@@ -30,8 +44,7 @@ class Memory(Protocol):
 
 class Screen(Protocol):
     """
-    The screen object `PyBoy.screen` holds, whose `ndarray` carries the
-    frame PyBoy last rendered.
+    The members of `PyBoy.screen` that `GameBoy` reads.
     """
 
     ndarray: ndarray
@@ -46,8 +59,9 @@ class Emulator(Protocol):
     The members of `PyBoy` that `GameBoy` calls.
     """
 
-    memory : Memory
-    screen : Screen
+    game_wrapper : GameWrapper
+    memory       : Memory
+    screen       : Screen
 
     def button(self, input: str, delay: int = 1):
         """
@@ -77,22 +91,11 @@ class Emulator(Protocol):
         """
 
 
-@dataclass(frozen=True)
 class GameBoy(AbstractContextManager):
     """
     The console running a verified cartridge through the emulator it
     composes, pressing at most one button a step and reading the game's
     memory.
-    """
-
-    emulator: Emulator
-    """
-    The emulator running the cartridge, `PyBoy` itself or a test's stand-in.
-    """
-
-    settings: EmulatorSettings = field(default_factory=EmulatorSettings)
-    """
-    The settings the console was booted with, whose `hold` each press takes.
     """
 
     def __exit__(self, *raised: object):
@@ -101,6 +104,14 @@ class GameBoy(AbstractContextManager):
         block raised.
         """
         self.close()
+
+    def __init__(self, emulator: Emulator, settings: EmulatorSettings):
+        """
+        Composes `emulator`, `PyBoy` or a test's stand-in, pressing for the
+        `hold` that `settings` names.
+        """
+        self.emulator = emulator
+        self.settings = settings
 
     @property
     def screen(self) -> ndarray:
@@ -117,14 +128,10 @@ class GameBoy(AbstractContextManager):
     @classmethod
     def boot(cls, cartridge: Cartridge, settings: EmulatorSettings) -> Self:
         """
-        Starts PyBoy on the bytes of `cartridge`, with sound off and no
-        window unless `settings` opens one.
-
-        Handed bytes, PyBoy derives no path to a `.ram`, `.rtc`, or `.sym`
-        file and reads none beside the cartridge. It logs errors alone,
-        since at its default level it warns at every boot that Pillow is
-        missing, once for the screen's `image` and once for each of its
-        recording plugins.
+        Starts PyBoy on the bytes of `cartridge`, which give it no path to a
+        `.ram`, `.rtc`, or `.sym` file, with sound off and no window unless
+        `settings` opens one. It logs errors alone, since its default level
+        warns at every boot that Pillow is missing.
         """
         return cls(
             PyBoy(
@@ -149,10 +156,8 @@ class GameBoy(AbstractContextManager):
     def close(self):
         """
         Stops the emulator without saving, since PyBoy's default `stop()`
-        writes the cartridge's battery RAM to a file beside the cartridge's
-        path, and for a cartridge handed over as bytes, which has none, it
-        prints the `TypeError` that building the path raises and leaves the
-        emulator running.
+        writes battery RAM beside the cartridge's path, and for one handed
+        over as bytes prints a `TypeError` and keeps running.
         """
         self.emulator.stop(save=False)
 
@@ -191,9 +196,26 @@ class GameBoy(AbstractContextManager):
         """
         return self.emulator.memory[symbol + offset]
 
+    def reset(self, timer_div: int):
+        """
+        Loads the state `start` saved and writes `timer_div` into DIV,
+        the counter pret/pokered's `Random_` reads into the game's random
+        numbers each frame.
+        """
+        self.emulator.game_wrapper.reset_game(timer_div)
+
     def restore(self, state: bytes):
         """
         Loads a state `capture` saved, returning the console to that
         instant.
         """
         self.emulator.load_state(BytesIO(state))
+
+    def start(self):
+        """
+        Plays the intro to Red's bedroom through PyBoy's game wrapper, which
+        renders none of its frames and saves that state for `reset`, writing
+        0 into DIV until `reset` writes each episode's `timer_div`.
+        """
+        # `start_game` navigates the naming screens of Pokémon Blue alone.
+        self.emulator.game_wrapper.start_game(0)

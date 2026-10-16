@@ -1,29 +1,35 @@
 """
-Defines the fixtures the tests of `squirtl.agent` request, meaning a factory
-building an agent on the CPU, a function stacking an episode's frames as
-a frame stack does, one random observation, a function playing an episode
-through an agent, and a function restoring an agent's checkpoint into
-another.
+Defines the fixtures the tests of `squirtl.agent` request:
+
+- `space`, the observation space the environment declares
+- `build`, agents over that space on the CPU
+- `episode`, `observation`, and `stacked`, random episodes and observations
+  of that space, stacked as a frame stack stacks them
+- `play` and `resume`, which play an episode through an agent and restore
+  its checkpoint into another
 """
 
-from collections.abc import Callable
-from itertools       import pairwise
-from numpy           import arange, ndarray, pad, uint8
-from numpy.random    import default_rng
-from pathlib         import Path
-from pytest          import fixture
+from collections.abc  import Callable, Mapping
+from gymnasium.spaces import Box, Dict, MultiBinary, flatten_space
+from itertools        import pairwise
+from numpy            import arange, ndarray, pad, uint8
+from numpy.random     import default_rng
+from pathlib          import Path
+from pytest           import fixture
 
-from squirtl.agent.learner import Agent
-from squirtl.agent.schemas import AgentSettings, Checkpoint
+from squirtl.agent.learner       import Agent
+from squirtl.agent.schemas       import AgentSettings, Checkpoint
+from squirtl.environment.schemas import Entry
+
+type Observations = list[dict[str, ndarray]]
 
 
 @fixture
-def build() -> Callable[..., Agent]:
+def build(space: Dict) -> Callable[..., Agent]:
     """
-    Builds a factory of agents for seven actions over four stacked 72 by
-    80 frames, on the CPU, where a training step is pinned, from seed 1 for
-    a run of 1,000 steps unless the call names another seed or run length,
-    with any other keyword setting a field of its settings.
+    Builds a factory of agents for seven actions over `space` on the CPU,
+    from seed 1 for a 1,000-step run unless the call names another seed or
+    length, any other keyword setting a field of its settings.
     """
 
     def build(seed: int = 1, steps: int = 1000, **settings: object) -> Agent:
@@ -35,7 +41,7 @@ def build() -> Callable[..., Agent]:
             actions  = 7,
             seed     = seed,
             settings = AgentSettings(device="cpu", **settings),
-            shape    = (4, 72, 80),
+            space    = space,
             steps    = steps
         )
 
@@ -43,51 +49,60 @@ def build() -> Callable[..., Agent]:
 
 
 @fixture
-def episode() -> Callable[[ndarray], list[ndarray]]:
+def episode(
+    space   : Dict,
+    stacked : Callable[[Mapping[str, ndarray], Dict], Observations]
+) -> Callable[[int], Observations]:
     """
-    Builds a function stacking an episode's frames four deep as Gymnasium's
-    `FrameStackObservation` does under its default `reset` padding, which
-    repeats the first frame.
+    Builds a function drawing the `steps + 1` observations of one random
+    episode of `space`, the reset first, from a generator seeded at 0, so
+    each call draws another.
     """
+    rng = default_rng(0)
 
-    def episode(frames: ndarray) -> list[ndarray]:
+    def episode(steps: int) -> Observations:
         """
-        Stacks `frames`, the reset frame first, into one observation per
-        frame, each ending on that frame.
+        Draws the episode's elements for every entry and stacks them.
         """
-        return list(
-            pad(frames, ((3, 0), (0, 0), (0, 0)), mode="edge")[
-                arange(len(frames))[:, None] + arange(4)
-            ]
+        return stacked(
+            {
+                key: rng.integers(
+                    flatten_space(entry).high.max(),
+                    dtype    = entry.dtype,
+                    endpoint = True,
+                    size     = (steps + 1, *entry.shape[1:])
+                )
+                for key, entry in space.items()
+            },
+            space
         )
 
     return episode
 
 
 @fixture
-def observation() -> ndarray:
+def observation(space: Dict) -> dict[str, ndarray]:
     """
-    Draws one stack of four random 72 by 80 `uint8` frames from seed 0.
+    Samples one observation of `space` from seed 0.
     """
-    return default_rng(0).integers(256, dtype=uint8, size=(4, 72, 80))
+    space.seed(0)
+
+    return space.sample()
 
 
 @fixture
-def play(episode: Callable[[ndarray], list[ndarray]]) -> Callable[..., None]:
+def play(episode: Callable[[int], Observations]) -> Callable[..., None]:
     """
-    Builds a function playing `steps` steps of one episode of random
-    frames through an agent, each step taking the action the agent chooses,
-    reaching the next frame, earning a reward of one, and stored as
-    terminating the episode wherever `terminated` is set, with no update
-    taken.
+    Builds a function playing `steps` steps of one random episode through
+    an agent, each taking the agent's action, earning a reward of one, and
+    stored as terminating wherever `terminated` is set, with no update.
     """
-    rng = default_rng(0)
 
     def play(agent: Agent, steps: int, terminated: bool = False):
         """
         Plays those steps through `agent`, as the fixture describes.
         """
-        observations = episode(rng.integers(256, dtype=uint8, size=(steps + 1, 72, 80)))
+        observations = episode(steps)
         agent.begin(observations[0])
 
         for observation, reached in pairwise(observations):
@@ -117,3 +132,45 @@ def resume(build: Callable[..., Agent], tmp_path: Path) -> Callable[[Agent], Age
         return restored
 
     return resume
+
+
+@fixture
+def space() -> Dict:
+    """
+    Declares the environment's observation, four stacked 72 by 80 frames
+    beside a binary 48 by 48 grid and four binary flags, those two one deep.
+    """
+    return Dict(
+        {
+            Entry.FLAGS  : MultiBinary((1, 4)),
+            Entry.FRAMES : Box(0, 255, (4, 72, 80), uint8),
+            Entry.GRID   : MultiBinary((1, 48, 48))
+        }
+    )
+
+
+@fixture
+def stacked() -> Callable[[Mapping[str, ndarray], Dict], Observations]:
+    """
+    Builds a function stacking an episode's elements, the reset first, into
+    one observation each, every entry as deep as its space and padded with
+    its first element, as `FrameStackObservation` pads by default.
+    """
+
+    def stacked(elements: Mapping[str, ndarray], space: Dict) -> Observations:
+        """
+        Stacks `elements`, one array per entry, into the observations.
+        """
+        stacks = {
+            key: pad(
+                values,
+                ((depth - 1, 0), *[(0, 0)] * (values.ndim - 1)),
+                mode = "edge"
+            )[arange(len(values))[:, None] + arange(depth)]
+            for key, values in elements.items()
+            for depth in [space[key].shape[0]]
+        }
+
+        return [dict(zip(stacks, step)) for step in zip(*stacks.values(), strict=True)]
+
+    return stacked

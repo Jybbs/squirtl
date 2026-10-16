@@ -1,16 +1,12 @@
 """
 Pins how `GameBoy` runs a cartridge through PyBoy, covering:
 
-- The arguments a boot hands PyBoy under each setting of the window, and
-  the SDL2 window PyBoy opens under SDL's dummy video driver
-- The save beside the cartridge, which a boot never reads and a close
-  never writes
-- The press of any button for the frames the settings hold it, the one
-  tick of the frames a step names, the read of the screen after that tick,
-  and the press refused for holding its button past those frames
-- The screen a press returns, an RGB copy no later frame overwrites
-- The byte each symbol reads and the byte an offset past it reads, the
-  state a capture saves and a restore loads, and the stop a close makes
+- The arguments a boot hands PyBoy, the SDL2 window it opens, and the save
+  beside the cartridge that a boot never reads and a close never writes
+- Each press, its one tick, the screen read after it as an RGB copy, and a
+  press refused for holding its button past its frames
+- The byte each symbol reads, a capture and its restore, the stop a close
+  makes, the intro a start plays, and the state and DIV a reset returns to
 """
 
 from collections.abc import Callable, Iterator
@@ -21,6 +17,7 @@ from numpy.testing   import assert_array_equal
 from operator        import attrgetter
 from pyboy.utils     import PyBoyInvalidOperationException
 from pytest          import MonkeyPatch, fixture, mark, param, raises
+from random          import getstate
 
 from squirtl.emulator         import console
 from squirtl.emulator.console import GameBoy
@@ -179,19 +176,14 @@ def test_a_restore_returns_the_console_to_its_capture(game_boy: GameBoy):
     assert game_boy.capture() == state
 
 
-def test_a_window_the_setting_opens_is_one_pyboy_runs(
-    cartridge   : Cartridge,
-    monkeypatch : MonkeyPatch
-):
+def test_a_start_leaves_pythons_global_generator_undrawn(game_boy: GameBoy):
     """
-    Asserts that PyBoy boots and advances a frame in the window
-    `open_window` names, under SDL's `dummy` video driver, which draws on
-    no display.
+    Asserts that a start on PyBoy leaves the state of Python's global
+    generator as it found it.
     """
-    monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+    before, _, after = getstate(), game_boy.start(), getstate()
 
-    with GameBoy.boot(cartridge, EmulatorSettings(open_window=True)) as game_boy:
-        assert game_boy.emulator.tick(1)
+    assert after == before
 
 
 @mark.parametrize("button", Button, ids=attrgetter("name"))
@@ -215,6 +207,32 @@ def test_each_symbol_reads_the_byte_at_its_address(game_boy: GameBoy, symbol: Sy
     assert game_boy.read(symbol) == 0x5A
 
 
+def test_a_start_plays_the_intro_through_the_game_wrapper(boot: Boot):
+    """
+    Asserts that a start hands PyBoy's game wrapper a `timer_div` of 0 in
+    place of the `None` that draws one from Python's global generator.
+    """
+    game_boy = boot(EmulatorSettings())
+    game_boy.start()
+
+    assert game_boy.emulator.calls == [("start_game", 0)]
+
+
+def test_a_window_the_setting_opens_is_one_pyboy_runs(
+    cartridge   : Cartridge,
+    monkeypatch : MonkeyPatch
+):
+    """
+    Asserts that PyBoy boots and advances a frame in the window
+    `open_window` names, under SDL's `dummy` video driver, which draws on
+    no display.
+    """
+    monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+
+    with GameBoy.boot(cartridge, EmulatorSettings(open_window=True)) as game_boy:
+        assert game_boy.emulator.tick(1)
+
+
 def test_the_screen_a_press_returns_holds_the_rgb_channels_alone(boot: Boot):
     """
     Asserts that the screen a press returns is a `(144, 160, 3)` array of
@@ -235,3 +253,25 @@ def test_the_screen_a_press_returns_is_a_copy(game_boy: GameBoy):
     PyBoy overwrites at each rendered frame.
     """
     assert not shares_memory(game_boy.press(None, 1), game_boy.emulator.screen.ndarray)
+
+
+@mark.parametrize(
+    "timer_div",
+    [param(0, id="zero"), param(255, id="the-top-of-8-bits")]
+)
+def test_a_reset_returns_to_the_start_with_its_timer_div_in_div(
+    game_boy  : GameBoy,
+    timer_div : int
+):
+    """
+    Asserts that a reset on PyBoy undoes a write the game's memory took
+    after the start and leaves `timer_div` in the DIV register at `0xFF04`.
+    """
+    game_boy.start()
+    game_boy.emulator.memory[Symbol.W_CUR_MAP] = 9
+    game_boy.press(None, 3)
+    game_boy.reset(timer_div)
+
+    assert (game_boy.read(Symbol.W_CUR_MAP), game_boy.emulator.memory[0xFF04]) == (
+        0, timer_div
+    )

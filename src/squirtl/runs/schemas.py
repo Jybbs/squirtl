@@ -17,9 +17,10 @@ from pydantic     import AwareDatetime, Field, NonNegativeInt, StringConstraints
 from subprocess   import check_output
 from typing       import Annotated, Self
 
-from squirtl.agent.schemas    import AgentSettings
-from squirtl.emulator.schemas import EmulatorSettings, Record
-from squirtl.reward.schemas   import RewardSettings
+from squirtl.agent.schemas       import AgentSettings
+from squirtl.emulator.schemas    import EmulatorSettings, Record
+from squirtl.environment.schemas import EnvironmentSettings
+from squirtl.reward.schemas      import RewardSettings
 
 type Hexadecimal = Annotated[
     str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
@@ -105,6 +106,11 @@ class RunSettings(Record):
     emulator: EmulatorSettings = Field(default_factory=EmulatorSettings)
     """
     The settings the emulator reads.
+    """
+
+    environment: EnvironmentSettings = Field(default_factory=EnvironmentSettings)
+    """
+    The settings the environment reads.
     """
 
     reward: RewardSettings = Field(default_factory=RewardSettings)
