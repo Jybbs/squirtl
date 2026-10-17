@@ -58,18 +58,20 @@ def train(
         cartridge  = Cartridge.read(settings.emulator.cartridge)
         run        = Run.start(settings, datetime.now(UTC), previous and previous.name)
 
-    with Trainer(cartridge, run) as trainer, Progress(console=console) as progress:
+    with Trainer(cartridge, run) as trainer:
         if previous:
-            trainer.resume(checkpoint, previous)
+            with refusing(ValueError):
+                trainer.resume(checkpoint, previous)
 
-        task = progress.add_task(
-            run.name,
-            completed = trainer.agent.step,
-            total     = settings.steps
-        )
+        with Progress(console=console) as progress:
+            task = progress.add_task(
+                run.name,
+                completed = trainer.agent.step,
+                total     = settings.steps
+            )
 
-        # `Progress.track` drops the `completed` a task began at once it ends.
-        for step in trainer:
-            progress.update(task, completed=step)
+            # `Progress.track` drops the `completed` a task began at once it ends.
+            for step in trainer:
+                progress.update(task, completed=step)
 
     return str(run.directory)

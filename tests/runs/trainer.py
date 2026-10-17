@@ -296,15 +296,17 @@ def test_an_episodes_line_averages_the_updates_its_steps_took(
 
 
 def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
+    logged      : list[str],
     monkeypatch : MonkeyPatch,
     trainer     : Callable[..., Trainer]
 ):
     """
     Asserts that each line holds the return its steps earned, the positions
-    it reached, the chance of a random action at its last step, and the mean
-    loss and value of the updates its steps took, the first episode stepping
-    onto a new square on its second step and reaching the starter on its
-    third.
+    it reached, the chance of a random action at its last step, and the
+    mean loss and value of the updates its steps took, which the line
+    each episode logs repeats as label and value pairs, the first episode
+    stepping onto a new square on its second step and reaching the starter
+    on its third.
     """
     built = trainer(
         agent = AgentSettings(
@@ -345,6 +347,14 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
         (approx(settings.novelty + settings.starter), 2, approx(0.8515), 2.0, -2.0),
         (0.0, 1, approx(0.5545), 6.5, -6.5),
         (0.0, 1, approx(0.2575), 12.5, -12.5)
+    ]
+    assert [
+        message.partition(": ")[2]
+        for message in logged if message.startswith("Episode ")
+    ] == [
+        "return 0.6002, positions 2, epsilon 0.852, loss 2, value -2",
+        "return 0.0000, positions 1, epsilon 0.554, loss 6.5, value -6.5",
+        "return 0.0000, positions 1, epsilon 0.257, loss 12.5, value -12.5"
     ]
 
 

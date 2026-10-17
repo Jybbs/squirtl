@@ -61,6 +61,26 @@ def test_a_stop_of_a_record_holding_no_run_logs_each_field_it_lacks(invoke: Invo
     )
 
 
+@mark.usefixtures("clone")
+def test_a_stop_of_a_record_holding_no_json_logs_the_record_and_the_parse_error(
+    invoke: Invoker
+):
+    """
+    Asserts that `squirtl stop` given a directory whose record breaks off
+    mid-object exits 1, logging one line naming the record beside Pydantic's
+    message on the JSON it could not parse.
+    """
+    record = Path("data/run.json")
+    record.parent.mkdir()
+    record.write_text("{", encoding="utf-8")
+    invocation = invoke(["stop", "data"])
+
+    assert (invocation.code, invocation.messages) == (
+        1,
+        ["Run: Invalid JSON: EOF while parsing an object at line 1 column 1"]
+    )
+
+
 def test_a_stop_writes_the_runs_stop_file_and_exits_zero(
     invoke  : Invoker,
     trained : Path

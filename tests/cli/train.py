@@ -4,7 +4,8 @@ Pins what `squirtl train` does, covering:
 - The run it writes under `data/runs/` and the directory it prints
 - The cartridge, the `--resume` directory, and the working directory outside
   a clone it refuses before making any directory, a run holding no checkpoint
-  among them
+  among them, and the checkpoint whose replay memory holds another shape it
+  refuses on one line
 - A resume into a new directory under the settings the stopped run recorded
 - The line each episode logs and the line each step logs under `--verbose`
 - The emulator's window `--emulator.open-window` opens
@@ -76,6 +77,32 @@ def test_a_cartridge_the_emulator_refuses_exits_1_before_making_any_directory(
         )
     ) == (1, 1, True)
     assert not Path("data/runs").exists()
+
+
+def test_a_resume_from_replay_memory_of_another_shape_exits_1_naming_the_array(
+    invoke  : Invoker,
+    trained : Path
+):
+    """
+    Asserts that resuming from a checkpoint whose replay memory holds
+    `flags` at another shape than the recorded settings give exits 1,
+    logging the array and both shapes on one line in place of a traceback.
+    """
+    run        = Run.read(trained)
+    checkpoint = Checkpoint.from_path(run.checkpoint)
+    flags      = checkpoint.replay["flags"]
+    checkpoint.model_copy(
+        update = {"replay": checkpoint.replay | {"flags": flags[:1]}}
+    ).save(run.checkpoint)
+    invocation = invoke(["train", "--resume", str(trained)])
+
+    assert (invocation.code, invocation.messages) == (
+        1,
+        [
+            f"replay memory holds `flags` at the shape {flags.shape}, "
+            f"where the arrays loaded hold {flags[:1].shape}"
+        ]
+    )
 
 
 def test_a_resume_of_a_run_holding_no_checkpoint_exits_1_before_making_any_directory(

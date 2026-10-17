@@ -40,10 +40,10 @@ def listen(verbose: bool = False) -> Console:
 def refusing(*errors: type[Exception]) -> Iterator[None]:
     """
     Logs any of `errors` the block raises and exits with status 1 in place
-    of a traceback. A `ValidationError` logs one line per error it holds,
+    of a traceback. It logs one line per error a `ValidationError` holds,
     the exception a validator raised or else the path to the field beside
-    Pydantic's message (`Run.revision: Field required`), and any other error
-    logs its message on one line.
+    Pydantic's message (`Run.revision: Field required`), and one line
+    holding the message of any other error.
 
     Raises:
         SystemExit: Where the block raises one of `errors`.
@@ -55,7 +55,8 @@ def refusing(*errors: type[Exception]) -> Iterator[None]:
             case ValidationError():
                 for detail in error.errors(include_input=False, include_url=False):
                     match detail:
-                        case {"ctx": {"error": raised}}: logger.error("{}", raised)
+                        case {"ctx": {"error": Exception() as raised}}:
+                            logger.error("{}", raised)
                         case {"loc": location, "msg": message}:
                             logger.error(
                                 "{}: {}",
