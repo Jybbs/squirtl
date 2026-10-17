@@ -19,3 +19,11 @@ class Invocation:
     code   : int | str | None
     log    : str
     output : str
+
+    @property
+    def messages(self) -> list[str]:
+        """
+        Splits `log` into the message each line holds, past the time the
+        line opens on.
+        """
+        return [line.partition(" ")[2] for line in self.log.splitlines()]

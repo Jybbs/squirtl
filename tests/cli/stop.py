@@ -1,12 +1,12 @@
 """
 Pins what `squirtl stop` does, covering the stop file it writes into a
 run's directory from the clone or from a shell outside it, and the directory
-holding no run it refuses.
+holding no run it refuses, logging each field a record holding no run lacks.
 """
 
 from common.cli import Invoker
 from pathlib    import Path
-from pytest     import MonkeyPatch, TempPathFactory
+from pytest     import MonkeyPatch, TempPathFactory, mark
 
 from squirtl.runs.schemas import Run
 
@@ -39,6 +39,26 @@ def test_a_stop_of_a_directory_holding_no_run_exits_1_and_writes_nothing(
     (clone / "data").mkdir()
 
     assert (invoke(["stop", "data"]).code, list((clone / "data").iterdir())) == (1, [])
+
+
+@mark.usefixtures("clone")
+def test_a_stop_of_a_record_holding_no_run_logs_each_field_it_lacks(invoke: Invoker):
+    """
+    Asserts that `squirtl stop` given a directory whose record is an empty
+    object exits 1, logging one line for each field the record lacks, the
+    path to the field beside Pydantic's message.
+    """
+    record = Path("data/run.json")
+    record.parent.mkdir()
+    record.write_text("{}", encoding="utf-8")
+    invocation = invoke(["stop", "data"])
+
+    assert (invocation.code, invocation.messages) == (
+        1,
+        [f"Run.{field}: Field required" for field in (
+            "revision", "settings", "started"
+        )]
+    )
 
 
 def test_a_stop_writes_the_runs_stop_file_and_exits_zero(

@@ -38,7 +38,7 @@ def test_an_episode_plays_back_in_the_window_to_the_return_the_run_recorded(
     invocation = invoke(["watch", str(trained), *flags])
 
     assert (invocation.code, windows) == (0, ["SDL2"])
-    assert "reached the return of 0.0 the run recorded" in invocation.log
+    assert "reached the return of 0.0000 the run recorded" in invocation.log
 
 
 @mark.usefixtures("accepted", "clone", "rom", "windows")
@@ -70,7 +70,7 @@ def test_a_playback_reaches_a_nonzero_return_under_the_recorded_reward(
 
     assert (
         invocation.code,
-        "reached the return of 0.25 the run recorded" in invocation.log
+        "reached the return of 0.2500 the run recorded" in invocation.log
     ) == (0, True)
 
 

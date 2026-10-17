@@ -62,17 +62,19 @@ def test_a_cartridge_the_emulator_refuses_exits_1_before_making_any_directory(
 ):
     """
     Asserts that a run reading a cartridge whose digest names no release
-    `Edition` lists exits 1, logging the refusal, and makes no directory
+    `Edition` lists exits 1, logging the refusal its validator raised as one
+    line with none of Pydantic's own text around it, and makes no directory
     under `data/runs/`.
     """
     invocation = invoke(["train", *quick])
 
     assert (
         invocation.code,
-        "is not the English Pokémon Blue ROM" in invocation.log
-    ) == (
-        1, True
-    )
+        len(invocation.messages),
+        invocation.messages[0].startswith(
+            "data/rom.gb is not the English Pokémon Blue ROM"
+        )
+    ) == (1, 1, True)
     assert not Path("data/runs").exists()
 
 

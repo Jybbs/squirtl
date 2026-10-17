@@ -59,6 +59,6 @@ def watch(
 
         return 1
 
-    logger.info("The playback reached the return of {} the run recorded", reward)
+    logger.info("The playback reached the return of {:.4f} the run recorded", reward)
 
     return None
