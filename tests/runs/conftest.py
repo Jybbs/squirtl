@@ -6,13 +6,13 @@ a factory of trainers starting one, and the messages loguru logs during
 a test.
 """
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib      import ExitStack
 from datetime        import UTC, datetime, timedelta
 from itertools       import count
 from loguru          import logger
 from pathlib         import Path
-from pytest          import MonkeyPatch, fixture
+from pytest          import fixture
 
 from squirtl.agent.schemas       import AgentSettings
 from squirtl.emulator.schemas    import Cartridge
@@ -108,13 +108,14 @@ def trainer(cartridge: Cartridge, short: RunSettings) -> Callable[..., Trainer]:
 
 
 @fixture
-def holding(monkeypatch: MonkeyPatch, run: Run, tmp_path: Path) -> Callable[[str], Run]:
+def holding(
+    checkout : Callable[[Mapping[str, str]], None],
+    run      : Run
+) -> Callable[[str], Run]:
     """
-    Makes `tmp_path` the working directory and creates the directory of
-    `run`, then builds a writer giving its `episodes` the text it is handed.
+    Builds a writer giving the `episodes` of `run` the text it is handed, in
+    the working directory `checkout` makes of `tmp_path`.
     """
-    monkeypatch.chdir(tmp_path)
-    run.directory.mkdir(parents=True)
 
     def write(text: str) -> Run:
         """
@@ -123,7 +124,7 @@ def holding(monkeypatch: MonkeyPatch, run: Run, tmp_path: Path) -> Callable[[str
         Returns:
             The run, whose `episodes` now holds `text`.
         """
-        run.episodes.write_text(text, encoding="utf-8")
+        checkout({str(run.episodes): text})
 
         return run
 

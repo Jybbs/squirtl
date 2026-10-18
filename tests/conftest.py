@@ -10,13 +10,13 @@ starting a run, which reads the clone it runs in, and `outside` every test
 reading a working directory no clone holds.
 """
 
-from collections.abc  import Iterable, Iterator
-from os               import devnull
-from pathlib          import Path
-from pytest           import FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, mark
-from subprocess       import check_call
-from syrupy.assertion import SnapshotAssertion
-from syrupy.extensions.single_file import SingleFileSnapshotExtension, WriteMode
+from collections.abc   import Callable, Iterable, Iterator, Mapping
+from io                import StringIO
+from os                import devnull
+from pathlib           import Path
+from pytest            import FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, mark
+from pytest_subprocess import FakeProcess
+from subprocess        import check_call
 
 from squirtl.emulator.schemas import Cartridge, EmulatorSettings
 from squirtl.reward.schemas   import RewardSettings
@@ -28,16 +28,50 @@ CLEARED = (
 )
 
 
-class PlainFile(SingleFileSnapshotExtension):
+@fixture
+def answered(fp: FakeProcess, monkeypatch: MonkeyPatch) -> Callable[[str], None]:
     """
-    Writes each snapshot as a plain text file at
-    `fixtures/<module>/<test>.txt` beside the tests that read it, the
-    `fixtures` directory named by the `--snapshot-dirname` option in
-    `[tool.pytest]`.
+    Builds a function that types `reply` at the prompt `Plan.apply` raises,
+    putting it on standard input, and has `gh api` name `Jybbs/squirtl` as
+    the repository that prompt names.
     """
+    def answer(reply: str):
+        """
+        Puts `reply` on standard input and answers the read of the
+        repository's name.
+        """
+        fp.register(
+            [
+                "gh", "api", "repos/{owner}/{repo}", "--method",
+                "GET", "--jq", ".full_name"
+            ],
+            stdout = "Jybbs/squirtl\n"
+        )
+        monkeypatch.setattr("sys.stdin", StringIO(reply))
 
-    _write_mode    = WriteMode.TEXT
-    file_extension = "txt"
+    return answer
+
+
+@fixture
+def checkout(
+    monkeypatch : MonkeyPatch,
+    tmp_path    : Path
+) -> Callable[[Mapping[str, str]], None]:
+    """
+    Builds a writer that makes `tmp_path` the working directory and writes
+    each file a case names there, under its path relative to that directory.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    def write(files: Mapping[str, str]):
+        """
+        Writes each of `files`, a path beside the text it holds.
+        """
+        for path, text in files.items():
+            (file := tmp_path / path).parent.mkdir(exist_ok=True, parents=True)
+            file.write_text(text, encoding="utf-8")
+
+    return write
 
 
 @fixture(params=CLEARED, scope="module")
@@ -98,14 +132,6 @@ def pytest_collection_modifyitems(items: Iterable[Item]):
 
 
 @fixture
-def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
-    """
-    Routes every snapshot through the plain-file extension.
-    """
-    return snapshot.use_extension(PlainFile)
-
-
-@fixture
 def cartridge(rom: Path) -> Cartridge:
     """
     Builds the record of the cartridge `rom` writes without the check
@@ -157,21 +183,23 @@ def outside(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
 
 
 @fixture
-def clone(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
+def clone(
+    checkout    : Callable[[Mapping[str, str]], None],
+    monkeypatch : MonkeyPatch,
+    tmp_path    : Path
+) -> Path:
     """
-    Makes `tmp_path` the working directory and a git clone whose one
-    commit holds a `uv.lock` and a `.gitignore` covering `data/`, as the
-    repository's own `.gitignore` does.
+    Makes `tmp_path`, the working directory `checkout` sets, a git clone
+    whose one commit holds a `uv.lock` and a `.gitignore` covering `data/`,
+    as the repository's own `.gitignore` does.
 
     `GIT_CONFIG_NOSYSTEM` keeps the machine's system-wide git configuration
     out of the clone, and `GIT_CONFIG_GLOBAL` pointed at the null device
     keeps the developer's own out.
     """
-    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", devnull)
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
-    (tmp_path / ".gitignore").write_text("/data/\n", encoding="utf-8")
-    (tmp_path / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    checkout({".gitignore": "/data/\n", "uv.lock": "version = 1\n"})
 
     for command in (["init"], ["add", "."], ["commit", "--message", "Lock"]):
         check_call(
