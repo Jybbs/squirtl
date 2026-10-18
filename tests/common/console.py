@@ -7,6 +7,7 @@ and the player's position in the memory of `StandIn` or of `PyBoy`.
 from collections.abc import MutableSequence
 from numpy           import arange, tile, uint8
 from types           import SimpleNamespace
+from typing          import BinaryIO
 
 from squirtl.emulator.schemas import Symbol
 from squirtl.reward.schemas   import Event, Position
@@ -61,6 +62,21 @@ class StandIn:
         `delay` holds it for.
         """
         self.calls.append(("button", input, delay))
+
+    def load_state(self, file_like_object: BinaryIO):
+        """
+        Records a load and reads the memory a save wrote from
+        `file_like_object`.
+        """
+        self.calls.append(("load_state",))
+        self.memory[:] = file_like_object.read()
+
+    def save_state(self, file_like_object: BinaryIO):
+        """
+        Records a save and writes the memory into `file_like_object`.
+        """
+        self.calls.append(("save_state",))
+        file_like_object.write(self.memory)
 
     def stop(self, save: bool):
         """

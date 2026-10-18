@@ -3,16 +3,18 @@ Defines `Overworld`, the environment an agent plays Pokémon Blue in from
 Red's bedroom to the starter, which `Overworld.make` builds and wraps.
 """
 
+from functools import reduce
 from gymnasium import Env
 from gymnasium.envs.registration import EnvSpec
 from gymnasium.spaces            import Box, Discrete
 from gymnasium.wrappers          import FrameStackObservation, GrayscaleObservation, RecordEpisodeStatistics
-from numpy  import ndarray, uint8
-from typing import Any
+from numpy    import ndarray, uint8
+from operator import add
+from typing   import Any
 
 from squirtl.emulator.console     import GameBoy
 from squirtl.emulator.schemas     import Button, Cartridge, EmulatorSettings
-from squirtl.environment.schemas  import EnvironmentSettings
+from squirtl.environment.schemas  import EnvironmentSettings, Recording
 from squirtl.environment.wrappers import ProgressObservation, ShrinkObservation
 from squirtl.reward.progress      import Progress
 from squirtl.reward.schemas       import RewardSettings, Term
@@ -22,7 +24,8 @@ class Overworld(Env):
     """
     The game from Red's bedroom to the starter as a Gymnasium `Env`, whose
     actions are `presses`, whose observation is the RGB screen a step ends
-    on, and whose episode terminates at the starter.
+    on, and whose episode terminates at the starter, each episode kept as
+    the `recording` that `play` steps through again.
     """
 
     metadata = {"render_modes": ["rgb_array"]}
@@ -60,6 +63,18 @@ class Overworld(Env):
         declared order.
         """
         return (None, *Button)
+
+    @property
+    def recording(self) -> Recording:
+        """
+        Records the episode so far as the state its reset left the console
+        in, the `timer_div` that reset wrote, and each step's action.
+        """
+        return Recording(
+            presses   = self.actions,
+            start     = self.start,
+            timer_div = self.timer_div
+        )
 
     def close(self):
         """
@@ -111,6 +126,20 @@ class Overworld(Env):
             )
         )
 
+    def play(self, recording: Recording) -> float:
+        """
+        Resets to the start of `recording` and steps through each action it
+        holds, which the emulator plays to the frames the episode drew.
+
+        Returns:
+            The reward its steps total, each added in turn to 0.0 as
+            `RecordEpisodeStatistics` adds an episode's return, where `sum`
+            compensates for rounding and can differ in the last bit.
+        """
+        self.reset(options={"recording": recording})
+
+        return reduce(add, (self.step(action)[1] for action in recording.presses), 0.0)
+
     def render(self) -> ndarray:
         """
         Copies the screen the last step or reset ended on.
@@ -125,24 +154,36 @@ class Overworld(Env):
     ) -> tuple[ndarray, dict[str, Any]]:
         """
         Loads Red's bedroom with a DIV from the environment's generator,
-        which `seed` reseeds, and starts the episode's progress. It then
-        advances one frame with no press, since the state `GameBoy.start`
-        saves holds no rendered screen.
+        which `seed` reseeds, or the start of the `Recording` that `options`
+        holds under `recording`, and starts the episode's progress and its
+        record. It then advances one frame with no press, since the state
+        `GameBoy.start` saves holds no rendered screen.
 
         Returns:
-            The bedroom's screen beside an empty info dict.
+            The screen that frame shows beside an empty info dict.
         """
         super().reset(seed=seed)
-        # DIV holds 8 bits, so its 256 values are every start a reset can give the game.
-        self.game_boy.reset(int(self.np_random.integers(256)))
+
+        match options:
+            case {"recording": Recording() as recording}:
+                self.game_boy.restore(recording.start)
+                self.timer_div = recording.timer_div
+            case _:
+                # DIV holds 8 bits, so its 256 values are every start a reset gives.
+                self.timer_div = int(self.np_random.integers(256))
+                self.game_boy.reset(self.timer_div)
+
+        self.actions  = bytearray()
         self.progress = Progress(self.game_boy, self.reward)
+        self.start    = self.game_boy.capture()
 
         return self.game_boy.press(None, 1), {}
 
     def step(self, action: int) -> tuple[ndarray, float, bool, bool, dict[Term, float]]:
         """
         Makes the press `action` names and advances `frames_per_step`
-        frames, then scores the step through `Progress.score`.
+        frames, then scores the step through `Progress.score` and records
+        `action` in the episode's `recording`.
 
         Returns:
             The five values Gymnasium's `step` returns:
@@ -158,5 +199,6 @@ class Overworld(Env):
             self.settings.frames_per_step
         )
         score = self.progress.score()
+        self.actions.append(action)
 
         return screen, score.total, score.terminated, False, score.shares

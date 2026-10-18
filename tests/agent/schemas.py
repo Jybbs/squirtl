@@ -4,20 +4,34 @@ Pins the records the agent reads and writes, covering:
 - The device the settings default to, the values they refuse, and the
   bound a fraction accepts
 - The value and the target a batch reads for each draw
-- A checkpoint reading back as written with each `state_dict`'s metadata,
-  and refusing a file holding more than tensors and plain values or a
-  network entry that is no tensor
+- A checkpoint reading back as written with each `state_dict`'s metadata
+  and replay memory's arrays, refusing a file holding more than tensors
+  and plain values or a network entry that is no tensor
+- The `.npz` a checkpoint is written as, each member compressed with zstd,
+  and the checkpoint an interrupted write leaves as it was
 """
 
-from pathlib  import Path
-from pickle   import UnpicklingError
-from pydantic import ValidationError
-from pytest   import MonkeyPatch, mark, param, raises
-from torch    import arange, device, equal, save, tensor, uint8
-from torch.nn import Linear
+from numpy         import load as load_npz, zeros
+from numpy.testing import assert_array_equal
+from pathlib       import Path
+from pickle        import UnpicklingError
+from pydantic      import ValidationError
+from pytest        import MonkeyPatch, mark, param, raises
+from torch         import arange, device, equal, save, tensor, uint8
+from torch.nn      import Linear
+from zipfile       import ZIP_ZSTANDARD, ZipFile
 
 from squirtl.agent.schemas       import AgentSettings, Batch, Checkpoint
 from squirtl.environment.schemas import Entry
+
+
+def pack(agent: dict[str, object], path: Path):
+    """
+    Writes an `.npz` holding `agent` as its `agent.pt` member alone, the way
+    `Checkpoint.save` writes every field but `replay`.
+    """
+    with ZipFile(path, "w") as archive, archive.open("agent.pt", "w") as member:
+        save(agent, member)
 
 
 @mark.parametrize(
@@ -87,6 +101,32 @@ def test_a_batch_values_each_draw_at_the_action_it_took():
     ).tolist() == [2.0, 5.0]
 
 
+def test_a_checkpoint_is_an_npz_whose_members_zstd_compresses(tmp_path: Path):
+    """
+    Asserts that a checkpoint's file is an `.npz` NumPy's own `load` reads
+    replay memory's arrays from, beside the `agent.pt` member, with every
+    member compressed with zstd.
+    """
+    Checkpoint(
+        exploration = {},
+        online      = {},
+        optimizer   = {},
+        replay      = {"actions": zeros(4, "int64"), "held": zeros(4, bool)},
+        sampling    = {},
+        step        = 0,
+        target      = {}
+    ).save(tmp_path / "checkpoint.npz")
+
+    with load_npz(tmp_path / "checkpoint.npz") as archive:
+        assert (sorted(archive.files), archive["held"].dtype) == (
+            ["actions", "agent.pt", "held"],
+            bool
+        )
+        assert {member.compress_type for member in archive.zip.infolist()} == {
+            ZIP_ZSTANDARD
+        }
+
+
 def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path):
     """
     Asserts that a checkpoint holds each network's `state_dict` itself, and
@@ -98,12 +138,13 @@ def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path)
         exploration = {},
         online      = online,
         optimizer   = {},
+        replay      = {},
         sampling    = {},
         step        = 0,
         target      = target
     )
-    written.save(tmp_path / "checkpoint.pt")
-    read = Checkpoint.from_path(tmp_path / "checkpoint.pt")
+    written.save(tmp_path / "checkpoint.npz")
+    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
 
     assert written.online is online and written.target is target
     assert (read.online._metadata, read.target._metadata) == (
@@ -115,21 +156,23 @@ def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path)
 def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
     """
     Asserts that a checkpoint written to a file reads back with every field
-    equal to the one written.
+    equal to the one written, each array of replay memory in its own dtype.
     """
     written = Checkpoint(
         exploration = {"bit_generator": "PCG64", "state": {"inc": 1, "state": 2**100}},
         online      = {"weight": tensor([1.0, 2.0])},
         optimizer   = {"param_groups": [{"lr": 1e-4, "params": [0]}], "state": {}},
+        replay      = {"frames": arange(24, dtype=uint8).reshape(2, 3, 4).numpy()},
         sampling    = {"bit_generator": "PCG64", "state": {"inc": 5, "state": 3}},
         step        = 12,
         target      = {"weight": tensor([0.5, 2.0])}
     )
-    written.save(tmp_path / "checkpoint.pt")
-    read = Checkpoint.from_path(tmp_path / "checkpoint.pt")
+    written.save(tmp_path / "checkpoint.npz")
+    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
 
     assert equal(read.online["weight"], written.online["weight"])
     assert equal(read.target["weight"], written.target["weight"])
+    assert_array_equal(read.replay["frames"], written.replay["frames"], strict=True)
     assert (read.exploration, read.optimizer, read.sampling, read.step) == (
         written.exploration, written.optimizer, written.sampling, written.step
     )
@@ -137,14 +180,50 @@ def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
 
 def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path):
     """
-    Asserts that reading a checkpoint refuses a file whose pickle holds an
-    object beyond tensors and plain values, which `torch.load`'s default
-    `weights_only=True` unpickles alone.
+    Asserts that reading a checkpoint refuses a file whose `agent.pt` member
+    holds an object beyond tensors and plain values, which `torch.load`'s
+    default `weights_only=True` unpickles alone.
     """
-    save({"online": Path("online.pt")}, tmp_path / "checkpoint.pt")
+    pack({"online": Path("online.pt")}, tmp_path / "checkpoint.npz")
 
     with raises(UnpicklingError, match="Weights only load failed"):
-        Checkpoint.from_path(tmp_path / "checkpoint.pt")
+        Checkpoint.from_path(tmp_path / "checkpoint.npz")
+
+
+def test_a_write_interrupted_partway_leaves_the_last_checkpoint_as_it_was(
+    monkeypatch : MonkeyPatch,
+    tmp_path    : Path
+):
+    """
+    Asserts that an interrupt landing while a checkpoint writes replay
+    memory's arrays leaves the checkpoint at its path as the last write left
+    it, and no partial file beside it.
+    """
+    checkpoint = Checkpoint(
+        exploration = {},
+        online      = {},
+        optimizer   = {},
+        replay      = {"actions": zeros(4, "int64")},
+        sampling    = {},
+        step        = 3,
+        target      = {}
+    )
+    checkpoint.save(tmp_path / "checkpoint.npz")
+    written = (tmp_path / "checkpoint.npz").read_bytes()
+
+    def interrupt(*_: object):
+        """
+        Stands in for an interrupt landing during the write of an array.
+        """
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("squirtl.agent.schemas.save_npy", interrupt)
+
+    with raises(KeyboardInterrupt):
+        checkpoint.model_copy(update={"step": 4}).save(tmp_path / "checkpoint.npz")
+
+    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
+    assert (tmp_path / "checkpoint.npz").read_bytes() == written
 
 
 @mark.parametrize(
@@ -159,8 +238,8 @@ def test_a_checkpoint_refuses_a_network_entry_that_is_no_tensor(
     Asserts that reading a checkpoint refuses a file whose online or target
     network holds a list where a tensor goes, naming that entry.
     """
-    save(
-        {
+    pack(
+        agent = {
             "step"        : 0,
             "exploration" : {},
             "online"      : {},
@@ -169,11 +248,11 @@ def test_a_checkpoint_refuses_a_network_entry_that_is_no_tensor(
             "target"      : {}
         }
         | {network: {"weight": [1.0, 2.0]}},
-        tmp_path / "checkpoint.pt"
+        path = tmp_path / "checkpoint.npz"
     )
 
     with raises(ValidationError, match=rf"{network}\.weight"):
-        Checkpoint.from_path(tmp_path / "checkpoint.pt")
+        Checkpoint.from_path(tmp_path / "checkpoint.npz")
 
 
 @mark.parametrize(

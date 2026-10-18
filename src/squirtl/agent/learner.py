@@ -17,7 +17,7 @@ from torch.random        import fork_rng
 
 from squirtl.agent.networks import QNetwork
 from squirtl.agent.replay   import Replay
-from squirtl.agent.schemas  import AgentSettings, Checkpoint
+from squirtl.agent.schemas  import AgentSettings, Checkpoint, Update
 
 
 class Agent:
@@ -62,13 +62,15 @@ class Agent:
     @property
     def checkpoint(self) -> Checkpoint:
         """
-        Gathers the state a resumed run continues training from, holding the
-        networks' own `state_dict`s and the optimizer's tensors uncopied.
+        Gathers the state a resumed run continues training from, holding
+        the networks' own `state_dict`s, the optimizer's tensors, and replay
+        memory's arrays uncopied.
         """
         return Checkpoint(
             exploration = self.exploration.bit_generator.state,
             online      = self.online.state_dict(),
             optimizer   = self.optimizer.state_dict(),
+            replay      = self.replay.arrays,
             sampling    = self.replay.generator.bit_generator.state,
             step        = self.step,
             target      = self.target.state_dict()
@@ -135,33 +137,39 @@ class Agent:
     def restore(self, checkpoint: Checkpoint):
         """
         Loads `checkpoint` into both networks, the optimizer, the step
-        count, and both generators, in place, so the optimizer keeps
-        stepping the parameters of the network the checkpoint loads into.
+        count, both generators, and replay memory, in place, so the
+        optimizer keeps stepping the parameters of the network the
+        checkpoint loads into.
         """
         self.exploration.bit_generator.state      = checkpoint.exploration
         self.replay.generator.bit_generator.state = checkpoint.sampling
         self.step = checkpoint.step
         self.online.load_state_dict(checkpoint.online)
         self.optimizer.load_state_dict(checkpoint.optimizer)
+        self.replay.load(checkpoint.replay)
         self.target.load_state_dict(checkpoint.target)
 
-    def update(self):
+    def update(self) -> Update | None:
         """
         Takes one gradient step on the Huber loss between the online
         network's values for a batch and the target network's targets, its
         gradient's norm clipped at `max_grad_norm`, and none before replay
         memory holds a batch.
+
+        Returns:
+            The loss and the mean value the step read, or `None` where
+            replay memory holds too few transitions to draw a batch.
         """
         if len(self.replay) < self.settings.batch_size:
-            return
+            return None
 
-        batch = self.replay.sample(self.settings.device, self.settings.batch_size)
-        loss  = huber_loss(
-            batch.values(self.online),
-            batch.targets(self.settings.discount, self.target)
-        )
+        batch  = self.replay.sample(self.settings.device, self.settings.batch_size)
+        values = batch.values(self.online)
+        loss   = huber_loss(values, batch.targets(self.settings.discount, self.target))
 
         self.optimizer.zero_grad()
         loss.backward()
         clip_grad_norm_(self.online.parameters(), self.settings.max_grad_norm)
         self.optimizer.step()
+
+        return Update(loss=loss.item(), value=values.mean().item())

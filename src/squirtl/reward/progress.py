@@ -1,6 +1,7 @@
 """
-Defines `Progress`, the positions an episode has reached and the flags set
-in it, which scores each step and lays both out for the observation.
+Defines `Progress`, the positions an episode has reached, the flags set in
+it, and the terms its steps have earned, which scores each step and lays the
+positions and flags out for the observation.
 """
 
 from collections import Counter
@@ -13,8 +14,9 @@ from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Ter
 class Progress:
     """
     The progress one episode has made toward the starter, meaning each
-    position reached, the one the player stands on, and each `Event` flag
-    set, against which `score` pays each step.
+    position reached, the one the player stands on, each `Event` flag set,
+    and how often its steps have earned each term, against which `score`
+    pays each step.
     """
 
     def __init__(self, game_boy: GameBoy, settings: RewardSettings):
@@ -22,6 +24,7 @@ class Progress:
         Records the position the player starts the episode on and each flag
         already set, neither of which a step earns.
         """
+        self.earned    = Counter()
         self.events    = Event.read(game_boy)
         self.game_boy  = game_boy
         self.position  = Position.read(game_boy)
@@ -35,6 +38,14 @@ class Progress:
         the order `Event` declares them, in the `int8` `MultiBinary` holds.
         """
         return array([event in self.events for event in Event], int8)
+
+    @property
+    def shares(self) -> dict[Term, float]:
+        """
+        Totals each term's part of the reward the episode's steps have
+        earned, as `RewardSettings.shares` pays the count of each.
+        """
+        return self.settings.shares(self.earned)
 
     def grid(self, size: int) -> ndarray:
         """
@@ -64,7 +75,7 @@ class Progress:
         Reads the position the player stands on and the flags set once a
         step has run, paying novelty where the episode has not reached that
         position before and each flag's term for each flag first set, then
-        records both.
+        records the position, the flags, and the terms earned.
         """
         self.position = Position.read(self.game_boy)
         reached       = Event.read(self.game_boy) - self.events
@@ -72,6 +83,7 @@ class Progress:
 
         earned[Term.NOVELTY] += self.position not in self.positions
         self.events          |= reached
+        self.earned.update(earned)
         self.positions.add(self.position)
 
         return Score(

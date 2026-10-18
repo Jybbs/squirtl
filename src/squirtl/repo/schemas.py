@@ -1,8 +1,11 @@
 """
 Defines the records the `repo:labels` and `repo:rulesets` tasks read from
-the registries under `.github/` and from `pyproject.toml`, each built on the
-`Schema` that `squirtl.repo.github` defines and each registry deriving the
-`Plan` that brings GitHub in line with it:
+the registries under `.github/` and from `pyproject.toml`, each a `Record`
+and each registry deriving the `Plan` that brings GitHub in line with it. A
+registry's record refuses a key no field declares, so a misspelled key fails
+the read before anything is sent, whereas `GithubRuleset` and `Project`,
+read from what GitHub and the manifest return, ignore the keys they do
+not read:
 
 - `Registry`, the base of a registry one TOML file holds, and `Endpoint`,
   the base of a table sent whole as the body of a `PUT`
@@ -20,10 +23,11 @@ from pydantic        import Field, HttpUrl, JsonValue, StringConstraints
 from tomllib         import loads
 from typing          import Annotated, ClassVar, Literal, Self
 
-from squirtl.repo.github import Command, Plan, Schema
+from squirtl.emulator.schemas import Record
+from squirtl.repo.github      import Command, Plan
 
 
-class Dependabot(Schema):
+class Dependabot(Record):
     """
     The `[dependabot]` table, keyed by the endpoint each setting turns on
     through `PUT` or off through `DELETE`.
@@ -55,7 +59,7 @@ class Dependabot(Schema):
         )
 
 
-class Endpoint(Schema):
+class Endpoint(Record):
     """
     The base of a table sent whole as the body of the `PUT` to `path` under
     the repository.
@@ -71,7 +75,7 @@ class Endpoint(Schema):
         return Command.api(self.path, body=self.model_dump(), method=HTTPMethod.PUT)
 
 
-class Feature(Schema):
+class Feature(Record):
     """
     One feature `security_and_analysis` turns on or off.
     """
@@ -82,7 +86,7 @@ class Feature(Schema):
     """
 
 
-class GithubRuleset(Schema, extra="ignore"):
+class GithubRuleset(Record, extra="ignore"):
     """
     One ruleset GitHub's listing of the repository's rulesets returns, read
     for its id and its name.
@@ -99,7 +103,7 @@ class GithubRuleset(Schema, extra="ignore"):
     """
 
 
-class Label(Schema):
+class Label(Record):
     """
     One row of the label registry.
     """
@@ -133,7 +137,7 @@ class Label(Schema):
         )
 
 
-class Project(Schema, extra="ignore"):
+class Project(Record, extra="ignore"):
     """
     The `[project]` table of `file`, read for the fields the repository's
     settings take from it.
@@ -200,7 +204,7 @@ class Project(Schema, extra="ignore"):
         )
 
 
-class Registry(Schema):
+class Registry(Record):
     """
     The base of a registry one TOML file under `.github/` holds whole, which
     `read` validates into the record.
@@ -216,7 +220,7 @@ class Registry(Schema):
         return cls.model_validate(loads(cls.file.read_text(encoding="utf-8")))
 
 
-class Ruleset(Schema):
+class Ruleset(Record):
     """
     One ruleset a file under `.github/rulesets/` declares, as the body of
     the request that creates or updates it.
@@ -272,7 +276,7 @@ class Ruleset(Schema):
         )
 
 
-class Repository(Schema):
+class Repository(Record):
     """
     The `[repository]` table, the body of the request that updates the
     repository's features, merge settings, and security features.
@@ -433,7 +437,7 @@ class Labels(Registry):
         )
 
 
-class Rulesets(Schema):
+class Rulesets(Record):
     """
     The rulesets the files under `directory` declare.
     """
@@ -487,7 +491,7 @@ class Rulesets(Schema):
         )
 
 
-class SecurityAndAnalysis(Schema):
+class SecurityAndAnalysis(Record):
     """
     The `[repository.security_and_analysis]` table, holding the secret
     scanning features the repository runs.
