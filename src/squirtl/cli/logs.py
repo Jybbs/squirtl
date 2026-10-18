@@ -57,11 +57,11 @@ def refusing(*errors: type[Exception]) -> Iterator[None]:
                     match detail:
                         case {"ctx": {"error": Exception() as raised}}:
                             logger.error("{}", raised)
-                        case {"loc": location, "msg": message}:
+                        case _:
                             logger.error(
                                 "{}: {}",
-                                ".".join(map(str, (error.title, *location))),
-                                message
+                                ".".join(map(str, (error.title, *detail["loc"]))),
+                                detail["msg"]
                             )
             case _: logger.error("{}", error)
 
