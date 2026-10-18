@@ -307,8 +307,8 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
     each episode logs repeats as label and value pairs, the first episode
     stepping onto a new square on its second step and reaching the starter
     on its third. The chance falls by 0.05 a step and the novelty pays
-    0.0625, so no value the line logs sits on a tie at the places it rounds
-    to, where the last bit of the float would set the digit logged.
+    0.0625, leaving each value the line logs clear of a tie at the places it
+    rounds to.
     """
     reward = RewardSettings(novelty=0.0625)
     built  = trainer(
