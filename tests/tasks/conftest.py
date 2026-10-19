@@ -29,8 +29,8 @@ def confine_mise(monkeypatch: MonkeyPatch) -> Callable[[Path, Path], None]:
     def confine(root: Path, stand_ins: Path):
         """
         Sets `MISE_CEILING_PATHS` to the parent of `root`,
-        `MISE_TRUSTED_CONFIG_PATHS` to `root`, and the path to `stand_ins`,
-        the directory holding `mise`, `/usr/bin`, and `/bin`.
+        `MISE_TRUSTED_CONFIG_PATHS` to `root`, and `PATH` to `stand_ins`
+        followed by the directory holding `mise`, `/usr/bin`, and `/bin`.
         """
         monkeypatch.setenv("MISE_CEILING_PATHS", str(root.parent))
         monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", str(root))

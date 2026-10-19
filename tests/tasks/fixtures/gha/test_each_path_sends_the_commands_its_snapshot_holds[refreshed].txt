@@ -1,3 +1,3 @@
 gh api repos/{owner}/{repo}/releases/generate-notes --raw-field tag_name=0.2.0 --raw-field target_commitish=main
 gh api repos/{owner}/{repo}/releases/1 --method PATCH --input -
-{"body": "Context above.\n\n<!-- Release notes generated using configuration in .github/release.yml at main -->\n\n* Later\n"}
+{"body": "Context above.\n\n<!-- Release notes generated using configuration in .github/release.yml at main -->\n\n* Later\n", "tag_name": "0.2.0"}

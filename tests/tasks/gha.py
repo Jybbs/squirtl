@@ -357,7 +357,7 @@ def test_a_failed_gh_call_stops_the_task_with_what_gh_reported(
 
     with raises(
         SystemExit,
-        match = "^::error::gh release create failed, HTTP 422: Validation Failed$"
+        match = r"^::error::gh release create failed, HTTP 422: Validation Failed\Z"
     ):
         draft().maintain()
 
@@ -694,9 +694,9 @@ def test_each_path_sends_the_commands_its_snapshot_holds(
     """
     Pins every command `Draft.maintain` sends GitHub where no release
     carries the version and where a draft does, followed by the body the
-    refresh writes. That body keeps the context above the comment and
-    replaces the notes below it, and each path writes its name, the address,
-    and the version to the step's outputs.
+    refresh writes. That body keeps the context above the comment, replaces
+    the notes below it, and resends the release's tag, and each path writes
+    its name, the address, and the version to the step's outputs.
     """
     written = []
 

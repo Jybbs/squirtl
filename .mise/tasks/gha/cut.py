@@ -66,11 +66,10 @@ class Release:
         """
         Replaces everything below the release's context with the notes
         GitHub generates for its tag against the branch the release targets
-        as it stands, leaving the context as it was.
+        as it stands, leaving the context and the tag as they were.
 
         Returns:
-            The release's address, which GitHub changes on every edit of a
-            draft.
+            The release's address as the edit leaves it.
         """
         notes = loads(
             github(
@@ -83,6 +82,7 @@ class Release:
             )
         )["body"]
 
+        # An update omitting `tag_name` removes the release's tag, as gh's edit notes.
         return loads(
             github(
                 "api",
@@ -91,7 +91,7 @@ class Release:
                 "PATCH",
                 "--input",
                 "-",
-                body = dumps({"body": self.context + notes})
+                body = dumps({"body": self.context + notes, "tag_name": self.tag_name})
             )
         )["html_url"]
 
@@ -110,7 +110,7 @@ class Draft:
     def release(self) -> Release | None:
         """
         Finds the release carrying the version, a published one ahead of a
-        draft, since GitHub lets a draft share its tag with any release.
+        draft sharing its tag.
 
         Returns:
             That release, or `None` where no release carries the version.
