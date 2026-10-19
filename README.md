@@ -34,6 +34,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise run gha:lint` | *Audits the workflows and the composite action under `.github/` through zizmor* |
 | `mise labels` | *Writes each label `.github/labels.toml` declares that GitHub lacks or carries under another color or description once you confirm it, and lists each live label the registry leaves out* |
 | `mise rulesets` | *Applies the rulesets under `.github/rulesets/`, then the repository settings `.github/settings.toml` declares, once you confirm them* |
+| `mise bump` | *Moves the version to the next minor release, or to the next patch release under `mise bump patch`, in `pyproject.toml`, `uv.lock`, and `CITATION.cff`* |
 | `mise ci` | *Runs the lockfile check, the workflow audit, the formatter's check, and the suite under coverage in one sweep* |
 
 ## Reinforcement Learning

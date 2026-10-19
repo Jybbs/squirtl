@@ -1,0 +1,56 @@
+name        : 🕹️ Draft
+run-name    : 🕹️ Draft · ${{ github.ref_name }}
+cache-mode  : read
+permissions : { contents: read }
+
+on:
+  push:
+    branches: [main]
+
+  workflow_dispatch:
+
+concurrency:
+  cancel-in-progress : false
+  group              : ${{ github.workflow }}
+
+jobs:
+  draft:
+    name            : 🛳️ Draft
+    cache-mode      : none
+    permissions     : { contents: write }
+    runs-on         : &runner ubuntu-26.04
+    timeout-minutes : &timeout 15
+
+    outputs:
+      state   : ${{ steps.cut.outputs.state }}
+      url     : ${{ steps.cut.outputs.url }}
+      version : ${{ steps.cut.outputs.version }}
+
+    steps:
+      - &checkout
+        name : Check out the repository
+        uses : actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with : { persist-credentials: false }
+
+      - name : Create or refresh the draft release for the version
+        env  : { GH_TOKEN: "${{ github.token }}" }
+        id   : cut
+        run  : .mise/tasks/gha/cut.py
+
+  brief:
+    name            : 🎒 Brief
+    if              : always()
+    needs           : draft
+    runs-on         : *runner
+    timeout-minutes : *timeout
+
+    steps:
+      - *checkout
+
+      - name : Provision the tools the summary reads
+        uses : $/.github/actions/provision
+        with : { tools: python uv }
+
+      - name : Write the summary and exit with the verdict
+        env  : { NEEDS: "${{ toJSON(needs) }}" }
+        run  : mise run gha:brief
