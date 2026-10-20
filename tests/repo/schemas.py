@@ -337,14 +337,20 @@ def test_command_lines_join_continued_lines_and_drop_comments():
     keyed by the line it opens on, a line ending in a backslash joined to
     the next, a comment and a blank line left out, each of `(`, `)`, and
     `&&` standing as a word of its own, and a quoted substitution followed
-    by the words of the command inside it.
+    by the words of the command inside it up to the `)` closing it, so a
+    quote after that `)` is never read as the command's.
     """
     assert command_lines(
         'set -e  # strict\n\nx=$(uv run a) && \\\n  b "c d"\nv="$(uv run b)"\n'
+        'echo "$(git rev-parse HEAD) is the head\'s commit"\n'
     ) == {
         1 : ("set", "-e"),
         3 : ("x=$", "(", "uv", "run", "a", ")", "&&", "b", "c d"),
-        5 : ("v=$(uv run b)", "uv", "run", "b", ")")
+        5 : ("v=$(uv run b)", "uv", "run", "b"),
+        6 : (
+            "echo", "$(git rev-parse HEAD) is the head's commit", "git",
+            "rev-parse", "HEAD"
+        )
     }
 
 
@@ -398,6 +404,14 @@ def test_command_lines_join_continued_lines_and_drop_comments():
             2,
             "Reading `.github/rulesets/main.json` fails with 'Expecting value",
             id = "json"
+        ),
+        param(
+            "a.yml",
+            "jobs:\n  a:\n    steps:\n      - run: echo it's\n",
+            lambda: Workflow.from_path(Path("a.yml")),
+            None,
+            "Reading `a.yml` fails with 'No closing quotation'",
+            id = "a-step-script"
         )
     ]
 )
@@ -887,7 +901,14 @@ def test_a_step_reads_the_task_its_env_names(
             id = "included-again"
         ),
         param("paths-ignore: ['docs/**']", "docs/a.md", False, id="ignored"),
-        param("paths-ignore: ['docs/**']", "src/a.py", True, id="not-ignored")
+        param("paths-ignore: ['docs/**']", "src/a.py", True, id="not-ignored"),
+        param("paths: ['docs/a.md']", "docs/abmd", False, id="a-literal-dot"),
+        param(
+            "paths-ignore: ['docs/**', '*.md']",
+            "docs/a.py",
+            False,
+            id = "ignored-by-one"
+        )
     ]
 )
 def test_a_push_filter_reads_each_pattern_as_github_does(

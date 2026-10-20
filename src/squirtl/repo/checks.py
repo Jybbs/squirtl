@@ -976,8 +976,13 @@ class Warming(Check):
             for file in sorted(built) if saving else []:
                 if not workflow.pushes(file):
                     yield Finding(
-                        file    = workflow.path,
-                        line    = (on.at("push", "paths") or on).line,
+                        file = workflow.path,
+                        line = (
+                            on.at("push", "paths") or on.at(
+                                "push",
+                                "paths-ignore"
+                            ) or on
+                        ).line,
                         message = (
                             f"`{workflow.path}` saves a cache keyed on `{file}`, "
                             "which its push filter leaves out"

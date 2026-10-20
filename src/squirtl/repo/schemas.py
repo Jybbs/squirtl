@@ -2,7 +2,8 @@
 Defines the records the `repo` tasks read from the files of the checkout,
 each built on the `Schema` that `squirtl.repo.github` defines:
 
-- `TomlFile` and `YamlFile`, the bases of a record one file holds, and
+- `TomlFile` and `YamlFile`, the bases of a record one file holds,
+  `StepFile`, the base of a YAML file whose steps run scripts, and
   `Endpoint`, the base of a table sent whole as the body of a `PUT`
 - The registries under `.github/` and `Project`, each registry deriving the
   `Plan` that brings GitHub in line with it
@@ -12,6 +13,7 @@ each built on the `Schema` that `squirtl.repo.github` defines:
   `Workflow`, `Script`, and the `Tree` and `Tasks` that git and mise list
 """
 
+from abc             import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib      import contextmanager
 from enum            import StrEnum, auto
@@ -102,9 +104,9 @@ def shell_words(text: str) -> Iterator[str]:
     """
     Splits one shell command line into its words, each of `;`, `&&`, `|`,
     `(`, and the like standing as a word of its own, and follows each word
-    holding a `$(` with the words of the command after it, so a command
-    inside a quoted substitution, which stays one word, starts on a word of
-    its own too.
+    holding a `$(` with the words of the command inside it, up to the `)`
+    closing it, so a command inside a quoted substitution, which stays one
+    word, starts on a word of its own too.
 
     Raises:
         ValueError: Where a quote opens and never closes.
@@ -116,7 +118,16 @@ def shell_words(text: str) -> Iterator[str]:
         yield word
 
         if "$(" in word:
-            yield from shell_words(word.partition("$(")[2])
+            depth = 1
+
+            for inner in shell_words(word.partition("$(")[2]):
+                if not inner.strip("();<>|&"):
+                    depth += inner.count("(") - inner.count(")")
+
+                if depth < 1:
+                    break
+
+                yield inner
 
 
 def admits(file: Path, pattern: str) -> bool:
@@ -1842,7 +1853,37 @@ class Templates(Schema):
         return cls(templates=Template.matching("*.md"))
 
 
-class Action(YamlFile):
+class StepFile(YamlFile, ABC):
+    """
+    The base of a YAML file whose steps run shell scripts, which `from_path`
+    splits as it reads the file, so a script that fails to split fails the
+    read rather than a check.
+    """
+
+    @property
+    @abstractmethod
+    def steps(self) -> list[WorkflowStep]:
+        """
+        Lists each step the file runs, in order.
+        """
+
+    @classmethod
+    def from_path(cls, path: Path) -> Self:
+        """
+        Reads the file at `path` as `YamlFile` reads it, then splits the
+        script of each step, raising `Unreadable` where a script fails to
+        split.
+        """
+        record = super().from_path(path)
+
+        with Finding.reading(path):
+            for step in record.steps:
+                step.commands
+
+        return record
+
+
+class Action(StepFile):
     """
     One action manifest under `directory`, read for the inputs it declares
     and the steps a composite action runs.
@@ -2004,7 +2045,7 @@ class Actions(Schema):
         return cls(actions=Action.matching("*/action.yml", "*/action.yaml"))
 
 
-class Workflow(YamlFile):
+class Workflow(StepFile):
     """
     One workflow under `directory`, read for its triggers and its jobs.
     """
@@ -2029,6 +2070,13 @@ class Workflow(YamlFile):
         Tells whether a pull request runs the workflow.
         """
         return "pull_request" in self.triggers
+
+    @property
+    def steps(self) -> list[WorkflowStep]:
+        """
+        Lists each step a job of the workflow runs, job by job.
+        """
+        return [step for job in self.jobs for step in job.steps]
 
     @property
     def triggers(self) -> dict[str, Block | None]:
@@ -2104,7 +2152,11 @@ class Workflows(Schema):
         Pairs each step a job of a workflow runs with the workflow declaring
         it.
         """
-        return [(path, step) for path, job in self.jobs for step in job.steps]
+        return [
+            (workflow.path, step)
+            for workflow in self.workflows
+            for step in workflow.steps
+        ]
 
     @classmethod
     def read(cls) -> Self:

@@ -756,6 +756,11 @@ def test_rows_leave_out_the_rows_of_a_workflow_no_pull_request_runs(
                 (2, ".mise/mise.lock")
             ],
             id = "no-push"
+        ),
+        param(
+            "on:\n  push:\n    paths-ignore: [.mise/**]",
+            [(4, ".mise/config.toml"), (4, ".mise/mise.lock")],
+            id = "ignored"
         )
     ]
 )
@@ -1190,8 +1195,10 @@ def test_scripts_hold_each_uv_run_a_toml_task_starts(
     checkout(
         {
             ".mise/config.toml": (
+                '[tasks."py:w"]\nrun = "uv run --exact --locked w"\n\n'
                 '[tasks."py:x"]\n'
-                'run = ["uv run --exact --locked a", "uv run b", { task = "py:y" }]\n'
+                'run = ["uv run --exact --locked a", "uv run --exact b", '
+                '{ task = "py:y" }]\n'
             ),
             "pyproject.toml" : manifest,
             "uv.lock"        : '[[package]]\nname = "minijinja"\nversion = "2.24.0"\n'
@@ -1200,13 +1207,13 @@ def test_scripts_hold_each_uv_run_a_toml_task_starts(
     task = Task(
         depends = [],
         name    = "py:x",
-        run     = ["uv run --exact --locked a", "uv run b", {"task": "py:y"}],
+        run     = ["uv run --exact --locked a", "uv run --exact b", {"task": "py:y"}],
         source  = Path(".mise/config.toml").absolute()
     )
 
     assert scan(ScriptCheck, {}, Tasks(issues=[], tasks=[task])) == [
         (
-            ".mise/config.toml", 2,
+            ".mise/config.toml", 5,
             "`uv run` in the task `py:x` opens on no `--exact --locked`"
         )
     ]
