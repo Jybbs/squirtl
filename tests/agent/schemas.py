@@ -9,19 +9,21 @@ Pins the records the agent reads and writes, covering:
   and plain values or a network entry that is no tensor
 - The `.npz` a checkpoint is written as, each member compressed with zstd,
   the checkpoint an interrupted write leaves as it was, the partial file a
-  killed one leaves, a file cut short, which it refuses naming it, and the
-  flush that writes it through the drive's cache
+  killed one leaves, a file cut short or holding a damaged zstd frame,
+  which it refuses naming it, the flush that writes it through the drive's
+  cache, and the archive a save flushes whole before the directory
 - The weights read from a checkpoint's `agent.pt` member alone
 """
 
 from collections.abc import Callable
 from numpy           import load as load_npz, zeros
 from numpy.testing   import assert_array_equal
-from os              import truncate
+from os              import fstat, truncate
 from pathlib         import Path
 from pickle          import UnpicklingError
 from pydantic        import ValidationError
 from pytest          import MonkeyPatch, mark, param, raises
+from stat            import S_ISDIR
 from torch           import arange, device, equal, save, tensor, uint8
 from torch.nn        import Linear
 from zipfile         import ZIP_ZSTANDARD, ZipFile
@@ -312,15 +314,35 @@ def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path)
         Checkpoint.from_path(tmp_path / "checkpoint.npz")
 
 
-def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
+def test_a_save_flushes_the_whole_archive_then_the_directory_it_lands_in(
+    monkeypatch : MonkeyPatch,
+    tmp_path    : Path
+):
     """
-    Asserts that a save beside the `.partial` file a killed save left behind
-    writes over it and leaves the checkpoint alone in its directory.
+    Asserts that a save flushes the `.partial` file through the drive's
+    cache once the archive's end record is written, the file then taking the
+    checkpoint's path with no byte past what was flushed, and then flushes
+    the directory the checkpoint lands in.
     """
-    (tmp_path / "checkpoint.npz.partial").write_bytes(b"left by a killed save")
-    blank().save(tmp_path / "checkpoint.npz")
+    flushed     = []
+    directories = []
+    monkeypatch.setattr(
+        "squirtl.agent.schemas.flush",
+        lambda descriptor: flushed.append(
+            (fstat(descriptor).st_ino, fstat(descriptor).st_size)
+        )
+    )
+    monkeypatch.setattr(
+        "squirtl.agent.schemas.fsync",
+        lambda descriptor: directories.append(S_ISDIR(fstat(descriptor).st_mode))
+    )
+    path = tmp_path / "checkpoint.npz"
+    blank(replay={"actions": zeros(4, "int64")}, step=3).save(path)
 
-    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
+    assert (flushed, directories) == (
+        [(path.stat().st_ino, path.stat().st_size)],
+        [True]
+    )
 
 
 @mark.parametrize(
@@ -349,6 +371,17 @@ def test_a_damaged_checkpoint_is_refused_naming_its_file(
         Checkpoint.from_path(path)
 
 
+def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
+    """
+    Asserts that a save beside the `.partial` file a killed save left behind
+    writes over it and leaves the checkpoint alone in its directory.
+    """
+    (tmp_path / "checkpoint.npz.partial").write_bytes(b"left by a killed save")
+    blank().save(tmp_path / "checkpoint.npz")
+
+    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
+
+
 def test_a_write_interrupted_partway_leaves_the_last_checkpoint_as_it_was(
     monkeypatch : MonkeyPatch,
     tmp_path    : Path
@@ -375,34 +408,6 @@ def test_a_write_interrupted_partway_leaves_the_last_checkpoint_as_it_was(
 
     assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
     assert (tmp_path / "checkpoint.npz").read_bytes() == written
-
-
-def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
-    tmp_path: Path
-):
-    """
-    Asserts that `Weights` reads the online network and the step from a
-    checkpoint's `agent.pt` member alone, even where a member of replay
-    memory holds an array header cut short, which `Checkpoint` refuses to
-    read.
-    """
-    agent = {
-        "step"        : 12,
-        "online"      : {"weight": tensor([1.0, 2.0])},
-        "exploration" : {},
-        "optimizer"   : {},
-        "sampling"    : {},
-        "target"      : {}
-    }
-
-    pack(agent, tmp_path / "checkpoint.npz", **{"actions.npy": b"\x93NUMPY\x01\x00"})
-
-    weights = Weights.from_path(tmp_path / "checkpoint.npz")
-
-    assert (weights.online["weight"].tolist(), weights.step) == ([1.0, 2.0], 12)
-
-    with raises(ValueError):
-        Checkpoint.from_path(tmp_path / "checkpoint.npz")
 
 
 @mark.parametrize(
@@ -440,3 +445,31 @@ def test_a_flush_takes_f_fullfsync_where_fcntl_has_it_and_fsync_elsewhere(
     flush(7)
 
     assert calls == [call]
+
+
+def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
+    tmp_path: Path
+):
+    """
+    Asserts that `Weights` reads the online network and the step from a
+    checkpoint's `agent.pt` member alone, even where a member of replay
+    memory holds an array header cut short, which `Checkpoint` refuses to
+    read.
+    """
+    agent = {
+        "step"        : 12,
+        "online"      : {"weight": tensor([1.0, 2.0])},
+        "exploration" : {},
+        "optimizer"   : {},
+        "sampling"    : {},
+        "target"      : {}
+    }
+
+    pack(agent, tmp_path / "checkpoint.npz", **{"actions.npy": b"\x93NUMPY\x01\x00"})
+
+    weights = Weights.from_path(tmp_path / "checkpoint.npz")
+
+    assert (weights.online["weight"].tolist(), weights.step) == ([1.0, 2.0], 12)
+
+    with raises(ValueError):
+        Checkpoint.from_path(tmp_path / "checkpoint.npz")

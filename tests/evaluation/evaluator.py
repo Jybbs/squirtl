@@ -6,7 +6,8 @@ Pins how `Evaluator` plays an evaluation's episodes, covering:
 - The episodes of the random baseline and of the agent played across worker
   processes on PyBoy, and a worker ignoring the interrupt signal
 - The policy taking the network's action or a random one from each
-  environment's seeded action space
+  environment's seeded action space, at the epsilon the settings name for
+  the agent, leaving PyTorch's global generator as it found it
 """
 
 from collections.abc   import Callable

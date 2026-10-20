@@ -9,6 +9,8 @@ Pins the records one run reads and writes, covering:
 - The seed each stream derives from the run's one seed
 - The revision read from a clone, what marks it dirty, and the output it
   refuses
+- An append cutting an unfinished last line with a warning, and a sync
+  handing `flush` the file it writes through
 - The directory a run creates under `data/runs/`, the record it writes
   there, and the run a resumed one names
 - The paths a run keeps in its directory, a run read back from it or from
@@ -599,34 +601,43 @@ def test_a_log_ending_short_of_a_checkpoint_within_the_run_is_refused(
         run.ended_by(step)
 
 
-def test_an_append_cuts_the_unfinished_last_line_before_writing(
+@mark.parametrize(
+    ("kept", "tail", "cut"),
+    [
+        param(1, "",        False, id="a-whole-last-line"),
+        param(1, '{"outco', True,  id="an-unfinished-last-line"),
+        param(0, "{",       True,  id="an-unfinished-line-alone")
+    ]
+)
+def test_an_append_cuts_an_unfinished_last_line_alone(
+    cut      : bool,
+    kept     : int,
     logged   : list[str],
     run      : Run,
+    tail     : str,
     tmp_path : Path
 ):
     """
     Asserts that appending an evaluation to a file whose last line a run
     that stopped while writing it left unfinished cuts that line, with a
-    warning naming the file, so the file reads back as the evaluation it
-    held before and the one appended.
+    warning naming the file, and leaves a file ending on a whole line as
+    it was, so the file reads back as the evaluations it held whole and the
+    one appended.
     """
     path = tmp_path / "evaluations.jsonl"
     path.write_text(
-        f'{played([0.1], 12).model_dump_json()}\n{{"outco',
+        f"{played([0.1], 12).model_dump_json()}\n" * kept + tail,
         encoding = "utf-8"
     )
     run.append(path, played([0.2], 20))
 
     assert (
-        [evaluation.step for evaluation in map(
-            Evaluation.model_validate_json,
-            (
-                path.read_text(encoding="utf-8")
-                    .splitlines()
-            )
-        )],
+        [
+            Evaluation.model_validate_json(line).step
+            for line in path.read_text(encoding="utf-8").splitlines()
+        ],
         logged
-    ) == ([12, 20], [f"Cutting the unfinished last line of {path}"])
+    ) == ([12] * kept + [20], [f"Cutting the unfinished last line of {path}"] * cut)
 
 
 def test_each_stream_seed_fits_in_64_unsigned_bits():
