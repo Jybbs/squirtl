@@ -100,13 +100,15 @@ def test_a_block_reads_only_the_shape_its_node_holds():
     """
     Pins that a block holding a scalar reads no fields and no entries, one
     holding a mapping no entries, and one holding a sequence no fields, and
-    that `get` falls back to its default for a missing key.
+    that `get` falls back to its default for a missing key and for a key
+    holding null.
     """
-    block = Block(node=compose("a: [1]\nb: c\n"))
+    block = Block(node=compose("a: [1]\nb: c\nn:\n"))
 
     assert (block.entries(), block.fields("b"), block.fields("a")) == ([], {}, {})
     assert block.get("a") == [1]
     assert block.get("z", default=0) == 0
+    assert block.get("n", default=[]) == []
     assert block.at("b", "c") is None
 
 
@@ -333,12 +335,16 @@ def test_command_lines_join_continued_lines_and_drop_comments():
     """
     Pins that a shell script splits into the words of each command line,
     keyed by the line it opens on, a line ending in a backslash joined to
-    the next, a comment and a blank line left out, and each of `$(` and `&&`
-    standing as a word of its own.
+    the next, a comment and a blank line left out, each of `(`, `)`, and
+    `&&` standing as a word of its own, and a quoted substitution followed
+    by the words of the command inside it.
     """
-    assert command_lines('set -e  # strict\n\nx=$(uv run a) && \\\n  b "c d"\n') == {
+    assert command_lines(
+        'set -e  # strict\n\nx=$(uv run a) && \\\n  b "c d"\nv="$(uv run b)"\n'
+    ) == {
         1 : ("set", "-e"),
-        3 : ("x=$", "(", "uv", "run", "a", ")", "&&", "b", "c d")
+        3 : ("x=$", "(", "uv", "run", "a", ")", "&&", "b", "c d"),
+        5 : ("v=$(uv run b)", "uv", "run", "b", ")")
     }
 
 
@@ -376,6 +382,22 @@ def test_command_lines_join_continued_lines_and_drop_comments():
             None,
             'Reading `b.yml` fails with "[Errno 2]',
             id = "missing"
+        ),
+        param(
+            "a.yml",
+            "a: !custom b\n",
+            lambda: YamlFile.from_path(Path("a.yml")),
+            1,
+            "Reading `a.yml` fails with 'could not determine a constructor",
+            id = "an-unknown-tag"
+        ),
+        param(
+            ".github/rulesets/main.json",
+            '{\n"name": ,\n}\n',
+            Rulesets.read,
+            2,
+            "Reading `.github/rulesets/main.json` fails with 'Expecting value",
+            id = "json"
         )
     ]
 )
@@ -790,30 +812,34 @@ def test_the_tasks_read_mise_s_report_even_where_validation_fails(
     ).file == Path("../mise.toml")
 
 
-def test_the_tree_lists_every_file_git_lists_that_the_checkout_holds(
-    checkout : Callable[[Mapping[str, str]], None],
-    fp       : FakeProcess
-):
+def test_the_tasks_split_the_scripts_a_toml_task_runs(fp: FakeProcess):
     """
-    Pins that the tree reads git's listing of tracked and untracked files
-    not ignored, in sorted order, leaving out a file git tracks that the
-    working tree no longer holds, and that a failing listing is unreadable.
+    Pins that the tasks split each script a task declared in TOML runs into
+    its command lines, reading nothing from a step naming another task, and
+    are unreadable where a script's quote never closes.
     """
-    checkout({"a/c.toml": "", "b.py": ""})
+    listing = [{
+        "name"    : "py:x",
+        "source"  : "/c.toml",
+        "depends" : [],
+        "run"     : []
+    }]
+
+    fp.register(["mise", "tasks", "validate", fp.any()], stdout='{"issues": []}')
     fp.register(
-        [
-            "git", "ls-files", "--cached", "--deduplicate",
-            "--exclude-standard", "--others", "-z"
-        ],
-        stdout = "b.py\0gone.py\0a/c.toml\0"
+        ["mise", "tasks", "ls", fp.any()],
+        stdout = dumps([listing[0] | {"run": ["uv run a", {"task": "py:y"}]}])
     )
 
-    assert Tree.read().files == [Path("a/c.toml"), Path("b.py")]
+    assert Tasks.read().tasks[0].runs == [("a",)]
 
-    fp.register(["git", "ls-files", fp.any()], returncode=128)
+    fp.register(
+        ["mise", "tasks", "ls", fp.any()],
+        stdout = dumps([listing[0] | {"run": ["uv run 'a"]}])
+    )
 
-    with raises(Unreadable, match="Reading `.` fails"):
-        Tree.read()
+    with raises(Unreadable, match="at `0.run.0`"):
+        Tasks.read()
 
 
 @mark.parametrize(
@@ -844,3 +870,91 @@ def test_a_step_reads_the_task_its_env_names(
     [job] = Workflow.from_path(Path("ci.yml")).jobs
 
     assert job.steps[0].tasks == tasks
+
+
+@mark.parametrize(
+    ("push", "file", "pushed"),
+    [
+        param("paths: ['**.js']", "src/js/app.js", True, id="a-suffix-at-any-depth"),
+        param("paths: ['*.js']", "src/app.js", False, id="a-star-at-the-root"),
+        param("paths: ['**/README.md']", "README.md", True, id="no-directory"),
+        param("paths: ['*.jsx?']", "page.js", True, id="an-optional-character"),
+        param("paths: ['docs/**', '!docs/a.md']", "docs/a.md", False, id="excluded"),
+        param(
+            "paths: ['!docs/a.md', 'docs/**']",
+            "docs/a.md",
+            True,
+            id = "included-again"
+        ),
+        param("paths-ignore: ['docs/**']", "docs/a.md", False, id="ignored"),
+        param("paths-ignore: ['docs/**']", "src/a.py", True, id="not-ignored")
+    ]
+)
+def test_a_push_filter_reads_each_pattern_as_github_does(
+    checkout : Callable[[Mapping[str, str]], None],
+    file     : str,
+    push     : str,
+    pushed   : bool
+):
+    """
+    Pins that a push filter matches `*` within one directory, `**`
+    across directories, `**/` against none at all, and `?` as an optional
+    character, lets the last pattern matching a file decide whether it
+    runs the workflow, and leaves out every file a `paths-ignore` pattern
+    matches.
+    """
+    checkout({"ci.yml": f"on:\n  push:\n    {push}\njobs: {{}}\n"})
+
+    assert Workflow.from_path(Path("ci.yml")).pushes(Path(file)) is pushed
+
+
+@mark.parametrize(
+    ("run", "tasks"),
+    [
+        param("mise run --raw py:lint", ["py:lint"], id="a-flag-first"),
+        param(
+            "'echo \"$(mise run gha:brief)\"'",
+            ["gha:brief"],
+            id = "a-quoted-substitution"
+        )
+    ]
+)
+def test_a_step_names_the_task_each_mise_run_starts(
+    checkout : Callable[[Mapping[str, str]], None],
+    run      : str,
+    tasks    : list[str]
+):
+    """
+    Pins that a step names the task a `mise run` starts past any flag before
+    it, and inside a quoted command substitution.
+    """
+    checkout({"ci.yml": f"jobs:\n  a:\n    steps:\n      - run: {run}\n"})
+    [job] = Workflow.from_path(Path("ci.yml")).jobs
+
+    assert job.steps[0].tasks == tasks
+
+
+def test_the_tree_lists_every_file_git_lists_that_the_checkout_holds(
+    checkout : Callable[[Mapping[str, str]], None],
+    fp       : FakeProcess
+):
+    """
+    Pins that the tree reads git's listing of tracked and untracked files
+    not ignored, in sorted order, leaving out a file git tracks that the
+    working tree no longer holds, and that a failing listing is unreadable.
+    """
+    checkout({"a/c.toml": "", "b.py": ""})
+    fp.register(
+        [
+            "git", "ls-files", "--cached", "--deduplicate",
+            "--exclude-standard", "--others", "-z"
+        ],
+        stdout = "b.py\0gone.py\0a/c.toml\0"
+    )
+
+    assert Tree.read().files == [Path("a/c.toml"), Path("b.py")]
+
+    fp.register(["git", "ls-files", fp.any()], returncode=128)
+
+    with raises(Unreadable, match="Reading `.` fails"):
+        Tree.read()

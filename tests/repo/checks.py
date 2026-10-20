@@ -196,6 +196,11 @@ def provision() -> str:
                 )
             ],
             id = "build-constraint"
+        ),
+        param(
+            ('requires-python = ">=3.14"', 'requires-python = ">=3.14,<3.16"'),
+            [],
+            id = "an-upper-bound"
         )
     ]
 )
@@ -327,7 +332,9 @@ def test_scripts_report_their_metadata_and_every_unlocked_run(
     )
     Path(path).chmod(0o755)
 
-    assert [(line, message) for _, line, message in scan(ScriptCheck, {})] == found
+    findings = scan(ScriptCheck, {}, Tasks(issues=[], tasks=[]))
+
+    assert [(line, message) for _, line, message in findings] == found
 
 
 def test_anchors_report_each_anchor_and_alias_a_manifest_carries(scan: Scan):
@@ -367,6 +374,11 @@ def test_anchors_report_each_anchor_and_alias_a_manifest_carries(scan: Scan):
             },
             [],
             id = "a-year-range-and-a-field-left-out"
+        ),
+        param(
+            {"CITATION.cff": "authors: [{ name: Ash Ketchum }]\ntitle: SquiRtL\n"},
+            [],
+            id = "an-entity-author"
         ),
         param(
             {"LICENSE.md": "MIT License\n\nPermission is hereby granted.\n"},
@@ -473,20 +485,30 @@ def test_attribution_reports_each_credit_the_manifest_does_not_declare(
     assert scan(Attribution, shipped | files) == found
 
 
-def test_attribution_reports_a_missing_license_file_as_unreadable(
+def test_attribution_reports_a_missing_license_file_beside_the_citation(
     manifest : str,
     scan     : Scan
 ):
     """
     Pins that a license file `[project].license-files` names and the
-    checkout lacks raises `Unreadable` naming it, which `Audit` reports in
-    place of the check's findings.
+    checkout lacks becomes a finding naming it, and that the check still
+    holds `CITATION.cff` to the manifest beside it.
     """
-    with raises(Unreadable, match="Reading `LICENSE.md` fails"):
-        scan(
-            Attribution,
-            {"CITATION.cff": "title: SquiRtL\n", "pyproject.toml": manifest}
-        )
+    findings = scan(
+        Attribution,
+        {"CITATION.cff": "title: SquiRtL\nversion: 9.9.9\n", "pyproject.toml": manifest}
+    )
+
+    assert [(file, line) for file, line, _ in findings] == [
+        ("LICENSE.md", None),
+        ("CITATION.cff", 2),
+        ("CITATION.cff", None)
+    ]
+    assert findings[0][2].startswith("Reading `LICENSE.md` fails")
+    assert findings[1][2] == (
+        "`CITATION.cff` names the version '9.9.9', whereas `[project]` declares "
+        "'0.1.0'"
+    )
 
 
 def test_commits_report_an_action_pinned_to_two_commits(provision: str, scan: Scan):
@@ -554,6 +576,14 @@ def test_docstrings_report_each_definition_carrying_none(
                     """
                     A lid.
                     """
+
+        async def shut():
+            """
+            Shuts the box.
+            """
+
+            async def latch():
+                pass
         '''
     ).lstrip()
 
@@ -580,6 +610,10 @@ def test_docstrings_report_each_definition_carrying_none(
         (
             "src/squirtl/repo/box.py", 6,
             "`open` in `src/squirtl/repo/box.py` carries no docstring"
+        ),
+        (
+            "src/squirtl/repo/box.py", 17,
+            "`latch` in `src/squirtl/repo/box.py` carries no docstring"
         )
     ]
 
@@ -667,18 +701,36 @@ def test_labels_report_a_label_in_no_category_and_a_malformed_row(scan: Scan):
         scan(LabelCheck, {".github/labels.toml": row.format("3AA6F0")})
 
 
-def test_rows_report_a_checkout_with_no_sweep(scan: Scan, workflow: str):
+def test_rows_leave_out_the_rows_of_a_workflow_no_pull_request_runs(
+    scan     : Scan,
+    workflow : str
+):
     """
-    Pins that the row check reports a checkout whose tasks hold no
-    `repo:ci`, on `.mise/config.toml`.
+    Pins that the row check reads only the workflows a pull request runs,
+    so a task a push-only workflow runs that `repo:ci` does not depend on is
+    no finding.
     """
-    findings = scan(
-        Rows,
-        {".github/workflows/ci.yml": workflow},
-        Tasks(issues=[], tasks=[])
+    pushed = dedent(workflow).replace("pull_request", "push")
+    sweep  = Task(
+        depends = ["gha:lint", "py:lint"],
+        name    = "repo:ci",
+        source  = Path(".mise/tasks/repo/ci").absolute()
     )
 
-    assert findings == [(".mise/config.toml", None, "mise lists no `repo:ci` task")]
+    findings = scan(
+        Rows,
+        {
+            ".github/workflows/ci.yml"   : workflow,
+            ".github/workflows/warm.yml" : pushed.replace("py:lint", "gha:prune"),
+            ".mise/tasks/repo/ci"        : (
+                "#!/usr/bin/env -S bash -euo pipefail\n"
+                '#MISE depends = ["gha:lint", "py:lint"]\n'
+            )
+        },
+        Tasks(issues=[], tasks=[sweep])
+    )
+
+    assert findings == []
 
 
 @mark.parametrize(
@@ -790,7 +842,7 @@ def test_warming_reports_each_file_a_key_is_built_from_that_no_push_reaches(
                 ),
                 (
                     ".github/workflows/ci.yml", 32,
-                    "The gate `brief` sets no name for a ruleset to require"
+                    "The gate `brief` sets no name, so its check reports as `brief`"
                 ),
                 (".github/workflows/ci.yml", 32, "The gate `brief` waits on no check"),
                 (
@@ -825,6 +877,11 @@ def test_warming_reports_each_file_a_key_is_built_from_that_no_push_reaches(
                 )
             ],
             id = "two-gates"
+        ),
+        param(
+            ("if      : always()", "if      : ${{ always() }}"),
+            [],
+            id = "an-expression-gate"
         )
     ]
 )
@@ -966,78 +1023,56 @@ def test_rows_hold_the_pull_request_rows_to_the_sweep(
     assert findings == found
 
 
-def test_scripts_skip_a_task_file_mise_would_not_run(
+def test_rows_report_a_checkout_with_no_sweep(scan: Scan, workflow: str):
+    """
+    Pins that the row check reports a checkout whose tasks hold no
+    `repo:ci`, on `.mise/config.toml`.
+    """
+    findings = scan(
+        Rows,
+        {".github/workflows/ci.yml": workflow},
+        Tasks(issues=[], tasks=[])
+    )
+
+    assert findings == [(".mise/config.toml", None, "mise lists no `repo:ci` task")]
+
+
+def test_scripts_hold_a_pin_to_every_version_the_lockfile_resolves(
     checkout : Callable[[Mapping[str, str]], None],
     manifest : str,
     scan     : Scan
 ):
     """
-    Pins that the script check reads no file under `.mise/tasks/` that
-    lacks the executable bit, since mise runs no such file as a task, as the
-    lockfile written beside a script with metadata of its own does.
+    Pins that the script check matches a declared package to the lockfile's
+    entries as PEP 503 normalizes their names, and reports a pin admitting
+    only one of the versions a marker splits the package into.
     """
     checkout(
         {
-            "pyproject.toml" : manifest,
-            "uv.lock"        : '[[package]]\nname = "minijinja"\nversion = "2.24.0"\n'
+            ".mise/tasks/gha/brief.py": (
+                "#!/usr/bin/env -S uv run --exact --locked --script\n"
+                "# /// script\n"
+                '# dependencies = ["minijinja==2.24.0"]\n'
+                "# ///\n"
+            ),
+
+            "pyproject.toml": manifest,
+
+            "uv.lock": (
+                '[[package]]\nname = "MiniJinja"\nversion = "2.23.0"\n\n'
+                '[[package]]\nname = "minijinja"\nversion = "2.24.0"\n'
+            )
         }
     )
+    Path(".mise/tasks/gha/brief.py").chmod(0o755)
 
-    findings = scan(
-        ScriptCheck,
-        {".mise/tasks/gha/brief.py.lock": "uv run --locked pytest\n"}
-    )
+    findings = scan(ScriptCheck, {}, Tasks(issues=[], tasks=[]))
 
-    assert findings == []
-
-
-def test_subsets_report_each_subset_one_side_lacks(
-    provision : str,
-    scan      : Scan,
-    workflow  : str
-):
-    """
-    Pins that the subset check reports a subset a restoring job installs
-    that no warming job saves and one a warming job saves that no job
-    installs, comparing the tools of a subset in any order and leaving out a
-    job under `cache-mode: none`.
-    """
-    findings = scan(
-        Subsets,
-        {
-            ".github/actions/provision/action.yml" : provision,
-            ".github/workflows/ci.yml"             : workflow,
-            ".github/workflows/warm.yml"           : """
-                cache-mode: write
-
-                jobs:
-                  kit:
-                    strategy:
-                      matrix:
-                        tools: [uv python, node]
-
-                    steps:
-                      - uses : ./.github/actions/provision
-                        with : { tools: "${{ matrix.tools }}" }
-
-                  prune:
-                    cache-mode: none
-
-                    steps:
-                      - uses : ./.github/actions/provision
-                        with : { tools: bun }
-                """
-        }
-    )
-
-    assert findings == [
+    assert [(line, message) for _, line, message in findings] == [
         (
-            ".github/workflows/ci.yml", 26,
-            "`check` installs the tool subset `zizmor`, which no job saves"
-        ),
-        (
-            ".github/workflows/warm.yml", 11,
-            "`kit` saves the tool subset `node`, which no job restores"
+            3,
+            "`.mise/tasks/gha/brief.py` declares `minijinja==2.24.0`, whereas "
+            "`uv.lock` resolves 2.23.0, 2.24.0"
         )
     ]
 
@@ -1141,6 +1176,298 @@ def test_labels_hold_the_registry_to_the_files_naming_its_labels(
     assert scan(LabelCheck, shipped) == found
 
 
+def test_scripts_hold_each_uv_run_a_toml_task_starts(
+    checkout : Callable[[Mapping[str, str]], None],
+    manifest : str,
+    scan     : Scan
+):
+    """
+    Pins that the script check reports each `uv run` a task declared in TOML
+    starts that opens on anything but `--exact --locked`, on the first line
+    holding one after the task's name, and reads nothing from a step naming
+    another task.
+    """
+    checkout(
+        {
+            ".mise/config.toml": (
+                '[tasks."py:x"]\n'
+                'run = ["uv run --exact --locked a", "uv run b", { task = "py:y" }]\n'
+            ),
+            "pyproject.toml" : manifest,
+            "uv.lock"        : '[[package]]\nname = "minijinja"\nversion = "2.24.0"\n'
+        }
+    )
+    task = Task(
+        depends = [],
+        name    = "py:x",
+        run     = ["uv run --exact --locked a", "uv run b", {"task": "py:y"}],
+        source  = Path(".mise/config.toml").absolute()
+    )
+
+    assert scan(ScriptCheck, {}, Tasks(issues=[], tasks=[task])) == [
+        (
+            ".mise/config.toml", 2,
+            "`uv run` in the task `py:x` opens on no `--exact --locked`"
+        )
+    ]
+
+
+@mark.parametrize(
+    ("files", "found"),
+    [
+        param(
+            [
+                "src/squirtl/cli/__init__.py", "src/squirtl/repo/checks.py",
+                "src/squirtl/repo/notes.md", "tests/repo/checks.py"
+            ],
+            [],
+            id = "clean"
+        ),
+        param(
+            ["src/squirtl/main.py"],
+            [
+                "`src/squirtl/main.py` sits at the root of `src/squirtl`, outside "
+                "every subpackage"
+            ],
+            id = "root-module"
+        ),
+        param(
+            ["src/squirtl/repo/__init__.py"],
+            [
+                "`src/squirtl/repo/__init__.py` makes a package no entry point "
+                "names, whereas every other subpackage is a namespace package"
+            ],
+            id = "init"
+        ),
+        param(
+            [
+                "src/squirtl/Repo/Checks.py", "src/squirtl/repo/check_.py",
+                "src/squirtl/repo/utils.py"
+            ],
+            [
+                "`Repo` in `src/squirtl/Repo/Checks.py` is not `snake_case`",
+                "`Checks` in `src/squirtl/Repo/Checks.py` is not `snake_case`",
+                "`check_` in `src/squirtl/repo/check_.py` is not `snake_case`",
+                "`utils` in `src/squirtl/repo/utils.py` names no role a reader can find"
+            ],
+            id = "names"
+        ),
+        param(
+            [
+                "tests/cli/app.py", "tests/common/console.py", "tests/conftest.py",
+                "tests/isolation.py", "tests/repo/fixtures/x.py", "tests/repo/pins.py",
+                "tests/repo/notes.txt", "tests/tasks/repo.py"
+            ],
+            ["`tests/repo/pins.py` mirrors no module of the package"],
+            id = "tests"
+        )
+    ]
+)
+def test_layout_reports_each_file_that_leaves_the_package_layout(
+    files    : list[str],
+    found    : list[str],
+    manifest : str,
+    scan     : Scan
+):
+    """
+    Pins that the layout check reports a module at the root of the package,
+    an `__init__.py` beside the one the command line's entry point names, a
+    module or subpackage named outside `snake_case` or named `utils`, and a
+    test module pytest collects that mirrors no module, leaving out the task
+    tests, the command line's tests, the isolation tests, a `conftest.py`,
+    and anything under a directory `norecursedirs` names.
+    """
+    findings = scan(
+        Layout,
+        {"pyproject.toml": manifest},
+        Tree(files=list(map(Path, files)))
+    )
+
+    assert [message for *_, message in findings] == found
+
+
+def test_scripts_skip_a_task_file_mise_would_not_run(
+    checkout : Callable[[Mapping[str, str]], None],
+    manifest : str,
+    scan     : Scan
+):
+    """
+    Pins that the script check reads no file under `.mise/tasks/` that
+    lacks the executable bit, since mise runs no such file as a task, as the
+    lockfile written beside a script with metadata of its own does.
+    """
+    checkout(
+        {
+            "pyproject.toml" : manifest,
+            "uv.lock"        : '[[package]]\nname = "minijinja"\nversion = "2.24.0"\n'
+        }
+    )
+
+    findings = scan(
+        ScriptCheck,
+        {".mise/tasks/gha/brief.py.lock": "uv run --locked pytest\n"},
+        Tasks(issues=[], tasks=[])
+    )
+
+    assert findings == []
+
+
+def test_subsets_report_each_subset_one_side_lacks(
+    provision : str,
+    scan      : Scan,
+    workflow  : str
+):
+    """
+    Pins that the subset check reports a subset a restoring job installs
+    that no warming job saves and one a warming job saves that no job
+    installs, comparing the tools of a subset in any order and leaving out a
+    job under `cache-mode: none`.
+    """
+    findings = scan(
+        Subsets,
+        {
+            ".github/actions/provision/action.yml" : provision,
+            ".github/workflows/ci.yml"             : workflow,
+            ".github/workflows/warm.yml"           : """
+                cache-mode: write
+
+                jobs:
+                  kit:
+                    strategy:
+                      matrix:
+                        tools: [uv python, node]
+
+                    steps:
+                      - uses : ./.github/actions/provision
+                        with : { tools: "${{ matrix.tools }}" }
+
+                  prune:
+                    cache-mode: none
+
+                    steps:
+                      - uses : ./.github/actions/provision
+                        with : { tools: bun }
+                """
+        }
+    )
+
+    assert findings == [
+        (
+            ".github/workflows/ci.yml", 26,
+            "`check` installs the tool subset `zizmor`, which no job saves"
+        ),
+        (
+            ".github/workflows/warm.yml", 11,
+            "`kit` saves the tool subset `node`, which no job restores"
+        )
+    ]
+
+
+@mark.parametrize(
+    ("findings", "printed", "status"),
+    [
+        param((), "Every check passed\n", 0, id="none"),
+        param(
+            (Finding(
+                file     = Path("a.toml"),
+                line     = 3,
+                message  = "Shared, 50%\nof it",
+                severity = Severity.WARNING
+            ),),
+            "::warning file=a.toml,line=3::Shared, 50%25%0Aof it\n",
+            0,
+            id = "a-warning"
+        ),
+        param(
+            (Finding(file=Path("a:b,c.toml"), message="Broken"),),
+            "::error file=a%3Ab%2Cc.toml::Broken\n",
+            1,
+            id = "an-error"
+        )
+    ]
+)
+def test_the_audit_report_prints_each_annotation_and_fails_on_an_error(
+    capsys   : CaptureFixture[str],
+    findings : tuple[Finding, ...],
+    printed  : str,
+    status   : int
+):
+    """
+    Pins that the report prints each finding as the workflow command GitHub
+    turns into an annotation, escaping the message as data and the file as a
+    property, says every check passed where nothing diverges, and exits 1 on
+    an error alone.
+    """
+    assert Audit(findings=findings).report() == status
+    assert capsys.readouterr().out == printed
+
+
+@mark.parametrize(
+    ("rewrites", "required", "found"),
+    [
+        param(
+            {
+                ".github/workflows/ci.yml"   : ("🎒 Brief", "🎒 Gate"),
+                ".github/workflows/warm.yml" : ("pull_request", "push")
+            },
+            "🎒 Brief",
+            [
+                "`main` requires the check '🎒 Brief', which no gate of a "
+                "pull-request workflow reports"
+            ],
+            id = "a-push-workflow-gate"
+        ),
+        param(
+            {".github/workflows/ci.yml": ("    name    : 🎒 Brief\n", "")},
+            "brief",
+            ["The gate `brief` sets no name, so its check reports as `brief`"],
+            id = "an-unnamed-gate"
+        )
+    ]
+)
+def test_gates_take_each_check_a_pull_request_gate_reports(
+    found     : list[str],
+    provision : str,
+    required  : str,
+    rewrites  : dict[str, tuple[str, str]],
+    scan      : Scan,
+    workflow  : str
+):
+    """
+    Pins that a ruleset's required check counts as reported only by the gate
+    of a workflow a pull request runs, under its name or, for a gate setting
+    none, under its id, so the gate of a workflow only a push runs reports
+    nothing even under the required name.
+    """
+    ruleset = {
+        "enforcement"   : "active",
+        "name"          : "main",
+        "target"        : "branch",
+        "bypass_actors" : [],
+        "conditions"    : {},
+        "rules"         : [
+            {
+                "type"       : "required_status_checks",
+                "parameters" : {"required_status_checks": [{"context": required}]}
+            }
+        ]
+    }
+
+    findings = scan(
+        Gates,
+        {
+            ".github/actions/provision/action.yml" : provision,
+            ".github/rulesets/main.json"           : dumps(ruleset, ensure_ascii=False)
+        }
+        | {
+            path: dedent(workflow).replace(*rewrites.get(path, ("", "")))
+            for path in (".github/workflows/ci.yml", ".github/workflows/warm.yml")
+        }
+    )
+
+    assert [message for *_, message in findings] == found
+
+
 def test_summaries_report_each_writer_besides_the_gate(scan: Scan, workflow: str):
     """
     Pins that the summary check reports a step writing the summary in a
@@ -1184,76 +1511,6 @@ def test_summaries_report_each_writer_besides_the_gate(scan: Scan, workflow: str
             "run's summary, which only a workflow's gate writes"
         )
     ]
-
-
-@mark.parametrize(
-    ("files", "found"),
-    [
-        param(
-            [
-                "src/squirtl/cli/__init__.py", "src/squirtl/repo/checks.py",
-                "src/squirtl/repo/notes.md", "tests/repo/checks.py"
-            ],
-            [],
-            id = "clean"
-        ),
-        param(
-            ["src/squirtl/main.py"],
-            [
-                "`src/squirtl/main.py` sits at the root of `src/squirtl`, outside "
-                "every subpackage"
-            ],
-            id = "root-module"
-        ),
-        param(
-            ["src/squirtl/repo/__init__.py"],
-            [
-                "`src/squirtl/repo/__init__.py` makes a package no entry point "
-                "names, whereas every other subpackage is a namespace package"
-            ],
-            id = "init"
-        ),
-        param(
-            ["src/squirtl/Repo/Checks.py", "src/squirtl/repo/utils.py"],
-            [
-                "`Repo` in `src/squirtl/Repo/Checks.py` is not `snake_case`",
-                "`Checks` in `src/squirtl/Repo/Checks.py` is not `snake_case`",
-                "`utils` in `src/squirtl/repo/utils.py` names no role a reader can find"
-            ],
-            id = "names"
-        ),
-        param(
-            [
-                "tests/cli/app.py", "tests/common/console.py", "tests/conftest.py",
-                "tests/isolation.py", "tests/repo/fixtures/x.py", "tests/repo/pins.py",
-                "tests/repo/notes.txt", "tests/tasks/repo.py"
-            ],
-            ["`tests/repo/pins.py` mirrors no module of the package"],
-            id = "tests"
-        )
-    ]
-)
-def test_layout_reports_each_file_that_leaves_the_package_layout(
-    files    : list[str],
-    found    : list[str],
-    manifest : str,
-    scan     : Scan
-):
-    """
-    Pins that the layout check reports a module at the root of the package,
-    an `__init__.py` beside the one the command line's entry point names, a
-    module or subpackage named outside `snake_case` or named `utils`, and a
-    test module pytest collects that mirrors no module, leaving out the task
-    tests, the command line's tests, the isolation tests, a `conftest.py`,
-    and anything under a directory `norecursedirs` names.
-    """
-    findings = scan(
-        Layout,
-        {"pyproject.toml": manifest},
-        Tree(files=list(map(Path, files)))
-    )
-
-    assert [message for *_, message in findings] == found
 
 
 def test_task_check_reports_each_defect_mise_finds_at_its_weight(scan: Scan):
@@ -1330,40 +1587,23 @@ def test_the_audit_reports_each_unreadable_file_once(
     )
 
 
-@mark.parametrize(
-    ("findings", "printed", "status"),
-    [
-        param((), "Every check passed\n", 0, id="none"),
-        param(
-            (Finding(
-                file     = Path("a.toml"),
-                line     = 3,
-                message  = "Shared, 50%\nof it",
-                severity = Severity.WARNING
-            ),),
-            "::warning file=a.toml,line=3::Shared, 50%25%0Aof it\n",
-            0,
-            id = "a-warning"
-        ),
-        param(
-            (Finding(file=Path("a:b,c.toml"), message="Broken"),),
-            "::error file=a%3Ab%2Cc.toml::Broken\n",
-            1,
-            id = "an-error"
-        )
-    ]
-)
-def test_the_audit_report_prints_each_annotation_and_fails_on_an_error(
-    capsys   : CaptureFixture[str],
-    findings : tuple[Finding, ...],
-    printed  : str,
-    status   : int
+def test_warming_reads_no_workflow_that_saves_no_cache(
+    provision : str,
+    scan      : Scan,
+    workflow  : str
 ):
     """
-    Pins that the report prints each finding as the workflow command GitHub
-    turns into an annotation, escaping the message as data and the file as a
-    property, says every check passed where nothing diverges, and exits 1 on
-    an error alone.
+    Pins that the warming check holds no push filter to a cache's key where
+    the workflow's jobs only restore caches, even a workflow no push runs.
     """
-    assert Audit(findings=findings).report() == status
-    assert capsys.readouterr().out == printed
+    findings = scan(
+        Warming,
+        {
+            ".github/actions/provision/action.yml" : provision,
+            ".github/workflows/ci.yml"             : workflow,
+            ".mise/config.toml": ""
+        },
+        Tree(files=[Path(".mise/config.toml")])
+    )
+
+    assert findings == []

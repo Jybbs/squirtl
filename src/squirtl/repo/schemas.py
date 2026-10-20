@@ -19,6 +19,7 @@ from fnmatch         import fnmatch
 from functools       import cached_property
 from http            import HTTPMethod
 from itertools       import chain, pairwise, takewhile
+from json            import load
 from packaging.requirements import Requirement
 from packaging.specifiers   import SpecifierSet
 from packaging.utils        import canonicalize_name
@@ -28,7 +29,7 @@ from pydantic            import (
     AliasPath, BeforeValidator, Field, HttpUrl, InstanceOf, JsonValue,
     StringConstraints, TypeAdapter, ValidationError
 )
-from re         import finditer, fullmatch, search
+from re         import finditer, fullmatch, search, sub
 from shlex      import shlex, split
 from stat       import S_IXUSR
 from subprocess import SubprocessError, check_output, run
@@ -41,6 +42,12 @@ from yaml                import (
 
 from squirtl.repo.github import Command, Plan, Schema
 
+type Lines = Annotated[
+    dict[int, tuple[str, ...]],
+    BeforeValidator(
+        lambda script: command_lines(script) if isinstance(script, str) else {}
+    )
+]
 type Pin        = Annotated[InstanceOf[Requirement], BeforeValidator(Requirement)]
 type Release    = Annotated[InstanceOf[Version], BeforeValidator(Version)]
 type Specifiers = Annotated[InstanceOf[SpecifierSet], BeforeValidator(SpecifierSet)]
@@ -51,8 +58,7 @@ def command_lines(text: str) -> dict[int, tuple[str, ...]]:
     Splits the shell script `text` into the words of each command line,
     keyed by the line it opens on counting from 1, joining a line that ends
     in a backslash to the next and leaving out comments and blank lines.
-    Each of `;`, `&&`, `|`, `$(`, and the like stands as a word of its own,
-    so a command inside a substitution starts on a word of its own too.
+    Each line splits as `shell_words` splits it.
 
     Raises:
         ValueError: Where a quote opens and never closes.
@@ -68,10 +74,7 @@ def command_lines(text: str) -> dict[int, tuple[str, ...]]:
             pending += line.removesuffix("\\") + " "
             continue
 
-        lexer = shlex(pending + line, posix=True, punctuation_chars=True)
-        lexer.whitespace_split = True
-
-        if words := tuple(lexer):
+        if words := tuple(shell_words(pending + line)):
             lines[opening] = words
 
         opening, pending = None, ""
@@ -93,6 +96,47 @@ def following(
         for index, pair in enumerate(pairwise(words))
         if pair == (program, subcommand)
     ]
+
+
+def shell_words(text: str) -> Iterator[str]:
+    """
+    Splits one shell command line into its words, each of `;`, `&&`, `|`,
+    `(`, and the like standing as a word of its own, and follows each word
+    holding a `$(` with the words of the command after it, so a command
+    inside a quoted substitution, which stays one word, starts on a word of
+    its own too.
+
+    Raises:
+        ValueError: Where a quote opens and never closes.
+    """
+    lexer = shlex(text, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+
+    for word in lexer:
+        yield word
+
+        if "$(" in word:
+            yield from shell_words(word.partition("$(")[2])
+
+
+def admits(file: Path, pattern: str) -> bool:
+    """
+    Tells whether the GitHub Actions path filter `pattern` matches `file`,
+    reading `*` as any run of characters but `/`, `**` as any run at all,
+    `**/` as any number of whole directories, `?` and `+` as zero or one and
+    one or more of the character before them, and `[]` as one character of a
+    set, as GitHub's filter pattern cheat sheet sets out.
+    """
+    regex = sub(
+        r"\*\*/|\*\*|\*|[.^$(){}|\\]",
+        lambda match: {"*": "[^/]*", "**": ".*", "**/": "(?:.*/)?"}.get(
+            match[0],
+            "\\" + match[0]
+        ),
+        pattern
+    )
+
+    return fullmatch(regex, file.as_posix()) is not None
 
 
 class Author(Schema, extra="ignore"):
@@ -174,9 +218,11 @@ class Block(Schema):
     def get(self, *keys: str, default: Any = None) -> Any:
         """
         Builds the value under each of `keys` in turn, or `default` where a
-        key is missing.
+        key is missing or holds null.
         """
-        return default if (block := self.at(*keys)) is None else block.value
+        value = None if (block := self.at(*keys)) is None else block.value
+
+        return default if value is None else value
 
 
 class Dependabot(Schema):
@@ -475,10 +521,11 @@ class Ruleset(Schema):
     def from_path(cls, path: Path) -> Self:
         """
         Reads the ruleset the JSON file at `path` declares, raising
-        `Unreadable` where the file fails to parse or to validate.
+        `Unreadable` where the file fails to parse, on the line the parser
+        names, or fails to validate.
         """
-        with Finding.reading(path):
-            return cls.model_validate_json(path.read_text(encoding="utf-8"))
+        with Finding.reading(path), path.open(encoding="utf-8") as file:
+            return cls.model_validate(load(file))
 
 
 class Severity(StrEnum):
@@ -567,7 +614,7 @@ class Repository(Schema):
 class Task(Schema, extra="ignore"):
     """
     One task `mise tasks ls` lists, read for its name, the tasks it depends
-    on, and the file declaring it.
+    on, the file declaring it, and the scripts a task declared in TOML runs.
     """
 
     depends: list[str]
@@ -585,6 +632,13 @@ class Task(Schema, extra="ignore"):
     The absolute path of the file declaring the task.
     """
 
+    run: list[Lines] = []
+    """
+    The command lines of each script a task declared in TOML runs, keyed
+    by the line each opens on, a reference to another task holding none,
+    or nothing for a file task, whose own file runs.
+    """
+
     @property
     def file(self) -> Path:
         """
@@ -592,6 +646,18 @@ class Task(Schema, extra="ignore"):
         checkout, climbing out of it for a task a parent directory declares.
         """
         return self.source.resolve().relative_to(Path.cwd().resolve(), walk_up=True)
+
+    @property
+    def runs(self) -> list[tuple[str, ...]]:
+        """
+        Lists the words after each `uv run` the task's TOML scripts start.
+        """
+        return [
+            options
+            for lines in self.run
+            for words in lines.values()
+            for options in following("uv", "run", words)
+        ]
 
 
 class SecurityAndAnalysis(Schema):
@@ -1079,17 +1145,18 @@ class YamlFile(Schema):
     @classmethod
     def from_path(cls, path: Path) -> Self:
         """
-        Reads the first document of the YAML file at `path`, raising
-        `Unreadable` where the file fails to parse or holds no document.
+        Reads the first document of the YAML file at `path`, building its
+        value once so a tag `yaml.safe_load` cannot build fails the read,
+        and raising `Unreadable` where the file fails to parse, holds no
+        document, or carries such a tag.
         """
         with Finding.reading(path):
             text = path.read_text(encoding="utf-8")
+            root = Block(node=next(compose_all(text, Loader=SafeLoader), None))
 
-            return cls(
-                path = path,
-                root = Block(node=next(compose_all(text, Loader=SafeLoader), None)),
-                text = text
-            )
+            root.value
+
+            return cls(path=path, root=root, text=text)
 
     @classmethod
     def matching(cls, *patterns: str) -> list[Self]:
@@ -1986,17 +2053,29 @@ class Workflow(YamlFile):
 
     def pushes(self, file: Path) -> bool:
         """
-        Tells whether a push touching `file` runs the workflow, which holds
-        for every file where `on.push` filters no paths and for none where
-        the workflow runs on no push.
+        Tells whether a push touching `file` alone runs the workflow, which
+        holds for no file where the workflow runs on no push and for every
+        file where `on.push` filters no paths. Under `paths`, the last
+        pattern `admits` matches decides, one opening on `!` leaving the
+        file out, and under `paths-ignore`, any pattern matching it leaves
+        it out.
         """
         if "push" not in self.triggers:
             return False
 
-        paths = self.root.at("on", "push", "paths")
+        if ignored := self.root.entries("on", "push", "paths-ignore"):
+            return not any(admits(file, str(pattern.value)) for pattern in ignored)
 
-        return paths is None or any(
-            file.full_match(str(pattern.value)) for pattern in paths.entries()
+        if (paths := self.root.at("on", "push", "paths")) is None:
+            return True
+
+        return next(
+            (
+                not pattern.startswith("!")
+                for pattern in (str(entry.value) for entry in reversed(paths.entries()))
+                if admits(file, pattern.removeprefix("!"))
+            ),
+            False
         )
 
 

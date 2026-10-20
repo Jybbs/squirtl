@@ -39,7 +39,7 @@ class Audit(Schema):
     @classmethod
     def read(cls) -> Self:
         """
-        Runs every check, reading each file once however many checks read
+        Runs every check, reading each record once however many checks take
         it, and takes the findings reporting each file a check's record
         fails to parse from in place of that check's findings.
         """
@@ -80,7 +80,7 @@ class Check(Schema, ABC):
     def read(cls, documents: Callable[[type], Schema]) -> Self:
         """
         Builds the check from the record `documents` reads for each field's
-        type, a reader a caller running several checks shares so each file
+        type, a reader a caller running several checks shares so each record
         is read once, raising `Unreadable` once every field is read where
         any file fails to parse.
         """
@@ -136,11 +136,12 @@ class Attribution(Check):
 
     def scan(self) -> Iterator[Finding]:
         """
-        Yields a finding for a license file titled for another license
-        or whose copyright line leaves out an author, and for each title,
-        version, license, or author `CITATION.cff` names that the manifest
-        does not, a value compared without regard to case so the title may
-        style the name the package installs under.
+        Yields a finding for a license file titled for another license or
+        whose copyright line leaves out an author, the findings `Unreadable`
+        holds for each license file that fails to read, and a finding for
+        each title, version, license, or author `CITATION.cff` names that
+        the manifest does not, a value compared without regard to case so
+        the title may style the name the package installs under.
         """
         project  = self.project
         citation = self.citation.path
@@ -151,8 +152,12 @@ class Attribution(Check):
             "version" : str(project.version)
         }
 
-        for license in Unreadable.gather(project.license_files, License.from_path):
-            path = license.path
+        for path in project.license_files:
+            try:
+                license = License.from_path(path)
+            except Unreadable as error:
+                yield from error.args
+                continue
 
             if license.title != f"{project.license} License":
                 yield Finding(
@@ -331,11 +336,12 @@ class Gates(Check):
 
             for gate in gates:
                 missing = sorted({job.key for job in jobs} - {gate.key, *gate.needs})
+                name    = gate.get("name")
                 faults  = {
-                    "lacks `if: always()`, so a failed job skips it": not gate.always,
-                    "sets no name for a ruleset to require": not gate.get("name"),
-                    f"is one of {count} jobs running `{self.task}`" : count > 1,
-                    f"waits on no {', '.join(missing)}"             : bool(missing)
+                    "lacks `if: always()`, so a failed job skips it" : not gate.always,
+                    f"is one of {count} jobs running `{self.task}`"  : count > 1,
+                    f"sets no name, so its check reports as `{gate.key}`": not name,
+                    f"waits on no {', '.join(missing)}": bool(missing)
                 }
 
                 for fault in compress(faults, faults.values()):
@@ -345,8 +351,8 @@ class Gates(Check):
                         message = f"The gate `{gate.key}` {fault}"
                     )
 
-                if workflow.pulls and (name := gate.get("name")):
-                    reported.add(name)
+                if workflow.pulls:
+                    reported.add(name or gate.key)
 
         for path, ruleset in self.rulesets.rulesets.items():
             for check in ruleset.checks:
@@ -722,22 +728,23 @@ class Runners(Check):
 class ScriptCheck(Check):
     """
     Holds the inline metadata of each script under `.mise/` to the lockfile
-    and the manifest it repeats, and every `uv run` a script starts to the
-    flags keeping it inside the lockfile.
+    and the manifest it repeats, and every `uv run` a script or a task
+    declared in TOML starts to the flags keeping it inside the lockfile.
     """
 
     lockfile : Lockfile
     project  : Project
     scripts  : Scripts
+    tasks    : Tasks
 
     def scan(self) -> Iterator[Finding]:
         """
         Yields a finding for a script's `requires-python` other than the
         manifest's, for each package its metadata declares that `uv.lock`
-        resolves at no version the declaration admits, for each `uv run`
-        opening on anything but `--exact --locked`, and for a shebang
-        running a script with metadata of its own without `--script` after
-        them.
+        resolves at no version or at one the declaration does not admit, for
+        each `uv run` a script or a TOML task starts opening on anything but
+        `--exact --locked`, and for a shebang running a script with metadata
+        of its own without `--script` after them.
         """
         expected = self.project.requires_python
 
@@ -789,6 +796,19 @@ class ScriptCheck(Check):
                         message = (
                             f"`{path}` declares its own dependencies, whereas "
                             "its shebang takes no `--script` after "
+                            "`--exact --locked`"
+                        )
+                    )
+
+        for task in self.tasks.tasks:
+            for options in task.runs:
+                if options[:2] != ("--exact", "--locked"):
+                    yield Finding.locate(
+                        task.file,
+                        task.name,
+                        "uv run",
+                        message = (
+                            f"`uv run` in the task `{task.name}` opens on no "
                             "`--exact --locked`"
                         )
                     )
