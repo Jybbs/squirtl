@@ -40,9 +40,8 @@ class Audit(Schema):
     def read(cls) -> Self:
         """
         Runs every check, reading each file once however many checks read
-        it, and takes the findings reporting a file that fails to parse in
-        place of the findings a check reading that file would report after
-        it, keeping each one the check reported before.
+        it, and takes the findings reporting each file a check's record
+        fails to parse from in place of that check's findings.
         """
         documents = cache(methodcaller("read"))
         findings  = {}
@@ -82,10 +81,16 @@ class Check(Schema, ABC):
         """
         Builds the check from the record `documents` reads for each field's
         type, a reader a caller running several checks shares so each file
-        is read once.
+        is read once, raising `Unreadable` once every field is read where
+        any file fails to parse.
         """
-        fields = cls.model_fields.items()
-        return cls(**{name: documents(field.annotation) for name, field in fields})
+        fields  = cls.model_fields
+        records = Unreadable.gather(
+            (field.annotation for field in fields.values()),
+            documents
+        )
+
+        return cls(**dict(zip(fields, records)))
 
     @abstractmethod
     def scan(self) -> Iterator[Finding]:
@@ -146,8 +151,8 @@ class Attribution(Check):
             "version" : str(project.version)
         }
 
-        for path in project.license_files:
-            license = License.from_path(path)
+        for license in Unreadable.gather(project.license_files, License.from_path):
+            path = license.path
 
             if license.title != f"{project.license} License":
                 yield Finding(
@@ -253,14 +258,19 @@ class Docstrings(Check):
     def scan(self) -> Iterator[Finding]:
         """
         Yields a finding on each definition with no docstring in each `.py`
-        file git lists, raising `Unreadable` on a file that fails to parse.
+        file git lists, and the findings `Unreadable` holds for each file
+        that fails to parse.
         """
         for file in self.tree.files:
             if file.suffix != ".py":
                 continue
 
-            with Finding.reading(file):
-                module = parse(file.read_text(encoding="utf-8"), filename=file)
+            try:
+                with Finding.reading(file):
+                    module = parse(file.read_text(encoding="utf-8"), filename=file)
+            except Unreadable as error:
+                yield from error.args
+                continue
 
             if get_docstring(module) is None:
                 yield Finding(

@@ -12,7 +12,7 @@ each built on the `Schema` that `squirtl.repo.github` defines:
   `Workflow`, `Script`, and the `Tree` and `Tasks` that git and mise list
 """
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib      import contextmanager
 from enum            import StrEnum, auto
 from fnmatch         import fnmatch
@@ -680,6 +680,32 @@ class Unreadable(Exception):
         """
         return "\n".join(finding.message for finding in self.args)
 
+    @classmethod
+    def gather[T, R](cls, items: Iterable[T], read: Callable[[T], R]) -> list[R]:
+        """
+        Applies `read` to each of `items`, and once every read has run,
+        raises one `Unreadable` holding the findings of each read that
+        raised it, chained to the group of those errors.
+
+        Returns:
+            What each read returned, in the order of `items`.
+        """
+        errors  = []
+        results = []
+
+        for item in items:
+            try:
+                results.append(read(item))
+            except Unreadable as error:
+                errors.append(error)
+
+        if errors:
+            raise cls(*chain.from_iterable(error.args for error in errors)) from (
+                ExceptionGroup("Each read that failed", errors)
+            )
+
+        return results
+
 
 class ActionsPermissions(Endpoint):
     """
@@ -1069,12 +1095,13 @@ class YamlFile(Schema):
     def matching(cls, *patterns: str) -> list[Self]:
         """
         Reads every file under `directory` that one of `patterns` matches,
-        in the order of its path.
+        in the order of its path, raising `Unreadable` once all are read
+        where any fails to parse.
         """
-        return [
-            cls.from_path(path)
-            for path in sorted(chain.from_iterable(map(cls.directory.glob, patterns)))
-        ]
+        return Unreadable.gather(
+            sorted(chain.from_iterable(map(cls.directory.glob, patterns))),
+            cls.from_path
+        )
 
     @classmethod
     def read(cls) -> Self:
@@ -1519,13 +1546,13 @@ class Rulesets(Schema):
     @classmethod
     def read(cls) -> Self:
         """
-        Reads every ruleset a JSON file under `directory` declares.
+        Reads every ruleset a JSON file under `directory` declares, raising
+        `Unreadable` once all are read where any fails to parse.
         """
+        paths = sorted(cls.directory.glob("*.json"))
+
         return cls(
-            rulesets = {
-                path: Ruleset.from_path(path)
-                for path in sorted(cls.directory.glob("*.json"))
-            }
+            rulesets = dict(zip(paths, Unreadable.gather(paths, Ruleset.from_path)))
         )
 
 
@@ -1547,7 +1574,8 @@ class Scripts(Schema):
         """
         Reads each executable file under `tasks/`, which mise runs as
         a task, beside each wrapper under `bin/` and each library under
-        `lib/`.
+        `lib/`, raising `Unreadable` once all are read where any fails to
+        parse.
         """
         tasks = (
             path
@@ -1556,16 +1584,16 @@ class Scripts(Schema):
         )
 
         return cls(
-            scripts = [
-                Script.from_path(path)
-                for path in sorted(
+            scripts = Unreadable.gather(
+                sorted(
                     chain(
                         tasks,
                         (cls.directory / "bin").glob("*"),
                         (cls.directory / "lib").glob("*")
                     )
-                )
-            ]
+                ),
+                Script.from_path
+            )
         )
 
 

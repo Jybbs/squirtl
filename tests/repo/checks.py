@@ -538,8 +538,9 @@ def test_docstrings_report_each_definition_carrying_none(
 ):
     """
     Pins that the docstring check reports a module, a class, and a nested
-    function carrying no docstring, on the line each opens on, and that a
-    file failing to parse raises `Unreadable` on the line the parser names.
+    function carrying no docstring, on the line each opens on, and reports
+    each file failing to parse on the line the parser names while still
+    reporting the files beside it.
     """
     source = dedent(
         '''
@@ -582,14 +583,28 @@ def test_docstrings_report_each_definition_carrying_none(
         )
     ]
 
-    with raises(Unreadable) as raised:
-        scan(
-            Docstrings,
-            {"src/squirtl/repo/box.py": '"""\nA box.\n"""\n\ndef (\n'},
-            Tree(files=[Path("src/squirtl/repo/box.py")])
+    broken = scan(
+        Docstrings,
+        {
+            "src/squirtl/repo/box.py" : '"""\nA box.\n"""\n\ndef (\n',
+            "src/squirtl/repo/lid.py" : "x = 1\n",
+            "src/squirtl/repo/pin.py" : "def (\n"
+        },
+        Tree(
+            files = [
+                Path("src/squirtl/repo/box.py"),
+                Path("src/squirtl/repo/lid.py"),
+                Path("src/squirtl/repo/pin.py")
+            ]
         )
+    )
 
-    assert raised.value.args[0].line == 5
+    assert [(file, line) for file, line, _ in broken] == [
+        ("src/squirtl/repo/box.py", 5),
+        ("src/squirtl/repo/lid.py", 1),
+        ("src/squirtl/repo/pin.py", 1)
+    ]
+    assert broken[0][2].startswith("Reading `src/squirtl/repo/box.py` fails with")
 
 
 def test_inputs_report_an_input_the_manifest_does_not_declare(
@@ -1292,8 +1307,9 @@ def test_the_audit_reports_each_unreadable_file_once(
     """
     Pins that the audit runs every check over a checkout holding two modules
     alone, reports each file a check cannot read once however many checks
-    read it, keeps a finding a check reported before reaching a file it
-    cannot read, prints each as an annotation, and exits 1.
+    read it, the files a check reads after one it cannot read among them,
+    keeps the docstring finding beside the module that fails to parse,
+    prints each as an annotation, and exits 1.
     """
     checkout({"a.py": "x = 1\n", "b.py": "def (\n"})
     fp.register(["git", "ls-files", fp.any()], stdout="a.py\0b.py\0")
@@ -1303,8 +1319,9 @@ def test_the_audit_reports_each_unreadable_file_once(
     audit = Audit.read()
 
     assert sorted({str(finding.file) for finding in audit.findings}) == [
-        ".github/labels.toml", ".mise/config.toml", "CITATION.cff", "a.py",
-        "b.py", "pyproject.toml", "uv.lock"
+        ".github/labels.toml", ".github/release.yml", ".mise/config.toml",
+        "CITATION.cff", "a.py", "b.py",
+        "pyproject.toml", "uv.lock"
     ]
     assert len(audit.findings) == len(set(audit.findings))
     assert audit.report() == 1

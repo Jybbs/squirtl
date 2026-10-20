@@ -405,6 +405,18 @@ def test_a_file_failing_to_parse_becomes_a_finding_on_the_line_the_parser_names(
     assert str(raised.value) == finding.message
 
 
+def test_inline_metadata_refuses_two_script_blocks():
+    """
+    Pins that a script carrying two `script` blocks, each closed before a
+    line that is no comment, fails to read, as PEP 723 requires of a tool
+    reading the metadata.
+    """
+    with raises(ValueError, match="more than one `script` block"):
+        Metadata.from_script(
+            "# /// script\n# dependencies = []\n# ///\n\n" * 2
+        )
+
+
 @mark.parametrize(
     ("needles", "line"),
     [
@@ -441,16 +453,32 @@ def test_a_finding_locates_each_needle_from_the_line_of_the_one_before(
     assert Finding.locate(Path("pyproject.toml"), *needles, message="x").line == line
 
 
-def test_inline_metadata_refuses_two_script_blocks():
+def test_reading_several_files_reports_every_file_failing_to_parse(
+    checkout: Callable[[Mapping[str, str]], None]
+):
     """
-    Pins that a script carrying two `script` blocks, each closed before a
-    line that is no comment, fails to read, as PEP 723 requires of a tool
-    reading the metadata.
+    Pins that reading the workflows reads every file, the ones after a
+    file failing to parse among them, and raises one `Unreadable` holding a
+    finding for each failing file in the order of its path, chained to the
+    group of the errors each read raised.
     """
-    with raises(ValueError, match="more than one `script` block"):
-        Metadata.from_script(
-            "# /// script\n# dependencies = []\n# ///\n\n" * 2
-        )
+    checkout(
+        {
+            ".github/workflows/a.yml" : "jobs: [\n",
+            ".github/workflows/b.yml" : "jobs: {}\n",
+            ".github/workflows/c.yml" : "jobs: [\n"
+        }
+    )
+
+    with raises(Unreadable) as raised:
+        Workflow.matching("*.yml")
+
+    assert [finding.file for finding in raised.value.args] == [
+        Path(".github/workflows/a.yml"),
+        Path(".github/workflows/c.yml")
+    ]
+    assert isinstance(raised.value.__cause__, ExceptionGroup)
+    assert len(raised.value.__cause__.exceptions) == 2
 
 
 def test_the_label_plan_writes_each_label_github_lacks_or_carries_differently(
