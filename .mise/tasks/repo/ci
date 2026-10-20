@@ -1,4 +1,4 @@
 #!/usr/bin/env -S bash -euo pipefail
 #MISE alias       = "ci"
-#MISE depends     = ["gha:lint", "lock:check", "py:coverage", "py:lint"]
+#MISE depends     = ["gha:lint", "lock:check", "py:coverage", "py:lint", "repo:audit"]
 #MISE description = "Run the full local sweep"

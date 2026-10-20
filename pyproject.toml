@@ -4,7 +4,7 @@ requires      = ["hatchling==1.32.4"]
 
 [project]
 authors         = [{ name = "James Parkington" }]
-dependencies    = ["cyclopts", "gymnasium", "numpy", "pyboy", "pydantic", "torch"]
+dependencies    = ["cyclopts", "gymnasium", "numpy", "packaging", "pyboy", "pydantic", "pyyaml", "torch"]
 description     = "Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and PyTorch."
 keywords        = [
     "deep-learning",

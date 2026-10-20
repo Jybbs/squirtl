@@ -1,23 +1,28 @@
 """
-Pins what the `repo` tasks that write to GitHub send for the registries the
-checkout ships, meaning the commands `repo:labels` and `repo:rulesets` print
-and send once the reader confirms them, and the live labels `repo:labels`
-lists for adding to the registry or deleting by hand.
+Pins what the `repo` tasks decide, meaning the commands `repo:labels` and
+`repo:rulesets` print for the registries the checkout ships and send once
+the reader confirms them, the live labels `repo:labels` lists for adding to
+the registry or deleting by hand, and the status `repo:audit` exits with for
+the findings it prints.
 
 Each case runs its task script in-process from the worktree root, where
 the script reads the shipped files, and the `fp` fixture pytest-subprocess
-provides answers every `gh` command, so no case reaches GitHub.
+provides answers every `gh` command, so no case reaches GitHub, whereas
+the `repo:audit` case hands the task the findings it prints in place of the
+audit's own read.
 """
 
 from collections.abc   import Callable
 from json              import dumps
+from pathlib           import Path
 from pytest            import CaptureFixture, Config, MonkeyPatch, fixture, mark, param, raises
 from pytest_subprocess import FakeProcess
 from runpy             import run_path
 from shlex             import split
 from syrupy.assertion  import SnapshotAssertion
 
-from squirtl.repo.schemas import Labels
+from squirtl.repo.checks  import Audit
+from squirtl.repo.schemas import Finding, Labels, Severity
 
 
 @fixture
@@ -116,3 +121,39 @@ def test_labels_lists_each_live_label_the_registry_leaves_out(
         "GitHub already matches the files under .github/\n"
     )
     assert len(fp.calls) == 1
+
+
+@mark.parametrize(
+    ("severity", "status"),
+    [
+        param(Severity.ERROR, 1, id="an-error"),
+        param(Severity.WARNING, 0, id="a-warning")
+    ]
+)
+def test_audit_exits_with_the_verdict_its_findings_carry(
+    capsys      : CaptureFixture[str],
+    monkeypatch : MonkeyPatch,
+    severity    : Severity,
+    status      : int,
+    task        : Callable[[str], int]
+):
+    """
+    Pins that `repo:audit` prints each finding the audit reads as an
+    annotation and exits 1 where a finding is an error and 0 where every
+    finding is a warning.
+    """
+    finding = Finding(
+        file     = Path("pyproject.toml"),
+        line     = 3,
+        message  = "Diverges",
+        severity = severity
+    )
+
+    monkeypatch.setattr(
+        Audit,
+        "read",
+        classmethod(lambda cls: cls(findings=(finding,)))
+    )
+
+    assert task("audit") == status
+    assert capsys.readouterr().out == f"{finding.annotation}\n"

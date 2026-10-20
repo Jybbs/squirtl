@@ -3,8 +3,8 @@
 """
 Deletes the Actions cache entries that newer entries have replaced, as
 the `gha:prune` task the `✂️ Prune` job of `🕹️ Warm` runs on the runner's
-own interpreter and the `gh` it carries. `Caches` reads every entry as an
-`Entry`, keeps the newest entry of each generation, and deletes the rest
+own interpreter and the `gh` it carries. `Caches` reads every entry as a
+`Cache`, keeps the newest entry of each generation, and deletes the rest
 through `gh cache delete`, which needs the `actions: write` permission the
 job declares. It prints a line per deleted entry and then the bytes freed.
 """
@@ -25,7 +25,7 @@ def gh(*arguments: str) -> CompletedProcess[str]:
 
 
 @dataclass(frozen=True, kw_only=True)
-class Entry:
+class Cache:
     """
     One Actions cache entry, holding the fields `gh cache list --json`
     returns for it under the names `gh` gives them.
@@ -85,10 +85,10 @@ class Caches:
     The cache entries the repository holds, as `gh cache list` lists them.
     """
 
-    entries: list[Entry]
+    entries: list[Cache]
 
     @property
-    def replaced(self) -> list[Entry]:
+    def replaced(self) -> list[Cache]:
         """
         Sets aside every entry a newer entry of its generation replaces,
         leaving each generation's newest entry and every entry belonging to
@@ -112,14 +112,14 @@ class Caches:
     def from_github(cls) -> Self:
         """
         Reads every entry `gh cache list` returns, asking for each field
-        `Entry` declares, and stops the task where the listing fails.
+        `Cache` declares, and stops the task where the listing fails.
         """
         # Without `--limit`, `gh cache list` returns at most 30 entries.
         listing = gh(
             "cache",
             "list",
             "--json",
-            ",".join(field.name for field in fields(Entry)),
+            ",".join(field.name for field in fields(Cache)),
             "--limit",
             "100"
         )
@@ -127,7 +127,7 @@ class Caches:
         if listing.returncode:
             raise SystemExit(f"::error::gh cache list failed, {listing.stderr.strip()}")
 
-        return cls([Entry(**row) for row in loads(listing.stdout)])
+        return cls([Cache(**row) for row in loads(listing.stdout)])
 
     def prune(self):
         """

@@ -1,26 +1,182 @@
 """
-Defines the records the `repo:labels` and `repo:rulesets` tasks read from
-the registries under `.github/` and from `pyproject.toml`, each built on the
-`Schema` that `squirtl.repo.github` defines and each registry deriving the
-`Plan` that brings GitHub in line with it:
+Defines the records the `repo` tasks read from the files of the checkout,
+each built on the `Schema` that `squirtl.repo.github` defines:
 
-- `Registry`, the base of a registry one TOML file holds, and `Endpoint`,
-  the base of a table sent whole as the body of a `PUT`
-- `Label` and `Labels`, the label registry
-- `Ruleset` and `Rulesets`, the rulesets, beside `GithubRuleset`
-- `Settings` and a record for each of its tables, beside `Project`
+- `TomlFile` and `YamlFile`, the bases of a record one file holds, and
+  `Endpoint`, the base of a table sent whole as the body of a `PUT`
+- The registries under `.github/` and `Project`, each registry deriving the
+  `Plan` that brings GitHub in line with it
+- `Finding`, one divergence `repo:audit` reports, and `Unreadable`, raised
+  where a file the audit reads fails to parse
+- The records of every other file the audit reads, among them `Manifest`,
+  `Workflow`, `Script`, and the `Tree` and `Tasks` that git and mise list
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib      import contextmanager
+from enum            import StrEnum, auto
+from fnmatch         import fnmatch
 from functools       import cached_property
 from http            import HTTPMethod
-from itertools       import chain
-from pathlib         import Path
-from pydantic        import Field, HttpUrl, JsonValue, StringConstraints
-from tomllib         import loads
-from typing          import Annotated, ClassVar, Literal, Self
+from itertools       import chain, pairwise, takewhile
+from packaging.requirements import Requirement
+from packaging.specifiers   import SpecifierSet
+from packaging.utils        import canonicalize_name
+from packaging.version      import Version
+from pathlib                import Path
+from pydantic            import (
+    AliasPath, BeforeValidator, Field, HttpUrl, InstanceOf, JsonValue,
+    StringConstraints, TypeAdapter, ValidationError
+)
+from re         import finditer, fullmatch, search
+from shlex      import shlex, split
+from stat       import S_IXUSR
+from subprocess import SubprocessError, check_output, run
+from tomllib    import loads
+from typing     import Annotated, Any, ClassVar, Literal, Self
+from yaml                import (
+    DocumentEndEvent, MappingNode, Node, NodeEvent, SafeLoader, SequenceNode,
+    YAMLError, compose_all, parse
+)
 
 from squirtl.repo.github import Command, Plan, Schema
+
+type Pin        = Annotated[InstanceOf[Requirement], BeforeValidator(Requirement)]
+type Release    = Annotated[InstanceOf[Version], BeforeValidator(Version)]
+type Specifiers = Annotated[InstanceOf[SpecifierSet], BeforeValidator(SpecifierSet)]
+
+
+def command_lines(text: str) -> dict[int, tuple[str, ...]]:
+    """
+    Splits the shell script `text` into the words of each command line,
+    keyed by the line it opens on counting from 1, joining a line that ends
+    in a backslash to the next and leaving out comments and blank lines.
+    Each of `;`, `&&`, `|`, `$(`, and the like stands as a word of its own,
+    so a command inside a substitution starts on a word of its own too.
+
+    Raises:
+        ValueError: Where a quote opens and never closes.
+    """
+    lines   = {}
+    opening = None
+    pending = ""
+
+    for number, line in enumerate(text.splitlines(), start=1):
+        opening = opening or number
+
+        if line.endswith("\\"):
+            pending += line.removesuffix("\\") + " "
+            continue
+
+        lexer = shlex(pending + line, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+
+        if words := tuple(lexer):
+            lines[opening] = words
+
+        opening, pending = None, ""
+
+    return lines
+
+
+def following(
+    program    : str,
+    subcommand : str,
+    words      : Sequence[str]
+) -> list[tuple[str, ...]]:
+    """
+    Lists the words after each place `program` runs `subcommand` among
+    `words`, so a line that runs `uv run` twice yields what each run takes.
+    """
+    return [
+        tuple(words[index + 2:])
+        for index, pair in enumerate(pairwise(words))
+        if pair == (program, subcommand)
+    ]
+
+
+class Author(Schema, extra="ignore"):
+    """
+    One author `[project].authors` names.
+    """
+
+    name: str | None = None
+    """
+    The author's name, or `None` for an author named only by an address.
+    """
+
+
+class Block(Schema):
+    """
+    One node of a YAML file PyYAML composes, read for its value and for the
+    line it opens on. A mapping's keys keep the text they are written in, so
+    `on`, which YAML 1.1 reads as `True`, stays `on`.
+    """
+
+    node: InstanceOf[Node]
+    """
+    The node PyYAML composed, an alias already resolved to the node its
+    anchor names.
+    """
+
+    @property
+    def line(self) -> int:
+        """
+        Numbers the line the node opens on, counting from 1.
+        """
+        return self.node.start_mark.line + 1
+
+    @property
+    def value(self) -> Any:
+        """
+        Builds the value the node holds, as `yaml.safe_load` builds it.
+        """
+        return SafeLoader("").construct_document(self.node)
+
+    def at(self, *keys: str) -> Block | None:
+        """
+        Finds the block under each of `keys` in turn, or `None` where a key
+        is missing or a block on the way holds no mapping.
+        """
+        block = self
+
+        for key in keys:
+            if (block := block.fields().get(key)) is None:
+                return None
+
+        return block
+
+    def entries(self, *keys: str) -> list[Block]:
+        """
+        Wraps each item of the sequence under each of `keys` in turn, or
+        nothing where a key is missing or the node there holds no sequence.
+        """
+        block = self.at(*keys)
+
+        if block is None or not isinstance(block.node, SequenceNode):
+            return []
+
+        return [Block(node=item) for item in block.node.value]
+
+    def fields(self, *keys: str) -> dict[str, Block]:
+        """
+        Wraps each value of the mapping under each of `keys` in turn, keyed
+        by its key's text, or nothing where a key is missing or the node
+        there holds no mapping.
+        """
+        block = self.at(*keys)
+
+        if block is None or not isinstance(block.node, MappingNode):
+            return {}
+
+        return {key.value: Block(node=value) for key, value in block.node.value}
+
+    def get(self, *keys: str, default: Any = None) -> Any:
+        """
+        Builds the value under each of `keys` in turn, or `default` where a
+        key is missing.
+        """
+        return default if (block := self.at(*keys)) is None else block.value
 
 
 class Dependabot(Schema):
@@ -133,87 +289,118 @@ class Label(Schema):
         )
 
 
-class Project(Schema, extra="ignore"):
+class License(Schema):
     """
-    The `[project]` table of `file`, read for the fields the repository's
-    settings take from it.
-    """
-
-    file: ClassVar[Path] = Path("pyproject.toml")
-
-    description: str
-    """
-    The one-sentence summary GitHub shows as the repository's description.
+    A license file `[project].license-files` names, read for its title and
+    for the holders its copyright line names.
     """
 
-    keywords: list[str]
+    holders: str | None
     """
-    The keywords GitHub carries as the repository's topics.
-    """
-
-    urls: dict[str, HttpUrl] = {}
-    """
-    The addresses `[project.urls]` names, the `Homepage` among them once the
-    docs site serves.
+    Whom the copyright line names after its year, or `None` where the file
+    carries no copyright line.
     """
 
-    @property
-    def about(self) -> dict[str, str]:
-        """
-        Holds the description and the homepage GitHub shows in the
-        repository's About box, as fields of the request that updates the
-        repository.
-        """
-        return {"description": self.description, "homepage": self.homepage}
+    path: Path
+    """
+    The file, relative to the root of the checkout.
+    """
 
-    @property
-    def homepage(self) -> str:
-        """
-        Writes the `Homepage` address without its scheme or its closing
-        slash, the form GitHub shows beside the description, or an empty
-        string where `[project.urls]` names no `Homepage`.
-        """
-        if url := self.urls.get("Homepage"):
-            return f"{url.host}{url.path}".rstrip("/")
-
-        return ""
-
-    @property
-    def topics(self) -> Command:
-        """
-        Builds the `PUT` that replaces every topic the repository carries
-        with the keywords.
-        """
-        return Command.api(
-            "topics",
-            body   = {"names": self.keywords},
-            method = HTTPMethod.PUT
-        )
+    title: str
+    """
+    The file's first line, without the `#` a Markdown heading opens on.
+    """
 
     @classmethod
-    def read(cls) -> Self:
+    def from_path(cls, path: Path) -> Self:
         """
-        Reads the `[project]` table of `file`.
+        Reads the license file at `path`, raising `Unreadable` where the
+        file is missing or empty.
         """
+        with Finding.reading(path):
+            text      = path.read_text(encoding="utf-8")
+            title, *_ = text.splitlines()
+            match     = search(
+                r"(?m)^Copyright (?:\(c\) )?[\d, -]+ (?P<holders>.+)$",
+                text
+            )
+
+            return cls(
+                holders = match and match["holders"],
+                path    = path,
+                title   = title.lstrip("# ")
+            )
+
+
+class LockedPackage(Schema, extra="ignore"):
+    """
+    One package `uv.lock` resolves, read for its name and its version.
+    """
+
+    name: str
+    """
+    The package's name as the lockfile writes it.
+    """
+
+    version: Release | None = None
+    """
+    The version the lockfile resolves, or `None` for a package the
+    lockfile resolves from a path with no version of its own.
+    """
+
+
+class Metadata(Schema, extra="ignore"):
+    """
+    The `script` block of inline metadata a Python script declares, as PEP
+    723 sets it out.
+    """
+
+    dependencies: list[Pin] = []
+    """
+    The packages the script runs on.
+    """
+
+    requires_python: Specifiers | None = Field(None, alias="requires-python")
+    """
+    The Python releases the script runs on, or `None` where it names none.
+    """
+
+    @classmethod
+    def from_script(cls, text: str) -> Self | None:
+        """
+        Reads the `script` block of the inline metadata the script `text`
+        carries, through the pattern PEP 723 gives for finding a block.
+
+        Returns:
+            The block, or `None` where `text` carries none.
+
+        Raises:
+            ValueError: Where `text` carries more than one `script` block.
+        """
+        blocks = [
+            match["content"]
+            for match in finditer(
+                r"(?m)^# /// (?P<type>[a-zA-Z0-9-]+)$\s"
+                r"(?P<content>(^#(| .*)$\s)+)^# ///$",
+                text
+            )
+            if match["type"] == "script"
+        ]
+
+        if len(blocks) > 1:
+            raise ValueError("the script carries more than one `script` block")
+
+        if not blocks:
+            return None
+
         return cls.model_validate(
-            loads(cls.file.read_text(encoding="utf-8"))["project"]
+            loads(
+                "".join(
+                    line.removeprefix("#").removeprefix(" ")
+                    for line in blocks[0].splitlines(keepends=True)
+                )
+            )
         )
-
-
-class Registry(Schema):
-    """
-    The base of a registry one TOML file under `.github/` holds whole, which
-    `read` validates into the record.
-    """
-
-    file: ClassVar[Path]
-
-    @classmethod
-    def read(cls) -> Self:
-        """
-        Reads the registry at `file`.
-        """
-        return cls.model_validate(loads(cls.file.read_text(encoding="utf-8")))
 
 
 class Ruleset(Schema):
@@ -252,6 +439,19 @@ class Ruleset(Schema):
     The kind of ref the ruleset covers.
     """
 
+    @property
+    def checks(self) -> list[str]:
+        """
+        Names each status check a `required_status_checks` rule of the
+        ruleset requires.
+        """
+        return [
+            check.get("context")
+            for rule in self.rules
+            if rule.get("type") == "required_status_checks"
+            for check in rule.get("parameters", {}).get("required_status_checks", [])
+        ]
+
     def command(self, live: Mapping[str, int]) -> Command:
         """
         Builds the `PUT` that updates in place the ruleset whose id `live`
@@ -270,6 +470,25 @@ class Ruleset(Schema):
             body   = self.model_dump(),
             method = HTTPMethod.PUT
         )
+
+    @classmethod
+    def from_path(cls, path: Path) -> Self:
+        """
+        Reads the ruleset the JSON file at `path` declares, raising
+        `Unreadable` where the file fails to parse or to validate.
+        """
+        with Finding.reading(path):
+            return cls.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+class Severity(StrEnum):
+    """
+    How much a finding weighs, each member's value the name of the workflow
+    command GitHub turns into an annotation of that weight.
+    """
+
+    ERROR   = auto()
+    WARNING = auto()
 
 
 class Repository(Schema):
@@ -345,6 +564,123 @@ class Repository(Schema):
     """
 
 
+class Task(Schema, extra="ignore"):
+    """
+    One task `mise tasks ls` lists, read for its name, the tasks it depends
+    on, and the file declaring it.
+    """
+
+    depends: list[str]
+    """
+    The tasks mise runs before this one.
+    """
+
+    name: str
+    """
+    The task's full name, its group and its verb.
+    """
+
+    source: Path
+    """
+    The absolute path of the file declaring the task.
+    """
+
+    @property
+    def file(self) -> Path:
+        """
+        Names the file declaring the task, relative to the root of the
+        checkout, climbing out of it for a task a parent directory declares.
+        """
+        return self.source.resolve().relative_to(Path.cwd().resolve(), walk_up=True)
+
+
+class SecurityAndAnalysis(Schema):
+    """
+    The `[repository.security_and_analysis]` table, holding the secret
+    scanning features the repository runs.
+    """
+
+    secret_scanning: Feature
+    """
+    Whether GitHub scans the repository's history on every branch for a
+    secret a known provider issues.
+    """
+
+    secret_scanning_push_protection: Feature
+    """
+    Whether GitHub refuses a push carrying such a secret.
+    """
+
+
+class TomlFile(Schema):
+    """
+    The base of a record one TOML file holds whole, which `read` validates
+    into the record.
+    """
+
+    file: ClassVar[Path]
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Reads the record at `file`, raising `Unreadable` where the file
+        fails to parse or to validate.
+        """
+        with Finding.reading(cls.file):
+            return cls.model_validate(loads(cls.file.read_text(encoding="utf-8")))
+
+
+class Tree(Schema):
+    """
+    The files of the checkout git lists, tracked or untracked and not
+    ignored, each relative to the root.
+    """
+
+    files: list[Path]
+    """
+    Every file, in sorted order.
+    """
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Lists the files through `git ls-files`, leaving out one git tracks
+        that the working tree no longer holds, and raising `Unreadable` on
+        the root where git cannot list them.
+        """
+        with Finding.reading(Path(".")):
+            listing = check_output(
+                [
+                    "git", "ls-files", "--cached", "--deduplicate",
+                    "--exclude-standard", "--others", "-z"
+                ],
+                encoding = "utf-8"
+            )
+
+        return cls(
+            files = sorted(filter(Path.is_file, map(Path, listing.split("\0"))))
+        )
+
+    def under(self, directory: Path) -> list[Path]:
+        """
+        Picks each file somewhere under `directory`.
+        """
+        return [file for file in self.files if file.is_relative_to(directory)]
+
+
+class Unreadable(Exception):
+    """
+    Raised where a file a check of `repo:audit` reads fails to parse, its
+    arguments the findings reporting each problem the parse met.
+    """
+
+    def __str__(self) -> str:
+        """
+        Joins the message of each finding, one to a line.
+        """
+        return "\n".join(finding.message for finding in self.args)
+
+
 class ActionsPermissions(Endpoint):
     """
     The `[actions]` table, the body of the request that sets which actions a
@@ -369,7 +705,543 @@ class ActionsPermissions(Endpoint):
     """
 
 
-class Labels(Registry):
+class Project(Schema, extra="ignore"):
+    """
+    The `[project]` table of `file`, read for the fields the repository's
+    settings take from it and the fields `repo:audit` holds other files to.
+    """
+
+    file: ClassVar[Path] = Path("pyproject.toml")
+
+    authors: list[Author]
+    """
+    The people and the organizations who wrote the package.
+    """
+
+    description: str
+    """
+    The one-sentence summary GitHub shows as the repository's description.
+    """
+
+    keywords: list[str]
+    """
+    The keywords GitHub carries as the repository's topics.
+    """
+
+    license: str
+    """
+    The SPDX expression naming the license the package ships under.
+    """
+
+    name: str
+    """
+    The name the package installs under.
+    """
+
+    version: Release
+    """
+    The version the package carries.
+    """
+
+    license_files: list[Path] = Field(alias="license-files")
+    """
+    The license files the wheel carries, relative to the root.
+    """
+
+    requires_python: Specifiers = Field(alias="requires-python")
+    """
+    The Python releases the package installs on.
+    """
+
+    scripts: dict[str, str] = {}
+    """
+    Each command the package installs, beside the object it runs, written
+    as the module's dotted path, a `:`, and the object's name.
+    """
+
+    urls: dict[str, HttpUrl] = {}
+    """
+    The addresses `[project.urls]` names, the `Homepage` among them once the
+    docs site serves.
+    """
+
+    @property
+    def about(self) -> dict[str, str]:
+        """
+        Holds the description GitHub shows in the repository's About box,
+        beside the homepage where `[project.urls]` names one, as fields of
+        the request that updates the repository, so a homepage set by hand
+        stays where the project names none.
+        """
+        return {"description": self.description} | (
+            {"homepage": homepage} if (homepage := self.homepage) else {}
+        )
+
+    @property
+    def credits(self) -> list[str]:
+        """
+        Names each author `authors` names by name.
+        """
+        return [author.name for author in self.authors if author.name]
+
+    @property
+    def entries(self) -> list[str]:
+        """
+        Names the module each command `scripts` declares runs an object of,
+        as the module's dotted path.
+        """
+        return [target.partition(":")[0] for target in self.scripts.values()]
+
+    @property
+    def homepage(self) -> str | None:
+        """
+        Writes the `Homepage` address without its scheme or its closing
+        slash, the form GitHub shows beside the description.
+
+        Returns:
+            The address, or `None` where `[project.urls]` names no
+            `Homepage`.
+        """
+        if url := self.urls.get("Homepage"):
+            return f"{url.host}{url.path}".rstrip("/")
+
+        return None
+
+    @property
+    def topics(self) -> Command:
+        """
+        Builds the `PUT` that replaces every topic the repository carries
+        with the keywords.
+        """
+        return Command.api(
+            "topics",
+            body   = {"names": self.keywords},
+            method = HTTPMethod.PUT
+        )
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Reads the `[project]` table of `file`, raising `Unreadable` where
+        the file fails to parse or the table to validate.
+        """
+        with Finding.reading(cls.file):
+            return cls.model_validate(
+                loads(cls.file.read_text(encoding="utf-8")).get("project")
+            )
+
+
+class Script(Schema):
+    """
+    One script under `.mise/`, read for the command its shebang starts, the
+    command lines a shell script runs, and the inline metadata it declares.
+    """
+
+    commands: dict[int, tuple[str, ...]]
+    """
+    The words of each command line a shell script runs, keyed by the line
+    it opens on, or nothing for a Python script, whose body runs no shell.
+    """
+
+    metadata: Metadata | None
+    """
+    The inline metadata the script declares, or `None` where it declares
+    none.
+    """
+
+    path: Path
+    """
+    The script, relative to the root of the checkout.
+    """
+
+    shebang: tuple[str, ...]
+    """
+    The words of the command the shebang starts, or nothing where the script
+    opens on no shebang.
+    """
+
+    @property
+    def lines(self) -> dict[int, tuple[str, ...]]:
+        """
+        Holds the words of every command the script starts, the shebang's on
+        line 1, keyed by the line each opens on.
+        """
+        return ({1: self.shebang} if self.shebang else {}) | self.commands
+
+    @property
+    def runs(self) -> list[tuple[int, tuple[str, ...]]]:
+        """
+        Pairs each `uv run` the script starts with the line it opens on and
+        the words after it.
+        """
+        return [
+            (line, options)
+            for line, words in self.lines.items()
+            for options in following("uv", "run", words)
+        ]
+
+    @classmethod
+    def from_path(cls, path: Path) -> Self:
+        """
+        Reads the script at `path`, splitting its body into command lines
+        unless its `.py` suffix marks it as Python, and raising `Unreadable`
+        where a line or the inline metadata fails to parse.
+        """
+        with Finding.reading(path):
+            text  = path.read_text(encoding="utf-8")
+            first = text.partition("\n")[0]
+
+            return cls(
+                commands = {} if path.suffix == ".py" else command_lines(text),
+                metadata = Metadata.from_script(text),
+                path     = path,
+                shebang  = tuple(split(first[2:])) if first[:2] == "#!" else ()
+            )
+
+
+class TaskIssue(Schema, extra="ignore"):
+    """
+    One defect `mise tasks validate` reports in a task's definition.
+    """
+
+    message: str
+    """
+    The defect, as mise words it.
+    """
+
+    severity: Severity
+    """
+    Whether mise fails the validation on the defect or only warns.
+    """
+
+    task: str
+    """
+    The task the defect sits in.
+    """
+
+    details: str | None = None
+    """
+    Where the defect sits in the definition, or `None` where mise names
+    nothing further.
+    """
+
+    @property
+    def text(self) -> str:
+        """
+        Writes the defect as mise words it, followed by where it sits in
+        parentheses where mise names that.
+        """
+        return f"{self.message!r} ({self.details})" if self.details else repr(
+            self.message
+        )
+
+
+class WorkflowStep(Block):
+    """
+    One step a job of a workflow or a composite action runs.
+    """
+
+    @property
+    def action(self) -> str | None:
+        """
+        Names the action the step uses, as `uses` writes it, or `None` for a
+        step that runs a script.
+        """
+        return self.get("uses")
+
+    @cached_property
+    def commands(self) -> list[tuple[str, ...]]:
+        """
+        Splits the step's `run` script into the words of each command line.
+        """
+        return list(command_lines(str(self.get("run", default=""))).values())
+
+    @property
+    def local(self) -> Path | None:
+        """
+        Names the directory of the action in this repository the step uses,
+        written after `./` or after the `$/` that names the repository the
+        workflow runs in, or `None` for any other step.
+        """
+        action = self.action or ""
+        return Path(action[2:]) if action[:2] in {"$/", "./"} else None
+
+    @property
+    def pinned(self) -> tuple[str, str] | None:
+        """
+        Splits `uses` into the action and the ref it is pinned to, or `None`
+        for an action of this repository, a step naming no ref, or a step
+        running a script.
+        """
+        action, at, ref = (self.action or "").rpartition("@")
+        return (action, ref) if at and not self.local else None
+
+    @property
+    def tasks(self) -> list[str]:
+        """
+        Names the task each `mise run` in the step's script starts, a
+        `$NAME` it starts read as the value the step's `env` gives `NAME`.
+        """
+        env   = {name: str(block.value) for name, block in self.fields("env").items()}
+        named = (
+            next((word for word in rest if not word.startswith("-")), None)
+            for words in self.commands
+            for rest in following("mise", "run", words)
+        )
+
+        return [
+            env.get(task.strip("${}"), task) if task.startswith("$") else task
+            for task in named
+            if task
+        ]
+
+    @property
+    def writes_summary(self) -> bool:
+        """
+        Tells whether a word of the step's script names
+        `GITHUB_STEP_SUMMARY`, the file a workflow step appends the workflow
+        run's summary to.
+        """
+        return any(
+            "GITHUB_STEP_SUMMARY" in word for words in self.commands for word in words
+        )
+
+
+class YamlFile(Schema):
+    """
+    The base of a YAML file the audit reads, holding the first document
+    the file carries, which for a Markdown file is the frontmatter above
+    its text.
+    """
+
+    directory: ClassVar[Path]
+
+    file: ClassVar[Path]
+
+    path: Path
+    """
+    The file, relative to the root of the checkout.
+    """
+
+    root: Block
+    """
+    The node the first document opens on.
+    """
+
+    text: str
+    """
+    What the file holds.
+    """
+
+    @property
+    def anchors(self) -> list[int]:
+        """
+        Numbers each line of the first document that carries an anchor or
+        an alias.
+        """
+        events = takewhile(
+            lambda event: not isinstance(event, DocumentEndEvent),
+            parse(self.text, Loader=SafeLoader)
+        )
+
+        return [
+            event.start_mark.line + 1
+            for event in events
+            if isinstance(event, NodeEvent) and event.anchor
+        ]
+
+    @classmethod
+    def from_path(cls, path: Path) -> Self:
+        """
+        Reads the first document of the YAML file at `path`, raising
+        `Unreadable` where the file fails to parse or holds no document.
+        """
+        with Finding.reading(path):
+            text = path.read_text(encoding="utf-8")
+
+            return cls(
+                path = path,
+                root = Block(node=next(compose_all(text, Loader=SafeLoader), None)),
+                text = text
+            )
+
+    @classmethod
+    def matching(cls, *patterns: str) -> list[Self]:
+        """
+        Reads every file under `directory` that one of `patterns` matches,
+        in the order of its path.
+        """
+        return [
+            cls.from_path(path)
+            for path in sorted(chain.from_iterable(map(cls.directory.glob, patterns)))
+        ]
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Reads the one file `file` names.
+        """
+        return cls.from_path(cls.file)
+
+
+class TaskValidation(Schema, extra="ignore"):
+    """
+    What `mise tasks validate --json` prints, read for each defect.
+    """
+
+    issues: list[TaskIssue]
+    """
+    Each defect, in the order mise reports them.
+    """
+
+
+class Citation(YamlFile):
+    """
+    The citation `file` declares, read for the fields the manifest also
+    declares.
+    """
+
+    file: ClassVar[Path] = Path("CITATION.cff")
+
+    @property
+    def authors(self) -> dict[str, int]:
+        """
+        Names each author the citation credits, a person by their given and
+        family names and an entity by its name, beside the line the author
+        opens on.
+        """
+        return {
+            " ".join(
+                filter(None, (author.get("given-names"), author.get("family-names")))
+            )
+            or str(author.get("name", default="")): author.line
+            for author in self.root.entries("authors")
+        }
+
+
+class Finding(Schema):
+    """
+    One divergence a check of `repo:audit` reports, at the file and the line
+    it concerns.
+    """
+
+    file: Path
+    """
+    The file the divergence sits in, relative to the root of the checkout.
+    """
+
+    message: str
+    """
+    What diverges, as one sentence.
+    """
+
+    line: int | None = None
+    """
+    The line the divergence sits on, counting from 1, or `None` where it
+    concerns the whole file.
+    """
+
+    severity: Severity = Severity.ERROR
+    """
+    Whether the divergence fails the audit or only warns.
+    """
+
+    @property
+    def annotation(self) -> str:
+        """
+        Writes the finding as the workflow command GitHub shows as an
+        annotation on its file and line, escaping each property and the
+        message as the Actions toolkit's `escapeProperty` and `escapeData`
+        escape them.
+        """
+        data       = str.maketrans({"%": "%25", "\n": "%0A", "\r": "%0D"})
+        properties = data | str.maketrans({",": "%2C", ":": "%3A"})
+
+        return "::{} {}::{}".format(
+            self.severity,
+            ",".join(
+                f"{key}={str(value).translate(properties)}"
+                for key, value in (("file", self.file), ("line", self.line))
+                if value is not None
+            ),
+            self.message.translate(data)
+        )
+
+    @classmethod
+    def locate(
+        cls,
+        file     : Path,
+        *needles : str,
+        message  : str,
+        severity : Severity = Severity.ERROR
+    ) -> Self:
+        """
+        Builds the finding on the first line of `file` that holds the last
+        of `needles`, searching from the line that holds the one before
+        it, so a key and the value it names may share a line, or on no line
+        where a needle appears nowhere from there on.
+        """
+        numbered = list(
+            enumerate(file.read_text(encoding="utf-8").splitlines(), start=1)
+        )
+        line = 1
+
+        for needle in needles:
+            line = line and next(
+                (number for number, text in numbered[line - 1:] if needle in text),
+                None
+            )
+
+        return cls(
+            file     = file,
+            line     = line,
+            message  = message,
+            severity = severity
+        )
+
+    @classmethod
+    @contextmanager
+    def reading(cls, file: Path) -> Iterator[None]:
+        """
+        Raises `Unreadable` in place of any error reading or parsing `file`
+        inside the block, holding a finding for each field a validation
+        refuses and otherwise one finding on the line the parser names.
+        """
+        try:
+            yield
+        except ValidationError as error:
+            raise Unreadable(
+                *(
+                    cls(
+                        file    = file,
+                        message =
+                            f"`{file}` fails validation at "
+                            + (
+                                f"`{'.'.join(map(str, problem['loc']))}`"
+                                if problem["loc"]
+                                else "its root"
+                            )
+                            + f" with {problem['msg']!r}"
+                    )
+                    for problem in error.errors()
+                )
+            ) from error
+        except (OSError, SubprocessError, SyntaxError, ValueError, YAMLError) as error:
+            mark = getattr(error, "problem_mark", None)
+
+            raise Unreadable(
+                cls(
+                    file    = file,
+                    line    = mark.line + 1 if mark else getattr(error, "lineno", None),
+                    message = (
+                        f"Reading `{file}` fails with "
+                        f"{' '.join(str(error).split())!r}"
+                    )
+                )
+            ) from error
+
+
+class Labels(TomlFile):
     """
     The label registry `file` holds, an array of label rows and nothing
     besides.
@@ -433,6 +1305,174 @@ class Labels(Registry):
         )
 
 
+class Lockfile(TomlFile, extra="ignore"):
+    """
+    The packages `file` resolves.
+    """
+
+    file: ClassVar[Path] = Path("uv.lock")
+
+    packages: list[LockedPackage] = Field(alias="package")
+    """
+    Every package the lockfile resolves, in its order.
+    """
+
+    def resolved(self, name: str) -> list[Version]:
+        """
+        Lists each version the lockfile resolves for the package `name`
+        names, in ascending order, matching names as PEP 503 normalizes
+        them, since a package a marker splits resolves to one version per
+        platform.
+        """
+        return sorted(
+            package.version
+            for package in self.packages
+            if package.version and canonicalize_name(package.name) == canonicalize_name(
+                name
+            )
+        )
+
+
+class Manifest(TomlFile, extra="ignore"):
+    """
+    The tables of `file` beside `[project]` that `repo:audit` reads, each
+    field taken from the key its alias path names.
+    """
+
+    file: ClassVar[Path] = Path("pyproject.toml")
+
+    build_constraints: list[Pin] = Field(
+        [],
+        validation_alias = AliasPath("tool", "uv", "build-constraint-dependencies")
+    )
+    """
+    The pins `[tool.uv]` holds every package a build resolves to.
+    """
+
+    build_requirements: list[Pin] = Field(
+        validation_alias = AliasPath("build-system", "requires")
+    )
+    """
+    The packages `[build-system]` builds the wheel with.
+    """
+
+    packages: list[Path] = Field(
+        validation_alias = AliasPath(
+            "tool",
+            "hatch",
+            "build",
+            "targets",
+            "wheel",
+            "packages"
+        )
+    )
+    """
+    The directory of each package the wheel carries.
+    """
+
+    target_version: str = Field(
+        validation_alias = AliasPath("tool", "prose", "target-version")
+    )
+    """
+    The Python release the formatter writes for.
+    """
+
+    test_files: list[str] = Field(
+        validation_alias = AliasPath("tool", "pytest", "python_files")
+    )
+    """
+    The patterns a file's name matches for pytest to collect it as a test
+    module.
+    """
+
+    test_paths: list[Path] = Field(
+        validation_alias = AliasPath("tool", "pytest", "testpaths")
+    )
+    """
+    The directories pytest collects the suite from.
+    """
+
+    test_skips: list[str] = Field(
+        validation_alias = AliasPath("tool", "pytest", "norecursedirs")
+    )
+    """
+    The patterns a directory's name matches for pytest to collect nothing
+    under it.
+    """
+
+    uv_version: Specifiers = Field(
+        validation_alias = AliasPath("tool", "uv", "required-version")
+    )
+    """
+    The uv releases `[tool.uv]` lets run against the project.
+    """
+
+    def collects(self, path: Path) -> bool:
+        """
+        Tells whether pytest collects the file at `path` as a test module,
+        which holds for a file under a test path whose name matches a
+        pattern `test_files` holds, other than a `conftest.py`, and that no
+        directory matching a pattern `test_skips` holds.
+        """
+        return (
+            any(path.is_relative_to(root) for root in self.test_paths)
+            and path.name != "conftest.py"
+            and any(path.match(pattern) for pattern in self.test_files)
+            and not any(
+                fnmatch(
+                    part,
+                    skip
+                ) for part in path.parent.parts for skip in self.test_skips
+            )
+        )
+
+    def mirrors(self, test: Path) -> list[Path]:
+        """
+        Names the module of each package that the test module at `test`
+        mirrors, at the path the test module sits at under its test path.
+        """
+        return [
+            package / test.relative_to(root)
+            for root in self.test_paths
+            if test.is_relative_to(root)
+            for package in self.packages
+        ]
+
+
+class MiseConfig(TomlFile, extra="ignore"):
+    """
+    The tools `file` pins that another file of the checkout repeats.
+    """
+
+    file: ClassVar[Path] = Path(".mise/config.toml")
+
+    python: Release = Field(validation_alias=AliasPath("tools", "python"))
+    """
+    The Python release mise installs.
+    """
+
+    uv: Release = Field(validation_alias=AliasPath("tools", "uv"))
+    """
+    The uv release mise installs.
+    """
+
+
+class ReleaseNotes(YamlFile):
+    """
+    The release-notes categories `file` declares in priority order.
+    """
+
+    file: ClassVar[Path] = Path(".github/release.yml")
+
+    @property
+    def categories(self) -> list[Block]:
+        """
+        Reads each category, holding its `title` and the `labels` that file
+        a pull request under it.
+        """
+        return self.root.entries("changelog", "categories")
+
+
 class Rulesets(Schema):
     """
     The rulesets the files under `directory` declare.
@@ -440,9 +1480,9 @@ class Rulesets(Schema):
 
     directory: ClassVar[Path] = Path(".github/rulesets")
 
-    rulesets: list[Ruleset]
+    rulesets: dict[Path, Ruleset]
     """
-    Every ruleset, in the order of its file's name.
+    Every ruleset keyed by its file, in the order of the file's name.
     """
 
     @cached_property
@@ -467,11 +1507,13 @@ class Rulesets(Schema):
         and creates every other one, and names each ruleset GitHub carries
         that no file declares.
         """
+        rulesets = self.rulesets.values()
+
         return Plan.leaving(
-            declared = (ruleset.name for ruleset in self.rulesets),
+            declared = (ruleset.name for ruleset in rulesets),
             kind     = "ruleset",
             live     = self.live,
-            writes   = (ruleset.command(self.live) for ruleset in self.rulesets)
+            writes   = (ruleset.command(self.live) for ruleset in rulesets)
         )
 
     @classmethod
@@ -480,32 +1522,54 @@ class Rulesets(Schema):
         Reads every ruleset a JSON file under `directory` declares.
         """
         return cls(
-            rulesets = [
-                Ruleset.model_validate_json(path.read_text(encoding="utf-8"))
+            rulesets = {
+                path: Ruleset.from_path(path)
                 for path in sorted(cls.directory.glob("*.json"))
+            }
+        )
+
+
+class Scripts(Schema):
+    """
+    The scripts under `directory` that mise runs as a task, a task runs, or
+    a task sources.
+    """
+
+    directory: ClassVar[Path] = Path(".mise")
+
+    scripts: list[Script]
+    """
+    Every script, in the order of its path.
+    """
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Reads each executable file under `tasks/`, which mise runs as
+        a task, beside each wrapper under `bin/` and each library under
+        `lib/`.
+        """
+        tasks = (
+            path
+            for path in (cls.directory / "tasks").rglob("*")
+            if path.is_file() and path.stat().st_mode & S_IXUSR
+        )
+
+        return cls(
+            scripts = [
+                Script.from_path(path)
+                for path in sorted(
+                    chain(
+                        tasks,
+                        (cls.directory / "bin").glob("*"),
+                        (cls.directory / "lib").glob("*")
+                    )
+                )
             ]
         )
 
 
-class SecurityAndAnalysis(Schema):
-    """
-    The `[repository.security_and_analysis]` table, holding the secret
-    scanning features the repository runs.
-    """
-
-    secret_scanning: Feature
-    """
-    Whether GitHub scans the repository's history on every branch for a
-    secret a known provider issues.
-    """
-
-    secret_scanning_push_protection: Feature
-    """
-    Whether GitHub refuses a push carrying such a secret.
-    """
-
-
-class Settings(Registry):
+class Settings(TomlFile):
     """
     The repository settings `file` declares, one table per endpoint keyed by
     the REST field names and a `[dependabot]` table keyed by each endpoint
@@ -540,8 +1604,8 @@ class Settings(Registry):
         """
         Sends every setting, in the order below:
 
-        - The repository's own fields, with the description and the homepage
-          the project declares
+        - The repository's own fields, with the description the project
+          declares and its homepage where it declares one
         - The topics, which replace every topic the repository carries
         - Each Dependabot endpoint, turned on through `PUT` or off through
           `DELETE`
@@ -569,6 +1633,83 @@ class Settings(Registry):
         return Project.read()
 
 
+class Tasks(Schema):
+    """
+    The tasks mise lists for the checkout, beside each defect `mise tasks
+    validate` reports in their definitions.
+    """
+
+    issues: list[TaskIssue]
+    """
+    Each defect mise reports, in its order.
+    """
+
+    tasks: list[Task]
+    """
+    Every task the checkout declares, leaving out the global ones a
+    developer's own configuration adds.
+    """
+
+    @property
+    def named(self) -> dict[str, Task]:
+        """
+        Keys each task by its full name.
+        """
+        return {task.name: task for task in self.tasks}
+
+    def declaring(self, name: str) -> Path:
+        """
+        Names the file declaring the task `name`, or `.mise/config.toml`
+        where mise lists no such task.
+        """
+        return self.named[name].file if name in self.named else MiseConfig.file
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Lists every task the checkout declares through `mise tasks ls` and
+        validates each through `mise tasks validate`, which exits 1 where it
+        reports an error, raising `Unreadable` on `.mise/config.toml` where
+        mise cannot list the tasks or prints a report that fails to parse.
+        """
+        with Finding.reading(MiseConfig.file):
+            tasks = TypeAdapter(list[Task]).validate_json(
+                check_output(["mise", "tasks", "ls", "--json", "--local"])
+            )
+            report = run(
+                ["mise", "tasks", "validate", "--json", *(task.name for task in tasks)],
+                capture_output = True,
+                encoding       = "utf-8"
+            )
+
+            return cls(
+                issues = TaskValidation.model_validate_json(report.stdout).issues,
+                tasks  = tasks
+            )
+
+
+class Template(YamlFile):
+    """
+    One issue template under `directory`, read for the labels its
+    frontmatter sets.
+    """
+
+    directory: ClassVar[Path] = Path(".github/ISSUE_TEMPLATE")
+
+    @property
+    def labels(self) -> list[str]:
+        """
+        Names each label the template sets, which its frontmatter writes as
+        a list or as one string of names separated by commas.
+        """
+        labels = self.root.get("labels", default=[])
+
+        if isinstance(labels, str):
+            return [label.strip() for label in labels.split(",")]
+
+        return labels
+
+
 class WorkflowPermissions(Endpoint):
     """
     The `[workflow]` table, the body of the request that sets what the token
@@ -586,3 +1727,282 @@ class WorkflowPermissions(Endpoint):
     """
     Whether the token may write to the repository or only read it.
     """
+
+
+class Templates(Schema):
+    """
+    The issue templates written in Markdown.
+    """
+
+    templates: list[Template]
+    """
+    Every template, in the order of its file's name.
+    """
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Reads each Markdown file under the directory `Template` names.
+        """
+        return cls(templates=Template.matching("*.md"))
+
+
+class Action(YamlFile):
+    """
+    One action manifest under `directory`, read for the inputs it declares
+    and the steps a composite action runs.
+    """
+
+    directory: ClassVar[Path] = Path(".github/actions")
+
+    @property
+    def inputs(self) -> list[str]:
+        """
+        Names each input the manifest declares.
+        """
+        return list(self.root.fields("inputs"))
+
+    @cached_property
+    def steps(self) -> list[WorkflowStep]:
+        """
+        Reads each step a composite action runs, in order.
+        """
+        return [WorkflowStep(node=step.node) for step in self.root.entries(
+            "runs",
+            "steps"
+        )]
+
+
+class WorkflowJob(Block):
+    """
+    One job a workflow declares, under the id the workflow keys it by.
+    """
+
+    key: str
+    """
+    The id the workflow keys the job by, which another job's `needs` names.
+    """
+
+    inherited: str | None = None
+    """
+    The `cache-mode` the workflow sets for every job that sets none of its
+    own, or `None` where the workflow sets none.
+    """
+
+    @property
+    def always(self) -> bool:
+        """
+        Tells whether the job runs under `if: always()`, written bare or
+        inside `${{ }}`, so it runs whatever the jobs it waits on end in.
+        """
+        return (
+            str(self.get("if", default=""))
+            .removeprefix("${{")
+            .removesuffix("}}")
+            .strip()
+        ) == "always()"
+
+    @property
+    def cache_mode(self) -> str | None:
+        """
+        Names the `cache-mode` the job runs under, its own or else its
+        workflow's.
+        """
+        return self.get("cache-mode", default=self.inherited)
+
+    @property
+    def needs(self) -> list[str]:
+        """
+        Names each job the job waits on, which `needs` writes as one id or a
+        list of them.
+        """
+        needs = self.get("needs", default=[])
+        return [needs] if isinstance(needs, str) else needs
+
+    @cached_property
+    def steps(self) -> list[WorkflowStep]:
+        """
+        Reads each step the job runs, in order.
+        """
+        return [WorkflowStep(node=step.node) for step in self.entries("steps")]
+
+    @property
+    def tasks(self) -> list[str]:
+        """
+        Names each task the job's steps start through `mise run`, a matrix
+        expression expanded into every value it takes.
+        """
+        return [
+            task
+            for step in self.steps
+            for named in step.tasks
+            for task in self.expand(named)
+        ]
+
+    def expand(self, text: str) -> list[str]:
+        """
+        Lists each value `text` takes across the job's matrix, from the
+        matrix's own axis and from each `include` row setting the key, where
+        `text` is one `${{ matrix.<key> }}` expression, reading an axis or
+        an `include` written as one expression as no value.
+
+        Returns:
+            The values in the order the matrix gives them, or `text` alone
+            where it is no such expression.
+        """
+        if not (expression := fullmatch(r"\$\{\{\s*matrix\.([\w-]+)\s*\}\}", text)):
+            return [text]
+
+        key    = expression[1]
+        values = chain(
+            self.entries("strategy", "matrix", key),
+            (row.at(key) for row in self.entries("strategy", "matrix", "include"))
+        )
+
+        return list(dict.fromkeys(str(block.value) for block in values if block))
+
+    def inputs(self, name: str) -> list[tuple[WorkflowStep, str]]:
+        """
+        Pairs each step passing an action of this repository the input
+        `name` with each value the input takes across the job's matrix.
+        """
+        return [
+            (step, value)
+            for step in self.steps
+            if step.local and (given := step.get("with", name)) is not None
+            for value in self.expand(str(given))
+        ]
+
+
+class Actions(Schema):
+    """
+    The action manifests under the directory `Action` names, one per action
+    the repository declares.
+    """
+
+    actions: list[Action]
+    """
+    Every manifest, in the order of its path.
+    """
+
+    @property
+    def manifests(self) -> dict[Path, Action]:
+        """
+        Keys each manifest by the directory a step's `uses` names it by.
+        """
+        return {action.path.parent: action for action in self.actions}
+
+    @property
+    def steps(self) -> list[tuple[Path, WorkflowStep]]:
+        """
+        Pairs each step a composite action runs with the manifest declaring
+        it.
+        """
+        return [(action.path, step) for action in self.actions for step in action.steps]
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Reads the `action.yml` or `action.yaml` in each directory under the
+        directory `Action` names.
+        """
+        return cls(actions=Action.matching("*/action.yml", "*/action.yaml"))
+
+
+class Workflow(YamlFile):
+    """
+    One workflow under `directory`, read for its triggers and its jobs.
+    """
+
+    directory: ClassVar[Path] = Path(".github/workflows")
+
+    @cached_property
+    def jobs(self) -> list[WorkflowJob]:
+        """
+        Reads each job the workflow declares, in the order it declares them,
+        each taking the workflow's `cache-mode` where it sets none of its
+        own.
+        """
+        return [
+            WorkflowJob(inherited=self.root.get("cache-mode"), key=key, node=job.node)
+            for key, job in self.root.fields("jobs").items()
+        ]
+
+    @property
+    def pulls(self) -> bool:
+        """
+        Tells whether a pull request runs the workflow.
+        """
+        return "pull_request" in self.triggers
+
+    @property
+    def triggers(self) -> dict[str, Block | None]:
+        """
+        Keys the configuration of each event the workflow runs on by the
+        event's name, which `on` writes as one name, a list of names, or a
+        mapping of each name to its configuration.
+
+        Returns:
+            Each event's configuration, or `None` for an event written with
+            none.
+        """
+        if (on := self.root.at("on")) is None:
+            return {}
+
+        if fields := on.fields():
+            return fields
+
+        return dict.fromkeys(
+            map(str, on.value if isinstance(on.value, list) else [on.value])
+        )
+
+    def pushes(self, file: Path) -> bool:
+        """
+        Tells whether a push touching `file` runs the workflow, which holds
+        for every file where `on.push` filters no paths and for none where
+        the workflow runs on no push.
+        """
+        if "push" not in self.triggers:
+            return False
+
+        paths = self.root.at("on", "push", "paths")
+
+        return paths is None or any(
+            file.full_match(str(pattern.value)) for pattern in paths.entries()
+        )
+
+
+class Workflows(Schema):
+    """
+    The workflows under the directory `Workflow` names.
+    """
+
+    workflows: list[Workflow]
+    """
+    Every workflow, in the order of its file's name.
+    """
+
+    @property
+    def jobs(self) -> list[tuple[Path, WorkflowJob]]:
+        """
+        Pairs each job a workflow declares with the workflow declaring it.
+        """
+        return [(
+            workflow.path, job
+        ) for workflow in self.workflows for job in workflow.jobs]
+
+    @property
+    def steps(self) -> list[tuple[Path, WorkflowStep]]:
+        """
+        Pairs each step a job of a workflow runs with the workflow declaring
+        it.
+        """
+        return [(path, step) for path, job in self.jobs for step in job.steps]
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Reads each `.yml` or `.yaml` file under the directory `Workflow`
+        names.
+        """
+        return cls(workflows=Workflow.matching("*.yml", "*.yaml"))
