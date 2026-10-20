@@ -1,8 +1,7 @@
 """
-Defines the base every record of `squirtl.repo` builds on and the records of
-what the `repo:labels` and `repo:rulesets` tasks send GitHub:
+Defines the records of what the `repo:labels` and `repo:rulesets` tasks send
+GitHub:
 
-- `Schema`, the base
 - `Command`, one `gh` command beside the JSON body it sends on standard
   input
 - `Plan`, the commands a task sends once its reader confirms them
@@ -11,24 +10,15 @@ what the `repo:labels` and `repo:rulesets` tasks send GitHub:
 from collections.abc import Iterable
 from http            import HTTPMethod
 from json            import dumps
-from pydantic        import BaseModel, JsonValue, TypeAdapter
+from pydantic        import JsonValue, TypeAdapter
 from shlex           import join, quote
 from subprocess      import check_output
 from typing          import Self
 
-
-class Schema(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True):
-    """
-    The base every record of `squirtl.repo` builds on, which refuses an
-    assignment once built and takes the docstring beneath each field as
-    its description. A registry's record refuses a key no field declares,
-    so a misspelled key fails the read before anything is sent, whereas a
-    record of what GitHub or the manifest returns ignores the keys it does
-    not read.
-    """
+from squirtl.emulator.schemas import Record
 
 
-class Command(Schema):
+class Command(Record):
     """
     One `gh` command beside the JSON body it sends on standard input, acting
     on the repository `gh` resolves, which is the one `GH_REPO` names where
@@ -122,7 +112,7 @@ class Command(Schema):
         return TypeAdapter(shape).validate_json(self.output())
 
 
-class Plan(Schema):
+class Plan(Record):
     """
     The commands a task sends GitHub once its reader confirms them, beside
     each object GitHub carries that no file under `.github/` declares, which

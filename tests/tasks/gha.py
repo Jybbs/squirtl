@@ -1,14 +1,17 @@
 """
-Pins what each `gha` task decides from its inputs, meaning the output
-format `gha:lint` hands zizmor for the shell it runs in beside the further
-arguments it forwards, the verdict and summary `gha:brief` writes for
-the jobs a gate waited on, and which cache entries `gha:prune` treats as
-replaced and how it deletes one.
+Pins what each `gha` task decides from its inputs, covering:
+
+- The output format `gha:lint` hands zizmor for the shell it runs in,
+  beside the further arguments it forwards
+- The verdict and summary `gha:brief` writes for the jobs a gate waited on
+- Which cache entries `gha:prune` treats as replaced, and how it deletes one
+- Which path `gha:cut` takes for the releases GitHub holds, and what it
+  sends on each
 
 The stand-in under `fixtures/` answers for `zizmor`, printing each argument
 it receives on a line of its own, and the `fp` fixture pytest-subprocess
-provides answers every `gh` command `gha:prune` runs, so no case starts
-either program.
+provides answers every `gh` command `gha:prune` and `gha:cut` run, so no
+case starts either program.
 """
 
 from collections.abc   import Callable
@@ -19,10 +22,16 @@ from pathlib           import Path
 from pytest            import CaptureFixture, Config, MonkeyPatch, fixture, mark, param, raises
 from pytest_subprocess import FakeProcess
 from runpy             import run_path
+from syrupy.assertion  import SnapshotAssertion
 from types             import ModuleType
 
-ATTACHED = "https://github.com/Jybbs/squirtl/actions/runs/1/artifacts/2"
+ATTACHED  = "https://github.com/Jybbs/squirtl/actions/runs/1/artifacts/2"
+GENERATED = (
+    "<!-- Release notes generated using configuration in "
+    ".github/release.yml at main -->"
+)
 LATER    = "2026-09-02T00:00:00Z"
+UNTAGGED = "https://github.com/Jybbs/squirtl/releases/tag/untagged-0123456789abcdef"
 
 
 def entry(
@@ -58,6 +67,49 @@ def job(result: str, outputs: dict[str, str] | None = None) -> dict:
         output where none is given.
     """
     return {"outputs": outputs or {}, "result": result}
+
+
+def release(
+    tag_name   : str,
+    *,
+    body       : str | None = None,
+    draft      : bool       = True,
+    release_id : int        = 1
+) -> dict:
+    """
+    Poses one release in the shape `gha:cut` reads it from the listing.
+
+    Returns:
+        That release, a draft of `main` holding no body unless a case says
+        otherwise.
+    """
+    return {
+        "body"             : body,
+        "draft"            : draft,
+        "id"               : release_id,
+        "tag_name"         : tag_name,
+        "target_commitish" : "main"
+    }
+
+
+@fixture
+def cut(load_task: Callable[[str], ModuleType]) -> ModuleType:
+    """
+    Loads the `gha:cut` task script.
+    """
+    return load_task(".mise/tasks/gha/cut.py")
+
+
+@fixture
+def draft(cut: ModuleType) -> Callable[..., object]:
+    """
+    Builds a reader of the `Draft` for version `0.2.0` among the releases a
+    case poses, each in the shape `gha:cut` reads it from the listing.
+    """
+    return lambda *listing: cut.Draft(
+        releases = [cut.Release(**each) for each in listing],
+        version  = "0.2.0"
+    )
 
 
 @fixture
@@ -108,6 +160,17 @@ def gate(
         return brief.from_environment()
 
     return read
+
+
+@fixture
+def outputs(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
+    """
+    Points `GITHUB_OUTPUT` at a file under `tmp_path` that no case has
+    written yet, as the runner points it at a step's outputs.
+    """
+    monkeypatch.setenv("GITHUB_OUTPUT", str(path := tmp_path / "outputs"))
+
+    return path
 
 
 @fixture
@@ -276,20 +339,29 @@ def test_the_summary_names_the_head_of_the_branch_it_ran_for(
     assert sentence in capsys.readouterr().out
 
 
-def test_a_failed_listing_stops_the_task_before_any_delete(
-    fp    : FakeProcess,
-    prune : ModuleType
+def test_a_failed_gh_call_stops_the_task_with_what_gh_reported(
+    draft   : Callable[..., object],
+    fp      : FakeProcess,
+    outputs : Path
 ):
     """
-    Pins that a failed `gh cache list` stops the task before any delete,
-    carrying the error `gh` reported as an error annotation.
+    Pins that a `gh` call that fails stops the task with an error annotation
+    naming the call and carrying what `gh` reported, before any output is
+    written.
     """
-    fp.register(["gh", "cache", "list", fp.any()], returncode=1, stderr="HTTP 403")
+    fp.register(
+        ["gh", "release", "create", fp.any()],
+        returncode = 1,
+        stderr     = "HTTP 422: Validation Failed\n"
+    )
 
-    with raises(SystemExit, match="^::error::gh cache list failed, HTTP 403$"):
-        prune.Caches.from_github()
+    with raises(
+        SystemExit,
+        match = r"^::error::gh release create failed, HTTP 422: Validation Failed\Z"
+    ):
+        draft().maintain()
 
-    assert len(fp.calls) == 1
+    assert not outputs.exists()
 
 
 @mark.parametrize(
@@ -433,6 +505,47 @@ def test_delete_reports_whether_github_accepted_it(
     assert list(fp.calls) == [["gh", "cache", "delete", "7"]]
 
 
+def test_a_failed_listing_stops_the_task_before_any_delete(
+    fp    : FakeProcess,
+    prune : ModuleType
+):
+    """
+    Pins that a failed `gh cache list` stops the task before any delete,
+    carrying the error `gh` reported as an error annotation.
+    """
+    fp.register(["gh", "cache", "list", fp.any()], returncode=1, stderr="HTTP 403")
+
+    with raises(SystemExit, match="^::error::gh cache list failed, HTTP 403$"):
+        prune.Caches.from_github()
+
+    assert len(fp.calls) == 1
+
+
+def test_a_published_version_stops_the_task_naming_mise_bump(
+    draft   : Callable[..., object],
+    fp      : FakeProcess,
+    outputs : Path
+):
+    """
+    Pins that a published release carrying the version stops the task with
+    an error annotation naming `mise bump`, even beside a draft sharing its
+    tag, before any command reaches GitHub or any output is written.
+    """
+    published = draft(release("0.2.0"), release("0.2.0", draft=False, release_id=2))
+
+    with raises(
+        SystemExit,
+        match = (
+            "^::error::0.2.0 is already published, "
+            "so run `mise bump` to open the next version$"
+        )
+    ):
+        published.maintain()
+
+    assert list(fp.calls) == []
+    assert not outputs.exists()
+
+
 def test_a_template_naming_an_unknown_variable_fails_the_gate(
     gate      : Callable[..., object],
     templates : Callable[..., None]
@@ -446,6 +559,165 @@ def test_a_template_naming_an_unknown_variable_fails_the_gate(
 
     with raises(TemplateError):
         gate().write()
+
+
+@mark.parametrize(
+    ("shell", "kind"),
+    [
+        param({}, "plain", id="local"),
+        param({"GITHUB_ACTIONS": "true"}, "github", id="actions")
+    ],
+    indirect = ["shell"]
+)
+def test_lint_hands_zizmor_the_format_its_shell_reads(
+    install_stand_ins : Callable[..., Path],
+    kind              : str,
+    printed           : Callable[..., list[str]],
+    shell             : dict[str, str]
+):
+    """
+    Pins that `gha:lint` asks zizmor for annotations under GitHub Actions
+    and for plain diagnostics elsewhere, offline and failing on a file it
+    cannot collect, over every workflow and action under `.github`, and
+    forwards each further argument after its own flags and ahead of that
+    folder.
+    """
+    install_stand_ins("echo.sh", "zizmor")
+
+    assert printed("gha/lint", "--pedantic") == [
+        "--format", kind, "--offline", "--strict-collection", "--pedantic", ".github"
+    ]
+
+
+def test_running_the_task_creates_the_draft_where_only_earlier_versions_are_published(
+    checkout     : Callable[..., None],
+    fp           : FakeProcess,
+    outputs      : Path,
+    pytestconfig : Config
+):
+    """
+    Pins that running the task where the listing holds only an earlier
+    published version, as it does at the first merge of a cycle, creates the
+    draft for the version `pyproject.toml` carries.
+    """
+    checkout({"pyproject.toml": '[project]\nversion = "0.2.0"\n'})
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases", fp.any()],
+        stdout = f"{dumps(release('0.1.0', draft=False))}\n"
+    )
+    fp.register(["gh", "release", "create", fp.any()], stdout=f"{UNTAGGED}\n")
+    run_path(str(pytestconfig.rootpath / ".mise/tasks/gha/cut.py"), run_name="__main__")
+
+    assert fp.calls[1][-3:] == ["--title", "0.2.0", "0.2.0"]
+    assert outputs.read_text(encoding="utf-8") == (
+        f"state=created\nurl={UNTAGGED}\nversion=0.2.0\n"
+    )
+
+
+@mark.parametrize(
+    ("listing", "found"),
+    [
+        param([], None, id="none"),
+        param([release("0.1.0", draft=False)], None, id="another-version"),
+        param([release("0.2.0")], 1, id="draft"),
+        param([release("0.2.0", draft=False)], 1, id="published"),
+        param(
+            [release("0.2.0"), release("0.2.0", draft=False, release_id=2)],
+            2,
+            id = "draft-listed-first"
+        ),
+        param(
+            [release("0.2.0", draft=False, release_id=2), release("0.2.0")],
+            2,
+            id = "published-listed-first"
+        )
+    ]
+)
+def test_release_finds_a_published_release_ahead_of_a_draft(
+    draft   : Callable[..., object],
+    found   : int | None,
+    listing : list[dict]
+):
+    """
+    Pins that `Draft.release` finds the release whose tag is the version,
+    choosing a published release over a draft sharing its tag whatever the
+    listing's order, and returns `None` where no release carries it.
+    """
+    assert getattr(draft(*listing).release, "id", None) == found
+
+
+@mark.parametrize(
+    ("body", "context"),
+    [
+        param(None, "", id="no-body"),
+        param(f"{GENERATED}\n\n* A pull request\n", "", id="notes-alone"),
+        param(
+            f"Context above.\n\n{GENERATED}\n\n* A pull request\n",
+            "Context above.\n\n",
+            id = "context-and-notes"
+        ),
+        param("Written by hand\n", "Written by hand\n", id="no-comment")
+    ]
+)
+def test_context_keeps_what_sits_above_the_generated_notes(
+    body    : str | None,
+    context : str,
+    cut     : ModuleType
+):
+    """
+    Pins that `Release.context` holds everything above the comment GitHub
+    opens its generated notes on, the whole body where that comment is gone,
+    and nothing where the release holds no body.
+    """
+    assert cut.Release(**release("0.2.0", body=body)).context == context
+
+
+@mark.parametrize(
+    ("listing", "state"),
+    [
+        param([], "created", id="created"),
+        param(
+            [release("0.2.0", body=f"Context above.\n\n{GENERATED}\n\n* Earlier\n")],
+            "refreshed",
+            id = "refreshed"
+        )
+    ]
+)
+def test_each_path_sends_the_commands_its_snapshot_holds(
+    draft    : Callable[..., object],
+    fp       : FakeProcess,
+    listing  : list[dict],
+    outputs  : Path,
+    snapshot : SnapshotAssertion,
+    state    : str
+):
+    """
+    Pins every command `Draft.maintain` sends GitHub where no release
+    carries the version and where a draft does, followed by the body the
+    refresh writes. That body keeps the context above the comment, replaces
+    the notes below it, and resends the release's tag, and each path writes
+    its name, the address, and the version to the step's outputs.
+    """
+    written = []
+
+    fp.register(["gh", "release", "create", fp.any()], stdout=f"{UNTAGGED}\n")
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
+        stdout = dumps({"body": f"{GENERATED}\n\n* Later\n", "name": "0.2.0"})
+    )
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/1", fp.any()],
+        stdin_callable = written.append,
+        stdout         = dumps({"html_url": UNTAGGED})
+    )
+    draft(*listing).maintain()
+
+    assert "".join(
+        f"{line}\n" for line in [*map(" ".join, fp.calls), *written]
+    ) == snapshot
+    assert outputs.read_text(encoding="utf-8") == (
+        f"state={state}\nurl={UNTAGGED}\nversion=0.2.0\n"
+    )
 
 
 def test_running_the_task_lists_every_field_and_deletes_only_replaced_entries(
@@ -485,6 +757,54 @@ def test_running_the_task_lists_every_field_and_deletes_only_replaced_entries(
     )
 
 
+def test_running_the_task_reads_the_manifest_version_and_every_release(
+    checkout     : Callable[..., None],
+    fp           : FakeProcess,
+    outputs      : Path,
+    pytestconfig : Config
+):
+    """
+    Pins that running the task reads the version from the `pyproject.toml`
+    in the working directory and lists every page of releases, asking for
+    each field `Release` declares. It then refreshes the draft whose tag is
+    that version rather than one carrying another, against the branch that
+    draft targets.
+    """
+    checkout({"pyproject.toml": '[project]\nversion = "0.2.0"\n'})
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases", fp.any()],
+        stdout = "".join(
+            f"{dumps(each)}\n"
+            for each in [
+                release("0.1.0", draft=False),
+                release("0.2.0", release_id=2) | {"target_commitish": "release/0.2"}
+            ]
+        )
+    )
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
+        stdout = dumps({"body": GENERATED})
+    )
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/2", fp.any()],
+        stdout = dumps({"html_url": UNTAGGED})
+    )
+
+    script = run_path(
+        str(pytestconfig.rootpath / ".mise/tasks/gha/cut.py"),
+        run_name = "__main__"
+    )
+
+    assert list(fp.calls)[0] == [
+        "gh", "api", "repos/{owner}/{repo}/releases", "--paginate", "--jq",
+        f".[] | {{{', '.join(field.name for field in fields(script['Release']))}}}"
+    ]
+    assert fp.calls[1][-4:] == [
+        "--raw-field", "tag_name=0.2.0", "--raw-field", "target_commitish=release/0.2"
+    ]
+    assert outputs.read_text(encoding="utf-8").startswith("state=refreshed\n")
+
+
 def test_the_closing_line_counts_only_the_deletes_github_accepted(
     capsys : CaptureFixture[str],
     fp     : FakeProcess,
@@ -507,32 +827,57 @@ def test_the_closing_line_counts_only_the_deletes_github_accepted(
     )
 
 
-@mark.parametrize(
-    ("shell", "kind"),
-    [
-        param({}, "plain", id="local"),
-        param({"GITHUB_ACTIONS": "true"}, "github", id="actions")
-    ],
-    indirect = ["shell"]
-)
-def test_lint_hands_zizmor_the_format_its_shell_reads(
-    install_stand_ins : Callable[..., Path],
-    kind              : str,
-    printed           : Callable[..., list[str]],
-    shell             : dict[str, str]
+def test_the_outputs_print_where_github_output_is_unset(
+    capsys : CaptureFixture[str],
+    draft  : Callable[..., object],
+    fp     : FakeProcess
 ):
     """
-    Pins that `gha:lint` asks zizmor for annotations under GitHub Actions
-    and for plain diagnostics elsewhere, offline and failing on a file it
-    cannot collect, over every workflow and action under `.github`, and
-    forwards each further argument after its own flags and ahead of that
-    folder.
+    Pins that `Draft.maintain` prints the path, the address, and the version
+    one per line where `GITHUB_OUTPUT` is unset, as it is outside a runner.
     """
-    install_stand_ins("echo.sh", "zizmor")
+    fp.register(["gh", "release", "create", fp.any()], stdout=f"{UNTAGGED}\n")
+    draft().maintain()
 
-    assert printed("gha/lint", "--pedantic") == [
-        "--format", kind, "--offline", "--strict-collection", "--pedantic", ".github"
+    assert capsys.readouterr().out == f"state=created\nurl={UNTAGGED}\nversion=0.2.0\n"
+
+
+@mark.parametrize(
+    ("outcome", "closing"),
+    [
+        param(
+            job("success", {"state": "created", "url": UNTAGGED, "version": "0.2.0"}),
+            f"on `main`.\n\nCreated [the draft release for `0.2.0`]({UNTAGGED}).\n",
+            id = "created"
+        ),
+        param(
+            job("success", {"state": "refreshed", "url": UNTAGGED, "version": "0.2.0"}),
+            f"on `main`.\n\nRefreshed the notes of [the draft release for `0.2.0`]"
+            f"({UNTAGGED}).\n",
+            id = "refreshed"
+        ),
+        param(job("failure"), "on `main`.\n", id="no-outputs"),
+        param(
+            job("failure", {"state": "", "url": "", "version": ""}),
+            "on `main`.\n",
+            id = "empty-outputs"
+        )
     ]
+)
+def test_the_draft_summary_names_the_path_beside_the_address(
+    capsys  : CaptureFixture[str],
+    closing : str,
+    gate    : Callable[..., object],
+    outcome : dict
+):
+    """
+    Pins that the summary of `🕹️ Draft` names the path `gha:cut` took beside
+    the draft's address and version, and closes on the verdict alone where
+    the draft job wrote no path.
+    """
+    gate({"draft": outcome}, "draft").write()
+
+    assert capsys.readouterr().out.endswith(closing)
 
 
 def test_the_summary_appends_to_the_step_summary_file(

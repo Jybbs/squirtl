@@ -12,7 +12,7 @@ Every change to *SquiRtL* starts as an issue, lands on a branch linked to it, an
 | Branch | *`N/slug`, cut from `main` and linked to issue `N`, its slug at most three terms from the issue's title* | The commits |
 | Pull request | *`[N]` and the issue's title, opened from the template* | The review, and the `🎒 Brief` check the `main` ruleset requires |
 | Squash merge | *`main`* | One commit per pull request, titled with the pull request's title and carrying its body |
-| Release | *GitHub Releases* | The notes GitHub generates from the merged pull requests, sorted by label |
+| Release | *GitHub Releases, as the draft `🕹️ Draft` refreshes on every merge to `main` until the version is published* | The notes GitHub generates from the merged pull requests, sorted by label |
 
 ---
 

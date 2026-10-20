@@ -194,6 +194,13 @@
       "$ref": "#/$defs/AgentSettings",
       "description": "The settings the agent reads."
     },
+    "checkpoint_steps": {
+      "default": 250000,
+      "description": "The environment steps between checkpoints, each written at the first\nepisode end reaching a multiple of them, whose default is the 250,000\nsteps of each iteration Dopamine's DQN checkpoints after.",
+      "exclusiveMinimum": 0,
+      "title": "Checkpoint Steps",
+      "type": "integer"
+    },
     "emulator": {
       "$ref": "#/$defs/EmulatorSettings",
       "description": "The settings the emulator reads."
@@ -211,6 +218,13 @@
       "description": "The seed every random draw in the run derives from, whose default\nfollows CleanRL's `dqn_atari.py`.",
       "minimum": 0,
       "title": "Seed",
+      "type": "integer"
+    },
+    "steps": {
+      "default": 10000000,
+      "description": "The environment steps the run takes, whose default follows CleanRL's\n`dqn_atari.py`.",
+      "exclusiveMinimum": 0,
+      "title": "Steps",
       "type": "integer"
     }
   },

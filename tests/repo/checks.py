@@ -27,13 +27,13 @@ from pytest            import CaptureFixture, fixture, mark, param, raises
 from pytest_subprocess import FakeProcess
 from textwrap          import dedent
 
+from squirtl.emulator.schemas import Record
 from squirtl.repo.checks  import (
     Anchors, Attribution, Audit, Check, Commits, Docstrings, Gates, Inputs,
     LabelCheck, Layout, Pins, Rows, Runners, ScriptCheck, Subsets, Summaries,
     TaskCheck,
     Warming
 )
-from squirtl.repo.github  import Schema
 from squirtl.repo.schemas import Finding, Severity, Task, TaskIssue, Tasks, Tree, Unreadable
 
 type Scan = Callable[..., list[tuple[str, int | None, str]]]
@@ -53,7 +53,7 @@ def scan(checkout: Callable[[Mapping[str, str]], None]) -> Scan:
     def run(
         check    : type[Check],
         files    : Mapping[str, str],
-        *records : Schema
+        *records : Record
     ) -> list[tuple[str, int | None, str]]:
         """
         Writes `files`, then reads and scans the check.

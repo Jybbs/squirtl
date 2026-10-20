@@ -17,7 +17,7 @@ from packaging.version    import Version
 from re     import fullmatch
 from typing import ClassVar, Self
 
-from squirtl.repo.github  import Schema
+from squirtl.emulator.schemas import Record
 from squirtl.repo.schemas import (
     Actions, Citation, Finding, Labels, License, Lockfile, Manifest, MiseConfig,
     Project, ReleaseNotes, Rulesets, Scripts, Severity, Tasks, Templates, Tree,
@@ -25,7 +25,7 @@ from squirtl.repo.schemas import (
 )
 
 
-class Audit(Schema):
+class Audit(Record):
     """
     The findings of every check `Check` declares, each finding held once
     however many checks report it.
@@ -70,14 +70,14 @@ class Audit(Schema):
         return int(any(finding.severity is Severity.ERROR for finding in self.findings))
 
 
-class Check(Schema, ABC):
+class Check(Record, ABC):
     """
     The base of one check `repo:audit` runs, each field the record of the
     files the check reads, which `read` builds from the reader it is handed.
     """
 
     @classmethod
-    def read(cls, documents: Callable[[type], Schema]) -> Self:
+    def read(cls, documents: Callable[[type], Record]) -> Self:
         """
         Builds the check from the record `documents` reads for each field's
         type, a reader a caller running several checks shares so each record

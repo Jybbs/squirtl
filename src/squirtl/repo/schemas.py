@@ -1,6 +1,9 @@
 """
 Defines the records the `repo` tasks read from the files of the checkout,
-each built on the `Schema` that `squirtl.repo.github` defines:
+each a `Record`, where a registry's record refuses a key no field declares,
+so a misspelled key fails the read before anything is sent, whereas a
+record of what GitHub, mise, or a manifest returns ignores the keys it does
+not read:
 
 - `TomlFile` and `YamlFile`, the bases of a record one file holds,
   `StepFile`, the base of a YAML file whose steps run scripts, and
@@ -42,7 +45,8 @@ from yaml                import (
     YAMLError, compose_all, parse
 )
 
-from squirtl.repo.github import Command, Plan, Schema
+from squirtl.emulator.schemas import Record
+from squirtl.repo.github      import Command, Plan
 
 type Lines = Annotated[
     dict[int, tuple[str, ...]],
@@ -50,9 +54,9 @@ type Lines = Annotated[
         lambda script: command_lines(script) if isinstance(script, str) else {}
     )
 ]
-type Pin        = Annotated[InstanceOf[Requirement], BeforeValidator(Requirement)]
-type Release    = Annotated[InstanceOf[Version], BeforeValidator(Version)]
-type Specifiers = Annotated[InstanceOf[SpecifierSet], BeforeValidator(SpecifierSet)]
+type Pin           = Annotated[InstanceOf[Requirement], BeforeValidator(Requirement)]
+type Specifiers    = Annotated[InstanceOf[SpecifierSet], BeforeValidator(SpecifierSet)]
+type VersionNumber = Annotated[InstanceOf[Version], BeforeValidator(Version)]
 
 
 def command_lines(text: str) -> dict[int, tuple[str, ...]]:
@@ -150,7 +154,7 @@ def admits(file: Path, pattern: str) -> bool:
     return fullmatch(regex, file.as_posix()) is not None
 
 
-class Author(Schema, extra="ignore"):
+class Author(Record, extra="ignore"):
     """
     One author `[project].authors` names.
     """
@@ -161,7 +165,7 @@ class Author(Schema, extra="ignore"):
     """
 
 
-class Block(Schema):
+class Block(Record):
     """
     One node of a YAML file PyYAML composes, read for its value and for the
     line it opens on. A mapping's keys keep the text they are written in, so
@@ -236,7 +240,7 @@ class Block(Schema):
         return default if value is None else value
 
 
-class Dependabot(Schema):
+class Dependabot(Record):
     """
     The `[dependabot]` table, keyed by the endpoint each setting turns on
     through `PUT` or off through `DELETE`.
@@ -268,7 +272,7 @@ class Dependabot(Schema):
         )
 
 
-class Endpoint(Schema):
+class Endpoint(Record):
     """
     The base of a table sent whole as the body of the `PUT` to `path` under
     the repository.
@@ -284,7 +288,7 @@ class Endpoint(Schema):
         return Command.api(self.path, body=self.model_dump(), method=HTTPMethod.PUT)
 
 
-class Feature(Schema):
+class Feature(Record):
     """
     One feature `security_and_analysis` turns on or off.
     """
@@ -295,7 +299,7 @@ class Feature(Schema):
     """
 
 
-class GithubRuleset(Schema, extra="ignore"):
+class GithubRuleset(Record, extra="ignore"):
     """
     One ruleset GitHub's listing of the repository's rulesets returns, read
     for its id and its name.
@@ -312,7 +316,7 @@ class GithubRuleset(Schema, extra="ignore"):
     """
 
 
-class Label(Schema):
+class Label(Record):
     """
     One row of the label registry.
     """
@@ -346,7 +350,7 @@ class Label(Schema):
         )
 
 
-class License(Schema):
+class License(Record):
     """
     A license file `[project].license-files` names, read for its title and
     for the holders its copyright line names.
@@ -389,7 +393,7 @@ class License(Schema):
             )
 
 
-class LockedPackage(Schema, extra="ignore"):
+class LockedPackage(Record, extra="ignore"):
     """
     One package `uv.lock` resolves, read for its name and its version.
     """
@@ -399,14 +403,14 @@ class LockedPackage(Schema, extra="ignore"):
     The package's name as the lockfile writes it.
     """
 
-    version: Release | None = None
+    version: VersionNumber | None = None
     """
     The version the lockfile resolves, or `None` for a package the
     lockfile resolves from a path with no version of its own.
     """
 
 
-class Metadata(Schema, extra="ignore"):
+class Metadata(Record, extra="ignore"):
     """
     The `script` block of inline metadata a Python script declares, as PEP
     723 sets it out.
@@ -460,7 +464,7 @@ class Metadata(Schema, extra="ignore"):
         )
 
 
-class Ruleset(Schema):
+class Ruleset(Record):
     """
     One ruleset a file under `.github/rulesets/` declares, as the body of
     the request that creates or updates it.
@@ -549,7 +553,7 @@ class Severity(StrEnum):
     WARNING = auto()
 
 
-class Repository(Schema):
+class Repository(Record):
     """
     The `[repository]` table, the body of the request that updates the
     repository's features, merge settings, and security features.
@@ -622,7 +626,7 @@ class Repository(Schema):
     """
 
 
-class Task(Schema, extra="ignore"):
+class Task(Record, extra="ignore"):
     """
     One task `mise tasks ls` lists, read for its name, the tasks it depends
     on, the file declaring it, and the scripts a task declared in TOML runs.
@@ -671,7 +675,7 @@ class Task(Schema, extra="ignore"):
         ]
 
 
-class SecurityAndAnalysis(Schema):
+class SecurityAndAnalysis(Record):
     """
     The `[repository.security_and_analysis]` table, holding the secret
     scanning features the repository runs.
@@ -689,7 +693,7 @@ class SecurityAndAnalysis(Schema):
     """
 
 
-class TomlFile(Schema):
+class TomlFile(Record):
     """
     The base of a record one TOML file holds whole, which `read` validates
     into the record.
@@ -707,7 +711,7 @@ class TomlFile(Schema):
             return cls.model_validate(loads(cls.file.read_text(encoding="utf-8")))
 
 
-class Tree(Schema):
+class Tree(Record):
     """
     The files of the checkout git lists, tracked or untracked and not
     ignored, each relative to the root.
@@ -808,7 +812,7 @@ class ActionsPermissions(Endpoint):
     """
 
 
-class Project(Schema, extra="ignore"):
+class Project(Record, extra="ignore"):
     """
     The `[project]` table of `file`, read for the fields the repository's
     settings take from it and the fields `repo:audit` holds other files to.
@@ -841,7 +845,7 @@ class Project(Schema, extra="ignore"):
     The name the package installs under.
     """
 
-    version: Release
+    version: VersionNumber
     """
     The version the package carries.
     """
@@ -934,7 +938,7 @@ class Project(Schema, extra="ignore"):
             )
 
 
-class Script(Schema):
+class Script(Record):
     """
     One script under `.mise/`, read for the command its shebang starts, the
     command lines a shell script runs, and the inline metadata it declares.
@@ -1002,7 +1006,7 @@ class Script(Schema):
             )
 
 
-class TaskIssue(Schema, extra="ignore"):
+class TaskIssue(Record, extra="ignore"):
     """
     One defect `mise tasks validate` reports in a task's definition.
     """
@@ -1110,7 +1114,7 @@ class WorkflowStep(Block):
         )
 
 
-class YamlFile(Schema):
+class YamlFile(Record):
     """
     The base of a YAML file the audit reads, holding the first document
     the file carries, which for a Markdown file is the frontmatter above
@@ -1189,7 +1193,7 @@ class YamlFile(Schema):
         return cls.from_path(cls.file)
 
 
-class TaskValidation(Schema, extra="ignore"):
+class TaskValidation(Record, extra="ignore"):
     """
     What `mise tasks validate --json` prints, read for each defect.
     """
@@ -1224,7 +1228,7 @@ class Citation(YamlFile):
         }
 
 
-class Finding(Schema):
+class Finding(Record):
     """
     One divergence a check of `repo:audit` reports, at the file and the line
     it concerns.
@@ -1551,12 +1555,12 @@ class MiseConfig(TomlFile, extra="ignore"):
 
     file: ClassVar[Path] = Path(".mise/config.toml")
 
-    python: Release = Field(validation_alias=AliasPath("tools", "python"))
+    python: VersionNumber = Field(validation_alias=AliasPath("tools", "python"))
     """
     The Python release mise installs.
     """
 
-    uv: Release = Field(validation_alias=AliasPath("tools", "uv"))
+    uv: VersionNumber = Field(validation_alias=AliasPath("tools", "uv"))
     """
     The uv release mise installs.
     """
@@ -1578,7 +1582,7 @@ class ReleaseNotes(YamlFile):
         return self.root.entries("changelog", "categories")
 
 
-class Rulesets(Schema):
+class Rulesets(Record):
     """
     The rulesets the files under `directory` declare.
     """
@@ -1634,7 +1638,7 @@ class Rulesets(Schema):
         )
 
 
-class Scripts(Schema):
+class Scripts(Record):
     """
     The scripts under `directory` that mise runs as a task, a task runs, or
     a task sources.
@@ -1739,7 +1743,7 @@ class Settings(TomlFile):
         return Project.read()
 
 
-class Tasks(Schema):
+class Tasks(Record):
     """
     The tasks mise lists for the checkout, beside each defect `mise tasks
     validate` reports in their definitions.
@@ -1835,7 +1839,7 @@ class WorkflowPermissions(Endpoint):
     """
 
 
-class Templates(Schema):
+class Templates(Record):
     """
     The issue templates written in Markdown.
     """
@@ -2010,7 +2014,7 @@ class WorkflowJob(Block):
         ]
 
 
-class Actions(Schema):
+class Actions(Record):
     """
     The action manifests under the directory `Action` names, one per action
     the repository declares.
@@ -2127,7 +2131,7 @@ class Workflow(StepFile):
         )
 
 
-class Workflows(Schema):
+class Workflows(Record):
     """
     The workflows under the directory `Workflow` names.
     """

@@ -1,0 +1,117 @@
+Usage: squirtl train [OPTIONS]
+
+Trains the agent for the run's --steps environment steps, headless unless       
+--emulator.open-window is set, logging a line per episode above a progress bar. 
+
+The run writes its record, a line per episode, and a checkpoint into a directory
+of its own under data/runs/, which the command prints once the run ends. An     
+interrupt, a termination signal, or squirtl stop ends the run at the end of its 
+episode with a checkpoint and exits 0, and a second interrupt ends it at once on
+the last checkpoint and exits 130.                                              
+
+A --resume directory holding no run or no checkpoint, a cartridge the emulator  
+refuses, or a working directory no git clone holds exits 1 before any directory 
+is made.
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────╮
+│ --resume PATH                 The directory of a stopped run to continue     │
+│                               from its last checkpoint, under the settings   │
+│                               that run recorded.                             │
+│ --agent.batch-size INT        The transitions each update draws from replay  │
+│                               memory, whose default follows Mnih et al.      │
+│                               [default: 32]                                  │
+│ --agent.capacity INT          The slots replay memory holds before           │
+│                               overwriting the oldest, four per reset         │
+│                               observation and one per step, whose default    │
+│                               takes 606 MB for a 72 by 80 frame, a 48 by 48  │
+│                               grid, and four flags, the grid and the flags   │
+│                               packed eight cells to a byte. [default:        │
+│                               100000]                                        │
+│ --agent.device STR            The device both networks and every batch sit   │
+│                               on, which defaults to the accelerator torch    │
+│                               reports and to the CPU where it reports none.  │
+│                               [default: cpu]                                 │
+│ --agent.discount FLOAT        The discount on the value of the state each    │
+│                               step reaches, whose default follows Mnih et    │
+│                               al. [default: 0.99]                            │
+│ --agent.epsilon-end FLOAT     The chance of a random action once exploration │
+│                               has annealed, whose default follows CleanRL's  │
+│                               dqn_atari.py. [default: 0.01]                  │
+│ --agent.epsilon-start FLOAT   The chance of a random action at the run's     │
+│                               first step, whose default follows CleanRL's    │
+│                               dqn_atari.py. [default: 1.0]                   │
+│ --agent.exploration-fraction  The share of the run's steps over which the    │
+│   FLOAT                       chance of a random action falls linearly from  │
+│                               epsilon_start to epsilon_end, whose default    │
+│                               follows CleanRL's dqn_atari.py. [default: 0.1] │
+│ --agent.learning-rate FLOAT   The step size Adam takes on every update, held │
+│                               constant across the run, whose default follows │
+│                               CleanRL's dqn_atari.py. [default: 0.0001]      │
+│ --agent.max-grad-norm FLOAT   The norm each update's gradient is clipped to, │
+│                               whose default follows Stable-Baselines3's DQN. │
+│                               [default: 10.0]                                │
+│ --agent.sync-steps INT        The environment steps between two copies of    │
+│                               the online network into the target network,    │
+│                               whose default follows CleanRL's dqn_atari.py.  │
+│                               [default: 1000]                                │
+│ --checkpoint-steps INT        The environment steps between checkpoints,     │
+│                               each written at the first episode end reaching │
+│                               a multiple of them, whose default is the       │
+│                               250,000 steps of each iteration Dopamine's DQN │
+│                               checkpoints after. [default: 250000]           │
+│ --emulator.cartridge PATH     The file holding the user's own ROM of the     │
+│                               English Pokémon Blue, refused unless its SHA-1 │
+│                               is the one pret/pokered lists. [default:       │
+│                               data/rom.gb]                                   │
+│ --emulator.hold INT           The frames a press holds its button down,      │
+│                               since pret/pokered's OverworldLoop calls       │
+│                               DelayFrame twice before each JoypadOverworld,  │
+│                               so the overworld reads the joypad every second │
+│                               frame and misses a press held for one frame    │
+│                               that falls between two reads. [default: 2]     │
+│ --emulator.open-window        Whether PyBoy draws the last frame of each     │
+│                               step in an SDL2 window, pacing the steps at    │
+│                               sixty a second, where otherwise a run draws    │
+│                               nothing and advances as fast as the machine    │
+│                               allows. [default: False]                       │
+│ --environment.frame-shape     The height and width in pixels each frame      │
+│   INT INT                     shrinks to, each dividing the screen's own,    │
+│                               whose default is the half-resolution grayscale │
+│                               screen Pleines et al. observe. [default: (72,  │
+│                               80)]                                           │
+│ --environment.frame-stack     The frames each observation stacks, the newest │
+│   INT                         last, whose default follows Mnih et al.        │
+│                               [default: 4]                                   │
+│ --environment                 The frames a step advances from its press, by  │
+│   .frames-per-step INT        default the fewest under which a direction     │
+│                               pressed on open ground moves the player one    │
+│                               square whichever frame the press lands on.     │
+│                               [default: 17]                                  │
+│ --environment.grid-size INT   The side in squares of the grid of reached     │
+│                               positions centered on the player, by default   │
+│                               one square per cell of the 48 by 48 crop       │
+│                               Pleines et al. observe. [default: 48]          │
+│ --environment                 The steps after which TimeLimit truncates an   │
+│   .max-episode-steps INT      episode, by default the budget Pleines et al.  │
+│                               start each episode with. [default: 10240]      │
+│ --reward.milestone FLOAT      The reward a step earns for each milestone on  │
+│                               the way to the starter whose flag it first     │
+│                               sets. [default: 0.1]                           │
+│ --reward.novelty FLOAT        The reward a step earns for reaching a         │
+│                               position the episode has not reached before,   │
+│                               whose default is a 400th of the default        │
+│                               milestone, the ratio Pleines et al. pay one    │
+│                               new coordinate against one completed event.    │
+│                               [default: 0.00025]                             │
+│ --reward.starter FLOAT        The reward the step first setting              │
+│                               EVENT_GOT_STARTER earns, which has to be the   │
+│                               largest term. [default: 0.6]                   │
+│ --seed INT                    The seed every random draw in the run derives  │
+│                               from, whose default follows CleanRL's          │
+│                               dqn_atari.py. [default: 1]                     │
+│ --steps INT                   The environment steps the run takes, whose     │
+│                               default follows CleanRL's dqn_atari.py.        │
+│                               [default: 10000000]                            │
+│ --verbose                     Log each step beside the line each episode     │
+│                               logs. [default: False]                         │
+╰──────────────────────────────────────────────────────────────────────────────╯

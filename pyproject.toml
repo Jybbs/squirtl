@@ -4,7 +4,7 @@ requires      = ["hatchling==1.32.4"]
 
 [project]
 authors         = [{ name = "James Parkington" }]
-dependencies    = ["cyclopts", "gymnasium", "numpy", "packaging", "pyboy", "pydantic", "pyyaml", "torch"]
+dependencies    = ["cyclopts", "gymnasium", "loguru", "numpy", "packaging", "pyboy", "pydantic", "pyyaml", "rich", "torch"]
 description     = "Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and PyTorch."
 keywords        = [
     "deep-learning",
@@ -25,7 +25,7 @@ license-files   = ["LICENSE.md"]
 name            = "squirtl"
 readme          = "README.md"
 requires-python = ">=3.14"
-version         = "0.1.0"
+version         = "0.2.0"
 
 [project.scripts]
 squirtl = "squirtl.cli:app"
