@@ -1,0 +1,6 @@
+{% include "base.md.j2" %}
+{% set draft = needs.draft.outputs %}
+{% if draft.state is defined and draft.state %}
+
+{{ "Created" if draft.state == "created" else "Refreshed the notes of" }} [the draft release for `{{ draft.version }}`]({{ draft.url }}).
+{% endif %}

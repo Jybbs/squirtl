@@ -12,10 +12,9 @@ the environment.
 
 from collections.abc import Callable
 from operator        import attrgetter
-from os              import X_OK, access, pathsep
+from os              import X_OK, access
 from pathlib         import Path
-from pytest          import Config, Metafunc, MonkeyPatch, fixture
-from shutil          import which
+from pytest          import Config, Metafunc, fixture
 from subprocess      import run
 
 
@@ -80,7 +79,7 @@ def test_each_wrapper_is_an_executable_copy_of_one_script(wrapper: Path):
 
 
 def test_mise_puts_each_wrapper_first_from_a_subfolder(
-    monkeypatch  : MonkeyPatch,
+    confine_mise : Callable[[Path, Path], None],
     pytestconfig : Config,
     stand_in     : Path,
     wrapper      : Path
@@ -90,23 +89,12 @@ def test_mise_puts_each_wrapper_first_from_a_subfolder(
     the path mise hands a command run from a subfolder of the checkout, so a
     bare program name there resolves to its wrapper.
 
-    The case runs the real `mise`, whose reading of the checkout's config
-    is what it pins, on a path holding only the stand-in, `mise`, and the
-    system directories. `MISE_CEILING_PATHS` stops mise at the checkout, so
-    it reads no config above it, and `MISE_TRUSTED_CONFIG_PATHS` trusts the
-    checkout, whose trust the `HOME` the `environment` fixture moves would
-    otherwise lose.
+    The case runs the real `mise`, whose reading of the checkout's config is
+    what it pins, confined to the checkout through `confine_mise`.
     """
     root = pytestconfig.rootpath
 
-    monkeypatch.setenv("MISE_CEILING_PATHS", str(root.parent))
-    monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", str(root))
-    monkeypatch.setenv(
-        "PATH",
-        pathsep.join(
-            [str(stand_in), str(Path(which("mise")).parent), "/usr/bin", "/bin"]
-        )
-    )
+    confine_mise(root, stand_in)
 
     resolved = run(
         ["mise", "x", "--", "sh", "-c", f"command -v {wrapper.name}"],
