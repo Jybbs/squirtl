@@ -4,7 +4,8 @@ Defines the fixtures the tests of `squirtl.cli` request:
 - `invoke`, which calls the app and reads back its `Invocation`
 - `accepted`, under which a cartridge passes the check of its digest
 - `quick`, the flags of a short run on the CPU evaluating two episodes,
-  and `trained`, a run `squirtl train` takes through under them
+  `trained`, a run `squirtl train` takes through under them, and
+  `stopped`, one it stops at the end of an episode short of its steps
 - `windows`, under which PyBoy draws no window whichever one a boot names,
   recording the one each boot named
 """
@@ -17,6 +18,7 @@ from pytest     import CaptureFixture, MonkeyPatch, fixture, raises
 from squirtl.cli              import app
 from squirtl.emulator         import console
 from squirtl.emulator.schemas import Cartridge
+from squirtl.runs.trainer     import Trainer
 
 
 @fixture
@@ -113,3 +115,30 @@ def trained(
         The run's directory, which the command prints.
     """
     return Path(invoke(["train", *quick]).output.strip())
+
+
+@fixture
+def stopped(
+    accepted    : None,
+    clone       : Path,
+    invoke      : Invoker,
+    monkeypatch : MonkeyPatch,
+    quick       : list[str],
+    rom         : Path
+) -> Path:
+    """
+    Takes a run of `quick` through `squirtl train` in `clone`, stopping it
+    at the end of its second episode on step 8, short of its ten steps, as
+    `squirtl stop` would.
+
+    Returns:
+        The run's directory, which the command prints.
+    """
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            Trainer,
+            "stopping",
+            property(lambda trainer: trainer.agent.step >= 8)
+        )
+
+        return Path(invoke(["train", *quick]).output.strip())

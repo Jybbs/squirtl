@@ -8,11 +8,15 @@ Pins the records the agent reads and writes, covering:
   and replay memory's arrays, refusing a file holding more than tensors
   and plain values or a network entry that is no tensor
 - The `.npz` a checkpoint is written as, each member compressed with zstd,
-  and the checkpoint an interrupted write leaves as it was
+  the checkpoint an interrupted write leaves as it was, the partial file a
+  killed one leaves, a file cut short, which it refuses naming it, and the
+  flush that writes it through the drive's cache
+- The weights read from a checkpoint's `agent.pt` member alone
 """
 
 from numpy         import load as load_npz, zeros
 from numpy.testing import assert_array_equal
+from os            import truncate
 from pathlib       import Path
 from pickle        import UnpicklingError
 from pydantic      import ValidationError
@@ -21,17 +25,27 @@ from torch         import arange, device, equal, save, tensor, uint8
 from torch.nn      import Linear
 from zipfile       import ZIP_ZSTANDARD, ZipFile
 
-from squirtl.agent.schemas       import AgentSettings, Batch, Checkpoint
+from squirtl.agent.schemas       import AgentSettings, Batch, Checkpoint, Weights, flush
 from squirtl.environment.schemas import Entry
 
 
-def pack(agent: dict[str, object], path: Path):
+def blank(**fields: object) -> Checkpoint:
     """
-    Writes an `.npz` holding `agent` as its `agent.pt` member alone, the way
-    `Checkpoint.save` writes every field but `replay`.
+    Builds a checkpoint holding nothing at step 0, any keyword setting a
+    field in its place.
     """
-    with ZipFile(path, "w") as archive, archive.open("agent.pt", "w") as member:
-        save(agent, member)
+    return Checkpoint(
+        **{
+            "step"        : 0,
+            "exploration" : {},
+            "online"      : {},
+            "optimizer"   : {},
+            "replay"      : {},
+            "sampling"    : {},
+            "target"      : {}
+        }
+        | fields
+    )
 
 
 @mark.parametrize(
@@ -82,6 +96,20 @@ def test_the_settings_refuse_a_value_outside_its_range(field: str, value: float)
         AgentSettings(**{field: value})
 
 
+def pack(agent: dict[str, object], path: Path, **members: bytes):
+    """
+    Writes an `.npz` holding `agent` as its `agent.pt` member, the way
+    `Checkpoint.save` writes every field but `replay`, beside each of
+    `members` under its name.
+    """
+    with ZipFile(path, "w") as archive:
+        with archive.open("agent.pt", "w") as member:
+            save(agent, member)
+
+        for name, data in members.items():
+            archive.writestr(name, data)
+
+
 def test_a_batch_values_each_draw_at_the_action_it_took():
     """
     Asserts that a batch reads the value a network gives each draw's action
@@ -107,15 +135,9 @@ def test_a_checkpoint_is_an_npz_whose_members_zstd_compresses(tmp_path: Path):
     replay memory's arrays from, beside the `agent.pt` member, with every
     member compressed with zstd.
     """
-    Checkpoint(
-        exploration = {},
-        online      = {},
-        optimizer   = {},
-        replay      = {"actions": zeros(4, "int64"), "held": zeros(4, bool)},
-        sampling    = {},
-        step        = 0,
-        target      = {}
-    ).save(tmp_path / "checkpoint.npz")
+    blank(replay={"actions": zeros(4, "int64"), "held": zeros(4, bool)}).save(
+        tmp_path / "checkpoint.npz"
+    )
 
     with load_npz(tmp_path / "checkpoint.npz") as archive:
         assert (sorted(archive.files), archive["held"].dtype) == (
@@ -134,15 +156,7 @@ def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path)
     each module's version, which `load_state_dict` reads.
     """
     online, target = Linear(2, 1).state_dict(), Linear(2, 1).state_dict()
-    written        = Checkpoint(
-        exploration = {},
-        online      = online,
-        optimizer   = {},
-        replay      = {},
-        sampling    = {},
-        step        = 0,
-        target      = target
-    )
+    written        = blank(online=online, target=target)
     written.save(tmp_path / "checkpoint.npz")
     read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
 
@@ -158,7 +172,7 @@ def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
     Asserts that a checkpoint written to a file reads back with every field
     equal to the one written, each array of replay memory in its own dtype.
     """
-    written = Checkpoint(
+    written = blank(
         exploration = {"bit_generator": "PCG64", "state": {"inc": 1, "state": 2**100}},
         online      = {"weight": tensor([1.0, 2.0])},
         optimizer   = {"param_groups": [{"lr": 1e-4, "params": [0]}], "state": {}},
@@ -188,42 +202,6 @@ def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path)
 
     with raises(UnpicklingError, match="Weights only load failed"):
         Checkpoint.from_path(tmp_path / "checkpoint.npz")
-
-
-def test_a_write_interrupted_partway_leaves_the_last_checkpoint_as_it_was(
-    monkeypatch : MonkeyPatch,
-    tmp_path    : Path
-):
-    """
-    Asserts that an interrupt landing while a checkpoint writes replay
-    memory's arrays leaves the checkpoint at its path as the last write left
-    it, and no partial file beside it.
-    """
-    checkpoint = Checkpoint(
-        exploration = {},
-        online      = {},
-        optimizer   = {},
-        replay      = {"actions": zeros(4, "int64")},
-        sampling    = {},
-        step        = 3,
-        target      = {}
-    )
-    checkpoint.save(tmp_path / "checkpoint.npz")
-    written = (tmp_path / "checkpoint.npz").read_bytes()
-
-    def interrupt(*_: object):
-        """
-        Stands in for an interrupt landing during the write of an array.
-        """
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr("squirtl.agent.schemas.save_npy", interrupt)
-
-    with raises(KeyboardInterrupt):
-        checkpoint.model_copy(update={"step": 4}).save(tmp_path / "checkpoint.npz")
-
-    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
-    assert (tmp_path / "checkpoint.npz").read_bytes() == written
 
 
 @mark.parametrize(
@@ -303,3 +281,121 @@ def test_the_settings_accept_a_fraction_of_one(field: str):
     range its field declares, where 1.01 is refused.
     """
     assert getattr(AgentSettings(**{field: 1}), field) == 1
+
+
+def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
+    """
+    Asserts that a save beside the `.partial` file a killed save left behind
+    writes over it and leaves the checkpoint alone in its directory.
+    """
+    (tmp_path / "checkpoint.npz.partial").write_bytes(b"left by a killed save")
+    blank().save(tmp_path / "checkpoint.npz")
+
+    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
+
+
+@mark.parametrize(
+    "kept",
+    [param(0, id="an-empty-file"), param(0.5, id="its-first-half")]
+)
+def test_a_checkpoint_cut_short_is_refused_naming_its_file(kept: float, tmp_path: Path):
+    """
+    Asserts that reading a checkpoint whose file holds nothing or its first
+    half alone, as a write the machine lost power during leaves it, raises
+    `ValueError` naming the file, the error the commands refuse.
+    """
+    path = tmp_path / "checkpoint.npz"
+    blank(replay={"actions": zeros(64, "int64")}, step=3).save(path)
+    truncate(path, int(path.stat().st_size * kept))
+
+    with raises(ValueError, match=f"{path} holds no whole checkpoint"):
+        Checkpoint.from_path(path)
+
+
+def test_a_write_interrupted_partway_leaves_the_last_checkpoint_as_it_was(
+    monkeypatch : MonkeyPatch,
+    tmp_path    : Path
+):
+    """
+    Asserts that an interrupt landing while a checkpoint writes replay
+    memory's arrays leaves the checkpoint at its path as the last write left
+    it, and no partial file beside it.
+    """
+    checkpoint = blank(replay={"actions": zeros(4, "int64")}, step=3)
+    checkpoint.save(tmp_path / "checkpoint.npz")
+    written = (tmp_path / "checkpoint.npz").read_bytes()
+
+    def interrupt(*_: object):
+        """
+        Stands in for an interrupt landing during the write of an array.
+        """
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("squirtl.agent.schemas.save_npy", interrupt)
+
+    with raises(KeyboardInterrupt):
+        checkpoint.model_copy(update={"step": 4}).save(tmp_path / "checkpoint.npz")
+
+    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
+    assert (tmp_path / "checkpoint.npz").read_bytes() == written
+
+
+def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
+    tmp_path: Path
+):
+    """
+    Asserts that `Weights` reads the online network and the step from a
+    checkpoint's `agent.pt` member alone, even where a member of replay
+    memory holds no array, which `Checkpoint` refuses to read.
+    """
+    agent = {
+        "step"        : 12,
+        "online"      : {"weight": tensor([1.0, 2.0])},
+        "exploration" : {},
+        "optimizer"   : {},
+        "sampling"    : {},
+        "target"      : {}
+    }
+
+    pack(agent, tmp_path / "checkpoint.npz", **{"actions.npy": b"no array"})
+
+    weights = Weights.from_path(tmp_path / "checkpoint.npz")
+
+    assert (weights.online["weight"].tolist(), weights.step) == ([1.0, 2.0], 12)
+
+    with raises(ValueError):
+        Checkpoint.from_path(tmp_path / "checkpoint.npz")
+
+
+@mark.parametrize(
+    ("full", "call"),
+    [
+        param(True,  "fcntl", id="where-fcntl-has-f-fullfsync"),
+        param(False, "fsync", id="elsewhere")
+    ]
+)
+def test_a_flush_takes_f_fullfsync_where_fcntl_has_it_and_fsync_elsewhere(
+    call        : str,
+    full        : bool,
+    monkeypatch : MonkeyPatch
+):
+    """
+    Asserts that a flush asks `fcntl` for `F_FULLFSYNC` where the module has
+    it, as on macOS, and calls `fsync` where it does not.
+    """
+    calls = []
+
+    if not full:
+        monkeypatch.delattr("fcntl.F_FULLFSYNC", raising=False)
+
+    monkeypatch.setattr(
+        "fcntl.fcntl",
+        lambda descriptor, command: calls.append("fcntl")
+    )
+    monkeypatch.setattr(
+        "squirtl.agent.schemas.fsync",
+        lambda descriptor: calls.append("fsync")
+    )
+    flush(7)
+
+    assert calls == [call]

@@ -18,7 +18,7 @@ from torch        import Tensor, as_tensor, inference_mode
 from torch.random import fork_rng
 
 from squirtl.agent.networks      import QNetwork
-from squirtl.agent.schemas       import StateDict
+from squirtl.agent.schemas       import Weights
 from squirtl.emulator.schemas    import Record, UnitInterval
 from squirtl.environment.schemas import Outcome
 from squirtl.evaluation.schemas  import Evaluation, EvaluationSettings
@@ -135,13 +135,12 @@ class Evaluator(AbstractContextManager):
             step     = None
         )
 
-    def evaluate(self, online: StateDict, step: int) -> Evaluation:
+    def evaluate(self, weights: Weights) -> Evaluation:
         """
         Plays the episodes of the epsilon-greedy policy over a Q-network
-        holding the weights of `online`, the agent's online network at
-        `step`. The network is built anew, under a fork of torch's global
-        generator, so the evaluation leaves the agent and that generator as
-        they were.
+        holding `weights`, the agent's online network at their step. The
+        network is built anew, under a fork of torch's global generator, so
+        the evaluation leaves the agent and that generator as they were.
         """
         with fork_rng(devices=[]):
             network = QNetwork(
@@ -149,7 +148,7 @@ class Evaluator(AbstractContextManager):
                 self.envs.single_observation_space
             )
 
-        network.load_state_dict(online)
+        network.load_state_dict(weights.online)
 
         return Evaluation(
             outcomes = self.play(
@@ -159,7 +158,7 @@ class Evaluator(AbstractContextManager):
                     network = network.to(self.device)
                 )
             ),
-            step = step
+            step = weights.step
         )
 
     def play(self, policy: Policy) -> list[Outcome]:

@@ -41,7 +41,8 @@ class Overworld(Env):
     ):
         """
         Boots `cartridge` and plays its intro to Red's bedroom, where every
-        episode starts.
+        episode starts, keeping as `digest` the digest of the state the
+        intro leaves, which a run records and `squirtl watch` checks.
 
         Args:
             render_mode: `rgb_array`, under which `render` returns the
@@ -50,6 +51,7 @@ class Overworld(Env):
         """
         self.game_boy = GameBoy.boot(cartridge, emulator)
         self.game_boy.start()
+        self.digest = self.game_boy.digest
 
         self.action_space = Discrete(len(self.presses))
         self.metadata     = self.metadata | {"render_fps": environment.steps_per_second}
@@ -69,14 +71,10 @@ class Overworld(Env):
     @property
     def recording(self) -> Recording:
         """
-        Records the episode so far as the state its reset left the console
-        in, the `timer_div` that reset wrote, and each step's action.
+        Records the episode so far as the `timer_div` its reset wrote and
+        each step's action.
         """
-        return Recording(
-            presses   = self.actions,
-            start     = self.start,
-            timer_div = self.timer_div
-        )
+        return Recording(presses=self.actions, timer_div=self.timer_div)
 
     def close(self):
         """
@@ -111,11 +109,11 @@ class Overworld(Env):
         seed    : int | None            = None
     ) -> tuple[ndarray, dict[str, Any]]:
         """
-        Loads Red's bedroom with a DIV from the environment's generator,
-        which `seed` reseeds, or the start of the `Recording` that `options`
-        holds under `recording`, and starts the episode's progress and its
-        record. It then advances one frame with no press, since the state
-        `GameBoy.start` saves holds no rendered screen.
+        Loads Red's bedroom with the DIV of the `Recording` that `options`
+        holds under `recording`, or otherwise one from the environment's
+        generator, which `seed` reseeds, and starts the episode's progress
+        and its record. It then advances one frame with no press, since the
+        state `GameBoy.start` saves holds no rendered screen.
 
         Returns:
             The screen that frame shows beside an empty info dict.
@@ -124,16 +122,14 @@ class Overworld(Env):
 
         match options:
             case {"recording": Recording() as recording}:
-                self.game_boy.restore(recording.start)
                 self.timer_div = recording.timer_div
             case _:
                 # DIV holds 8 bits, so its 256 values are every start a reset gives.
                 self.timer_div = int(self.np_random.integers(256))
-                self.game_boy.reset(self.timer_div)
 
+        self.game_boy.reset(self.timer_div)
         self.actions  = bytearray()
         self.progress = Progress(self.game_boy, self.reward)
-        self.start    = self.game_boy.capture()
 
         return self.game_boy.press(None, 1), {}
 

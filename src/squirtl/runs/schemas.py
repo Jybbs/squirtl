@@ -7,6 +7,7 @@ Defines the records one run reads and writes:
   evaluation, and the checkpoint
 - `Episode`, one episode as a line of the run's `episodes`
 - `Stream`, the streams of random draws the run makes
+- `Handover`, what a resumed run takes over from the run it continues
 """
 
 from collections     import deque
@@ -16,14 +17,17 @@ from enum            import StrEnum, auto
 from gymnasium.envs.registration import EnvSpec
 from hashlib      import sha256
 from itertools    import islice, takewhile
+from json         import loads
+from loguru       import logger
 from numpy        import uint64
 from numpy.random import SeedSequence
+from os           import fsync
 from pathlib      import Path
 from pydantic     import AwareDatetime, Field, NonNegativeInt, PositiveInt, PrivateAttr, StringConstraints
 from subprocess   import check_output
 from typing       import Annotated, Self
 
-from squirtl.agent.schemas         import AgentSettings, StateDict
+from squirtl.agent.schemas         import AgentSettings, Checkpoint, Weights
 from squirtl.emulator.schemas      import Cartridge, EmulatorSettings, Record
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Outcome, Recording
@@ -194,6 +198,13 @@ class Run(Record):
     the instant it started.
     """
 
+    digest: Hexadecimal
+    """
+    The SHA-256 digest of the state `GameBoy.start` leaves the console in,
+    which each reset loads before writing its `timer_div`, and which
+    `squirtl watch` checks before playing an episode back.
+    """
+
     revision: Revision
     """
     The code the run ran on.
@@ -259,10 +270,11 @@ class Run(Record):
     @property
     def evaluated(self) -> Iterator[Evaluation]:
         """
-        Reads each evaluation of the agent `evaluations` holds through
-        `lines`, in the order the run played them.
+        Reads each evaluation of the agent `evaluations` holds, in the order
+        the run played them, validating each line only once a caller draws
+        its evaluation.
         """
-        return self.lines(self.evaluations, Evaluation)
+        return map(Evaluation.model_validate_json, self.lines(self.evaluations))
 
     @property
     def evaluations(self) -> Path:
@@ -291,10 +303,10 @@ class Run(Record):
     @property
     def recorded(self) -> Iterator[Episode]:
         """
-        Reads each episode `episodes` holds through `lines`, in the order
-        the run played them.
+        Reads each episode `episodes` holds, in the order the run played
+        them, validating each line only once a caller draws its episode.
         """
-        return self.lines(self.episodes, Episode)
+        return map(Episode.model_validate_json, self.lines(self.episodes))
 
     @property
     def stop(self) -> Path:
@@ -312,60 +324,80 @@ class Run(Record):
         with path.open("a", encoding="utf-8") as lines:
             lines.writelines(f"{record.model_dump_json()}\n" for record in records)
 
-    def ended_by(self, step: int) -> Iterator[Episode]:
+    def ended_by(self, step: int) -> list[str]:
         """
-        Reads each episode `episodes` holds that ended by `step` of the run,
-        meaning each whose steps and the steps before it total no more. It
-        reads no line past the episode ending on or after `step`, so a line
-        the run left half written past its checkpoint stays unread.
+        Reads the line of each episode `episodes` holds that ended by `step`
+        of the run, meaning each whose steps and the steps before it total
+        no more, validating no line and reading only its `length`. It reads
+        no line past the episode ending on `step`.
+
+        Raises:
+            ValueError: Where those episodes total fewer steps than `step`
+                        while `step` falls short of the run's `steps`,
+                        as where a crash lost the log's last lines, since
+                        only the checkpoint at a run's end lands within
+                        an episode.
         """
+        ended = []
         taken = 0
 
-        for episode in self.recorded:
-            taken += episode.length
+        for line in self.lines(self.episodes):
+            length = loads(line)["length"]
 
-            if taken > step:
-                return
+            if taken + length > step:
+                break
 
-            yield episode
+            ended.append(line)
+            taken += length
 
             if taken == step:
-                return
+                return ended
+
+        if step < self.settings.steps:
+            raise ValueError(
+                f"{self.episodes} ends its episodes at step {taken:,}, short of the "
+                f"checkpoint at step {step:,}"
+            )
+
+        return ended
 
     def episode(self, number: int | None = None) -> Episode:
         """
         Reads episode `number` of `episodes`, counting from 1, or the last
-        where `number` is `None`, holding no other episode in memory.
+        where `number` is `None`, validating that line alone.
 
         Raises:
             IndexError: Where `episodes` holds no such episode.
         """
         if found := deque(
-            islice(self.recorded, number and number - 1, number),
+            islice(self.lines(self.episodes), number and number - 1, number),
             maxlen = 1
         ):
-            return found[0]
+            return Episode.model_validate_json(found[0])
 
         raise IndexError(f"{self.episodes} holds no episode {number or 'at all'}")
 
     def evaluate(
         self,
         cartridge : Cartridge,
-        online    : StateDict,
-        step      : int
+        weights   : Weights
     ) -> tuple[Evaluation, Evaluation]:
         """
-        Reads the agent's evaluation at `step` and the random baseline's
-        from the run, playing whichever of the two it lacks under the
-        evaluation settings and the evaluation stream it recorded and
-        writing it there. The agent plays from the online network whose
-        weights `online` holds, and the baseline under the same seeds.
+        Reads the agent's evaluation at the step of `weights` and the random
+        baseline's from the run, playing whichever of the two it lacks under
+        the evaluation settings and the evaluation stream it recorded and
+        writing it there. The agent plays from the online network `weights`
+        holds, and the baseline under the same seeds.
 
         Returns:
             The agent's evaluation and the baseline's.
         """
         held = next(
-            (evaluation for evaluation in self.evaluated if evaluation.step == step),
+            (
+                evaluation
+                for evaluation in self.evaluated
+                if evaluation.step == weights.step
+            ),
             None
         )
         baseline = Evaluation.model_validate_json(
@@ -382,7 +414,7 @@ class Run(Record):
                 settings.specification(cartridge)
             ) as evaluator:
                 if held is None:
-                    held = evaluator.evaluate(online, step)
+                    held = evaluator.evaluate(weights)
                     self.append(self.evaluations, held)
 
                 if baseline is None:
@@ -401,15 +433,34 @@ class Run(Record):
         """
         return takewhile(lambda evaluation: evaluation.step <= step, self.evaluated)
 
-    def lines[R: Record](self, path: Path, shape: type[R]) -> Iterator[R]:
+    def inherit(self, handover: Handover):
         """
-        Reads each line of `path`, one of the run's JSON Lines files, as a
-        `shape`, in the order the lines run, reading each only once a caller
-        draws its record, and none where the run holds no such file.
+        Writes into the run what `handover` carries over from the run
+        it continues, each episode's line as that run wrote it, each
+        evaluation, and the random baseline's where it played one.
+        """
+        with self.episodes.open("a", encoding="utf-8") as lines:
+            lines.writelines(handover.episodes)
+
+        self.append(self.evaluations, *handover.evaluations)
+
+        if handover.baseline is not None:
+            self.baseline.write_text(handover.baseline, encoding="utf-8")
+
+    def lines(self, path: Path) -> Iterator[str]:
+        """
+        Reads each line of `path`, one of the run's JSON Lines files, as the
+        text it holds, in the order the lines run, and none where the run
+        holds no such file. It skips with a warning a last line lacking its
+        newline, as a run that stopped while writing it leaves it.
         """
         if path.exists():
             with path.open(encoding="utf-8") as lines:
-                yield from map(shape.model_validate_json, lines)
+                for line in lines:
+                    if line.endswith("\n"):
+                        yield line
+                    else:
+                        logger.warning("Skipping the unfinished last line of {}", path)
 
     @classmethod
     def read(cls, directory: Path) -> Self:
@@ -431,6 +482,7 @@ class Run(Record):
     @classmethod
     def start(
         cls,
+        digest   : str,
         settings : RunSettings,
         started  : datetime,
         resumes  : str | None = None
@@ -438,11 +490,13 @@ class Run(Record):
         """
         Creates the directory of a run reading `settings` from `started` on
         and writes its record there, holding those settings, that instant,
-        and the revision of the clone in the working directory.
+        the revision of the clone in the working directory, and `digest`.
 
         Args:
-            resumes: The name of the run this one continues, or `None` for a
-                     run starting afresh.
+            digest  : The SHA-256 digest of the state `GameBoy.start` left
+                      the run's console in.
+            resumes : The name of the run this one continues, or `None` for
+                      a run starting afresh.
 
         Raises:
             CalledProcessError : Where the working directory holds no git
@@ -457,6 +511,7 @@ class Run(Record):
                                  before any directory is created.
         """
         run = cls(
+            digest   = digest,
             resumes  = resumes,
             revision = Revision.checked_out(),
             settings = settings,
@@ -466,6 +521,14 @@ class Run(Record):
         run.record.write_text(run.model_dump_json(indent=2), encoding="utf-8")
 
         return run
+
+    def sync(self, path: Path):
+        """
+        Writes `path`, one of the run's files, through to disk, so nothing
+        saved after it runs ahead of what it holds.
+        """
+        with path.open("ab") as file:
+            fsync(file.fileno())
 
 
 class Episode(Outcome):
@@ -496,3 +559,76 @@ class Episode(Outcome):
     The mean value the online network gave the actions of each update's
     batch, or `None` where no update ran.
     """
+
+
+class Handover(Record):
+    """
+    What a resumed run takes over from the stopped run it continues, read
+    whole before the new run writes anything, so a resume refused for any of
+    it leaves no directory behind.
+    """
+
+    baseline: str | None
+    """
+    The random baseline's evaluation as the stopped run's `baseline` holds
+    it, or `None` where it played none.
+    """
+
+    checkpoint: Checkpoint
+    """
+    The stopped run's last checkpoint, which the agent restores.
+    """
+
+    episodes: list[str]
+    """
+    The line of each episode that ended by the checkpoint's step, as the
+    stopped run's `episodes` holds it.
+    """
+
+    evaluations: list[Evaluation]
+    """
+    Each evaluation of the agent at the checkpoint's step or before it.
+    """
+
+    name: str
+    """
+    The stopped run's name, which the new run records under `resumes`.
+    """
+
+    @property
+    def evaluated(self) -> int:
+        """
+        Reads the step of the last evaluation carried over, or 0 where none
+        is.
+        """
+        return self.evaluations[-1].step if self.evaluations else 0
+
+    @classmethod
+    def from_run(cls, previous: Run) -> Self:
+        """
+        Reads what `previous` recorded up to its last checkpoint.
+
+        Raises:
+            FileNotFoundError : Where `previous` holds no checkpoint.
+            ValueError        : Where the checkpoint is damaged or already
+                                holds the run's `steps`, or the episodes
+                                `previous` recorded end short of it, as
+                                `Run.ended_by` raises.
+        """
+        checkpoint = Checkpoint.from_path(previous.checkpoint)
+
+        if checkpoint.step >= previous.settings.steps:
+            raise ValueError(
+                f"{previous.checkpoint} already holds the run's "
+                f"{previous.settings.steps:,} steps"
+            )
+
+        return cls(
+            baseline = previous.baseline.read_text(
+                encoding = "utf-8"
+            ) if previous.baseline.exists() else None,
+            checkpoint  = checkpoint,
+            episodes    = previous.ended_by(checkpoint.step),
+            evaluations = list(previous.evaluated_by(checkpoint.step)),
+            name        = previous.name
+        )

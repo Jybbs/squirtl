@@ -51,13 +51,13 @@ Each run writes into a directory of its own under `data/runs/`, named for the in
 
 | **File** | **What It Holds** |
 |---|---|
-| `run.json` | *The settings the run read, the commit and the digest of `uv.lock` it ran on, the instant it started, and the run it resumes* |
-| `episodes.jsonl` | *One line per episode, holding its return, length, and wall time, whether it reached the starter, each reward term's total, the positions it reached, $`\varepsilon`$, the mean loss and value over its updates, and the start and presses it played from, both compressed with zstd, beside the `timer_div` its reset wrote* |
+| `run.json` | *The settings the run read, the commit and the digest of `uv.lock` it ran on, the SHA-256 digest of the state the game's intro leaves the console in, the instant it started, and the run it resumes* |
+| `episodes.jsonl` | *One line per episode, holding its return, length, and wall time, whether it reached the starter, each reward term's total, the positions it reached, $`\varepsilon`$, the mean loss and value over its updates, and the presses it played, compressed with zstd, beside the `timer_div` its reset wrote, since a reset at one `timer_div` always leaves the console in one state* |
 | `evaluations.jsonl` | *One line per evaluation of the agent, while the run trains or under `squirtl evaluate`, holding the step it read the agent at and what each of its episodes reached* |
 | `baseline.json` | *The random baseline's evaluation under the run's evaluation seeds, written at the run's first evaluation* |
-| `checkpoint.npz` | *The networks, Adam's state, the generators, and replay memory, written at the first episode end reaching each multiple of `--checkpoint-steps` and at the run's end, each write taking the file's name only once whole* |
+| `checkpoint.npz` | *The networks, Adam's state, the generators, and replay memory, written at the first episode end reaching each multiple of `--checkpoint-steps` and at the run's end, each write flushed to disk after `episodes.jsonl` and taking the file's name only once whole* |
 
-An interrupt, a termination signal, or `squirtl stop` from another shell ends a run at the end of its episode with a checkpoint, and a second interrupt ends it at once on the last checkpoint. `squirtl train --resume` continues a stopped run in a new directory under the settings that run recorded and ends with the weights it would have reached had it never stopped, while `squirtl watch` plays a recorded episode back through the emulator's window to the return the run recorded for it.
+An interrupt, a termination signal, or `squirtl stop` from another shell ends a run at the end of its episode with a checkpoint, and a second interrupt ends it at once on the last checkpoint. `squirtl train --resume` continues a stopped run in a new directory under the settings that run recorded and ends with the weights it would have reached had it never stopped, refusing before it makes any directory a checkpoint that is damaged, already holds the run's steps, or runs past the episodes the log recorded. `squirtl watch` plays a recorded episode back through the emulator's window to the return the run recorded for it, once the state the intro leaves matches the digest the run recorded.
 
 ## Evaluation
 

@@ -3,42 +3,30 @@ Pins what `squirtl train` does, covering:
 
 - The run it writes under `data/runs/` and the directory it prints
 - The cartridge, the `--resume` directory, and the working directory outside
-  a clone it refuses before making any directory, a run holding no checkpoint
-  among them, and the checkpoint whose replay memory holds another shape it
-  refuses on one line
+  a clone it refuses before making any directory, among them a run holding
+  no checkpoint or one already holding its steps, a damaged checkpoint, a
+  log short of its checkpoint, and replay memory of another shape
 - A resume into a new directory under the settings the stopped run recorded
 - The line each episode logs and the line each step logs under `--verbose`
 - The emulator's window `--emulator.open-window` opens
 """
 
-from common.cli import Invoker
-from pathlib    import Path
-from pytest     import mark, param
+from collections.abc import Callable
+from common.cli      import Invoker
+from os              import truncate
+from pathlib         import Path
+from pytest          import mark, param
 
 from squirtl.agent.schemas import Checkpoint
 from squirtl.runs.schemas  import Run
 
 
-def test_a_resume_continues_in_a_new_directory_under_the_recorded_settings(
-    invoke  : Invoker,
-    trained : Path
-):
+def cut_checkpoint(run: Run):
     """
-    Asserts that resuming a run writes a new directory naming the run it
-    continues, under the settings that run recorded whatever the flags set,
-    holding that run's lines and a checkpoint of its own.
+    Cuts the checkpoint of `run` to its first half, as a write the machine
+    lost power during leaves it.
     """
-    invocation = invoke(["train", "--resume", str(trained), "--steps", "99"])
-    resumed    = Run.read(Path(invocation.output.strip()))
-
-    assert (invocation.code, resumed.resumes, resumed.settings) == (
-        0, trained.name,
-        Run.read(trained).settings
-    )
-    assert (
-        resumed.episodes.read_text(encoding="utf-8"),
-        Checkpoint.from_path(resumed.checkpoint).step
-    ) == (Run.read(trained).episodes.read_text(encoding="utf-8"), 10)
+    truncate(run.checkpoint, run.checkpoint.stat().st_size // 2)
 
 
 @mark.usefixtures("clone")
@@ -79,30 +67,107 @@ def test_a_cartridge_the_emulator_refuses_exits_1_before_making_any_directory(
     assert not Path("data/runs").exists()
 
 
-def test_a_resume_from_replay_memory_of_another_shape_exits_1_naming_the_array(
+def drop_last_episode(run: Run):
+    """
+    Drops the line of the last episode `run` recorded, as a crash that lost
+    the log's last write leaves it.
+    """
+    lines = run.episodes.read_text(encoding="utf-8").splitlines(True)
+    run.episodes.write_text("".join(lines[:-1]), encoding="utf-8")
+
+
+def reshape_flags(run: Run):
+    """
+    Rewrites the checkpoint of `run` with replay memory holding `flags` cut
+    to one slot.
+    """
+    checkpoint = Checkpoint.from_path(run.checkpoint)
+    checkpoint.model_copy(
+        update = {
+            "replay": checkpoint.replay | {"flags": checkpoint.replay["flags"][:1]}
+        }
+    ).save(run.checkpoint)
+
+
+def test_a_resume_continues_in_a_new_directory_under_the_recorded_settings(
+    invoke  : Invoker,
+    stopped : Path
+):
+    """
+    Asserts that resuming a run stopped on step 8 writes a new directory
+    naming the run it continues, under the settings and the digest that
+    run recorded whatever the flags set, holding that run's lines and a
+    checkpoint of its own at the run's tenth and last step.
+    """
+    invocation = invoke(["train", "--resume", str(stopped), "--steps", "99"])
+    resumed    = Run.read(Path(invocation.output.strip()))
+    previous   = Run.read(stopped)
+
+    assert (invocation.code, resumed.resumes, resumed.settings, resumed.digest) == (
+        0, stopped.name, previous.settings, previous.digest
+    )
+    assert (
+        resumed.episodes.read_text(encoding="utf-8"),
+        Checkpoint.from_path(resumed.checkpoint).step
+    ) == (previous.episodes.read_text(encoding="utf-8"), 10)
+
+
+@mark.parametrize(
+    ("damage", "logged"),
+    [
+        param(
+            cut_checkpoint,
+            "holds no whole checkpoint",
+            id = "a-damaged-checkpoint"
+        ),
+        param(
+            drop_last_episode,
+            "short of the checkpoint at step 8",
+            id = "a-log-short-of-it"
+        ),
+        param(
+            reshape_flags,
+            "replay memory holds `flags` as uint8 at the shape (64, 1), where the "
+            "arrays loaded hold uint8 at (1, 1)",
+            id = "replay-memory-of-another-shape"
+        )
+    ]
+)
+def test_a_resume_it_cannot_continue_exits_1_on_one_line_before_making_any_directory(
+    damage  : Callable[[Run], None],
+    invoke  : Invoker,
+    logged  : str,
+    stopped : Path
+):
+    """
+    Asserts that resuming from a damaged checkpoint, a checkpoint the log
+    ends short of, or replay memory of another shape than the recorded
+    settings give exits 1, logging one line naming the fault in place of a
+    traceback, and makes no directory beside the stopped run's.
+    """
+    damage(Run.read(stopped))
+    invocation = invoke(["train", "--resume", str(stopped)])
+
+    assert (invocation.code, len(invocation.messages), logged in invocation.log) == (
+        1, 1, True
+    )
+    assert list(Path("data/runs").iterdir()) == [stopped]
+
+
+def test_a_resume_of_a_finished_run_exits_1_before_making_any_directory(
     invoke  : Invoker,
     trained : Path
 ):
     """
-    Asserts that resuming from a checkpoint whose replay memory holds
-    `flags` at another shape than the recorded settings give exits 1,
-    logging the array and both shapes on one line in place of a traceback.
+    Asserts that resuming a run whose checkpoint already holds its ten steps
+    exits 1 saying so, and makes no directory beside that run's.
     """
-    run        = Run.read(trained)
-    checkpoint = Checkpoint.from_path(run.checkpoint)
-    flags      = checkpoint.replay["flags"]
-    checkpoint.model_copy(
-        update = {"replay": checkpoint.replay | {"flags": flags[:1]}}
-    ).save(run.checkpoint)
     invocation = invoke(["train", "--resume", str(trained)])
 
-    assert (invocation.code, invocation.messages) == (
-        1,
-        [
-            f"replay memory holds `flags` at the shape {flags.shape}, "
-            f"where the arrays loaded hold {flags[:1].shape}"
-        ]
+    assert (invocation.code, "already holds the run's 10 steps" in invocation.log) == (
+        1, True
     )
+    assert list(Path("data/runs").iterdir()) == [trained]
 
 
 def test_a_resume_of_a_run_holding_no_checkpoint_exits_1_before_making_any_directory(

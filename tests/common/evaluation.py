@@ -10,6 +10,7 @@ Defines what the tests of an evaluation build from:
 from collections.abc import Iterable
 from contextlib      import AbstractContextManager
 
+from squirtl.agent.schemas       import Weights
 from squirtl.environment.schemas import Outcome
 from squirtl.evaluation.schemas  import Evaluation
 from squirtl.reward.schemas      import Term
@@ -43,13 +44,14 @@ class EvaluatorStandIn(AbstractContextManager):
 
         return played([0.125], None)
 
-    def evaluate(self, online: object, step: int) -> Evaluation:
+    def evaluate(self, weights: Weights) -> Evaluation:
         """
-        Records the agent's evaluation at `step` and answers it.
+        Records the agent's evaluation at the step of `weights` and answers
+        it.
         """
-        self.asked.append(step)
+        self.asked.append(weights.step)
 
-        return played([step / 1000], step)
+        return played([weights.step / 1000], weights.step)
 
 
 def outcome(reward: float = 0.0025, **fields: object) -> Outcome:

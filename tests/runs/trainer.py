@@ -6,7 +6,8 @@ Pins the training loop of one run on the CPU, covering:
   positions, the chance of a random action, and the update means each line
   holds
 - The checkpoint at the first episode end reaching each interval and at
-  the run's end, a resumed run counting the interval on from its checkpoint
+  the run's end, each written after the episodes are flushed to disk, and
+  a resumed run counting the interval on from its checkpoint
 - A `stop` file, logged once found, an interrupt, or a termination signal
   ending the run at an episode's end, a second interrupt ending it at once,
   and the signal handlers the loop puts back
@@ -472,6 +473,33 @@ def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
     assert Evaluation.model_validate_json(
         evaluated.baseline.read_text(encoding="utf-8")
     ).step is None
+
+
+def test_each_checkpoint_follows_the_episodes_written_through_to_disk(
+    monkeypatch : MonkeyPatch,
+    trainer     : Callable[..., Trainer]
+):
+    """
+    Asserts that a run writes its `episodes` through to disk before each
+    checkpoint it saves, at steps 12 and 20, so no checkpoint runs ahead of
+    the episodes recorded before it.
+    """
+    events = []
+    sync   = Run.sync
+    save   = Checkpoint.save
+    monkeypatch.setattr(
+        Run,
+        "sync",
+        lambda run, path: events.append(path.name) or sync(run, path)
+    )
+    monkeypatch.setattr(
+        Checkpoint,
+        "save",
+        lambda checkpoint, path: events.append(path.name) or save(checkpoint, path)
+    )
+    finish(trainer())
+
+    assert events == ["episodes.jsonl", "checkpoint.npz"] * 2
 
 
 def test_the_run_puts_each_signals_handler_back_once_it_ends(

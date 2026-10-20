@@ -10,10 +10,9 @@ from rich.progress import Progress
 from subprocess    import CalledProcessError
 from typing        import Annotated
 
-from squirtl.agent.schemas    import Checkpoint
 from squirtl.cli.logs         import listen, refusing
 from squirtl.emulator.schemas import Cartridge
-from squirtl.runs.schemas     import Run, RunSettings
+from squirtl.runs.schemas     import Handover, Run, RunSettings
 from squirtl.runs.trainer     import Trainer
 
 
@@ -45,27 +44,28 @@ def train(
     second interrupt ends it at once on the last checkpoint and exits
     130.
 
-    A `--resume` directory holding no run or no checkpoint, a cartridge
-    the emulator refuses, or a working directory no git clone holds exits 1
-    before any directory is made.
+    Each of these exits 1 before any directory is made:
+
+    - A `--resume` directory holding no run or no checkpoint
+    - A checkpoint damaged, already holding the run's steps, or differing
+      from the agent the run's settings build
+    - An episode log ending short of that checkpoint
+    - A cartridge the emulator refuses
+    - A working directory no git clone holds
     """
     console = listen(verbose)
 
     with refusing(CalledProcessError, OSError, ValueError):
-        previous   = resume and Run.read(resume)
-        checkpoint = previous and Checkpoint.from_path(previous.checkpoint)
-        settings   = previous.settings if previous else settings or RunSettings()
-        cartridge  = Cartridge.read(settings.emulator.cartridge)
-        run        = Run.start(settings, datetime.now(UTC), previous and previous.name)
+        previous  = resume and Run.read(resume)
+        handover  = previous and Handover.from_run(previous)
+        settings  = previous.settings if previous else settings or RunSettings()
+        cartridge = Cartridge.read(settings.emulator.cartridge)
+        trainer   = Trainer(cartridge, settings, datetime.now(UTC), handover)
 
-    with Trainer(cartridge, run) as trainer:
-        if previous:
-            with refusing(ValueError):
-                trainer.resume(checkpoint, previous)
-
+    with trainer:
         with Progress(console=console) as progress:
             task = progress.add_task(
-                run.name,
+                trainer.run.name,
                 completed = trainer.agent.step,
                 total     = settings.steps
             )
@@ -74,4 +74,4 @@ def train(
             for step in trainer:
                 progress.update(task, completed=step)
 
-    return str(run.directory)
+    return str(trainer.run.directory)

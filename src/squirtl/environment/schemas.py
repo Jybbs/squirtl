@@ -10,6 +10,7 @@ Defines the records the environment reads and writes:
 
 from compression.zstd    import compress, decompress
 from enum                import StrEnum, auto
+from functools           import partial
 from pyboy.api.constants import COLS, ROWS
 from pyboy.utils         import CLOCK_RATE, FRAME_CYCLES
 from pydantic            import AfterValidator, Field, PlainSerializer, PositiveInt, ValidationInfo, model_validator
@@ -21,7 +22,7 @@ from squirtl.reward.schemas   import Term
 type Compressed = Annotated[
     bytes,
     AfterValidator(validate_compressed),
-    PlainSerializer(compress, return_type=bytes, when_used="json")
+    PlainSerializer(partial(compress, level=19), return_type=bytes, when_used="json")
 ]
 
 
@@ -153,21 +154,16 @@ class Outcome(Record):
 
 class Recording(Record, ser_json_bytes="base64", val_json_bytes="base64"):
     """
-    One episode as the state its reset started from, the `timer_div` that
-    reset wrote into DIV, and the action each step took, which the emulator
-    plays from that state to the same frames again. JSON holds each `bytes`
-    field as the URL-safe base64 of its zstd compression.
+    One episode as the `timer_div` its reset wrote into DIV and the action
+    each step took, which the emulator plays to the same frames again, since
+    a reset at one `timer_div` always leaves the console in one state. JSON
+    holds the presses as the URL-safe base64 of their zstd compression at
+    level 19.
     """
 
     presses: Compressed
     """
     The action each step took, one byte a step.
-    """
-
-    start: Compressed
-    """
-    The state the episode's reset left the console in, as `GameBoy.capture`
-    saves it.
     """
 
     timer_div: Annotated[int, Field(ge=0, le=255)]

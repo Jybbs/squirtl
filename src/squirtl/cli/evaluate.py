@@ -9,7 +9,7 @@ from numpy.random    import default_rng
 from pathlib         import Path
 from typing          import Annotated
 
-from squirtl.agent.schemas     import Checkpoint
+from squirtl.agent.schemas     import Weights
 from squirtl.cli.logs          import listen, refusing
 from squirtl.emulator.schemas  import Cartridge
 from squirtl.evaluation.report import Pairs, Report
@@ -79,9 +79,9 @@ def evaluated(runs: Iterable[Run]) -> Pairs:
 
     for run in runs:
         with refusing(OSError, ValueError):
-            checkpoint = Checkpoint.from_path(run.checkpoint)
-            cartridge  = Cartridge.read(run.settings.emulator.cartridge)
+            weights   = Weights.from_path(run.checkpoint)
+            cartridge = Cartridge.read(run.settings.emulator.cartridge)
 
-        pairs[run.name] = run.evaluate(cartridge, checkpoint.online, checkpoint.step)
+        pairs[run.name] = run.evaluate(cartridge, weights)
 
     return pairs

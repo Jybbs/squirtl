@@ -9,9 +9,14 @@ interrupt, a termination signal, or squirtl stop ends the run at the end of its
 episode with a checkpoint and exits 0, and a second interrupt ends it at once on
 the last checkpoint and exits 130.                                              
 
-A --resume directory holding no run or no checkpoint, a cartridge the emulator  
-refuses, or a working directory no git clone holds exits 1 before any directory 
-is made.
+Each of these exits 1 before any directory is made:                             
+
+ • A --resume directory holding no run or no checkpoint                         
+ • A checkpoint damaged, already holding the run's steps, or differing from the 
+   agent the run's settings build                                               
+ • An episode log ending short of that checkpoint                               
+ • A cartridge the emulator refuses                                             
+ • A working directory no git clone holds
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────╮
 │ --resume PATH                 The directory of a stopped run to continue     │

@@ -21,6 +21,7 @@ from torch            import Tensor, tensor
 from typing           import Any
 
 from squirtl.agent.networks        import QNetwork
+from squirtl.agent.schemas         import Weights
 from squirtl.emulator.schemas      import Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Outcome
@@ -181,7 +182,7 @@ def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
             started.envs.single_action_space.n,
             started.envs.single_observation_space
         ).state_dict()
-        played = [started.baseline(), started.evaluate(online, 9)]
+        played = [started.baseline(), started.evaluate(Weights(online=online, step=9))]
 
     assert [
         (evaluation.step, [(o.length, o.terminated) for o in evaluation.outcomes])

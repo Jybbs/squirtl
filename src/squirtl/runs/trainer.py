@@ -5,19 +5,19 @@ drives through each step of the run.
 
 from collections.abc import Iterator
 from contextlib      import AbstractContextManager
+from datetime        import datetime
 from loguru          import logger
 from numpy           import uint64
 from numpy.random    import SeedSequence
-from shutil          import copyfile
 from signal          import SIGINT, SIGTERM, signal
 from statistics      import fmean
 from types           import FrameType
 from typing          import Self
 
 from squirtl.agent.learner    import Agent
-from squirtl.agent.schemas    import Checkpoint, Update
+from squirtl.agent.schemas    import Update
 from squirtl.emulator.schemas import Cartridge
-from squirtl.runs.schemas     import Episode, Run, Stream
+from squirtl.runs.schemas     import Episode, Handover, Run, RunSettings, Stream
 
 
 class Trainer(AbstractContextManager):
@@ -52,13 +52,27 @@ class Trainer(AbstractContextManager):
 
         self.env.close()
 
-    def __init__(self, cartridge: Cartridge, run: Run):
+    def __init__(
+        self,
+        cartridge : Cartridge,
+        settings  : RunSettings,
+        started   : datetime,
+        handover  : Handover | None = None
+    ):
         """
         Makes the environment from `cartridge` and builds the agent over its
-        spaces under the settings `run` records, the agent seeded from its
-        own stream, then creates the run's `episodes` empty.
+        spaces under `settings`, the agent seeded from its own stream and
+        restored from the checkpoint `handover` carries where there is one.
+        Only then does it start the run at `started`, recording the digest
+        of the state the environment starts from, and write into it what
+        `handover` carries over, so a checkpoint that differs from the agent
+        leaves no directory behind.
+
+        Raises:
+            ValueError: Where the checkpoint `handover` carries differs from
+                        the agent, as `Agent.restore` raises, beside each
+                        error `Run.start` raises.
         """
-        settings   = run.settings
         self.env   = settings.specification(cartridge).make()
         self.agent = Agent(
             actions  = self.env.action_space.n,
@@ -67,14 +81,24 @@ class Trainer(AbstractContextManager):
             space    = self.env.observation_space,
             steps    = settings.steps
         )
+
+        if handover:
+            self.agent.restore(handover.checkpoint)
+
         self.cartridge   = cartridge
         self.evaluated   = 0
         self.finished    = 0
         self.interrupted = False
-        self.run         = run
-        self.saved       = 0
+        self.run         = Run.start(
+            self.env.unwrapped.digest,
+            settings,
+            started,
+            handover and handover.name
+        )
+        self.saved = 0
 
-        run.episodes.touch()
+        if handover:
+            self.inherit(handover)
 
     def __iter__(self) -> Iterator[int]:
         """
@@ -135,9 +159,12 @@ class Trainer(AbstractContextManager):
 
     def checkpoint(self):
         """
-        Writes the agent's checkpoint, replay memory included, to the run's
-        `checkpoint` and records the step it landed at.
+        Writes the run's `episodes` through to disk, then the agent's
+        checkpoint, replay memory included, to the run's `checkpoint`, and
+        records the step it landed at, so no checkpoint runs ahead of the
+        episodes recorded before it.
         """
+        self.run.sync(self.run.episodes)
         self.agent.checkpoint.save(self.run.checkpoint)
         self.saved = self.agent.step
 
@@ -160,12 +187,8 @@ class Trainer(AbstractContextManager):
         """
         logger.info("Evaluating the agent at step {:,}", self.agent.step)
 
-        evaluation, baseline = self.run.evaluate(
-            self.cartridge,
-            self.agent.online.state_dict(),
-            self.agent.step
-        )
-        self.evaluated = self.agent.step
+        evaluation, baseline = self.run.evaluate(self.cartridge, self.agent.weights)
+        self.evaluated       = self.agent.step
 
         logger.info(
             "At step {:,}, the agent reached the starter in {:.0%} of its "
@@ -176,6 +199,26 @@ class Trainer(AbstractContextManager):
             evaluation.reward,
             baseline.reached,
             baseline.reward
+        )
+
+    def inherit(self, handover: Handover):
+        """
+        Writes into the run what `handover` carries over, through
+        `Run.inherit`, counting its episodes among those `finished` and the
+        next checkpoint and evaluation on from the steps the last of each
+        landed at, so the run goes on as though the run it continues had
+        never stopped.
+        """
+        self.run.inherit(handover)
+        self.evaluated = handover.evaluated
+        self.finished  = len(handover.episodes)
+        self.saved     = handover.checkpoint.step
+
+        logger.info(
+            "Resumed {} at step {:,} after {:,} episodes",
+            handover.name,
+            self.saved,
+            self.finished
         )
 
     def interrupt(self, number: int, frame: FrameType | None):  # prose: ignore[unsorted-positionals]
@@ -266,34 +309,6 @@ class Trainer(AbstractContextManager):
             *("none" if mean is None else f"{mean:.4g}" for mean in (
                 episode.loss, episode.value
             ))
-        )
-
-    def resume(self, checkpoint: Checkpoint, previous: Run):
-        """
-        Restores the agent from `checkpoint`, the last one `previous`
-        wrote, counting the next checkpoint on from its step, and copies the
-        episodes and the evaluations `previous` recorded up to it into this
-        run, dropping any past it, beside the random baseline's evaluation,
-        so the run goes on as though `previous` had never stopped.
-        """
-        self.agent.restore(checkpoint)
-        self.saved = checkpoint.step
-
-        for episode in previous.ended_by(checkpoint.step):
-            self.write(episode)
-
-        kept = list(previous.evaluated_by(checkpoint.step))
-        self.run.append(self.run.evaluations, *kept)
-        self.evaluated = kept[-1].step if kept else 0
-
-        if previous.baseline.exists():
-            copyfile(previous.baseline, self.run.baseline)
-
-        logger.info(
-            "Resumed {} at step {:,} after {:,} episodes",
-            previous.directory,
-            checkpoint.step,
-            self.finished
         )
 
     def write(self, episode: Episode):

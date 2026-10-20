@@ -16,8 +16,9 @@ PyTorch.
 │              headless unless --emulator.open-window is set, logging a line   │
 │              per episode above a progress bar.                               │
 │ watch        Opens the emulator's window and plays back one episode the run  │
-│              recorded, from the state its reset left to the return the run   │
-│              recorded for it, at the sixty steps a second the window paces.  │
+│              recorded, from the reset at the timer_div the run recorded for  │
+│              it to the return the run recorded, at the sixty steps a second  │
+│              the window paces.                                               │
 │ --help (-h)  Display this message and exit.                                  │
 │ --version    Display application version.                                    │
 ╰──────────────────────────────────────────────────────────────────────────────╯
