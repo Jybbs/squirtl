@@ -5,8 +5,9 @@ Pins how `GameBoy` runs a cartridge through PyBoy, covering:
   beside the cartridge that a boot never reads and a close never writes
 - Each press, its one tick, the screen read after it as an RGB copy, and a
   press refused for holding its button past its frames
-- The byte each symbol reads, a capture and its restore, the stop a close
-  makes, the intro a start plays, and the state and DIV a reset returns to
+- The byte each symbol reads, the digest of the state a reset leaves, the
+  stop a close makes, the intro a start plays, and the state and DIV a
+  reset returns to
 """
 
 from collections.abc import Callable, Iterator
@@ -164,16 +165,22 @@ def test_a_read_past_a_symbol_reads_the_byte_at_its_offset(game_boy: GameBoy):
     assert game_boy.read(Symbol.W_EVENT_FLAGS, 4) == 0x5A
 
 
-def test_a_restore_returns_the_console_to_its_capture(game_boy: GameBoy):
+def test_a_reset_at_one_timer_div_leaves_a_state_of_one_digest(game_boy: GameBoy):
     """
-    Asserts that restoring a state captured in memory returns the whole
-    console to it, undoing a write the game's memory took after the capture.
+    Asserts that a reset at one `timer_div` leaves the console in a state of
+    one digest, whatever the game's memory took since, that a write to the
+    memory changes the digest, and that another `timer_div` leaves another.
     """
-    state = game_boy.capture()
+    game_boy.start()
+    game_boy.reset(42)
+    first = game_boy.digest
     game_boy.emulator.memory[Symbol.W_CUR_MAP] = 9
-    game_boy.restore(state)
+    written = game_boy.digest
+    game_boy.reset(42)
+    again = game_boy.digest
+    game_boy.reset(43)
 
-    assert game_boy.capture() == state
+    assert (written != first, again, game_boy.digest != first) == (True, first, True)
 
 
 def test_a_start_leaves_pythons_global_generator_undrawn(game_boy: GameBoy):

@@ -1,6 +1,7 @@
 """
 Defines `Overworld`, the environment an agent plays Pokémon Blue in from
-Red's bedroom to the starter, which `Overworld.make` builds and wraps.
+Red's bedroom to the starter, which `Overworld.specification` specifies with
+its wrappers.
 """
 
 from functools import reduce
@@ -15,7 +16,7 @@ from typing   import Any
 from squirtl.emulator.console     import GameBoy
 from squirtl.emulator.schemas     import Button, Cartridge, EmulatorSettings
 from squirtl.environment.schemas  import EnvironmentSettings, Recording
-from squirtl.environment.wrappers import ProgressObservation, ShrinkObservation
+from squirtl.environment.wrappers import ProgressObservation, RecordOutcome, ShrinkObservation
 from squirtl.reward.progress      import Progress
 from squirtl.reward.schemas       import RewardSettings, Term
 
@@ -40,14 +41,17 @@ class Overworld(Env):
     ):
         """
         Boots `cartridge` and plays its intro to Red's bedroom, where every
-        episode starts.
+        episode starts, keeping as `digest` the digest of the state the
+        intro leaves, which a run records and `squirtl watch` checks.
 
         Args:
             render_mode: `rgb_array`, under which `render` returns the
-                         screen, or `None` where `make` names no mode.
+                         screen, or `None` where `gymnasium.make` names
+                         no mode.
         """
         self.game_boy = GameBoy.boot(cartridge, emulator)
         self.game_boy.start()
+        self.digest = self.game_boy.digest
 
         self.action_space = Discrete(len(self.presses))
         self.metadata     = self.metadata | {"render_fps": environment.steps_per_second}
@@ -67,64 +71,16 @@ class Overworld(Env):
     @property
     def recording(self) -> Recording:
         """
-        Records the episode so far as the state its reset left the console
-        in, the `timer_div` that reset wrote, and each step's action.
+        Records the episode so far as the `timer_div` its reset wrote and
+        each step's action.
         """
-        return Recording(
-            presses   = self.actions,
-            start     = self.start,
-            timer_div = self.timer_div
-        )
+        return Recording(presses=self.actions, timer_div=self.timer_div)
 
     def close(self):
         """
         Stops the emulator without saving, as `GameBoy.close` does.
         """
         self.game_boy.close()
-
-    @classmethod
-    def make(
-        cls,
-        cartridge   : Cartridge,
-        emulator    : EmulatorSettings,
-        environment : EnvironmentSettings,
-        reward      : RewardSettings
-    ) -> Env:
-        """
-        Builds the environment through `gymnasium.make` on an `EnvSpec`
-        truncating each episode at `max_episode_steps` through `TimeLimit`,
-        and wraps it in these, each around the one before:
-
-        - `GrayscaleObservation`, `ShrinkObservation` to `frame_shape`, and
-          `FrameStackObservation` of `frame_stack` frames
-        - `ProgressObservation`, setting the progress beside the frames
-        - `RecordEpisodeStatistics`, recording each episode's return, length,
-          and time
-        """
-        overworld = EnvSpec(
-            "squirtl/Overworld-v0",
-            entry_point = cls,
-            kwargs      = {
-                "cartridge"   : cartridge,
-                "emulator"    : emulator,
-                "environment" : environment,
-                "reward"      : reward
-            },
-            max_episode_steps = environment.max_episode_steps
-        ).make()
-
-        return RecordEpisodeStatistics(
-            ProgressObservation(
-                FrameStackObservation(
-                    ShrinkObservation(
-                        GrayscaleObservation(overworld),
-                        environment.frame_shape
-                    ),
-                    environment.frame_stack
-                ),
-                environment.grid_size
-            )
-        )
 
     def play(self, recording: Recording) -> float:
         """
@@ -153,11 +109,11 @@ class Overworld(Env):
         seed    : int | None            = None
     ) -> tuple[ndarray, dict[str, Any]]:
         """
-        Loads Red's bedroom with a DIV from the environment's generator,
-        which `seed` reseeds, or the start of the `Recording` that `options`
-        holds under `recording`, and starts the episode's progress and its
-        record. It then advances one frame with no press, since the state
-        `GameBoy.start` saves holds no rendered screen.
+        Loads Red's bedroom with the DIV of the `Recording` that `options`
+        holds under `recording`, or otherwise one from the environment's
+        generator, which `seed` reseeds, and starts the episode's progress
+        and its record. It then advances one frame with no press, since the
+        state `GameBoy.start` saves holds no rendered screen.
 
         Returns:
             The screen that frame shows beside an empty info dict.
@@ -166,18 +122,57 @@ class Overworld(Env):
 
         match options:
             case {"recording": Recording() as recording}:
-                self.game_boy.restore(recording.start)
                 self.timer_div = recording.timer_div
             case _:
                 # DIV holds 8 bits, so its 256 values are every start a reset gives.
                 self.timer_div = int(self.np_random.integers(256))
-                self.game_boy.reset(self.timer_div)
 
+        self.game_boy.reset(self.timer_div)
         self.actions  = bytearray()
         self.progress = Progress(self.game_boy, self.reward)
-        self.start    = self.game_boy.capture()
 
         return self.game_boy.press(None, 1), {}
+
+    @classmethod
+    def specification(
+        cls,
+        cartridge   : Cartridge,
+        emulator    : EmulatorSettings,
+        environment : EnvironmentSettings,
+        reward      : RewardSettings
+    ) -> EnvSpec:
+        """
+        Specifies the environment for `gymnasium.make` and
+        `gymnasium.make_vec`, each episode truncated at `max_episode_steps`
+        through `TimeLimit` and wrapped in these, each around the
+        one before:
+
+        - `GrayscaleObservation`, `ShrinkObservation` to `frame_shape`, and
+          `FrameStackObservation` of `frame_stack` frames
+        - `ProgressObservation`, setting the progress beside the frames
+        - `RecordEpisodeStatistics`, recording each episode's return, length,
+          and time
+        - `RecordOutcome`, reporting what each episode reached
+        """
+        return EnvSpec(
+            "squirtl/Overworld-v0",
+            additional_wrappers = (
+                GrayscaleObservation.wrapper_spec(),
+                ShrinkObservation.wrapper_spec(shape=environment.frame_shape),
+                FrameStackObservation.wrapper_spec(stack_size=environment.frame_stack),
+                ProgressObservation.wrapper_spec(size=environment.grid_size),
+                RecordEpisodeStatistics.wrapper_spec(),
+                RecordOutcome.wrapper_spec()
+            ),
+            entry_point = cls,
+            kwargs      = {
+                "cartridge"   : cartridge,
+                "emulator"    : emulator,
+                "environment" : environment,
+                "reward"      : reward
+            },
+            max_episode_steps = environment.max_episode_steps
+        )
 
     def step(self, action: int) -> tuple[ndarray, float, bool, bool, dict[Term, float]]:
         """

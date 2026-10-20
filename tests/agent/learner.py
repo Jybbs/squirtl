@@ -11,18 +11,20 @@ Pins the agent, each training step on the CPU under a fixed seed, covering:
 - The target network copying the online network every `sync_steps` steps
 - The chance of a random action across the run, the random actions it
   draws, and the greedy action it evaluates with no autograd graph
-- The weights a seed builds, which leave each of torch's global generators
+- The weights a seed builds, which leave each of PyTorch's global generators
   alone
 - A restored checkpoint training and drawing as the saved agent would,
-  replay memory included
+  replay memory included, and one holding networks of another shape
+  refused
 """
 
 from collections.abc     import Callable
 from copy                import deepcopy
 from numpy               import ndarray
-from pytest              import MonkeyPatch, approx, mark, param
+from pytest              import MonkeyPatch, approx, mark, param, raises
 from torch               import Tensor, as_tensor, equal, full, get_rng_state, is_inference_mode_enabled, manual_seed
 from torch               import no_grad, ones_like
+from torch.nn            import Linear
 from torch.nn.functional import huber_loss
 from torch.nn.utils      import parameters_to_vector
 from torch.testing       import assert_close
@@ -211,6 +213,20 @@ def test_the_chance_of_a_random_action_falls_over_the_exploration_fraction(
     assert agent.epsilon == approx(epsilon)
 
 
+def test_a_restore_refuses_networks_of_another_shape(build: Callable[..., Agent]):
+    """
+    Asserts that restoring a checkpoint whose online network holds entries
+    another network declares raises `ValueError`, the error the commands
+    refuse, in place of the `RuntimeError` `load_state_dict` raises.
+    """
+    checkpoint = build().checkpoint.model_copy(
+        update = {"online": Linear(2, 1).state_dict()}
+    )
+
+    with raises(ValueError, match="the checkpoint's networks differ from the agent's"):
+        build(seed=2).restore(checkpoint)
+
+
 def test_a_restored_agent_draws_what_the_saved_agent_would(
     build  : Callable[..., Agent],
     play   : Callable[..., None],
@@ -230,29 +246,6 @@ def test_a_restored_agent_draws_what_the_saved_agent_would(
     )
 
     assert first == second
-
-
-def test_a_restored_agent_holds_the_saved_agents_replay_memory(
-    build  : Callable[..., Agent],
-    play   : Callable[..., None],
-    resume : Callable[[Agent], Agent]
-):
-    """
-    Asserts that an agent restoring a checkpoint holds every transition
-    the saved agent's replay memory held, drawing the batch the saved agent
-    draws.
-    """
-    saved = build()
-    play(saved, 40)
-    restored = resume(saved)
-
-    assert len(restored.replay) == len(saved.replay) == 40
-    assert_close(
-        restored.replay.sample("cpu", 32).model_dump(),
-        saved.replay.sample("cpu", 32).model_dump(),
-        atol = 0,
-        rtol = 0
-    )
 
 
 @mark.parametrize(
@@ -278,6 +271,29 @@ def test_a_seed_builds_the_online_networks_weights(
     assert equal(
         parameters_to_vector(second.online.parameters()),
         parameters_to_vector(second.target.parameters())
+    )
+
+
+def test_a_restored_agent_holds_the_saved_agents_replay_memory(
+    build  : Callable[..., Agent],
+    play   : Callable[..., None],
+    resume : Callable[[Agent], Agent]
+):
+    """
+    Asserts that an agent restoring a checkpoint holds every transition
+    the saved agent's replay memory held, drawing the batch the saved agent
+    draws.
+    """
+    saved = build()
+    play(saved, 40)
+    restored = resume(saved)
+
+    assert len(restored.replay) == len(saved.replay) == 40
+    assert_close(
+        restored.replay.sample("cpu", 32).model_dump(),
+        saved.replay.sample("cpu", 32).model_dump(),
+        atol = 0,
+        rtol = 0
     )
 
 
@@ -337,30 +353,6 @@ def test_an_update_changes_the_online_network_and_leaves_the_target_alone(
     assert equal(parameters_to_vector(agent.target.parameters()), target)
 
 
-def test_an_update_clips_the_gradient_norm_at_max_grad_norm(
-    build : Callable[..., Agent],
-    play  : Callable[..., None]
-):
-    """
-    Asserts that the gradient Adam steps on carries a norm of
-    `max_grad_norm`, read through a hook that runs before the step.
-    """
-    agent = build(max_grad_norm=1e-3)
-    norms = []
-    play(agent, 32)
-    agent.optimizer.register_step_pre_hook(
-        lambda *_: norms.append(
-            parameters_to_vector(
-                parameter.grad for parameter in agent.online.parameters()
-            ).norm().item()
-        )
-    )
-
-    agent.update()
-
-    assert norms == [approx(1e-3, rel=1e-4)]
-
-
 @mark.parametrize(
     ("setting", "value", "read"),
     [
@@ -414,6 +406,30 @@ def test_building_an_agent_reseeds_no_accelerators_generator(
     build()
 
     assert reseeded == []
+
+
+def test_an_update_clips_the_gradient_norm_at_max_grad_norm(
+    build : Callable[..., Agent],
+    play  : Callable[..., None]
+):
+    """
+    Asserts that the gradient Adam steps on carries a norm of
+    `max_grad_norm`, read through a hook that runs before the step.
+    """
+    agent = build(max_grad_norm=1e-3)
+    norms = []
+    play(agent, 32)
+    agent.optimizer.register_step_pre_hook(
+        lambda *_: norms.append(
+            parameters_to_vector(
+                parameter.grad for parameter in agent.online.parameters()
+            ).norm().item()
+        )
+    )
+
+    agent.update()
+
+    assert norms == [approx(1e-3, rel=1e-4)]
 
 
 def test_an_update_computes_its_gradient_afresh(
@@ -473,7 +489,7 @@ def test_building_an_agent_leaves_torchs_global_generator_alone(
     build: Callable[..., Agent]
 ):
     """
-    Asserts that building an agent leaves the state of torch's global CPU
+    Asserts that building an agent leaves the state of PyTorch's global CPU
     generator as it found it, since the weights draw from a fork of it.
     """
     manual_seed(5)

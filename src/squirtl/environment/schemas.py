@@ -3,23 +3,26 @@ Defines the records the environment reads and writes:
 
 - `Entry`, the entries of the observation the environment makes
 - `EnvironmentSettings`, the settings it reads
-- `Recording`, the start and the presses of one episode, which the emulator
+- `Outcome`, what one episode reached, which its last step reports
+- `Recording`, the `timer_div` and the presses of one episode, which the emulator
   plays to the same frames again
 """
 
 from compression.zstd    import compress, decompress
 from enum                import StrEnum, auto
+from functools           import partial
 from pyboy.api.constants import COLS, ROWS
 from pyboy.utils         import CLOCK_RATE, FRAME_CYCLES
 from pydantic            import AfterValidator, Field, PlainSerializer, PositiveInt, ValidationInfo, model_validator
 from typing              import Annotated, Self
 
 from squirtl.emulator.schemas import Record
+from squirtl.reward.schemas   import Term
 
 type Compressed = Annotated[
     bytes,
     AfterValidator(validate_compressed),
-    PlainSerializer(compress, return_type=bytes, when_used="json")
+    PlainSerializer(partial(compress, level=19), return_type=bytes, when_used="json")
 ]
 
 
@@ -110,23 +113,57 @@ class EnvironmentSettings(Record):
         return self
 
 
+class Outcome(Record):
+    """
+    What one episode reached, which `RecordOutcome` reports in the info dict
+    of the episode's last step under `outcome`.
+    """
+
+    length: int
+    """
+    The steps the episode took.
+    """
+
+    positions: int
+    """
+    The number of positions the episode reached, the one it started on
+    included.
+    """
+
+    reward: float
+    """
+    The reward the episode's steps total, its return.
+    """
+
+    seconds: float
+    """
+    The wall time from the episode's reset to its last step, in seconds.
+    """
+
+    shares: dict[Term, float]
+    """
+    Each term's part of `reward`.
+    """
+
+    terminated: bool
+    """
+    Whether the episode ended at the starter, where otherwise `TimeLimit`
+    truncated it.
+    """
+
+
 class Recording(Record, ser_json_bytes="base64", val_json_bytes="base64"):
     """
-    One episode as the state its reset started from, the `timer_div` that
-    reset wrote into DIV, and the action each step took, which the emulator
-    plays from that state to the same frames again. JSON holds each `bytes`
-    field as the URL-safe base64 of its zstd compression.
+    One episode as the `timer_div` its reset wrote into DIV and the action
+    each step took, which the emulator plays to the same frames again, since
+    a reset at one `timer_div` always leaves the console in one state. JSON
+    holds the presses as the URL-safe base64 of their zstd compression at
+    level 19.
     """
 
     presses: Compressed
     """
     The action each step took, one byte a step.
-    """
-
-    start: Compressed
-    """
-    The state the episode's reset left the console in, as `GameBoy.capture`
-    saves it.
     """
 
     timer_div: Annotated[int, Field(ge=0, le=255)]

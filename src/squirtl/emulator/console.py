@@ -5,6 +5,7 @@ the protocols naming the PyBoy members it calls: `Emulator`, `GameWrapper`,
 """
 
 from contextlib import AbstractContextManager
+from hashlib    import file_digest
 from io         import BytesIO
 from numpy      import ndarray
 from pyboy      import PyBoy
@@ -68,11 +69,6 @@ class Emulator(Protocol):
         Presses the button `input` names for the next `delay` frames.
         """
 
-    def load_state(self, file_like_object: BinaryIO):
-        """
-        Restores the whole state of the emulator from `file_like_object`.
-        """
-
     def save_state(self, file_like_object: BinaryIO):
         """
         Writes the whole state of the emulator into `file_like_object`.
@@ -114,6 +110,20 @@ class GameBoy(AbstractContextManager):
         self.settings = settings
 
     @property
+    def digest(self) -> str:
+        """
+        Hashes the whole state of the console as PyBoy saves it, which is
+        the same after every `reset` at one `timer_div`.
+
+        Returns:
+            The hex digest of the state's SHA-256.
+        """
+        with BytesIO() as state:
+            self.emulator.save_state(state)
+
+            return file_digest(state, "sha256").hexdigest()
+
+    @property
     def screen(self) -> ndarray:
         """
         Copies the frame the emulator last rendered without its alpha
@@ -142,16 +152,6 @@ class GameBoy(AbstractContextManager):
             ),
             settings
         )
-
-    def capture(self) -> bytes:
-        """
-        Saves the whole state of the console in memory, which `restore`
-        loads back.
-        """
-        with BytesIO() as state:
-            self.emulator.save_state(state)
-
-            return state.getvalue()
 
     def close(self):
         """
@@ -203,13 +203,6 @@ class GameBoy(AbstractContextManager):
         numbers each frame.
         """
         self.emulator.game_wrapper.reset_game(timer_div)
-
-    def restore(self, state: bytes):
-        """
-        Loads a state `capture` saved, returning the console to that
-        instant.
-        """
-        self.emulator.load_state(BytesIO(state))
 
     def start(self):
         """

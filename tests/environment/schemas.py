@@ -3,12 +3,13 @@ Pins the records the environment reads and writes, covering:
 
 - The frame shapes the settings refuse, each dividing the screen unevenly,
   and the ones they keep
-- A recording's bytes held as given in Python and written in JSON as the
-  URL-safe base64 of their zstd compression, and the `timer_div` it refuses
+- A recording's presses held as given in Python and written in JSON as the
+  URL-safe base64 of their zstd compression at level 19, and the
+  `timer_div` it refuses
 """
 
 from base64           import urlsafe_b64decode
-from compression.zstd import decompress
+from compression.zstd import compress, decompress
 from json             import loads
 from pydantic         import ValidationError
 from pytest           import mark, param, raises
@@ -56,26 +57,19 @@ def test_the_settings_keep_a_frame_shape_that_divides_the_screen(
     assert EnvironmentSettings(frame_shape=frame_shape).frame_shape == frame_shape
 
 
-def test_a_recording_writes_each_bytes_field_as_the_base64_of_its_zstd_compression():
+def test_a_recording_writes_its_presses_as_the_base64_of_their_zstd_compression():
     """
-    Asserts that a recording holds the bytes it is built with, writes
-    each `bytes` field in JSON as URL-safe base64 text that decodes and
-    decompresses to those bytes, and reads that JSON back as the recording
-    it wrote.
+    Asserts that a recording holds the presses it is built with, writes them
+    in JSON as URL-safe base64 text that decodes to their zstd compression
+    at level 19, and reads that JSON back as the recording it wrote.
     """
-    recording = Recording(
-        presses   = bytes([0, 3, 6] * 40),
-        start     = b"\xab" * 512,
-        timer_div = 42
-    )
-    written = loads(recording.model_dump_json())
+    recording = Recording(presses=bytes([0, 3, 6] * 40), timer_div=42)
+    written   = urlsafe_b64decode(loads(recording.model_dump_json())["presses"])
 
-    assert {key: decompress(urlsafe_b64decode(written[key])) for key in (
-        "presses", "start"
-    )} == {
-        "presses" : recording.presses,
-        "start"   : recording.start
-    }
+    assert (written, decompress(written)) == (
+        compress(recording.presses, level=19),
+        recording.presses
+    )
     assert Recording.model_validate_json(recording.model_dump_json()) == recording
 
 
@@ -89,4 +83,4 @@ def test_a_recording_refuses_a_timer_div_outside_the_eight_bits_of_div(timer_div
     hold, where 0 and 255 bound the values a reset writes.
     """
     with raises(ValidationError):
-        Recording(presses=b"", start=b"", timer_div=timer_div)
+        Recording(presses=b"", timer_div=timer_div)

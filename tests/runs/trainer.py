@@ -6,25 +6,31 @@ Pins the training loop of one run on the CPU, covering:
   positions, the chance of a random action, and the update means each line
   holds
 - The checkpoint at the first episode end reaching each interval and at
-  the run's end, a resumed run counting the interval on from its checkpoint
+  the run's end, each written after the episodes are flushed to disk, and
+  a resumed run counting the interval on from its checkpoint
 - A `stop` file, logged once found, an interrupt, or a termination signal
   ending the run at an episode's end, a second interrupt ending it at once,
   and the signal handlers the loop puts back
 - A run stopped halfway and resumed ending with the weights and the lines
   of a run that never stopped, and the lines a resume drops past its
   checkpoint
+- The evaluation at the first episode end reaching each interval, which
+  leaves the training as it was and logs what each policy reached, and the
+  evaluations and the baseline a resume copies up to its checkpoint
 """
 
-from collections.abc import Callable
-from common.console  import set_event, stand
-from pytest          import MonkeyPatch, approx, mark, param, raises
-from signal          import SIGINT, SIGTERM, getsignal, raise_signal
-from torch.testing   import assert_close
+from collections.abc   import Callable
+from common.console    import set_event, stand
+from common.evaluation import EvaluatorStandIn, played
+from pytest            import MonkeyPatch, approx, mark, param, raises
+from signal            import SIGINT, SIGTERM, getsignal, raise_signal
+from torch.testing     import assert_close
 
-from squirtl.agent.schemas  import AgentSettings, Checkpoint, Update
-from squirtl.reward.schemas import Event, Position, RewardSettings, Term
-from squirtl.runs.schemas   import Run
-from squirtl.runs.trainer   import Trainer
+from squirtl.agent.schemas      import AgentSettings, Checkpoint, Update
+from squirtl.evaluation.schemas import Evaluation, EvaluationSettings
+from squirtl.reward.schemas     import Event, Position, RewardSettings, Term
+from squirtl.runs.schemas       import Run
+from squirtl.runs.trainer       import Trainer
 
 
 def checkpoints(monkeypatch: MonkeyPatch, trainer: Trainer) -> list[int]:
@@ -99,6 +105,33 @@ def test_a_checkpoint_lands_at_the_first_episode_end_reaching_each_interval_and_
     assert (steps, Checkpoint.from_path(built.run.checkpoint).step) == (written, 20)
 
 
+def test_a_resume_copies_the_evaluations_up_to_its_checkpoint_and_the_baseline(
+    evaluators : list[EvaluatorStandIn],
+    trainer    : Callable[..., Trainer]
+):
+    """
+    Asserts that resuming a run evaluated at step 12, whose `evaluations`
+    runs past its checkpoint there, copies the evaluation at step 12 and the
+    baseline alone, so the resumed run plays only its evaluation at step 20
+    and ends holding the evaluations of a run that never stopped.
+    """
+    stopped = finish(trainer(evaluation_steps=10), stop_at_eight)
+    stopped.append(stopped.evaluations, played([0.5], 18))
+    resumed = trainer(evaluation_steps=10, resumes=stopped)
+    resumed_files, unbroken_files = (
+        [path.read_text(encoding="utf-8") for path in (run.evaluations, run.baseline)]
+        for run in (finish(resumed), finish(trainer(evaluation_steps=10)))
+    )
+
+    assert resumed_files == unbroken_files
+    assert [stand_in.asked for stand_in in evaluators] == [
+        [12, None],
+        [20],
+        [12, None],
+        [20]
+    ]
+
+
 def test_a_resume_drops_the_lines_past_the_checkpoint_it_continues_from(
     trainer: Callable[..., Trainer]
 ):
@@ -113,8 +146,7 @@ def test_a_resume_drops_the_lines_past_the_checkpoint_it_continues_from(
     with stopped.episodes.open("a", encoding="utf-8") as appended:
         appended.write(lines[0])
 
-    resumed = trainer(resumes=stopped.name)
-    resumed.resume(Checkpoint.from_path(stopped.checkpoint), stopped)
+    resumed = trainer(resumes=stopped)
 
     assert (resumed.finished, resumed.run.episodes.read_text(encoding="utf-8")) == (
         2,
@@ -136,9 +168,8 @@ def test_a_resumed_run_writes_its_checkpoints_where_a_run_that_never_stopped_doe
     steps = [checkpoints(monkeypatch, built) for built in (unbroken, stopped)]
     finish(unbroken)
     finish(stopped, stop_at_eight)
-    resumed = trainer(resumes=stopped.run.name)
+    resumed = trainer(resumes=stopped.run)
     steps.append(checkpoints(monkeypatch, resumed))
-    resumed.resume(Checkpoint.from_path(stopped.run.checkpoint), stopped.run)
     finish(resumed)
 
     assert steps == [[12, 20], [12], [20]]
@@ -155,9 +186,7 @@ def test_a_run_stopped_halfway_and_resumed_ends_as_a_run_that_never_stopped(
     time each took.
     """
     unbroken = finish(trainer())
-    stopped  = finish(trainer(), stop_at_eight)
-    resumed  = trainer(resumes=stopped.name)
-    resumed.resume(Checkpoint.from_path(stopped.checkpoint), stopped)
+    resumed  = trainer(resumes=finish(trainer(), stop_at_eight))
     finish(resumed)
 
     first, second = (
@@ -181,20 +210,6 @@ def test_a_run_stopped_halfway_and_resumed_ends_as_a_run_that_never_stopped(
     assert unbroken_lines == resumed_lines
 
 
-def test_a_second_interrupt_ends_the_run_at_once(trainer: Callable[..., Trainer]):
-    """
-    Asserts that a second interrupt raises `KeyboardInterrupt` on the step
-    it lands on, ending the run before its first episode ends and writing
-    no checkpoint.
-    """
-    built = trainer()
-
-    with raises(KeyboardInterrupt):
-        finish(built, lambda *_: raise_signal(SIGINT))
-
-    assert (built.agent.step, built.run.checkpoint.exists()) == (2, False)
-
-
 @mark.parametrize(
     "number",
     [param(SIGINT, id="an-interrupt"), param(SIGTERM, id="a-termination-signal")]
@@ -210,6 +225,20 @@ def test_a_signal_ends_the_run_at_the_end_of_its_episode(
     run = finish(trainer(), lambda step, _: step == 3 and raise_signal(number))
 
     assert Checkpoint.from_path(run.checkpoint).step == 6
+
+
+def test_a_second_interrupt_ends_the_run_at_once(trainer: Callable[..., Trainer]):
+    """
+    Asserts that a second interrupt raises `KeyboardInterrupt` on the step
+    it lands on, ending the run before its first episode ends and writing
+    no checkpoint.
+    """
+    built = trainer()
+
+    with raises(KeyboardInterrupt):
+        finish(built, lambda *_: raise_signal(SIGINT))
+
+    assert (built.agent.step, built.run.checkpoint.exists()) == (2, False)
 
 
 def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
@@ -228,6 +257,26 @@ def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
         Checkpoint.from_path(run.checkpoint).step
     ) == (2, 12)
     assert f"Stopping at the end of episode 2 on finding {run.stop}" in logged
+
+
+@mark.parametrize(
+    "steps",
+    [param(20, id="two-steps-cut-off"), param(18, id="ending-as-the-third-ends")]
+)
+def test_each_finished_episode_writes_a_line_and_the_cut_one_none(
+    steps   : int,
+    trainer : Callable[..., Trainer]
+):
+    """
+    Asserts that a run of 6-step episodes writes a line for each of the
+    three its time limit truncated, each holding its six presses, whether
+    its end cuts two steps of a fourth off or lands on the third's last
+    step.
+    """
+    assert [
+        (episode.length, episode.terminated, len(episode.recording.presses))
+        for episode in finish(trainer(steps=steps)).recorded
+    ] == [(6, False, 6)] * 3
 
 
 def test_an_episode_reaching_the_starter_writes_a_terminated_line(
@@ -255,26 +304,6 @@ def test_an_episode_reaching_the_starter_writes_a_terminated_line(
         (6, False)
     ]
     assert recorded[0].shares[Term.STARTER] == RewardSettings().starter
-
-
-@mark.parametrize(
-    "steps",
-    [param(20, id="two-steps-cut-off"), param(18, id="ending-as-the-third-ends")]
-)
-def test_each_finished_episode_writes_a_line_and_the_cut_one_none(
-    steps   : int,
-    trainer : Callable[..., Trainer]
-):
-    """
-    Asserts that a run of 6-step episodes writes a line for each of the
-    three its time limit truncated, each holding its six presses, whether
-    its end cuts two steps of a fourth off or lands on the third's last
-    step.
-    """
-    assert [
-        (episode.length, episode.terminated, len(episode.recording.presses))
-        for episode in finish(trainer(steps=steps)).recorded
-    ] == [(6, False, 6)] * 3
 
 
 def test_an_episodes_line_averages_the_updates_its_steps_took(
@@ -359,6 +388,118 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
         "return 0.0000, positions 1, epsilon 0.550, loss 6.5, value -6.5",
         "return 0.0000, positions 1, epsilon 0.250, loss 12.5, value -12.5"
     ]
+
+
+@mark.parametrize(
+    ("interval", "asked"),
+    [
+        param(10, [[12, None], [20]],      id="past-an-interval"),
+        param(6,  [[6, None], [12], [18]], id="on-each-interval")
+    ]
+)
+def test_an_evaluation_lands_at_the_first_episode_end_reaching_each_interval(
+    asked      : list[list[int | None]],
+    evaluators : list[EvaluatorStandIn],
+    interval   : int,
+    trainer    : Callable[..., Trainer]
+):
+    """
+    Asserts that a 20-step run of 6-step episodes evaluates the agent where
+    an episode end or the run's last step first reaches each interval, at
+    steps 12 and 20 for an interval of 10 and at every episode end for an
+    interval of 6, playing the baseline at its first evaluation alone.
+    """
+    finish(trainer(evaluation_steps=interval))
+
+    assert [stand_in.asked for stand_in in evaluators] == asked
+
+
+@mark.usefixtures("evaluators")
+def test_an_evaluation_logs_how_often_each_policy_reached_the_starter(
+    logged  : list[str],
+    trainer : Callable[..., Trainer]
+):
+    """
+    Asserts that an evaluation at step 12 logs its start, then the share
+    of episodes in which the agent and the random baseline each reached the
+    starter beside each one's mean return, from the stand-in's returns of
+    0.012 and 0.125.
+    """
+    finish(trainer(evaluation_steps=10))
+
+    assert {
+        "At step 12, the agent reached the starter in 0% of its evaluation episodes "
+        "for a mean return of 0.0120, and the random baseline in 0% for 0.1250",
+        "Evaluating the agent at step 12"
+    } <= set(logged)
+
+
+def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
+    trainer: Callable[..., Trainer]
+):
+    """
+    Asserts that a run evaluating at steps 12 and 20 over two episodes in
+    two worker processes writes the agent's evaluations and the baseline's,
+    and ends with the networks, Adam's state, replay memory, generators, and
+    episodes of the same run evaluating nothing.
+    """
+    evaluated = finish(
+        trainer = trainer(
+            evaluation       = EvaluationSettings(environments=2, episodes=2),
+            evaluation_steps = 10
+        )
+    )
+    plain         = finish(trainer())
+    first, second = (Checkpoint.from_path(run.checkpoint) for run in (evaluated, plain))
+    evaluated_lines, plain_lines = (
+        [episode.model_dump(exclude={"seconds"}) for episode in run.recorded]
+        for run in (evaluated, plain)
+    )
+
+    assert_close(
+        [first.online, first.target, first.optimizer, first.replay],
+        [second.online, second.target, second.optimizer, second.replay],
+        atol = 0,
+        rtol = 0
+    )
+    assert (first.exploration, first.sampling) == (second.exploration, second.sampling)
+    assert evaluated_lines == plain_lines
+    assert [
+        (
+            evaluation.step,
+            len(evaluation.outcomes)
+        ) for evaluation in evaluated.evaluated
+    ] == [(12, 2), (20, 2)]
+    assert Evaluation.model_validate_json(
+        evaluated.baseline.read_text(encoding="utf-8")
+    ).step is None
+
+
+def test_each_checkpoint_follows_the_episodes_written_through_to_disk(
+    monkeypatch : MonkeyPatch,
+    trainer     : Callable[..., Trainer]
+):
+    """
+    Asserts that a run writes its `episodes` through to disk before each
+    checkpoint it saves, at steps 12 and 20, so no checkpoint runs ahead of
+    the episodes recorded before it.
+    """
+    events = []
+    sync   = Run.sync
+    save   = Checkpoint.save
+    monkeypatch.setattr(
+        Run,
+        "sync",
+        lambda run, path: events.append(path.name) or sync(run, path)
+    )
+    monkeypatch.setattr(
+        Checkpoint,
+        "save",
+        lambda checkpoint, path: events.append(path.name) or save(checkpoint, path)
+    )
+    finish(trainer())
+
+    assert events == ["episodes.jsonl", "checkpoint.npz"] * 2
 
 
 def test_the_run_puts_each_signals_handler_back_once_it_ends(

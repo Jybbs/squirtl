@@ -17,7 +17,7 @@ from torch.random        import fork_rng
 
 from squirtl.agent.networks import QNetwork
 from squirtl.agent.replay   import Replay
-from squirtl.agent.schemas  import AgentSettings, Checkpoint, Update
+from squirtl.agent.schemas  import AgentSettings, Checkpoint, Update, Weights
 
 
 class Agent:
@@ -67,12 +67,11 @@ class Agent:
         memory's arrays uncopied.
         """
         return Checkpoint(
+            **dict(self.weights),
             exploration = self.exploration.bit_generator.state,
-            online      = self.online.state_dict(),
             optimizer   = self.optimizer.state_dict(),
             replay      = self.replay.arrays,
             sampling    = self.replay.generator.bit_generator.state,
-            step        = self.step,
             target      = self.target.state_dict()
         )
 
@@ -88,6 +87,14 @@ class Agent:
             [0, self.settings.exploration_fraction * self.steps],
             [self.settings.epsilon_start, self.settings.epsilon_end]
         )
+
+    @property
+    def weights(self) -> Weights:
+        """
+        Gathers the online network's `state_dict`, uncopied, beside the step
+        it has reached, which an evaluation plays from.
+        """
+        return Weights(online=self.online.state_dict(), step=self.step)
 
     @inference_mode()
     def act(self, observation: Mapping[str, ndarray]) -> int:
@@ -136,18 +143,32 @@ class Agent:
 
     def restore(self, checkpoint: Checkpoint):
         """
-        Loads `checkpoint` into both networks, the optimizer, the step
-        count, both generators, and replay memory, in place, so the
-        optimizer keeps stepping the parameters of the network the
+        Loads `checkpoint` into replay memory, both networks, the optimizer,
+        the step count, and both generators, the networks in place, so
+        the optimizer keeps stepping the parameters of the network the
         checkpoint loads into.
+
+        Raises:
+            ValueError: Where replay memory's arrays or a network's entries
+                        differ from the agent's, as a checkpoint another
+                        agent wrote holds them.
         """
+        self.replay.load(checkpoint.replay)
+
+        try:
+            self.online.load_state_dict(checkpoint.online)
+            self.target.load_state_dict(checkpoint.target)
+        except RuntimeError as error:
+            # `load_state_dict` raises `RuntimeError` on an entry one side lacks or the
+            # network holds at another shape.
+            raise ValueError(
+                f"the checkpoint's networks differ from the agent's: {error}"
+            ) from error
+
         self.exploration.bit_generator.state      = checkpoint.exploration
         self.replay.generator.bit_generator.state = checkpoint.sampling
         self.step = checkpoint.step
-        self.online.load_state_dict(checkpoint.online)
         self.optimizer.load_state_dict(checkpoint.optimizer)
-        self.replay.load(checkpoint.replay)
-        self.target.load_state_dict(checkpoint.target)
 
     def update(self) -> Update | None:
         """

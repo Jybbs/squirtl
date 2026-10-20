@@ -9,9 +9,14 @@ interrupt, a termination signal, or squirtl stop ends the run at the end of its
 episode with a checkpoint and exits 0, and a second interrupt ends it at once on
 the last checkpoint and exits 130.                                              
 
-A --resume directory holding no run or no checkpoint, a cartridge the emulator  
-refuses, or a working directory no git clone holds exits 1 before any directory 
-is made.
+Each of these exits 1 before any directory is made:                             
+
+ • A --resume directory holding no run or no checkpoint                         
+ • A checkpoint damaged, already holding the run's steps, or differing from the 
+   agent the run's settings build                                               
+ • An episode log ending short of that checkpoint                               
+ • A cartridge the emulator refuses                                             
+ • A working directory no git clone holds
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────╮
 │ --resume PATH                 The directory of a stopped run to continue     │
@@ -94,6 +99,22 @@ is made.
 │ --environment                 The steps after which TimeLimit truncates an   │
 │   .max-episode-steps INT      episode, by default the budget Pleines et al.  │
 │                               start each episode with. [default: 10240]      │
+│ --evaluation.environments     The environments an evaluation plays its       │
+│   INT                         episodes across in parallel, each in a worker  │
+│                               process of its own, which defaults to the CPUs │
+│                               the process may use. [default: 4]              │
+│ --evaluation.episodes INT     The episodes each evaluation plays of the      │
+│                               agent and of the random baseline, whose        │
+│                               default follows Mnih et al. [default: 30]      │
+│ --evaluation.epsilon FLOAT    The chance of a random action at each step of  │
+│                               the agent's evaluation episodes, whose default │
+│                               follows Mnih et al. [default: 0.05]            │
+│ --evaluation-steps INT        The environment steps between the evaluations  │
+│                               a run plays, each where an episode end or the  │
+│                               run's last step first reaches a multiple of    │
+│                               them, whose default is the 250,000 steps of    │
+│                               each iteration Dopamine's DQN evaluates after. │
+│                               [default: 250000]                              │
 │ --reward.milestone FLOAT      The reward a step earns for each milestone on  │
 │                               the way to the starter whose flag it first     │
 │                               sets. [default: 0.1]                           │

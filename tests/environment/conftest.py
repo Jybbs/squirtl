@@ -21,8 +21,9 @@ from squirtl.reward.schemas        import RewardSettings
 def made(cartridge: Cartridge) -> Iterator[Callable[..., Env]]:
     """
     Builds a factory making the environment on PyBoy from `cartridge`
-    through `Overworld.make` under the default settings, any keyword setting
-    a field of `EnvironmentSettings`, and closing each with the test.
+    through the spec `Overworld.specification` gives under the default
+    settings, any keyword setting a field of `EnvironmentSettings`, and
+    closing each with the test.
     """
     with ExitStack() as stack:
 
@@ -31,12 +32,12 @@ def made(cartridge: Cartridge) -> Iterator[Callable[..., Env]]:
             Makes the environment `environment` describes.
             """
             return stack.enter_context(
-                Overworld.make(
+                Overworld.specification(
                     cartridge,
                     EmulatorSettings(),
                     EnvironmentSettings(**environment),
                     RewardSettings()
-                )
+                ).make()
             )
 
         yield make

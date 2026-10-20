@@ -63,14 +63,6 @@ class StandIn:
         """
         self.calls.append(("button", input, delay))
 
-    def load_state(self, file_like_object: BinaryIO):
-        """
-        Records a load and reads the memory a save wrote from
-        `file_like_object`.
-        """
-        self.calls.append(("load_state",))
-        self.memory[:] = file_like_object.read()
-
     def save_state(self, file_like_object: BinaryIO):
         """
         Records a save and writes the memory into `file_like_object`.

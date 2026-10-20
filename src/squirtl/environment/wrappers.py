@@ -1,14 +1,16 @@
 """
-Defines `ProgressObservation` and `ShrinkObservation`, the observation
-wrappers `Overworld.make` applies beside Gymnasium's own.
+Defines the wrappers `Overworld.specification` names beside Gymnasium's own,
+`ProgressObservation` and `ShrinkObservation`, which shape the observation,
+and `RecordOutcome`, which reports what each episode reached.
 """
 
-from gymnasium        import Env, ObservationWrapper
+from gymnasium        import Env, ObservationWrapper, Wrapper
 from gymnasium.spaces import Box, Dict, MultiBinary
 from gymnasium.utils  import RecordConstructorArgs
 from numpy            import ndarray, uint8
+from typing           import Any
 
-from squirtl.environment.schemas import Entry
+from squirtl.environment.schemas import Entry, Outcome
 from squirtl.reward.schemas      import Event
 
 
@@ -51,6 +53,44 @@ class ProgressObservation(ObservationWrapper, RecordConstructorArgs):
             Entry.FRAMES : observation,
             Entry.GRID   : progress.grid(self.size)[None]
         }
+
+
+class RecordOutcome(Wrapper, RecordConstructorArgs):
+    """
+    Reports what each episode reached as an `Outcome` in the info dict
+    of its last step under `outcome`, reading the return, the length, and
+    the time from the statistics `RecordEpisodeStatistics` adds beneath
+    it, and the positions and the shares from the unwrapped environment's
+    `Progress`.
+    """
+
+    def __init__(self, env: Env):
+        """
+        Wraps `env`, which `RecordEpisodeStatistics` wraps.
+        """
+        RecordConstructorArgs.__init__(self)
+        Wrapper.__init__(self, env)
+
+    def step(self, action: int) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+        """
+        Steps the wrapped environment and adds the episode's `Outcome` to
+        the info dict once the step terminates or truncates it.
+        """
+        observation, reward, terminated, truncated, info = self.env.step(action)
+
+        if terminated or truncated:
+            progress        = self.get_wrapper_attr("progress")
+            statistics      = info["episode"]
+            info["outcome"] = Outcome(
+                length     = statistics["l"],
+                positions  = len(progress.positions),
+                reward     = statistics["r"],
+                seconds    = statistics["t"],
+                shares     = progress.shares,
+                terminated = terminated
+            )
+
+        return observation, reward, terminated, truncated, info
 
 
 class ShrinkObservation(ObservationWrapper, RecordConstructorArgs):
