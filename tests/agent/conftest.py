@@ -125,9 +125,9 @@ def resume(build: Callable[..., Agent], tmp_path: Path) -> Callable[[Agent], Age
         Returns:
             The agent the checkpoint was restored into.
         """
-        agent.checkpoint.save(tmp_path / "checkpoint.pt")
+        agent.checkpoint.save(tmp_path / "checkpoint.npz")
         restored = build(seed=2)
-        restored.restore(Checkpoint.from_path(tmp_path / "checkpoint.pt"))
+        restored.restore(Checkpoint.from_path(tmp_path / "checkpoint.npz"))
 
         return restored
 

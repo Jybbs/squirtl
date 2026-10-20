@@ -5,14 +5,18 @@ The autouse `environment` fixture isolates every test from the machine
 running it, and the collection hook lets a test open a network connection
 only when it carries the `network` mark. The `rom`, `cartridge`, and
 `settings` fixtures serve the tests of the emulator, the reward, and the
-environment, so none needs the user's own ROM.
+environment, so none needs the user's own ROM, `clone` serves every test
+starting a run, which reads the clone it runs in, and `outside` every test
+reading a working directory no clone holds.
 """
 
 from collections.abc   import Callable, Iterable, Iterator, Mapping
 from io                import StringIO
+from os                import devnull
 from pathlib           import Path
 from pytest            import FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, mark
 from pytest_subprocess import FakeProcess
+from subprocess        import check_call
 
 from squirtl.emulator.schemas import Cartridge, EmulatorSettings
 from squirtl.reward.schemas   import RewardSettings
@@ -164,3 +168,46 @@ def settings() -> RewardSettings:
     from one another, so every sum a step earns is exact.
     """
     return RewardSettings(milestone=0.125, novelty=0.0625, starter=0.5)
+
+
+@fixture
+def outside(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
+    """
+    Makes `tmp_path` the working directory, where `GIT_CEILING_DIRECTORIES`
+    stops git looking for a clone above it, so no clone holds it.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+
+    return tmp_path
+
+
+@fixture
+def clone(
+    checkout    : Callable[[Mapping[str, str]], None],
+    monkeypatch : MonkeyPatch,
+    tmp_path    : Path
+) -> Path:
+    """
+    Makes `tmp_path`, the working directory `checkout` sets, a git clone
+    whose one commit holds a `uv.lock` and a `.gitignore` covering `data/`,
+    as the repository's own `.gitignore` does.
+
+    `GIT_CONFIG_NOSYSTEM` keeps the machine's system-wide git configuration
+    out of the clone, and `GIT_CONFIG_GLOBAL` pointed at the null device
+    keeps the developer's own out.
+    """
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", devnull)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    checkout({".gitignore": "/data/\n", "uv.lock": "version = 1\n"})
+
+    for command in (["init"], ["add", "."], ["commit", "--message", "Lock"]):
+        check_call(
+            [
+                "git", "-c", "user.email=squirtl@example.invalid",
+                "-c", "user.name=SquiRtL",
+                *command
+            ]
+        )
+
+    return tmp_path

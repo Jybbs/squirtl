@@ -10,6 +10,10 @@ from cyclopts           import App, Parameter
 from cyclopts.config    import Toml
 from importlib.metadata import metadata
 
+from squirtl.cli.stop  import stop
+from squirtl.cli.train import train
+from squirtl.cli.watch import watch
+
 app = App(
     config = Toml(
         "pyproject.toml",
@@ -20,3 +24,7 @@ app = App(
     help              = metadata("squirtl")["Summary"],
     name              = "squirtl"
 )
+
+app.command(stop)
+app.command(train)
+app.command(watch)

@@ -6,6 +6,8 @@ Pins replay memory, covering:
 - A reset observation drawn back element by element, and a `Box` bounded
   at 0 and 1 held unpacked
 - The generator its draws come from, and its 606 MB at the default capacity
+- The arrays it gathers for a checkpoint, the copy it loads from them, and
+  the arrays of another capacity it refuses
 """
 
 from collections.abc  import Callable, Mapping
@@ -13,7 +15,7 @@ from gymnasium.spaces import Box, Dict, MultiBinary
 from itertools        import pairwise
 from numpy            import arange, array, int8, ndarray, uint8, zeros
 from numpy.random     import default_rng
-from pytest           import fixture, mark, param
+from pytest           import fixture, mark, param, raises
 from torch.testing    import assert_close
 
 from squirtl.agent.replay        import Replay
@@ -117,6 +119,19 @@ def test_replay_draws_back_each_transition_it_holds_and_nothing_else(
     } == set(stored[-held:])
 
 
+def fill(replay: Replay, stacked: Stacked, tiny: Dict):
+    """
+    Stores two episodes of `elements` in `replay`, the first terminating
+    after five steps and the second running three.
+    """
+    for index, (steps, terminated) in enumerate([(5, True), (3, False)]):
+        observations = stacked(elements(index, steps), tiny)
+        replay.begin(observations[0])
+
+        for step, reached in enumerate(observations[1:]):
+            replay.store(step, reached, float(step), terminated and step == steps - 1)
+
+
 def test_replay_at_its_default_capacity_packs_each_binary_entry_into_606_mb(
     space: Dict
 ):
@@ -193,6 +208,25 @@ def test_replay_draws_each_batch_from_the_generator_it_is_built_with(
     assert_close(first.model_dump(), second.model_dump(), atol=0, rtol=0)
 
 
+def test_replay_gathers_each_array_it_holds_uncopied_under_its_name(
+    stacked : Stacked,
+    tiny    : Dict
+):
+    """
+    Asserts that the arrays replay memory gathers for a checkpoint are the
+    arrays it holds rather than copies, each column's elements under its
+    entry's key, beside the count of elements pushed.
+    """
+    replay = Replay(16, default_rng(0), tiny)
+    fill(replay, stacked, tiny)
+    arrays = replay.arrays
+
+    assert all(
+        arrays[key] is column.elements for key, column in replay.columns.items()
+    )
+    assert (arrays["actions"] is replay.actions, arrays["pushed"].item()) == (True, 16)
+
+
 def test_replay_holds_a_box_bounded_at_0_and_1_unpacked_in_its_dtype():
     """
     Asserts that replay memory stores a `uint8` `Box` entry bounded at 0 and
@@ -205,3 +239,50 @@ def test_replay_holds_a_box_bounded_at_0_and_1_unpacked_in_its_dtype():
 
     assert replay.columns[Entry.FLAGS].elements.shape == (8, 2)
     assert replay.sample("cpu", 1).windows[Entry.FLAGS].tolist() == [[[0, 1], [1, 0]]]
+
+
+def test_replay_loaded_from_another_replays_arrays_draws_and_stores_as_it_would(
+    stacked : Stacked,
+    tiny    : Dict
+):
+    """
+    Asserts that replay memory loading the arrays another one gathers holds
+    the same transitions, draws the batch the other draws from a generator
+    at the same state, and writes its next element into the slot the other
+    writes into, since it reads `pushed` back.
+    """
+    saved, loaded = (Replay(16, default_rng(4), tiny) for _ in range(2))
+    fill(saved, stacked, tiny)
+    loaded.load(saved.arrays)
+
+    for replay in (saved, loaded):
+        replay.store(0, stacked(elements(2, 1), tiny)[-1], 9.0, False)
+
+    assert len(loaded) == len(saved)
+    assert_close(
+        loaded.sample("cpu", 32).model_dump(),
+        saved.sample("cpu", 32).model_dump(),
+        atol = 0,
+        rtol = 0
+    )
+
+
+@mark.parametrize(
+    "capacity",
+    [param(16, id="a-larger-one"), param(1, id="one-slot-broadcasting-to-all")]
+)
+def test_replay_refuses_the_arrays_of_another_capacity(
+    capacity : int,
+    stacked  : Stacked,
+    tiny     : Dict
+):
+    """
+    Asserts that replay memory refuses arrays gathered at another capacity
+    rather than loading them into slots they do not fit, a single slot that
+    would broadcast across all twelve among them.
+    """
+    saved = Replay(capacity, default_rng(0), tiny)
+    fill(saved, stacked, tiny)
+
+    with raises(ValueError, match="where the arrays loaded hold"):
+        Replay(12, default_rng(0), tiny).load(saved.arrays)
