@@ -139,8 +139,8 @@ class Evaluator(AbstractContextManager):
         """
         Plays the episodes of the epsilon-greedy policy over a Q-network
         holding `weights`, the agent's online network at their step. The
-        network is built anew, under a fork of torch's global generator, so
-        the evaluation leaves the agent and that generator as they were.
+        network is built anew, under a fork of PyTorch's global generator,
+        so the evaluation leaves the agent and that generator as they were.
         """
         with fork_rng(devices=[]):
             network = QNetwork(
@@ -163,12 +163,13 @@ class Evaluator(AbstractContextManager):
 
     def play(self, policy: Policy) -> list[Outcome]:
         """
-        Plays the settings' `episodes` of `policy`, starting each in the
-        first environment to come free under the seeds `seeds` draws for
-        its number. Once every episode has started, an environment coming
-        free plays on through the numbers past them and discards each, since
-        Gymnasium steps no environment it has not reset since its episode
-        ended.
+        Plays the settings' `episodes` of `policy`, starting each in
+        the first environment to come free under the seeds `seeds` draws
+        for its number. Once every episode has started, an environment
+        coming free plays on through the numbers past them and discards
+        each, since `step` steps every environment at once and, under
+        `AutoresetMode.DISABLED`, steps one past its episode's end unless
+        `play` resets it.
 
         Returns:
             What each episode reached, in the order of their numbers.

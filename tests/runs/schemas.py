@@ -29,6 +29,7 @@ from functools         import reduce
 from hashlib           import sha256
 from json              import dumps, loads
 from operator          import getitem
+from os                import fstat
 from pathlib           import Path
 from pydantic          import ValidationError
 from pytest            import MonkeyPatch, TempPathFactory, mark, param, raises
@@ -36,9 +37,10 @@ from shutil            import copytree
 from subprocess        import CalledProcessError, check_output
 from syrupy.assertion  import SnapshotAssertion
 
-from squirtl.agent.schemas    import Weights
-from squirtl.emulator.schemas import Cartridge, Record
-from squirtl.runs.schemas     import Episode, Revision, Run, RunSettings, Stream
+from squirtl.agent.schemas      import Weights
+from squirtl.emulator.schemas   import Cartridge, Record
+from squirtl.evaluation.schemas import Evaluation
+from squirtl.runs.schemas       import Episode, Revision, Run, RunSettings, Stream
 
 
 def test_a_checkpoint_at_the_runs_last_step_may_land_within_an_episode(
@@ -488,12 +490,25 @@ def test_a_runs_episodes_read_back_in_the_order_written(
     assert [next(recorded), next(recorded)] == [episode, later]
 
 
-def test_each_stream_seed_fits_in_64_unsigned_bits():
+def test_a_sync_writes_the_file_through_the_drives_cache(
+    monkeypatch : MonkeyPatch,
+    run         : Run,
+    tmp_path    : Path
+):
     """
-    Asserts that every stream's seed is a 64-bit unsigned integer, the
-    widest seed `torch.manual_seed` takes.
+    Asserts that syncing one of a run's files hands `flush` a descriptor of
+    that file, which writes it through the drive's cache.
     """
-    assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
+    flushed = []
+    monkeypatch.setattr(
+        "squirtl.runs.schemas.flush",
+        lambda descriptor: flushed.append(fstat(descriptor).st_ino)
+    )
+    path = tmp_path / "episodes.jsonl"
+    path.write_text("", encoding="utf-8")
+    run.sync(path)
+
+    assert flushed == [path.stat().st_ino]
 
 
 @mark.parametrize(
@@ -551,15 +566,12 @@ def test_a_run_reads_the_lines_of_the_episodes_that_ended_by_a_step(
 ):
     """
     Asserts that a run reads, as written, the line of each episode ending
-    by a step, a three-step episode's once that step reaches 3 and the
-    four-step one's after it once it reaches 7, and reads no further, so the
-    unfinished line past them draws no warning.
+    by a step from its `length` alone, a three-step episode's once that step
+    reaches 3 and the four-step one's after it once it reaches 7, and reads
+    no further, so the unfinished line past them draws no warning.
     """
-    lines = [
-        f"{episode.model_dump_json()}\n",
-        f"{episode.model_copy(update={'length': 4}).model_dump_json()}\n"
-    ]
-    run = holding(f'{lines[0]}{lines[1]}{{"length": ')
+    lines = ['{"length": 3}\n', '{"length": 4}\n']
+    run   = holding(f'{lines[0]}{lines[1]}{{"length": ')
 
     assert (run.ended_by(step), logged) == (lines[:ended], [])
 
@@ -587,28 +599,42 @@ def test_a_log_ending_short_of_a_checkpoint_within_the_run_is_refused(
         run.ended_by(step)
 
 
-def test_reading_a_directory_holding_no_run_raises(clone: Path):
-    """
-    Asserts that reading a directory holding no run record raises rather
-    than reading a run from somewhere else.
-    """
-    (clone / "data/runs/empty").mkdir(parents=True)
-
-    with raises(FileNotFoundError):
-        Run.read(clone / "data/runs/empty")
-
-
-def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
-    snapshot: SnapshotAssertion
+def test_an_append_cuts_the_unfinished_last_line_before_writing(
+    logged   : list[str],
+    run      : Run,
+    tmp_path : Path
 ):
     """
-    Asserts that the default run seed derives the stream seeds its fixture
-    file holds, so a change to the derivation, which would change the draws
-    every recorded run's seed reproduces, is reviewed as a diff.
+    Asserts that appending an evaluation to a file whose last line a run
+    that stopped while writing it left unfinished cuts that line, with a
+    warning naming the file, so the file reads back as the evaluation it
+    held before and the one appended.
     """
-    seeds = RunSettings().seeds
+    path = tmp_path / "evaluations.jsonl"
+    path.write_text(
+        f'{played([0.1], 12).model_dump_json()}\n{{"outco',
+        encoding = "utf-8"
+    )
+    run.append(path, played([0.2], 20))
 
-    assert "\n".join(f"{stream} {seed}" for stream, seed in seeds.items()) == snapshot
+    assert (
+        [evaluation.step for evaluation in map(
+            Evaluation.model_validate_json,
+            (
+                path.read_text(encoding="utf-8")
+                    .splitlines()
+            )
+        )],
+        logged
+    ) == ([12, 20], [f"Cutting the unfinished last line of {path}"])
+
+
+def test_each_stream_seed_fits_in_64_unsigned_bits():
+    """
+    Asserts that every stream's seed is a 64-bit unsigned integer, the
+    widest seed `torch.manual_seed` takes.
+    """
+    assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
 
 
 @mark.usefixtures("clone")
@@ -657,6 +683,30 @@ def test_a_run_holding_its_evaluation_but_no_baseline_plays_the_baseline_alone(
         [[None]],
         True
     )
+
+
+def test_reading_a_directory_holding_no_run_raises(clone: Path):
+    """
+    Asserts that reading a directory holding no run record raises rather
+    than reading a run from somewhere else.
+    """
+    (clone / "data/runs/empty").mkdir(parents=True)
+
+    with raises(FileNotFoundError):
+        Run.read(clone / "data/runs/empty")
+
+
+def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
+    snapshot: SnapshotAssertion
+):
+    """
+    Asserts that the default run seed derives the stream seeds its fixture
+    file holds, so a change to the derivation, which would change the draws
+    every recorded run's seed reproduces, is reviewed as a diff.
+    """
+    seeds = RunSettings().seeds
+
+    assert "\n".join(f"{stream} {seed}" for stream, seed in seeds.items()) == snapshot
 
 
 def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(

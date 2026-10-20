@@ -14,16 +14,17 @@ Pins the records the agent reads and writes, covering:
 - The weights read from a checkpoint's `agent.pt` member alone
 """
 
-from numpy         import load as load_npz, zeros
-from numpy.testing import assert_array_equal
-from os            import truncate
-from pathlib       import Path
-from pickle        import UnpicklingError
-from pydantic      import ValidationError
-from pytest        import MonkeyPatch, mark, param, raises
-from torch         import arange, device, equal, save, tensor, uint8
-from torch.nn      import Linear
-from zipfile       import ZIP_ZSTANDARD, ZipFile
+from collections.abc import Callable
+from numpy           import load as load_npz, zeros
+from numpy.testing   import assert_array_equal
+from os              import truncate
+from pathlib         import Path
+from pickle          import UnpicklingError
+from pydantic        import ValidationError
+from pytest          import MonkeyPatch, mark, param, raises
+from torch           import arange, device, equal, save, tensor, uint8
+from torch.nn        import Linear
+from zipfile         import ZIP_ZSTANDARD, ZipFile
 
 from squirtl.agent.schemas       import AgentSettings, Batch, Checkpoint, Weights, flush
 from squirtl.environment.schemas import Entry
@@ -96,6 +97,34 @@ def test_the_settings_refuse_a_value_outside_its_range(field: str, value: float)
         AgentSettings(**{field: value})
 
 
+def cut_in_half(path: Path):
+    """
+    Cuts the file at `path` to its first half.
+    """
+    truncate(path, path.stat().st_size // 2)
+
+
+def cut_to_nothing(path: Path):
+    """
+    Cuts the file at `path` to no bytes at all.
+    """
+    truncate(path, 0)
+
+
+def flip_agent_frame(path: Path):
+    """
+    Flips the first byte of the zstd frame the `agent.pt` member of the
+    archive at `path` holds, its local header taking 30 bytes beside the
+    member's name.
+    """
+    with ZipFile(path) as archive:
+        member = archive.getinfo("agent.pt")
+
+    data = bytearray(path.read_bytes())
+    data[member.header_offset + 30 + len(member.filename)] ^= 0xFF
+    path.write_bytes(data)
+
+
 def pack(agent: dict[str, object], path: Path, **members: bytes):
     """
     Writes an `.npz` holding `agent` as its `agent.pt` member, the way
@@ -147,61 +176,6 @@ def test_a_checkpoint_is_an_npz_whose_members_zstd_compresses(tmp_path: Path):
         assert {member.compress_type for member in archive.zip.infolist()} == {
             ZIP_ZSTANDARD
         }
-
-
-def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path):
-    """
-    Asserts that a checkpoint holds each network's `state_dict` itself, and
-    that one read back from its file still carries the `_metadata` holding
-    each module's version, which `load_state_dict` reads.
-    """
-    online, target = Linear(2, 1).state_dict(), Linear(2, 1).state_dict()
-    written        = blank(online=online, target=target)
-    written.save(tmp_path / "checkpoint.npz")
-    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
-
-    assert written.online is online and written.target is target
-    assert (read.online._metadata, read.target._metadata) == (
-        {"": {"version": 1}},
-        {"": {"version": 1}}
-    )
-
-
-def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
-    """
-    Asserts that a checkpoint written to a file reads back with every field
-    equal to the one written, each array of replay memory in its own dtype.
-    """
-    written = blank(
-        exploration = {"bit_generator": "PCG64", "state": {"inc": 1, "state": 2**100}},
-        online      = {"weight": tensor([1.0, 2.0])},
-        optimizer   = {"param_groups": [{"lr": 1e-4, "params": [0]}], "state": {}},
-        replay      = {"frames": arange(24, dtype=uint8).reshape(2, 3, 4).numpy()},
-        sampling    = {"bit_generator": "PCG64", "state": {"inc": 5, "state": 3}},
-        step        = 12,
-        target      = {"weight": tensor([0.5, 2.0])}
-    )
-    written.save(tmp_path / "checkpoint.npz")
-    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
-
-    assert equal(read.online["weight"], written.online["weight"])
-    assert equal(read.target["weight"], written.target["weight"])
-    assert_array_equal(read.replay["frames"], written.replay["frames"], strict=True)
-    assert (read.exploration, read.optimizer, read.sampling, read.step) == (
-        written.exploration, written.optimizer, written.sampling, written.step
-    )
-
-
-def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path):
-    """
-    Asserts that reading a checkpoint refuses a file whose `agent.pt` member
-    holds an object beyond tensors and plain values, which `torch.load`'s
-    default `weights_only=True` unpickles alone.
-    """
-    pack({"online": Path("online.pt")}, tmp_path / "checkpoint.npz")
-
-    with raises(UnpicklingError, match="Weights only load failed"):
-        Checkpoint.from_path(tmp_path / "checkpoint.npz")
 
 
 @mark.parametrize(
@@ -283,6 +257,61 @@ def test_the_settings_accept_a_fraction_of_one(field: str):
     assert getattr(AgentSettings(**{field: 1}), field) == 1
 
 
+def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path):
+    """
+    Asserts that a checkpoint holds each network's `state_dict` itself, and
+    that one read back from its file still carries the `_metadata` holding
+    each module's version, which `load_state_dict` reads.
+    """
+    online, target = Linear(2, 1).state_dict(), Linear(2, 1).state_dict()
+    written        = blank(online=online, target=target)
+    written.save(tmp_path / "checkpoint.npz")
+    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
+
+    assert written.online is online and written.target is target
+    assert (read.online._metadata, read.target._metadata) == (
+        {"": {"version": 1}},
+        {"": {"version": 1}}
+    )
+
+
+def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
+    """
+    Asserts that a checkpoint written to a file reads back with every field
+    equal to the one written, each array of replay memory in its own dtype.
+    """
+    written = blank(
+        exploration = {"bit_generator": "PCG64", "state": {"inc": 1, "state": 2**100}},
+        online      = {"weight": tensor([1.0, 2.0])},
+        optimizer   = {"param_groups": [{"lr": 1e-4, "params": [0]}], "state": {}},
+        replay      = {"frames": arange(24, dtype=uint8).reshape(2, 3, 4).numpy()},
+        sampling    = {"bit_generator": "PCG64", "state": {"inc": 5, "state": 3}},
+        step        = 12,
+        target      = {"weight": tensor([0.5, 2.0])}
+    )
+    written.save(tmp_path / "checkpoint.npz")
+    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
+
+    assert equal(read.online["weight"], written.online["weight"])
+    assert equal(read.target["weight"], written.target["weight"])
+    assert_array_equal(read.replay["frames"], written.replay["frames"], strict=True)
+    assert (read.exploration, read.optimizer, read.sampling, read.step) == (
+        written.exploration, written.optimizer, written.sampling, written.step
+    )
+
+
+def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path):
+    """
+    Asserts that reading a checkpoint refuses a file whose `agent.pt` member
+    holds an object beyond tensors and plain values, which `torch.load`'s
+    default `weights_only=True` unpickles alone.
+    """
+    pack({"online": Path("online.pt")}, tmp_path / "checkpoint.npz")
+
+    with raises(UnpicklingError, match="Weights only load failed"):
+        Checkpoint.from_path(tmp_path / "checkpoint.npz")
+
+
 def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
     """
     Asserts that a save beside the `.partial` file a killed save left behind
@@ -295,18 +324,26 @@ def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
 
 
 @mark.parametrize(
-    "kept",
-    [param(0, id="an-empty-file"), param(0.5, id="its-first-half")]
+    "damage",
+    [
+        param(cut_to_nothing,   id="an-empty-file"),
+        param(cut_in_half,      id="its-first-half"),
+        param(flip_agent_frame, id="a-damaged-zstd-frame")
+    ]
 )
-def test_a_checkpoint_cut_short_is_refused_naming_its_file(kept: float, tmp_path: Path):
+def test_a_damaged_checkpoint_is_refused_naming_its_file(
+    damage   : Callable[[Path], None],
+    tmp_path : Path
+):
     """
-    Asserts that reading a checkpoint whose file holds nothing or its first
-    half alone, as a write the machine lost power during leaves it, raises
-    `ValueError` naming the file, the error the commands refuse.
+    Asserts that reading a checkpoint whose file holds nothing, its first
+    half alone, or a damaged zstd frame, as a write the machine lost power
+    during leaves it, raises `ValueError` naming the file, the error the
+    commands refuse.
     """
     path = tmp_path / "checkpoint.npz"
     blank(replay={"actions": zeros(64, "int64")}, step=3).save(path)
-    truncate(path, int(path.stat().st_size * kept))
+    damage(path)
 
     with raises(ValueError, match=f"{path} holds no whole checkpoint"):
         Checkpoint.from_path(path)
@@ -346,7 +383,8 @@ def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
     """
     Asserts that `Weights` reads the online network and the step from a
     checkpoint's `agent.pt` member alone, even where a member of replay
-    memory holds no array, which `Checkpoint` refuses to read.
+    memory holds an array header cut short, which `Checkpoint` refuses to
+    read.
     """
     agent = {
         "step"        : 12,
@@ -357,7 +395,7 @@ def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
         "target"      : {}
     }
 
-    pack(agent, tmp_path / "checkpoint.npz", **{"actions.npy": b"no array"})
+    pack(agent, tmp_path / "checkpoint.npz", **{"actions.npy": b"\x93NUMPY\x01\x00"})
 
     weights = Weights.from_path(tmp_path / "checkpoint.npz")
 
@@ -381,11 +419,14 @@ def test_a_flush_takes_f_fullfsync_where_fcntl_has_it_and_fsync_elsewhere(
 ):
     """
     Asserts that a flush asks `fcntl` for `F_FULLFSYNC` where the module has
-    it, as on macOS, and calls `fsync` where it does not.
+    it, as on macOS, and calls `fsync` where it does not, as on Linux, each
+    platform's module stood in for on the other.
     """
     calls = []
 
-    if not full:
+    if full:
+        monkeypatch.setattr("fcntl.F_FULLFSYNC", 51, raising=False)
+    else:
         monkeypatch.delattr("fcntl.F_FULLFSYNC", raising=False)
 
     monkeypatch.setattr(

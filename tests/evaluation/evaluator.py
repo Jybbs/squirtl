@@ -9,16 +9,17 @@ Pins how `Evaluator` plays an evaluation's episodes, covering:
   environment's seeded action space
 """
 
-from collections.abc  import Callable
-from gymnasium        import Env
-from gymnasium.spaces import Box, Dict, Discrete
-from gymnasium.vector import AutoresetMode, SyncVectorEnv
-from numpy            import ndarray, uint8, zeros
-from os               import kill
-from pytest           import MonkeyPatch, fixture, mark, param
-from signal           import SIGINT
-from torch            import Tensor, tensor
-from typing           import Any
+from collections.abc   import Callable
+from common.evaluation import outcome
+from gymnasium         import Env
+from gymnasium.spaces  import Box, Dict, Discrete
+from gymnasium.vector  import AutoresetMode, SyncVectorEnv
+from numpy             import ndarray, uint8, zeros
+from os                import kill
+from pytest            import MonkeyPatch, fixture, mark, param
+from signal            import SIGINT
+from torch             import Tensor, equal, get_rng_state, tensor
+from typing            import Any
 
 from squirtl.agent.networks        import QNetwork
 from squirtl.agent.schemas         import Weights
@@ -141,9 +142,10 @@ def test_each_episode_plays_alike_however_many_environments_run(
     """
     Asserts that five episodes of differing lengths reach the same outcomes
     across one, two, or three environments, each episode's reset and random
-    actions seeded by its number alone, under the random baseline and under
-    an agent whose network values the last action highest, and that the
-    episodes differ from one another.
+    actions seeded by its number alone, under the random baseline and
+    under an agent whose network values the last action highest, and that
+    the episodes' lengths, which each reset's seed draws, differ from one
+    another.
     """
     played = [
         evaluator(environments=environments, episodes=5).play(
@@ -153,7 +155,7 @@ def test_each_episode_plays_alike_however_many_environments_run(
     ]
 
     assert played[0] == played[1] == played[2]
-    assert len({(outcome.length, outcome.reward) for outcome in played[0]}) > 1
+    assert len({outcome.length for outcome in played[0]}) > 1
 
 
 def test_a_worker_plays_on_through_an_interrupt(evaluator: Callable[..., Evaluator]):
@@ -169,25 +171,34 @@ def test_a_worker_plays_on_through_an_interrupt(evaluator: Callable[..., Evaluat
         assert len(started.baseline().outcomes) == 2
 
 
-def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
-    evaluator: Callable[..., Evaluator]
+def test_the_agent_plays_at_the_epsilon_its_settings_name(
+    evaluator   : Callable[..., Evaluator],
+    monkeypatch : MonkeyPatch
 ):
     """
-    Asserts that two worker processes on PyBoy play the random baseline's
-    three episodes and the agent's, each truncated after three steps on the
-    blank cartridge, the agent's evaluation recording the step it read.
+    Asserts that the agent's evaluation plays its network at the epsilon
+    the evaluation settings name, 0.05 by default, where the baseline plays
+    every action at random.
     """
-    with evaluator(environments=2, episodes=3) as started:
+    policies = []
+    monkeypatch.setattr(
+        Evaluator,
+        "play",
+        lambda evaluator, policy: policies.append(policy) or [outcome()]
+    )
+
+    with evaluator(environments=1, episodes=1) as started:
         online = QNetwork(
             started.envs.single_action_space.n,
             started.envs.single_observation_space
         ).state_dict()
-        played = [started.baseline(), started.evaluate(Weights(online=online, step=9))]
+        started.evaluate(Weights(online=online, step=9))
+        started.baseline()
 
-    assert [
-        (evaluation.step, [(o.length, o.terminated) for o in evaluation.outcomes])
-        for evaluation in played
-    ] == [(None, [(3, False)] * 3), (9, [(3, False)] * 3)]
+    assert [(policy.epsilon, policy.network is None) for policy in policies] == [
+        (0.05, False),
+        (1.0, True)
+    ]
 
 
 @mark.parametrize(
@@ -227,3 +238,27 @@ def test_an_evaluation_runs_no_more_environments_than_its_episodes(
     its settings name eight, since a third would play no episode it keeps.
     """
     assert evaluator(environments=8, episodes=2).envs.num_envs == 2
+
+
+def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
+    evaluator: Callable[..., Evaluator]
+):
+    """
+    Asserts that two worker processes on PyBoy play the random baseline's
+    three episodes and the agent's, each truncated after three steps on the
+    blank cartridge, the agent's evaluation recording the step it read and
+    leaving PyTorch's global generator as it found it.
+    """
+    with evaluator(environments=2, episodes=3) as started:
+        online = QNetwork(
+            started.envs.single_action_space.n,
+            started.envs.single_observation_space
+        ).state_dict()
+        state  = get_rng_state()
+        played = [started.baseline(), started.evaluate(Weights(online=online, step=9))]
+
+    assert equal(get_rng_state(), state)
+    assert [
+        (evaluation.step, [(o.length, o.terminated) for o in evaluation.outcomes])
+        for evaluation in played
+    ] == [(None, [(3, False)] * 3), (9, [(3, False)] * 3)]

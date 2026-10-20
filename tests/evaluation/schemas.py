@@ -98,7 +98,7 @@ def test_an_interval_leaves_out_one_run_and_closes_onto_runs_scoring_the_same(
     values   : list[float]
 ):
     """
-    Asserts that one run carries no interval, since scipy's `bootstrap`
+    Asserts that one run carries no interval, since SciPy's `bootstrap`
     resamples two runs or more, whereas runs scoring the same carry the
     interval closing onto their score, where `BCa` would yield none.
     """
@@ -107,19 +107,19 @@ def test_an_interval_leaves_out_one_run_and_closes_onto_runs_scoring_the_same(
     )
 
 
-def test_the_interquartile_mean_cuts_a_quarter_of_the_runs_from_each_end():
+def test_the_interquartile_mean_of_four_runs_averages_the_middle_two():
     """
-    Asserts that the interquartile mean of five runs averages the middle
-    three once `trim_mean` cuts one from each end, leaving out the run at
-    100, and that its interval spans that mean.
+    Asserts that the interquartile mean of four runs averages the middle two
+    once `trim_mean` cuts a quarter of them from each end, leaving out the
+    run at 100, and that its interval spans that mean.
     """
     estimate = Estimate.interquartile(
-        array([0.0, 1.0, 2.0, 3.0, 100.0]),
+        array([0.0, 1.0, 2.0, 100.0]),
         generator = default_rng(0)
     )
     low, high = estimate.interval
 
-    assert (estimate.value, estimate.runs, low <= 2.0 <= high) == (2.0, (5,), True)
+    assert (estimate.value, estimate.runs, low <= 1.5 <= high) == (1.5, (4,), True)
 
 
 @mark.parametrize(

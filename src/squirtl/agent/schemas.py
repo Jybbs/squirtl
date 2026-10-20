@@ -308,7 +308,6 @@ class Checkpoint(Weights, extra="forbid"):
                         ) as member:
                             save_npy(member, array)
 
-                file.flush()
                 flush(file.fileno())
 
             partial.replace(path)

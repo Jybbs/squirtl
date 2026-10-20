@@ -47,9 +47,9 @@ def evaluate(
     any, on each run's mean return.
 
     A directory holding no run exits 1 before any evaluation, and a run
-    holding no checkpoint or reading a cartridge the emulator refuses exits
-    1, keeping the evaluations already written for the runs evaluated before
-    it.
+    holding no checkpoint, holding a damaged one, or reading a cartridge the
+    emulator refuses exits 1, keeping the evaluations already written for
+    the runs evaluated before it.
     """
     listen()
 
@@ -70,7 +70,8 @@ def evaluated(runs: Iterable[Run]) -> Pairs:
     """
     Evaluates the agent of each of `runs` at its last checkpoint beside the
     random baseline, unless the run holds both already, exiting 1 on a run
-    holding no checkpoint or reading a cartridge the emulator refuses.
+    holding no checkpoint, holding a damaged one, or reading a cartridge the
+    emulator refuses.
 
     Returns:
         The agent's evaluation and the baseline's under each run's name.

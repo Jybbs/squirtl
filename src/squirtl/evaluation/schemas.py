@@ -26,7 +26,7 @@ from squirtl.reward.schemas      import Term
 class Estimate(Record):
     """
     A statistic over runs beside its 95% percentile bootstrap interval,
-    which scipy's `bootstrap` gives where every sample holds two runs or
+    which SciPy's `bootstrap` gives where every sample holds two runs or
     more, and the count of runs in each sample it reads.
     """
 
@@ -79,8 +79,9 @@ class Estimate(Record):
     def interquartile(cls, values: ndarray, *, generator: Generator) -> Self:
         """
         Estimates the interquartile mean of `values`, one per run, the mean
-        of the middle half once `trim_mean` cuts a quarter of the runs from
-        each end, as Agarwal et al. aggregate runs.
+        of the runs left once `trim_mean` cuts `int(0.25 * len(values))`
+        from each end, every run where there are fewer than four, as Agarwal
+        et al. aggregate runs.
         """
         return cls.resampled(
             lambda values, axis: trim_mean(values, 0.25, axis=axis),

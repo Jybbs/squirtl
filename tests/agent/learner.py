@@ -11,7 +11,7 @@ Pins the agent, each training step on the CPU under a fixed seed, covering:
 - The target network copying the online network every `sync_steps` steps
 - The chance of a random action across the run, the random actions it
   draws, and the greedy action it evaluates with no autograd graph
-- The weights a seed builds, which leave each of torch's global generators
+- The weights a seed builds, which leave each of PyTorch's global generators
   alone
 - A restored checkpoint training and drawing as the saved agent would,
   replay memory included, and one holding networks of another shape
@@ -489,7 +489,7 @@ def test_building_an_agent_leaves_torchs_global_generator_alone(
     build: Callable[..., Agent]
 ):
     """
-    Asserts that building an agent leaves the state of torch's global CPU
+    Asserts that building an agent leaves the state of PyTorch's global CPU
     generator as it found it, since the weights draw from a fork of it.
     """
     manual_seed(5)

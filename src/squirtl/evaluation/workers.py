@@ -12,8 +12,8 @@ def ignore_interrupts(*arguments: object):
     """
     Ignores the interrupt signal, which a terminal sends every process
     in its foreground group, then runs Gymnasium's own worker, so a first
-    interrupt reaches only the process whose handler ends a run at its
-    episode's end.
+    interrupt reaches only the main process, whose handler under `squirtl
+    train` ends the run at its episode's end.
     """
     signal(SIGINT, SIG_IGN)
     _async_worker(*arguments)

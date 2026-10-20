@@ -21,13 +21,13 @@ from json         import loads
 from loguru       import logger
 from numpy        import uint64
 from numpy.random import SeedSequence
-from os           import fsync
+from os           import SEEK_END, pread
 from pathlib      import Path
 from pydantic     import AwareDatetime, Field, NonNegativeInt, PositiveInt, PrivateAttr, StringConstraints
 from subprocess   import check_output
 from typing       import Annotated, Self
 
-from squirtl.agent.schemas         import AgentSettings, Checkpoint, Weights
+from squirtl.agent.schemas         import AgentSettings, Checkpoint, Weights, flush
 from squirtl.emulator.schemas      import Cartridge, EmulatorSettings, Record
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Outcome, Recording
@@ -201,8 +201,8 @@ class Run(Record):
     digest: Hexadecimal
     """
     The SHA-256 digest of the state `GameBoy.start` leaves the console in,
-    which each reset loads before writing its `timer_div`, and which
-    `squirtl watch` checks before playing an episode back.
+    the one a reset at a `timer_div` of 0 also leaves, which `squirtl watch`
+    checks before playing an episode back.
     """
 
     revision: Revision
@@ -296,7 +296,7 @@ class Run(Record):
     def record(self) -> Path:
         """
         Locates the JSON file holding the run's settings, its revision, the
-        instant it started, and the run it resumes.
+        digest of its start, the instant it started, and the run it resumes.
         """
         return self.directory / "run.json"
 
@@ -319,10 +319,23 @@ class Run(Record):
     def append(self, path: Path, *records: Record):
         """
         Appends each of `records` to `path`, one of the run's JSON Lines
-        files, as a line of JSON apiece.
+        files, as a line of JSON apiece, first cutting with a warning the
+        unfinished last line a run that stopped while writing it leaves,
+        which every reader skips.
         """
-        with path.open("a", encoding="utf-8") as lines:
-            lines.writelines(f"{record.model_dump_json()}\n" for record in records)
+        with path.open("a+b") as lines:
+            if (end := lines.seek(0, SEEK_END)) and pread(
+                lines.fileno(),
+                1,
+                end - 1
+            ) != b"\n":
+                logger.warning("Cutting the unfinished last line of {}", path)
+                lines.seek(0)
+                lines.truncate(lines.read().rfind(b"\n") + 1)
+
+            lines.writelines(
+                f"{record.model_dump_json()}\n".encode() for record in records
+            )
 
     def ended_by(self, step: int) -> list[str]:
         """
@@ -528,7 +541,7 @@ class Run(Record):
         saved after it runs ahead of what it holds.
         """
         with path.open("ab") as file:
-            fsync(file.fileno())
+            flush(file.fileno())
 
 
 class Episode(Outcome):
@@ -550,8 +563,8 @@ class Episode(Outcome):
 
     recording: Recording
     """
-    The start, the `timer_div`, and the presses the emulator plays the
-    episode back from.
+    The `timer_div` and the presses the emulator plays the episode back
+    from.
     """
 
     value: float | None

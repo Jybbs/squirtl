@@ -4,7 +4,7 @@ Defines the records the environment reads and writes:
 - `Entry`, the entries of the observation the environment makes
 - `EnvironmentSettings`, the settings it reads
 - `Outcome`, what one episode reached, which its last step reports
-- `Recording`, the start and the presses of one episode, which the emulator
+- `Recording`, the `timer_div` and the presses of one episode, which the emulator
   plays to the same frames again
 """
 

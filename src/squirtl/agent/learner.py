@@ -159,8 +159,8 @@ class Agent:
             self.online.load_state_dict(checkpoint.online)
             self.target.load_state_dict(checkpoint.target)
         except RuntimeError as error:
-            # `load_state_dict` raises `RuntimeError` on an entry the network lacks or
-            # holds at another shape.
+            # `load_state_dict` raises `RuntimeError` on an entry one side lacks or the
+            # network holds at another shape.
             raise ValueError(
                 f"the checkpoint's networks differ from the agent's: {error}"
             ) from error
