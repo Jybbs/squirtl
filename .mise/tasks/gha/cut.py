@@ -82,7 +82,7 @@ class Release:
             )
         )["body"]
 
-        # An update omitting `tag_name` removes the release's tag, as gh's edit notes.
+        # Resends `tag_name`, since an update omitting it removes the release's tag.
         return loads(
             github(
                 "api",
