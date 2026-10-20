@@ -6,3 +6,4 @@ if [ -n "$REPORT" ] && [ "$call" = "mise lock" ]; then
   [ "$MISE_QUIET" = 1 ] || [ "$MISE_LOG_LEVEL" = error ] || echo "$REPORT" >&2
 fi
 case "$call" in $FAILING) exit 1 ;; esac
+[ -z "$ANSWER" ] || echo "$ANSWER"

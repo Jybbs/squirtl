@@ -12,7 +12,7 @@ Every change to *SquiRtL* starts as an issue, lands on a branch linked to it, an
 | Branch | *`N/slug`, cut from `main` and linked to issue `N`, its slug at most three terms from the issue's title* | The commits |
 | Pull request | *`[N]` and the issue's title, opened from the template* | The review, and the `🎒 Brief` check the `main` ruleset requires |
 | Squash merge | *`main`* | One commit per pull request, titled with the pull request's title and carrying its body |
-| Release | *GitHub Releases* | The notes GitHub generates from the merged pull requests, sorted by label |
+| Release | *GitHub Releases, as the draft `🕹️ Draft` refreshes on every merge to `main` until the version is published* | The notes GitHub generates from the merged pull requests, sorted by label |
 
 ---
 
@@ -67,6 +67,7 @@ Every pull request runs the checks below in the `🕹️ CI` workflow, each of w
 
 | **Check** | **Local Command** | **Fails When** |
 |---|---|---|
+| `🗺️ Audit` | `mise audit` | A pin, a label, a workflow, or the package's layout departs from a rule `squirtl.repo.checks` holds it to, or a file the audit reads fails to parse, each one an annotation on the file and line it concerns |
 | `💾 Lockfile` | `mise lockfile` | `uv.lock`, a task script's lockfile, or `.mise/mise.lock` drifts from its manifest, or a tool the project pins has no entry in `.mise/mise.lock` to install from |
 | `🪻 Prose` | `mise lint` | The formatter reports a rewrite it would make or a lint finding, each one an annotation on the pull request |
 | `🏟️ Suite` | `mise coverage` | A test fails, or the suite's coverage of `src/squirtl/` falls below the **95%** that `fail_under` sets in `pyproject.toml` |

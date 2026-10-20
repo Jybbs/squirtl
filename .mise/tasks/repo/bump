@@ -1,0 +1,10 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE alias       = "bump"
+#MISE description = "Move the version to the next minor release, or to the next patch release when given `patch`, in `pyproject.toml`, `uv.lock`, and `CITATION.cff`"
+#USAGE arg "[part]" default="minor" help="The part of the version to move" {
+#USAGE   choices "minor" "patch"
+#USAGE }
+
+version=$(uv version --bump "$usage_part" --no-locked --no-sync --short)
+citation=$(sed "s/^version\( *\): .*/version\1: $version/" CITATION.cff)
+printf '%s\n' "$citation" > CITATION.cff

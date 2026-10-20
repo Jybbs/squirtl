@@ -1,8 +1,11 @@
 """
-Defines the fixtures the task tests share, meaning the installer that puts
-stand-in programs first on the path, the loader that imports a Python task
-as a module, the runner that reads back what the `echo.sh` stand-in printed,
-and the shell variables a case sets before it starts a task.
+Defines the fixtures the task tests share, covering:
+
+- The installer that puts stand-in programs first on the path
+- The confinement the real `mise` runs under
+- The loader that imports a Python task as a module
+- The runner that reads back what the `echo.sh` stand-in printed
+- The shell variables a case sets before it starts a task
 """
 
 from collections.abc import Callable
@@ -10,8 +13,35 @@ from importlib.util  import module_from_spec, spec_from_file_location
 from os              import pathsep
 from pathlib         import Path
 from pytest          import Config, FixtureRequest, MonkeyPatch, fixture
+from shutil          import which
 from subprocess      import run
 from types           import ModuleType
+
+
+@fixture
+def confine_mise(monkeypatch: MonkeyPatch) -> Callable[[Path, Path], None]:
+    """
+    Builds a function that confines the real `mise` to the checkout at
+    `root` and leaves only `stand_ins`, `mise`, and the system directories
+    on the path. Confined there, mise reads no config above the checkout and
+    trusts it under the `HOME` the `environment` fixture moves.
+    """
+    def confine(root: Path, stand_ins: Path):
+        """
+        Sets `MISE_CEILING_PATHS` to the parent of `root`,
+        `MISE_TRUSTED_CONFIG_PATHS` to `root`, and `PATH` to `stand_ins`
+        followed by the directory holding `mise`, `/usr/bin`, and `/bin`.
+        """
+        monkeypatch.setenv("MISE_CEILING_PATHS", str(root.parent))
+        monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", str(root))
+        monkeypatch.setenv(
+            "PATH",
+            pathsep.join(
+                [str(stand_ins), str(Path(which("mise")).parent), "/usr/bin", "/bin"]
+            )
+        )
+
+    return confine
 
 
 @fixture
