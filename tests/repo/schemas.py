@@ -338,11 +338,13 @@ def test_command_lines_join_continued_lines_and_drop_comments():
     the next, a comment and a blank line left out, each of `(`, `)`, and
     `&&` standing as a word of its own, and a quoted substitution followed
     by the words of the command inside it up to the `)` closing it, so a
-    quote after that `)` is never read as the command's.
+    quote after that `)` is never read as the command's, or to the end of
+    the word where no `)` closes it, as in a single-quoted literal.
     """
     assert command_lines(
         'set -e  # strict\n\nx=$(uv run a) && \\\n  b "c d"\nv="$(uv run b)"\n'
         'echo "$(git rev-parse HEAD) is the head\'s commit"\n'
+        "echo '$(uv run c'\n"
     ) == {
         1 : ("set", "-e"),
         3 : ("x=$", "(", "uv", "run", "a", ")", "&&", "b", "c d"),
@@ -350,7 +352,8 @@ def test_command_lines_join_continued_lines_and_drop_comments():
         6 : (
             "echo", "$(git rev-parse HEAD) is the head's commit", "git",
             "rev-parse", "HEAD"
-        )
+        ),
+        7 : ("echo", "$(uv run c", "uv", "run", "c")
     }
 
 
