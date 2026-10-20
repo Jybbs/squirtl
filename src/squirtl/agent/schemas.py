@@ -209,15 +209,17 @@ class Weights(Record, extra="ignore"):
             ValidationError : Where a field is missing or a network entry is
                               no tensor.
             ValueError      : Where the file at `path` is cut short or
-                              damaged, in its zip directory, a zstd frame,
-                              or a member, naming `path`.
+                              damaged, in its zip directory, a zip header, a
+                              zstd frame, or a member, naming `path`.
         """
         try:
             # `numpy.load` leaves a file it opened itself open where `ZipFile` refuses
             # it, so the file is opened here and closed by this block.
             with path.open("rb") as file, load_npz(file) as archive:
                 return cls.model_validate(cls.members(archive))
-        except (BadZipFile, EOFError, ZstdError) as error:
+        except (
+            BadZipFile, EOFError, KeyError, NotImplementedError, ZstdError
+        ) as error:
             raise ValueError(f"{path} holds no whole checkpoint: {error}") from error
 
     @classmethod

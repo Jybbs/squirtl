@@ -127,6 +127,26 @@ def flip_agent_frame(path: Path):
     path.write_bytes(data)
 
 
+def mark_an_unknown_method(path: Path):
+    """
+    Writes into the central directory entry of the archive's first member at
+    `path` a compression method `zipfile` supports none of, at the 10 bytes
+    past that entry's signature where the method sits.
+    """
+    data    = bytearray(path.read_bytes())
+    central = data.index(b"PK\x01\x02")
+    data[central + 10 : central + 12] = b"\xff\x00"
+    path.write_bytes(data)
+
+
+def misname_agent(path: Path):
+    """
+    Changes the last letter of the `agent.pt` member's name in both of the
+    archive's headers at `path`, as damage to those bytes reads.
+    """
+    path.write_bytes(path.read_bytes().replace(b"agent.pt", b"agent.pX"))
+
+
 def pack(agent: dict[str, object], path: Path, **members: bytes):
     """
     Writes an `.npz` holding `agent` as its `agent.pt` member, the way
@@ -350,7 +370,9 @@ def test_a_save_flushes_the_whole_archive_then_the_directory_it_lands_in(
     [
         param(cut_to_nothing,   id="an-empty-file"),
         param(cut_in_half,      id="its-first-half"),
-        param(flip_agent_frame, id="a-damaged-zstd-frame")
+        param(flip_agent_frame, id="a-damaged-zstd-frame"),
+        param(misname_agent,          id="a-damaged-member-name"),
+        param(mark_an_unknown_method, id="a-damaged-compression-method")
     ]
 )
 def test_a_damaged_checkpoint_is_refused_naming_its_file(
@@ -358,10 +380,11 @@ def test_a_damaged_checkpoint_is_refused_naming_its_file(
     tmp_path : Path
 ):
     """
-    Asserts that reading a checkpoint whose file holds nothing, its first
-    half alone, or a damaged zstd frame, as a write the machine lost power
-    during leaves it, raises `ValueError` naming the file, the error the
-    commands refuse.
+    Asserts that reading a checkpoint whose file holds nothing, its
+    first half alone, a damaged zstd frame, or a zip header damaged in a
+    member's name or its compression method, which raise `KeyError` and
+    `NotImplementedError`, raises `ValueError` naming the file, the error
+    the commands refuse.
     """
     path = tmp_path / "checkpoint.npz"
     blank(replay={"actions": zeros(64, "int64")}, step=3).save(path)
