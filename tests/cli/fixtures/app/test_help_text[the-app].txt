@@ -4,6 +4,11 @@ Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and
 PyTorch.
 
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ evaluate     Evaluates the agent of each run at its last checkpoint, at the  │
+│              epsilon and over the episodes the run's settings record, beside │
+│              the random baseline under the same seeds, and writes each       │
+│              evaluation into its run's directory, reading in place of        │
+│              playing any the run already holds.                              │
 │ stop         Writes the stop file into a training run's directory from any   │
 │              shell, ending the run at the end of the episode it is playing   │
 │              with a checkpoint and exit status 0, as a first interrupt does. │

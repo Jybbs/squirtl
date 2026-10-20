@@ -1,6 +1,7 @@
 """
 Defines `Overworld`, the environment an agent plays Pokémon Blue in from
-Red's bedroom to the starter, which `Overworld.make` builds and wraps.
+Red's bedroom to the starter, which `Overworld.specification` specifies with
+its wrappers.
 """
 
 from functools import reduce
@@ -15,7 +16,7 @@ from typing   import Any
 from squirtl.emulator.console     import GameBoy
 from squirtl.emulator.schemas     import Button, Cartridge, EmulatorSettings
 from squirtl.environment.schemas  import EnvironmentSettings, Recording
-from squirtl.environment.wrappers import ProgressObservation, ShrinkObservation
+from squirtl.environment.wrappers import ProgressObservation, RecordOutcome, ShrinkObservation
 from squirtl.reward.progress      import Progress
 from squirtl.reward.schemas       import RewardSettings, Term
 
@@ -44,7 +45,8 @@ class Overworld(Env):
 
         Args:
             render_mode: `rgb_array`, under which `render` returns the
-                         screen, or `None` where `make` names no mode.
+                         screen, or `None` where `gymnasium.make` names
+                         no mode.
         """
         self.game_boy = GameBoy.boot(cartridge, emulator)
         self.game_boy.start()
@@ -81,50 +83,6 @@ class Overworld(Env):
         Stops the emulator without saving, as `GameBoy.close` does.
         """
         self.game_boy.close()
-
-    @classmethod
-    def make(
-        cls,
-        cartridge   : Cartridge,
-        emulator    : EmulatorSettings,
-        environment : EnvironmentSettings,
-        reward      : RewardSettings
-    ) -> Env:
-        """
-        Builds the environment through `gymnasium.make` on an `EnvSpec`
-        truncating each episode at `max_episode_steps` through `TimeLimit`,
-        and wraps it in these, each around the one before:
-
-        - `GrayscaleObservation`, `ShrinkObservation` to `frame_shape`, and
-          `FrameStackObservation` of `frame_stack` frames
-        - `ProgressObservation`, setting the progress beside the frames
-        - `RecordEpisodeStatistics`, recording each episode's return, length,
-          and time
-        """
-        overworld = EnvSpec(
-            "squirtl/Overworld-v0",
-            entry_point = cls,
-            kwargs      = {
-                "cartridge"   : cartridge,
-                "emulator"    : emulator,
-                "environment" : environment,
-                "reward"      : reward
-            },
-            max_episode_steps = environment.max_episode_steps
-        ).make()
-
-        return RecordEpisodeStatistics(
-            ProgressObservation(
-                FrameStackObservation(
-                    ShrinkObservation(
-                        GrayscaleObservation(overworld),
-                        environment.frame_shape
-                    ),
-                    environment.frame_stack
-                ),
-                environment.grid_size
-            )
-        )
 
     def play(self, recording: Recording) -> float:
         """
@@ -178,6 +136,47 @@ class Overworld(Env):
         self.start    = self.game_boy.capture()
 
         return self.game_boy.press(None, 1), {}
+
+    @classmethod
+    def specification(
+        cls,
+        cartridge   : Cartridge,
+        emulator    : EmulatorSettings,
+        environment : EnvironmentSettings,
+        reward      : RewardSettings
+    ) -> EnvSpec:
+        """
+        Specifies the environment for `gymnasium.make` and
+        `gymnasium.make_vec`, each episode truncated at `max_episode_steps`
+        through `TimeLimit` and wrapped in these, each around the
+        one before:
+
+        - `GrayscaleObservation`, `ShrinkObservation` to `frame_shape`, and
+          `FrameStackObservation` of `frame_stack` frames
+        - `ProgressObservation`, setting the progress beside the frames
+        - `RecordEpisodeStatistics`, recording each episode's return, length,
+          and time
+        - `RecordOutcome`, reporting what each episode reached
+        """
+        return EnvSpec(
+            "squirtl/Overworld-v0",
+            additional_wrappers = (
+                GrayscaleObservation.wrapper_spec(),
+                ShrinkObservation.wrapper_spec(shape=environment.frame_shape),
+                FrameStackObservation.wrapper_spec(stack_size=environment.frame_stack),
+                ProgressObservation.wrapper_spec(size=environment.grid_size),
+                RecordEpisodeStatistics.wrapper_spec(),
+                RecordOutcome.wrapper_spec()
+            ),
+            entry_point = cls,
+            kwargs      = {
+                "cartridge"   : cartridge,
+                "emulator"    : emulator,
+                "environment" : environment,
+                "reward"      : reward
+            },
+            max_episode_steps = environment.max_episode_steps
+        )
 
     def step(self, action: int) -> tuple[ndarray, float, bool, bool, dict[Term, float]]:
         """

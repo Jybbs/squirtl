@@ -14,7 +14,7 @@ from loguru          import logger
 from pathlib         import Path
 from pytest          import fixture
 
-from squirtl.agent.schemas       import AgentSettings
+from squirtl.agent.schemas       import AgentSettings, Checkpoint
 from squirtl.emulator.schemas    import Cartridge
 from squirtl.environment.schemas import EnvironmentSettings, Recording
 from squirtl.reward.schemas      import Term
@@ -90,19 +90,24 @@ def trainer(cartridge: Cartridge, short: RunSettings) -> Callable[..., Trainer]:
     """
     seconds = count()
 
-    def build(resumes: str | None = None, **fields: object) -> Trainer:
+    def build(resumes: Run | None = None, **fields: object) -> Trainer:
         """
-        Starts the run `fields` describe, continuing the run `resumes` names
-        where it names one, and builds its trainer.
+        Starts the run `fields` describe and builds its trainer, which
+        resumes from the checkpoint of the run `resumes` where it is one.
         """
-        return Trainer(
+        built = Trainer(
             cartridge,
             Run.start(
                 short.model_copy(update=fields),
                 datetime(2026, 10, 4, tzinfo=UTC) + timedelta(seconds=next(seconds)),
-                resumes
+                resumes and resumes.name
             )
         )
+
+        if resumes:
+            built.resume(Checkpoint.from_path(resumes.checkpoint), resumes)
+
+        return built
 
     return build
 

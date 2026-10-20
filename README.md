@@ -53,9 +53,22 @@ Each run writes into a directory of its own under `data/runs/`, named for the in
 |---|---|
 | `run.json` | *The settings the run read, the commit and the digest of `uv.lock` it ran on, the instant it started, and the run it resumes* |
 | `episodes.jsonl` | *One line per episode, holding its return, length, and wall time, whether it reached the starter, each reward term's total, the positions it reached, $`\varepsilon`$, the mean loss and value over its updates, and the start and presses it played from, both compressed with zstd, beside the `timer_div` its reset wrote* |
+| `evaluations.jsonl` | *One line per evaluation of the agent, while the run trains or under `squirtl evaluate`, holding the step it read the agent at and what each of its episodes reached* |
+| `baseline.json` | *The random baseline's evaluation under the run's evaluation seeds, written at the run's first evaluation* |
 | `checkpoint.npz` | *The networks, Adam's state, the generators, and replay memory, written at the first episode end reaching each multiple of `--checkpoint-steps` and at the run's end, each write taking the file's name only once whole* |
 
 An interrupt, a termination signal, or `squirtl stop` from another shell ends a run at the end of its episode with a checkpoint, and a second interrupt ends it at once on the last checkpoint. `squirtl train --resume` continues a stopped run in a new directory under the settings that run recorded and ends with the weights it would have reached had it never stopped, while `squirtl watch` plays a recorded episode back through the emulator's window to the return the run recorded for it.
+
+## Evaluation
+
+`squirtl evaluate` plays evaluation episodes of each run's agent from its last checkpoint, at the $`\varepsilon`$ of 0.05 and over the 30 episodes Mnih et al. evaluate with,[^mnih2015] beside a random baseline under the same seeds, across the worker processes `gymnasium.make_vec` runs in parallel. Each evaluation lands in the run's directory, so a second call reads it rather than playing it again, and a run also evaluates its agent while it trains, at the first episode end reaching each multiple of `--evaluation-steps`:
+
+```bash
+squirtl evaluate data/runs/<run> data/runs/<other run>
+squirtl evaluate data/runs/<run> --against data/runs/<rival run>
+```
+
+The command prints Markdown to paste into an issue or a pull request, listing each run's measures, meaning the share of episodes reaching the starter, the steps those episodes took, the positions reached, the return, and each reward term's part of it. Beneath them sit each measure's interquartile mean across the runs, with its 95% percentile bootstrap interval and the count of runs behind it, and the probability that the agent beats its baseline and the runs `--against` names, as Agarwal et al. recommend comparing two agents.[^agarwal2021]
 
 ## Reinforcement Learning
 
@@ -173,12 +186,13 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 | **Subpackage** | **What It Holds** |
 |---|---|
 | `squirtl.agent` | *The deep Q-network agent, meaning the Q-network reading each entry of an observation through an encoder of its own, replay memory holding each element of each entry once with each binary entry packed eight cells to a byte, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from, replay memory included* |
-| `squirtl.cli` | *The `squirtl` command and its `train`, `stop`, and `watch` subcommands* |
+| `squirtl.cli` | *The `squirtl` command and its `evaluate`, `stop`, `train`, and `watch` subcommands* |
 | `squirtl.emulator` | *The cartridge a run reads, refused unless its SHA-1 is the one pret/pokered lists for the English Pokémon Blue, and `GameBoy` running it headless through PyBoy with no save beside it, beside the buttons a step presses and the addresses in the game's memory the package reads* |
-| `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Red's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, the time limit truncating an episode, and the recording of each episode's start and presses* |
+| `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Red's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, the time limit truncating an episode, the outcome each episode's last step reports, and the recording of each episode's start and presses* |
+| `squirtl.evaluation` | *The evaluation of an agent, meaning the episodes it plays across worker processes from a seed per episode number, the random baseline under the same seeds, the measures a reader judges a policy by, and the interquartile mean, the percentile bootstrap interval, and the probability of improvement compared across runs* |
 | `squirtl.repo` | *The records read from the label, ruleset, and settings registries under `.github/`, and the `gh` commands `mise labels` and `mise rulesets` send once you confirm them* |
 | `squirtl.reward` | *The reward each step earns, meaning a novelty for each map position an episode reaches for the first time, a milestone for each event flag on the way to the starter, and the starter, which ends the episode, with every step's reward held within 1 and each term's share reported beside it* |
-| `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, the training loop driving the environment and the agent, and the directory under `data/runs/` recording each run's settings, its commit, the digest of `uv.lock`, its episodes, and its checkpoint* |
+| `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, the training loop driving the environment and the agent, and the directory under `data/runs/` recording each run's settings, its commit, the digest of `uv.lock`, its episodes, its evaluations, and its checkpoint* |
 
 ## Metrics & Analysis
 
@@ -316,6 +330,8 @@ This project was developed under the supervision and thoughtful direction of [Pr
 
 I also would be remiss if I didn't thank **Sean Sullivan** for constantly helping me contextualize my thoughts and for his advocacy of my work and capabilities in all things technology. Thank you, Wes and Sean!
 
-[^pleines2025]: Pleines et al. 2025. "Pokemon Red via Reinforcement Learning." arXiv:2502.19920. <https://arxiv.org/abs/2502.19920>
-
 [^mnih2015]: Mnih et al. 2015. "Human-level control through deep reinforcement learning." *Nature* 518(7540): 529–533. <https://doi.org/10.1038/nature14236>
+
+[^agarwal2021]: Agarwal et al. 2021. "Deep Reinforcement Learning at the Edge of the Statistical Precipice." *Advances in Neural Information Processing Systems* 34: 29304–29320. <https://proceedings.neurips.cc/paper/2021/hash/f514cec81cb148559cf475e7426eed5e-Abstract.html>
+
+[^pleines2025]: Pleines et al. 2025. "Pokemon Red via Reinforcement Learning." arXiv:2502.19920. <https://arxiv.org/abs/2502.19920>

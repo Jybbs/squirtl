@@ -3,8 +3,8 @@ Defines the fixtures the tests of `squirtl.cli` request:
 
 - `invoke`, which calls the app and reads back its `Invocation`
 - `accepted`, under which a cartridge passes the check of its digest
-- `quick`, the flags of a short run on the CPU, and `trained`, a run
-  `squirtl train` takes through under them
+- `quick`, the flags of a short run on the CPU evaluating two episodes,
+  and `trained`, a run `squirtl train` takes through under them
 - `windows`, under which PyBoy draws no window whichever one a boot names,
   recording the one each boot named
 """
@@ -85,13 +85,15 @@ def windows(monkeypatch: MonkeyPatch) -> list[str]:
 def quick() -> list[str]:
     """
     Builds the flags of a 10-step run on the CPU, its episodes truncated
-    after 4 steps, a checkpoint every 4 steps, and each update drawing 4
-    transitions from 64 slots.
+    after 4 steps, a checkpoint every 4 steps, each update drawing 4
+    transitions from 64 slots, and each evaluation playing 2 episodes in
+    2 environments.
     """
     return [
         "--agent.batch-size", "4", "--agent.capacity", "64",
         "--agent.device", "cpu", "--checkpoint-steps", "4",
-        "--environment.max-episode-steps", "4", "--steps", "10"
+        "--environment.max-episode-steps", "4", "--evaluation.environments", "2",
+        "--evaluation.episodes", "2", "--steps", "10"
     ]
 
 

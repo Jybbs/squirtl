@@ -14,22 +14,25 @@ Pins the records one run reads and writes, covering:
 - The paths a run keeps in its directory, a run read back from it or from
   a copy outside the clone, a directory holding no run, and the episodes a
   run's `episodes` holds, each line read only once drawn
+- The evaluations a run plays where it lacks them and reads where it holds
+  them, under its evaluation stream's seed, and a run holding none
 """
 
-from collections.abc  import Callable, Mapping
-from datetime         import UTC, datetime
-from functools        import reduce
-from hashlib          import sha256
-from json             import dumps, loads
-from operator         import getitem
-from pathlib          import Path
-from pydantic         import ValidationError
-from pytest           import MonkeyPatch, TempPathFactory, mark, param, raises
-from shutil           import copytree
-from subprocess       import CalledProcessError, check_output
-from syrupy.assertion import SnapshotAssertion
+from collections.abc   import Callable, Mapping
+from common.evaluation import EvaluatorStandIn, played
+from datetime          import UTC, datetime
+from functools         import reduce
+from hashlib           import sha256
+from json              import dumps, loads
+from operator          import getitem
+from pathlib           import Path
+from pydantic          import ValidationError
+from pytest            import MonkeyPatch, TempPathFactory, mark, param, raises
+from shutil            import copytree
+from subprocess        import CalledProcessError, check_output
+from syrupy.assertion  import SnapshotAssertion
 
-from squirtl.emulator.schemas import Record
+from squirtl.emulator.schemas import Cartridge, Record
 from squirtl.runs.schemas     import Episode, Revision, Run, RunSettings, Stream
 
 
@@ -86,6 +89,14 @@ def test_a_revision_outside_a_clone_raises_the_error_git_exits_with(outside: Pat
         Revision.checked_out()
 
 
+def test_a_run_holding_no_evaluations_reads_none(run: Run):
+    """
+    Asserts that a run whose directory holds no `evaluations`, as a run that
+    has played none leaves it, reads no evaluation rather than raising.
+    """
+    assert list(run.evaluated) == []
+
+
 def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
     """
     Asserts that starting a run where no clone holds the working directory
@@ -96,23 +107,6 @@ def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
         Run.start(RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
 
     assert not (outside / "data").exists()
-
-
-def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path):
-    """
-    Asserts that reading the directory a run started in returns that run,
-    whether the directory is named relative to the working directory or
-    absolutely, each read keeping its paths in the directory it names.
-    """
-    run = Run.start(RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
-
-    assert [
-        (read.model_dump(), read.directory)
-        for read in map(Run.read, (run.directory, clone / run.directory))
-    ] == [
-        (run.model_dump(), run.directory),
-        (run.model_dump(), clone / run.directory)
-    ]
 
 
 @mark.usefixtures("clone")
@@ -139,6 +133,23 @@ def test_a_revision_is_dirty_wherever_git_reports_a_change(
     assert Revision.checked_out().dirty is dirty
 
 
+def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path):
+    """
+    Asserts that reading the directory a run started in returns that run,
+    whether the directory is named relative to the working directory or
+    absolutely, each read keeping its paths in the directory it names.
+    """
+    run = Run.start(RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
+
+    assert [
+        (read.model_dump(), read.directory)
+        for read in map(Run.read, (run.directory, clone / run.directory))
+    ] == [
+        (run.model_dump(), run.directory),
+        (run.model_dump(), clone / run.directory)
+    ]
+
+
 def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
     """
     Asserts that the JSON a run writes into its directory validates back
@@ -147,6 +158,24 @@ def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
     run = Run.start(RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
 
     assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
+
+
+@mark.parametrize(
+    ("first", "second"),
+    [
+        param(1,  2,     id="adjacent"),
+        param(0,  2**64, id="apart-by-2-to-the-64")
+    ]
+)
+def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
+    """
+    Asserts that runs taking distinct seeds start no stream from the same
+    seed, covering the adjacent pair an offset per stream would collide on
+    and the pair a 64-bit mask on the run seed would.
+    """
+    assert set(RunSettings(seed=first).seeds.values()).isdisjoint(
+        RunSettings(seed=second).seeds.values()
+    )
 
 
 def test_a_run_records_its_settings_revision_and_start(clone: Path):
@@ -170,24 +199,6 @@ def test_a_run_records_its_settings_revision_and_start(clone: Path):
     }
 
 
-@mark.parametrize(
-    ("first", "second"),
-    [
-        param(1,  2,     id="adjacent"),
-        param(0,  2**64, id="apart-by-2-to-the-64")
-    ]
-)
-def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
-    """
-    Asserts that runs taking distinct seeds start no stream from the same
-    seed, covering the adjacent pair an offset per stream would collide on
-    and the pair a 64-bit mask on the run seed would.
-    """
-    assert set(RunSettings(seed=first).seeds.values()).isdisjoint(
-        RunSettings(seed=second).seeds.values()
-    )
-
-
 def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
     """
     Asserts that a run built on an instant carrying no UTC offset raises
@@ -195,22 +206,6 @@ def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
     """
     with raises(ValidationError, match="timezone info"):
         Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
-
-
-def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
-    """
-    Asserts that a run started at the same instant as an earlier one raises
-    rather than writing into the earlier run's directory, whose record stays
-    as the earlier run wrote it.
-    """
-    started = datetime(2026, 10, 4, tzinfo=UTC)
-    first   = Run.start(RunSettings(seed=1), started)
-    record  = first.record.read_text(encoding="utf-8")
-
-    with raises(FileExistsError):
-        Run.start(RunSettings(seed=2), started)
-
-    assert first.record.read_text(encoding="utf-8") == record
 
 
 @mark.parametrize(
@@ -241,6 +236,22 @@ def test_a_run_name_reads_back_as_the_instant_it_started(
     assert datetime.fromisoformat(name) == started
 
 
+def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
+    """
+    Asserts that a run started at the same instant as an earlier one raises
+    rather than writing into the earlier run's directory, whose record stays
+    as the earlier run wrote it.
+    """
+    started = datetime(2026, 10, 4, tzinfo=UTC)
+    first   = Run.start(RunSettings(seed=1), started)
+    record  = first.record.read_text(encoding="utf-8")
+
+    with raises(FileExistsError):
+        Run.start(RunSettings(seed=2), started)
+
+    assert first.record.read_text(encoding="utf-8") == record
+
+
 def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
     """
     Asserts that starting a run creates its directory under `data/runs/` and
@@ -254,6 +265,23 @@ def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
     assert {
         path.relative_to(clone) for path in changed if ".git" not in path.parts
     } == {Path("data"), Path("data/runs"), run.directory, run.record}
+
+
+@mark.usefixtures("clone")
+def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
+    checkout    : Callable[[Mapping[str, str]], None],
+    monkeypatch : MonkeyPatch
+):
+    """
+    Asserts that an untracked file marks the revision dirty in a clone whose
+    configuration sets `status.showUntrackedFiles` to `no`.
+    """
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "status.showUntrackedFiles")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "no")
+    checkout({"notes.md": "changed\n"})
+
+    assert Revision.checked_out().dirty
 
 
 def test_a_runs_episodes_read_back_in_the_order_written(
@@ -274,31 +302,6 @@ def test_a_runs_episodes_read_back_in_the_order_written(
     assert [next(recorded), next(recorded)] == [episode, later]
 
 
-@mark.usefixtures("clone")
-def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
-    checkout    : Callable[[Mapping[str, str]], None],
-    monkeypatch : MonkeyPatch
-):
-    """
-    Asserts that an untracked file marks the revision dirty in a clone whose
-    configuration sets `status.showUntrackedFiles` to `no`.
-    """
-    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
-    monkeypatch.setenv("GIT_CONFIG_KEY_0", "status.showUntrackedFiles")
-    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "no")
-    checkout({"notes.md": "changed\n"})
-
-    assert Revision.checked_out().dirty
-
-
-def test_each_stream_seed_fits_in_64_unsigned_bits():
-    """
-    Asserts that every stream's seed is a 64-bit unsigned integer, the
-    widest seed `torch.manual_seed` takes.
-    """
-    assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
-
-
 @mark.parametrize(
     "commit",
     [
@@ -315,15 +318,12 @@ def test_a_revision_refuses_output_that_holds_no_hash(commit: str):
         Revision(commit=commit, dirty=False, lockfile="0")
 
 
-def test_reading_a_directory_holding_no_run_raises(clone: Path):
+def test_each_stream_seed_fits_in_64_unsigned_bits():
     """
-    Asserts that reading a directory holding no run record raises rather
-    than reading a run from somewhere else.
+    Asserts that every stream's seed is a 64-bit unsigned integer, the
+    widest seed `torch.manual_seed` takes.
     """
-    (clone / "data/runs/empty").mkdir(parents=True)
-
-    with raises(FileNotFoundError):
-        Run.read(clone / "data/runs/empty")
+    assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
 
 
 @mark.parametrize(
@@ -393,9 +393,11 @@ def test_a_run_record_refuses_a_key_no_field_declares(path: tuple[str, ...], run
 @mark.parametrize(
     ("path", "name"),
     [
-        param(Run.checkpoint, "checkpoint.npz", id="the-checkpoint"),
-        param(Run.episodes,   "episodes.jsonl", id="the-episodes"),
-        param(Run.stop,       "stop",           id="the-stop-file")
+        param(Run.baseline,    "baseline.json",     id="the-baseline"),
+        param(Run.checkpoint,  "checkpoint.npz",    id="the-checkpoint"),
+        param(Run.episodes,    "episodes.jsonl",    id="the-episodes"),
+        param(Run.evaluations, "evaluations.jsonl", id="the-evaluations"),
+        param(Run.stop,        "stop",              id="the-stop-file")
     ]
 )
 def test_each_file_a_run_writes_sits_in_its_directory(
@@ -404,8 +406,9 @@ def test_each_file_a_run_writes_sits_in_its_directory(
     run  : Run
 ):
     """
-    Asserts that the checkpoint, the episodes, and the stop file a run keeps
-    each sit in its directory under the name a reader finds it by.
+    Asserts that the baseline, the checkpoint, the episodes, the
+    evaluations, and the stop file a run keeps each sit in its directory
+    under the name a reader finds it by.
     """
     assert path.fget(run) == run.directory / name
 
@@ -429,6 +432,17 @@ def test_a_run_read_from_outside_the_clone_keeps_its_files_where_it_was_read(
     assert [copied.checkpoint, copied.episodes, copied.record, copied.stop] == [
         copy / name for name in ("checkpoint.npz", "episodes.jsonl", "run.json", "stop")
     ]
+
+
+def test_reading_a_directory_holding_no_run_raises(clone: Path):
+    """
+    Asserts that reading a directory holding no run record raises rather
+    than reading a run from somewhere else.
+    """
+    (clone / "data/runs/empty").mkdir(parents=True)
+
+    with raises(FileNotFoundError):
+        Run.read(clone / "data/runs/empty")
 
 
 def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
@@ -458,15 +472,6 @@ def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
         ensure_ascii = False,
         indent       = 2
     ) == snapshot
-
-
-def test_the_settings_refuse_a_negative_seed():
-    """
-    Asserts that a negative seed is refused, since `SeedSequence` takes a
-    non-negative integer as its entropy.
-    """
-    with raises(ValidationError, match="greater than or equal to 0"):
-        RunSettings(seed=-1)
 
 
 @mark.parametrize(
@@ -539,3 +544,58 @@ def test_a_run_reads_the_episodes_that_ended_by_a_step(
     )
 
     assert [ended.length for ended in run.ended_by(step)] == lengths
+
+
+def test_the_settings_refuse_a_negative_seed():
+    """
+    Asserts that a negative seed is refused, since `SeedSequence` takes a
+    non-negative integer as its entropy.
+    """
+    with raises(ValidationError, match="greater than or equal to 0"):
+        RunSettings(seed=-1)
+
+
+@mark.usefixtures("clone")
+def test_a_run_plays_the_evaluations_it_lacks_and_reads_those_it_holds(
+    cartridge  : Cartridge,
+    evaluators : list[EvaluatorStandIn]
+):
+    """
+    Asserts that a run's first evaluation, at step 10, plays the agent and
+    the baseline under the run's evaluation stream and settings and writes
+    both, that a second at step 10 reads both back without starting an
+    evaluator, and that one at step 20 plays the agent alone, reading the
+    baseline the run holds.
+    """
+    run    = Run.start(RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
+    played = [run.evaluate(cartridge, {}, step) for step in (10, 10, 20)]
+
+    assert [stand_in.asked for stand_in in evaluators] == [[10, None], [20]]
+    assert evaluators[0].arguments == (
+        run.settings.agent.device,
+        run.settings.seeds[Stream.EVALUATION],
+        run.settings.evaluation,
+        run.settings.specification(cartridge)
+    )
+    assert (played[1], played[2][1]) == (played[0], played[0][1])
+    assert [evaluation.step for evaluation in run.evaluated] == [10, 20]
+
+
+@mark.usefixtures("clone")
+def test_a_run_holding_its_evaluation_but_no_baseline_plays_the_baseline_alone(
+    cartridge  : Cartridge,
+    evaluators : list[EvaluatorStandIn]
+):
+    """
+    Asserts that a run holding the agent's evaluation at step 10 but no
+    baseline, as a resume from a run that wrote none leaves it, plays the
+    baseline alone and writes it.
+    """
+    run = Run.start(RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
+    run.append(run.evaluations, played([0.01], 10))
+    run.evaluate(cartridge, {}, 10)
+
+    assert ([stand_in.asked for stand_in in evaluators], run.baseline.exists()) == (
+        [[None]],
+        True
+    )

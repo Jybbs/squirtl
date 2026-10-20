@@ -3,7 +3,8 @@ Defines the records one run reads and writes:
 
 - `RunSettings`, every setting the run reads
 - `Revision`, the code the run ran on
-- `Run`, the directory under `data/runs/` recording both
+- `Run`, the directory under `data/runs/` recording both, each episode, each
+  evaluation, and the checkpoint
 - `Episode`, one episode as a line of the run's `episodes`
 - `Stream`, the streams of random draws the run makes
 """
@@ -12,19 +13,23 @@ from collections     import deque
 from collections.abc import Iterator
 from datetime        import UTC, datetime
 from enum            import StrEnum, auto
-from hashlib         import sha256
-from itertools       import islice
-from numpy           import uint64
-from numpy.random    import SeedSequence
-from pathlib         import Path
-from pydantic        import AwareDatetime, Field, NonNegativeInt, PositiveInt, PrivateAttr, StringConstraints
-from subprocess      import check_output
-from typing          import Annotated, Self
+from gymnasium.envs.registration import EnvSpec
+from hashlib      import sha256
+from itertools    import islice, takewhile
+from numpy        import uint64
+from numpy.random import SeedSequence
+from pathlib      import Path
+from pydantic     import AwareDatetime, Field, NonNegativeInt, PositiveInt, PrivateAttr, StringConstraints
+from subprocess   import check_output
+from typing       import Annotated, Self
 
-from squirtl.agent.schemas       import AgentSettings
-from squirtl.emulator.schemas    import EmulatorSettings, Record
-from squirtl.environment.schemas import EnvironmentSettings, Recording
-from squirtl.reward.schemas      import RewardSettings, Term
+from squirtl.agent.schemas         import AgentSettings, StateDict
+from squirtl.emulator.schemas      import Cartridge, EmulatorSettings, Record
+from squirtl.environment.overworld import Overworld
+from squirtl.environment.schemas   import EnvironmentSettings, Outcome, Recording
+from squirtl.evaluation.evaluator  import Evaluator
+from squirtl.evaluation.schemas    import Evaluation, EvaluationSettings
+from squirtl.reward.schemas        import RewardSettings
 
 type Hexadecimal = Annotated[
     str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
@@ -124,6 +129,19 @@ class RunSettings(Record):
     The settings the environment reads.
     """
 
+    evaluation: EvaluationSettings = Field(default_factory=EvaluationSettings)
+    """
+    The settings each evaluation of the agent reads.
+    """
+
+    evaluation_steps: PositiveInt = 250_000
+    """
+    The environment steps between the evaluations a run plays, each where
+    an episode end or the run's last step first reaches a multiple of them,
+    whose default is the 250,000 steps of each iteration Dopamine's DQN
+    evaluates after.
+    """
+
     reward: RewardSettings = Field(default_factory=RewardSettings)
     """
     The settings the reward reads.
@@ -156,6 +174,18 @@ class RunSettings(Record):
             stream: child.generate_state(1, uint64).item()
             for stream, child in zip(Stream, SeedSequence(self.seed).spawn(len(Stream)))
         }
+
+    def specification(self, cartridge: Cartridge) -> EnvSpec:
+        """
+        Specifies the environment the run plays on `cartridge` under its
+        emulator, environment, and reward settings.
+        """
+        return Overworld.specification(
+            cartridge,
+            self.emulator,
+            self.environment,
+            self.reward
+        )
 
 
 class Run(Record):
@@ -193,6 +223,15 @@ class Run(Record):
     """
 
     @property
+    def baseline(self) -> Path:
+        """
+        Locates the JSON file holding the random baseline's `Evaluation`
+        under the run's evaluation seeds, which the run's first evaluation
+        writes.
+        """
+        return self.directory / "baseline.json"
+
+    @property
     def checkpoint(self) -> Path:
         """
         Locates the checkpoint a run writes at each interval and at its end,
@@ -218,6 +257,22 @@ class Run(Record):
         return self.directory / "episodes.jsonl"
 
     @property
+    def evaluated(self) -> Iterator[Evaluation]:
+        """
+        Reads each evaluation of the agent `evaluations` holds through
+        `lines`, in the order the run played them.
+        """
+        return self.lines(self.evaluations, Evaluation)
+
+    @property
+    def evaluations(self) -> Path:
+        """
+        Locates the JSON Lines file holding one `Evaluation` of the agent
+        per line, in the order the run played them.
+        """
+        return self.directory / "evaluations.jsonl"
+
+    @property
     def name(self) -> str:
         """
         Spells `started` in UTC in the basic format of ISO 8601 to the
@@ -236,11 +291,10 @@ class Run(Record):
     @property
     def recorded(self) -> Iterator[Episode]:
         """
-        Reads each episode `episodes` holds, in the order the run played
-        them, reading each line only once a caller draws its episode.
+        Reads each episode `episodes` holds through `lines`, in the order
+        the run played them.
         """
-        with self.episodes.open(encoding="utf-8") as lines:
-            yield from map(Episode.model_validate_json, lines)
+        return self.lines(self.episodes, Episode)
 
     @property
     def stop(self) -> Path:
@@ -249,6 +303,14 @@ class Run(Record):
         episode it is playing, which `squirtl stop` writes.
         """
         return self.directory / "stop"
+
+    def append(self, path: Path, *records: Record):
+        """
+        Appends each of `records` to `path`, one of the run's JSON Lines
+        files, as a line of JSON apiece.
+        """
+        with path.open("a", encoding="utf-8") as lines:
+            lines.writelines(f"{record.model_dump_json()}\n" for record in records)
 
     def ended_by(self, step: int) -> Iterator[Episode]:
         """
@@ -285,6 +347,69 @@ class Run(Record):
             return found[0]
 
         raise IndexError(f"{self.episodes} holds no episode {number or 'at all'}")
+
+    def evaluate(
+        self,
+        cartridge : Cartridge,
+        online    : StateDict,
+        step      : int
+    ) -> tuple[Evaluation, Evaluation]:
+        """
+        Reads the agent's evaluation at `step` and the random baseline's
+        from the run, playing whichever of the two it lacks under the
+        evaluation settings and the evaluation stream it recorded and
+        writing it there. The agent plays from the online network whose
+        weights `online` holds, and the baseline under the same seeds.
+
+        Returns:
+            The agent's evaluation and the baseline's.
+        """
+        held = next(
+            (evaluation for evaluation in self.evaluated if evaluation.step == step),
+            None
+        )
+        baseline = Evaluation.model_validate_json(
+            self.baseline.read_text(encoding="utf-8")
+        ) if self.baseline.exists() else None
+
+        if held is None or baseline is None:
+            settings = self.settings
+
+            with Evaluator(
+                settings.agent.device,
+                settings.seeds[Stream.EVALUATION],
+                settings.evaluation,
+                settings.specification(cartridge)
+            ) as evaluator:
+                if held is None:
+                    held = evaluator.evaluate(online, step)
+                    self.append(self.evaluations, held)
+
+                if baseline is None:
+                    baseline = evaluator.baseline()
+                    self.baseline.write_text(
+                        baseline.model_dump_json(),
+                        encoding = "utf-8"
+                    )
+
+        return held, baseline
+
+    def evaluated_by(self, step: int) -> Iterator[Evaluation]:
+        """
+        Reads each evaluation `evaluations` holds of the agent at `step` of
+        the run or before it, in the order the run played them.
+        """
+        return takewhile(lambda evaluation: evaluation.step <= step, self.evaluated)
+
+    def lines[R: Record](self, path: Path, shape: type[R]) -> Iterator[R]:
+        """
+        Reads each line of `path`, one of the run's JSON Lines files, as a
+        `shape`, in the order the lines run, reading each only once a caller
+        draws its record, and none where the run holds no such file.
+        """
+        if path.exists():
+            with path.open(encoding="utf-8") as lines:
+                yield from map(shape.model_validate_json, lines)
 
     @classmethod
     def read(cls, directory: Path) -> Self:
@@ -343,20 +468,15 @@ class Run(Record):
         return run
 
 
-class Episode(Record):
+class Episode(Outcome):
     """
     One episode as a run records it on a line of its `episodes`, from what
-    the episode earned to the `Recording` that `squirtl watch` plays back.
+    the episode reached to the `Recording` that `squirtl watch` plays back.
     """
 
     epsilon: float
     """
     The chance of a random action at the episode's last step.
-    """
-
-    length: int
-    """
-    The steps the episode took.
     """
 
     loss: float | None
@@ -365,37 +485,10 @@ class Episode(Record):
     where replay memory held too few transitions for any.
     """
 
-    positions: int
-    """
-    The number of positions the episode reached, the one it started on
-    included.
-    """
-
     recording: Recording
     """
     The start, the `timer_div`, and the presses the emulator plays the
     episode back from.
-    """
-
-    reward: float
-    """
-    The reward the episode's steps total, its return.
-    """
-
-    seconds: float
-    """
-    The wall time from the episode's reset to its last step, in seconds.
-    """
-
-    shares: dict[Term, float]
-    """
-    Each term's part of `reward`.
-    """
-
-    terminated: bool
-    """
-    Whether the episode ended at the starter, where otherwise `TimeLimit`
-    truncated it.
     """
 
     value: float | None

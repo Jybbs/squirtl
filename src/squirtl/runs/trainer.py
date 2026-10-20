@@ -8,16 +8,16 @@ from contextlib      import AbstractContextManager
 from loguru          import logger
 from numpy           import uint64
 from numpy.random    import SeedSequence
+from shutil          import copyfile
 from signal          import SIGINT, SIGTERM, signal
 from statistics      import fmean
 from types           import FrameType
 from typing          import Self
 
-from squirtl.agent.learner         import Agent
-from squirtl.agent.schemas         import Checkpoint, Update
-from squirtl.emulator.schemas      import Cartridge
-from squirtl.environment.overworld import Overworld
-from squirtl.runs.schemas          import Episode, Run, Stream
+from squirtl.agent.learner    import Agent
+from squirtl.agent.schemas    import Checkpoint, Update
+from squirtl.emulator.schemas import Cartridge
+from squirtl.runs.schemas     import Episode, Run, Stream
 
 
 class Trainer(AbstractContextManager):
@@ -26,8 +26,9 @@ class Trainer(AbstractContextManager):
     through `Agent` from outside the environment and appends each one to the
     run's `episodes`. It writes the agent's checkpoint at the first episode
     end reaching each multiple of `checkpoint_steps` and at the run's end,
-    and runs until the run takes its `steps` or is stopped at an episode's
-    end.
+    evaluates the agent where an episode end or the run's last step first
+    reaches each multiple of `evaluation_steps`, and runs until the run
+    takes its `steps` or is stopped at an episode's end.
     """
 
     def __enter__(self) -> Self:
@@ -57,13 +58,8 @@ class Trainer(AbstractContextManager):
         spaces under the settings `run` records, the agent seeded from its
         own stream, then creates the run's `episodes` empty.
         """
-        settings = run.settings
-        self.env = Overworld.make(
-            cartridge,
-            settings.emulator,
-            settings.environment,
-            settings.reward
-        )
+        settings   = run.settings
+        self.env   = settings.specification(cartridge).make()
         self.agent = Agent(
             actions  = self.env.action_space.n,
             seed     = settings.seeds[Stream.AGENT],
@@ -71,6 +67,8 @@ class Trainer(AbstractContextManager):
             space    = self.env.observation_space,
             steps    = settings.steps
         )
+        self.cartridge   = cartridge
+        self.evaluated   = 0
         self.finished    = 0
         self.interrupted = False
         self.run         = run
@@ -84,13 +82,20 @@ class Trainer(AbstractContextManager):
         episode's end, yielding the agent's step count after each step. It
         writes a checkpoint at the first episode end reaching each multiple
         of `checkpoint_steps` and once the loop ends, unless the run's own
-        checkpoint already holds the last step.
+        checkpoint already holds the last step, and evaluates the agent
+        where an episode end or the run's last step first reaches a multiple
+        of `evaluation_steps`.
         """
-        while self.agent.step < self.run.settings.steps and not self.stopping:
+        settings = self.run.settings
+
+        while self.agent.step < settings.steps and not self.stopping:
             yield from self.play()
 
-            if self.agent.step >= self.due:
+            if self.due(settings.checkpoint_steps, self.saved):
                 self.checkpoint()
+
+            if self.due(settings.evaluation_steps, self.evaluated):
+                self.evaluate()
 
         if self.run.stop.exists():
             logger.warning(
@@ -101,18 +106,6 @@ class Trainer(AbstractContextManager):
 
         if self.saved < self.agent.step or not self.run.checkpoint.exists():
             self.checkpoint()
-
-    @property
-    def due(self) -> int:
-        """
-        Reads the step an episode's end has to reach to write the next
-        checkpoint, the first multiple of `checkpoint_steps` after the step
-        the last checkpoint landed at, the one a resumed run continues from
-        included, or after 0 before the first.
-        """
-        interval = self.run.settings.checkpoint_steps
-
-        return (self.saved // interval + 1) * interval
 
     @property
     def seed(self) -> int:
@@ -150,6 +143,41 @@ class Trainer(AbstractContextManager):
 
         logger.info("Wrote the checkpoint at step {:,}", self.saved)
 
+    def due(self, interval: int, last: int) -> bool:
+        """
+        Reads whether the agent's step has reached the first multiple of
+        `interval` after `last`, the step a checkpoint or an evaluation
+        last landed at, the one a resumed run continues from included, or 0
+        before the first.
+        """
+        return self.agent.step >= (last // interval + 1) * interval
+
+    def evaluate(self):
+        """
+        Evaluates the agent at its step through `Run.evaluate`, recording
+        the step it landed at, and logs how often the agent and the random
+        baseline reached the starter and the returns each averaged.
+        """
+        logger.info("Evaluating the agent at step {:,}", self.agent.step)
+
+        evaluation, baseline = self.run.evaluate(
+            self.cartridge,
+            self.agent.online.state_dict(),
+            self.agent.step
+        )
+        self.evaluated = self.agent.step
+
+        logger.info(
+            "At step {:,}, the agent reached the starter in {:.0%} of its "
+            "evaluation episodes for a mean return of {:.4f}, and the random "
+            "baseline in {:.0%} for {:.4f}",
+            self.evaluated,
+            evaluation.reached,
+            evaluation.reward,
+            baseline.reached,
+            baseline.reward
+        )
+
     def interrupt(self, number: int, frame: FrameType | None):  # prose: ignore[unsorted-positionals]
         """
         Stops the run at the end of the episode it is playing on the first
@@ -180,7 +208,6 @@ class Trainer(AbstractContextManager):
         unrecorded.
         """
         observation, _ = self.env.reset(seed=self.seed)
-        overworld      = self.env.unwrapped
         updates        = list[Update]()
 
         self.agent.begin(observation)
@@ -203,22 +230,15 @@ class Trainer(AbstractContextManager):
             yield self.agent.step
 
             if terminated or truncated:
-                statistics = info["episode"]
-
                 self.record(
                     Episode(
+                        **dict(info["outcome"]),
                         epsilon = self.agent.epsilon,
-                        length  = statistics["l"],
                         loss    = fmean(
                             update.loss for update in updates
                         ) if updates else None,
-                        positions  = len(overworld.progress.positions),
-                        recording  = overworld.recording,
-                        reward     = statistics["r"],
-                        seconds    = statistics["t"],
-                        shares     = overworld.progress.shares,
-                        terminated = terminated,
-                        value      = fmean(
+                        recording = self.env.unwrapped.recording,
+                        value     = fmean(
                             update.value for update in updates
                         ) if updates else None
                     )
@@ -252,15 +272,22 @@ class Trainer(AbstractContextManager):
         """
         Restores the agent from `checkpoint`, the last one `previous`
         wrote, counting the next checkpoint on from its step, and copies the
-        episodes `previous` recorded up to it into this run's `episodes`,
-        dropping any past it, so the run goes on as though `previous` had
-        never stopped.
+        episodes and the evaluations `previous` recorded up to it into this
+        run, dropping any past it, beside the random baseline's evaluation,
+        so the run goes on as though `previous` had never stopped.
         """
         self.agent.restore(checkpoint)
         self.saved = checkpoint.step
 
         for episode in previous.ended_by(checkpoint.step):
             self.write(episode)
+
+        kept = list(previous.evaluated_by(checkpoint.step))
+        self.run.append(self.run.evaluations, *kept)
+        self.evaluated = kept[-1].step if kept else 0
+
+        if previous.baseline.exists():
+            copyfile(previous.baseline, self.run.baseline)
 
         logger.info(
             "Resumed {} at step {:,} after {:,} episodes",
@@ -274,7 +301,5 @@ class Trainer(AbstractContextManager):
         Appends `episode` to the run's `episodes` as one line of JSON and
         counts it among those `finished`.
         """
-        with self.run.episodes.open("a", encoding="utf-8") as lines:
-            lines.write(f"{episode.model_dump_json()}\n")
-
+        self.run.append(self.run.episodes, episode)
         self.finished += 1

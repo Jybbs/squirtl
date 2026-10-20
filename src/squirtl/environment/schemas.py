@@ -3,6 +3,7 @@ Defines the records the environment reads and writes:
 
 - `Entry`, the entries of the observation the environment makes
 - `EnvironmentSettings`, the settings it reads
+- `Outcome`, what one episode reached, which its last step reports
 - `Recording`, the start and the presses of one episode, which the emulator
   plays to the same frames again
 """
@@ -15,6 +16,7 @@ from pydantic            import AfterValidator, Field, PlainSerializer, Positive
 from typing              import Annotated, Self
 
 from squirtl.emulator.schemas import Record
+from squirtl.reward.schemas   import Term
 
 type Compressed = Annotated[
     bytes,
@@ -108,6 +110,45 @@ class EnvironmentSettings(Record):
             )
 
         return self
+
+
+class Outcome(Record):
+    """
+    What one episode reached, which `RecordOutcome` reports in the info dict
+    of the episode's last step under `outcome`.
+    """
+
+    length: int
+    """
+    The steps the episode took.
+    """
+
+    positions: int
+    """
+    The number of positions the episode reached, the one it started on
+    included.
+    """
+
+    reward: float
+    """
+    The reward the episode's steps total, its return.
+    """
+
+    seconds: float
+    """
+    The wall time from the episode's reset to its last step, in seconds.
+    """
+
+    shares: dict[Term, float]
+    """
+    Each term's part of `reward`.
+    """
+
+    terminated: bool
+    """
+    Whether the episode ended at the starter, where otherwise `TimeLimit`
+    truncated it.
+    """
 
 
 class Recording(Record, ser_json_bytes="base64", val_json_bytes="base64"):

@@ -237,9 +237,10 @@ def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
     made: Callable[..., Env]
 ):
     """
-    Asserts that the environment's spec names it and every wrapper
-    shaping its observation, in the order each wraps the last, and that
-    `gymnasium.make` remakes from it an environment of an equal spec.
+    Asserts that the environment's spec names it, every wrapper shaping its
+    observation, and the two recording each episode, in the order each wraps
+    the last, and that `gymnasium.make` remakes from it an environment of an
+    equal spec.
     """
     spec = made().spec
 
@@ -250,7 +251,7 @@ def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
         "squirtl/Overworld-v0", 10_240,
         [
             "GrayscaleObservation", "ShrinkObservation", "FrameStackObservation",
-            "ProgressObservation", "RecordEpisodeStatistics"
+            "ProgressObservation", "RecordEpisodeStatistics", "RecordOutcome"
         ]
     )
 

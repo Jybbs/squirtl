@@ -11,6 +11,7 @@ Pins what the `squirtl` command itself defines, covering:
    - A key no setting declares, a bare token, and a `--no-` flag are each
      refused
    - Reading the settings writes nothing
+   - A command reading the settings its run recorded reads no such table
 """
 
 from collections.abc    import Callable, Mapping
@@ -34,10 +35,10 @@ type Reader = Callable[[list[str], str | None], RunSettings]
 def read(checkout: Callable[[Mapping[str, str]], None]) -> Reader:
     """
     Builds a reader that parses `argv` the way a command taking
-    `RunSettings` would, through the configuration the app reads, in the
-    working directory `checkout` makes of `tmp_path`.
+    `RunSettings` would, through the configuration `squirtl train` reads, in
+    the working directory `checkout` makes of `tmp_path`.
     """
-    probe = App(config=app.config, default_parameter=app.default_parameter)
+    probe = App(config=app["train"].config, default_parameter=app.default_parameter)
 
     @probe.command
     def received(
@@ -184,10 +185,11 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
 @mark.parametrize(
     "command",
     [
-        param([],        id="the-app"),
-        param(["stop"],  id="stop"),
-        param(["train"], id="train"),
-        param(["watch"], id="watch")
+        param([],           id="the-app"),
+        param(["evaluate"], id="evaluate"),
+        param(["stop"],     id="stop"),
+        param(["train"],    id="train"),
+        param(["watch"],    id="watch")
     ]
 )
 def test_help_text(
@@ -201,9 +203,11 @@ def test_help_text(
     file holds, the app's carrying the description the manifest declares
     and each command's its docstring and each flag's, so a change to what a
     command documents is reviewed as a diff. The device defaults to the CPU
-    here, whatever accelerator the machine running the suite reports.
+    and an evaluation to four environments here, whatever accelerator and
+    CPUs the machine running the suite reports.
     """
     monkeypatch.setattr("squirtl.agent.schemas.current_accelerator", lambda **_: None)
+    monkeypatch.setattr("squirtl.evaluation.schemas.process_cpu_count", lambda: 4)
     invocation = invoke([*command, "--help"])
 
     assert invocation.code == 0
@@ -238,3 +242,34 @@ def test_version_reports_installed_package(invoke: Invoker, script: EntryPoint):
 
     assert invocation.code == 0
     assert invocation.output.strip() == version(script.dist.name)
+
+
+@mark.parametrize(
+    "command",
+    [
+        param("evaluate", id="evaluate"),
+        param("stop", id="stop"),
+        param("watch", id="watch")
+    ]
+)
+@mark.usefixtures("evaluators", "windows")
+def test_a_command_reading_its_runs_settings_reads_no_settings_table(
+    checkout : Callable[[Mapping[str, str]], None],
+    command  : str,
+    invoke   : Invoker,
+    trained  : Path
+):
+    """
+    Asserts that a command reading the settings its run recorded exits zero
+    beside a `pyproject.toml` whose `[tool.squirtl]` table sets a run's
+    settings, which it reads none of, rather than refusing each key as one
+    it does not declare.
+    """
+    checkout(
+        {
+            "pyproject.toml":
+                "[tool.squirtl]\nseed = 7\n\n[tool.squirtl.agent]\nbatch-size = 8\n"
+        }
+    )
+
+    assert invoke([command, str(trained)]).code == 0
