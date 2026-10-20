@@ -462,7 +462,7 @@ def test_replaced_sets_aside_all_but_the_newest_entry_of_each_generation(
     two refs or two mise releases saved apart, and never returning an entry
     whose key holds no `-`.
     """
-    entries = [prune.Entry(**each) for each in listing]
+    entries = [prune.Cache(**each) for each in listing]
 
     assert [each.key for each in prune.Caches(entries).replaced] == replaced
 
@@ -498,7 +498,7 @@ def test_delete_reports_whether_github_accepted_it(
         stderr     = "HTTP 404: no such cache"
     )
 
-    assert prune.Entry(
+    assert prune.Cache(
         **entry("mise-v1-zizmor-aaa", cache_id=7, size_bytes=11)
     ).delete() is accepted
     assert printed in capsys.readouterr().out
@@ -726,7 +726,7 @@ def test_running_the_task_lists_every_field_and_deletes_only_replaced_entries(
     pytestconfig : Config
 ):
     """
-    Pins that running the task asks `gh cache list` for every field `Entry`
+    Pins that running the task asks `gh cache list` for every field `Cache`
     declares and for up to 100 entries rather than the 30 it returns
     by default, deletes only the entry a newer entry of its generation
     replaced, and prints how many entries it deleted and how many bytes
@@ -747,7 +747,7 @@ def test_running_the_task_lists_every_field_and_deletes_only_replaced_entries(
     assert list(fp.calls) == [
         [
             "gh", "cache", "list", "--json",
-            ",".join(field.name for field in fields(script["Entry"])),
+            ",".join(field.name for field in fields(script["Cache"])),
             "--limit", "100"
         ],
         ["gh", "cache", "delete", "1"]
@@ -817,8 +817,8 @@ def test_the_closing_line_counts_only_the_deletes_github_accepted(
     fp.register(["gh", "cache", "delete", "1"], returncode=1, stderr="HTTP 404")
     prune.Caches(
         [
-            prune.Entry(**entry("mise-v1-zizmor-aaa", size_bytes=5)),
-            prune.Entry(**entry("mise-v1-zizmor-bbb", cache_id=2, created=LATER))
+            prune.Cache(**entry("mise-v1-zizmor-aaa", size_bytes=5)),
+            prune.Cache(**entry("mise-v1-zizmor-bbb", cache_id=2, created=LATER))
         ]
     ).prune()
 

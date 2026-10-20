@@ -67,6 +67,7 @@ Every pull request runs the checks below in the `🕹️ CI` workflow, each of w
 
 | **Check** | **Local Command** | **Fails When** |
 |---|---|---|
+| `🗺️ Audit` | `mise audit` | A pin, a label, a workflow, or the package's layout departs from a rule `squirtl.repo.checks` holds it to, or a file the audit reads fails to parse, each one an annotation on the file and line it concerns |
 | `💾 Lockfile` | `mise lockfile` | `uv.lock`, a task script's lockfile, or `.mise/mise.lock` drifts from its manifest, or a tool the project pins has no entry in `.mise/mise.lock` to install from |
 | `🪻 Prose` | `mise lint` | The formatter reports a rewrite it would make or a lint finding, each one an annotation on the pull request |
 | `🏟️ Suite` | `mise coverage` | A test fails, or the suite's coverage of `src/squirtl/` falls below the **95%** that `fail_under` sets in `pyproject.toml` |

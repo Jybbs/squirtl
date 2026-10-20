@@ -7,13 +7,15 @@ Pins what the `repo` tasks decide from their inputs, covering:
   deleting by hand
 - The part of the version `repo:bump` moves, and the version it writes
   into `CITATION.cff`
+- The status `repo:audit` exits with for the findings it prints
 
 Each registry case runs its task script in-process from the worktree
 root, where the script reads the shipped files, and the `fp` fixture
 pytest-subprocess provides answers every `gh` command, so no case reaches
 GitHub. Each `repo:bump` case runs the task through the real `mise` from a
 placeholder checkout under `tmp_path`, where the stand-in under `fixtures/`
-answers for `uv`.
+answers for `uv`. The `repo:audit` case hands the task the findings it
+prints in place of the audit's own read.
 """
 
 from collections.abc   import Callable
@@ -26,7 +28,8 @@ from shlex             import split
 from subprocess        import CompletedProcess, run
 from syrupy.assertion  import SnapshotAssertion
 
-from squirtl.repo.schemas import Labels
+from squirtl.repo.checks  import Audit
+from squirtl.repo.schemas import Finding, Labels, Severity
 
 
 @fixture
@@ -168,6 +171,42 @@ def test_labels_lists_each_live_label_the_registry_leaves_out(
         "GitHub already matches the files under .github/\n"
     )
     assert len(fp.calls) == 1
+
+
+@mark.parametrize(
+    ("severity", "status"),
+    [
+        param(Severity.ERROR, 1, id="an-error"),
+        param(Severity.WARNING, 0, id="a-warning")
+    ]
+)
+def test_audit_exits_with_the_verdict_its_findings_carry(
+    capsys      : CaptureFixture[str],
+    monkeypatch : MonkeyPatch,
+    severity    : Severity,
+    status      : int,
+    task        : Callable[[str], int]
+):
+    """
+    Pins that `repo:audit` prints each finding the audit reads as an
+    annotation and exits 1 where a finding is an error and 0 where every
+    finding is a warning.
+    """
+    finding = Finding(
+        file     = Path("pyproject.toml"),
+        line     = 3,
+        message  = "Diverges",
+        severity = severity
+    )
+
+    monkeypatch.setattr(
+        Audit,
+        "read",
+        classmethod(lambda cls: cls(findings=(finding,)))
+    )
+
+    assert task("audit") == status
+    assert capsys.readouterr().out == f"{finding.annotation}\n"
 
 
 @mark.parametrize(
