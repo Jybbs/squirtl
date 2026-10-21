@@ -23,6 +23,7 @@ from pytest             import MonkeyPatch, fixture, mark, param, raises
 from syrupy.assertion   import SnapshotAssertion
 from typing             import Annotated
 
+from squirtl.agent.schemas    import AgentSettings
 from squirtl.cli              import app
 from squirtl.emulator.schemas import EmulatorSettings
 from squirtl.reward.schemas   import RewardSettings
@@ -162,6 +163,12 @@ def test_a_table_above_the_working_directory_is_not_read(
             ["--reward.starter", "0.7"],
             RunSettings(reward=RewardSettings(milestone=0.05, starter=0.7)),
             id = "the-reward-table-beside-a-flag"
+        ),
+        param(
+            None,
+            ["--agent.double-q=false"],
+            RunSettings(agent=AgentSettings(double_q=False)),
+            id = "a-setting-on-by-default-turned-off"
         )
     ]
 )
@@ -177,7 +184,8 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
     field declares.
 
     A flag for one of a subject's settings leaves in place the others that
-    subject's table sets.
+    subject's table sets, and a setting on by default reads `false` from its
+    flag's `=false` form, the one the help of `squirtl train` names.
     """
     assert read(argv, manifest) == settings
 
