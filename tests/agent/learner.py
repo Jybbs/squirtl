@@ -64,9 +64,9 @@ def test_a_greedy_action_is_the_one_the_online_network_values_highest(
     [
         param(32, 1, 31, False, id="a-step-short-of-the-warmup"),
         param(32, 1, 32, True,  id="the-warmups-last-step"),
-        param(1,  4, 7,  False, id="a-step-the-interval-skips"),
-        param(1,  4, 8,  True,  id="a-step-the-interval-divides"),
-        param(9,  4, 8,  False, id="a-step-the-interval-divides-inside-the-warmup")
+        param(32, 4, 35, False, id="a-step-the-interval-skips"),
+        param(32, 4, 36, True,  id="a-step-the-interval-divides"),
+        param(40, 4, 36, False, id="a-step-the-interval-divides-inside-the-warmup")
     ]
 )
 def test_an_update_lands_on_each_step_the_interval_divides_once_the_warmup_ends(
@@ -361,7 +361,12 @@ def test_a_step_both_intervals_divide_copies_the_target_before_its_update(
     update moves them, so the target holds the online network as it stood
     before the update.
     """
-    agent = build(sync_steps=4, update_steps=4, warmup_steps=4)
+    agent = build(
+        batch_size   = 4,
+        sync_steps   = 4,
+        update_steps = 4,
+        warmup_steps = 4
+    )
     play(agent, 4)
     synced = parameters_to_vector(agent.online.parameters())
     agent.update()

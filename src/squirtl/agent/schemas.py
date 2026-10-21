@@ -20,6 +20,7 @@ from numpy.lib.npyio   import NpzFile
 from os                import O_RDONLY, close, fsync, open as os_open
 from pathlib           import Path
 from pydantic          import Field, InstanceOf, PositiveFloat, PositiveInt, ValidatorFunctionWrapHandler, WrapValidator
+from pydantic          import model_validator
 from torch             import Tensor, load, no_grad, save
 from torch.accelerator import current_accelerator
 from typing            import Annotated, Self
@@ -139,8 +140,28 @@ class AgentSettings(Record):
     warmup_steps: PositiveInt = 50_000
     """
     The environment steps whose transitions replay memory gathers before the
-    first update, whose default is the replay start size Mnih et al. set.
+    first update, no fewer than `batch_size`, whose default is the replay
+    start size Mnih et al. set.
     """
+
+    @model_validator(mode="after")
+    def verify(self) -> Self:
+        """
+        Refuses a `warmup_steps` below `batch_size`, since each step stores
+        one transition and the first update draws `batch_size` of them from
+        those replay memory holds.
+
+        Raises:
+            ValueError: Where it is below, which Pydantic raises as a
+                        `ValidationError`.
+        """
+        if self.warmup_steps < self.batch_size:
+            raise ValueError(
+                f"a warm-up of {self.warmup_steps:,} steps gathers fewer "
+                f"transitions than the {self.batch_size:,} each update draws"
+            )
+
+        return self
 
 
 class Batch(Record):

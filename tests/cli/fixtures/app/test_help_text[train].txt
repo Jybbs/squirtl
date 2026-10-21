@@ -73,9 +73,10 @@ Each of these exits 1 before any directory is made:
 │                               the online network, whose default is the       │
 │                               update frequency Mnih et al. set. [default: 4] │
 │ --agent.warmup-steps INT      The environment steps whose transitions replay │
-│                               memory gathers before the first update, whose  │
-│                               default is the replay start size Mnih et al.   │
-│                               set. [default: 50000]                          │
+│                               memory gathers before the first update, no     │
+│                               fewer than batch_size, whose default is the    │
+│                               replay start size Mnih et al. set. [default:   │
+│                               50000]                                         │
 │ --checkpoint-steps INT        The environment steps between checkpoints,     │
 │                               each written at the first episode end reaching │
 │                               a multiple of them, whose default is the       │

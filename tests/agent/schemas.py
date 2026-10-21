@@ -1,8 +1,8 @@
 """
 Pins the records the agent reads and writes, covering:
 
-- The device the settings default to, the values they refuse, and the
-  bound a fraction accepts
+- The device the settings default to, the values they refuse, a warm-up
+  short of a batch among them, and the bound a fraction accepts
 - The value a batch reads for each draw, and its target under the action
   one network chooses and another values
 - A checkpoint reading back as written with each `state_dict`'s metadata
@@ -100,6 +100,39 @@ def test_the_settings_refuse_a_value_outside_its_range(field: str, value: float)
     """
     with raises(ValidationError, match=field):
         AgentSettings(**{field: value})
+
+
+@mark.parametrize(
+    ("batch_size", "warmup_steps", "message"),
+    [
+        param(
+            32,
+            31,
+            "a warm-up of 31 steps gathers fewer transitions than the 32 each update "
+            "draws",
+            id = "a-step-short-of-the-default-batch"
+        ),
+        param(
+            2048,
+            1000,
+            "a warm-up of 1,000 steps gathers fewer transitions than the 2,048 each "
+            "update draws",
+            id = "a-batch-past-a-thousand"
+        )
+    ]
+)
+def test_a_warmup_short_of_the_batch_size_is_refused(
+    batch_size   : int,
+    message      : str,
+    warmup_steps : int
+):
+    """
+    Asserts that a warm-up of fewer steps than `batch_size` is refused, the
+    error naming the warm-up and the batch each update draws, each with its
+    thousands separated.
+    """
+    with raises(ValidationError, match=message):
+        AgentSettings(batch_size=batch_size, warmup_steps=warmup_steps)
 
 
 def cut_in_half(path: Path):
@@ -223,6 +256,26 @@ def test_a_batch_values_each_draw_at_the_action_it_took():
     assert batch.values(frames).tolist() == [2.0, 5.0]
 
 
+def test_a_checkpoint_is_an_npz_whose_members_zstd_compresses(tmp_path: Path):
+    """
+    Asserts that a checkpoint's file is an `.npz` NumPy's own `load` reads
+    replay memory's arrays from, beside the `agent.pt` member, with every
+    member compressed with zstd.
+    """
+    blank(replay={"actions": zeros(4, "int64"), "held": zeros(4, bool)}).save(
+        tmp_path / "checkpoint.npz"
+    )
+
+    with load_npz(tmp_path / "checkpoint.npz") as archive:
+        assert (sorted(archive.files), archive["held"].dtype) == (
+            ["actions", "agent.pt", "held"],
+            bool
+        )
+        assert {member.compress_type for member in archive.zip.infolist()} == {
+            ZIP_ZSTANDARD
+        }
+
+
 @mark.parametrize(
     "network",
     [param("online", id="the-online-network"), param("target", id="the-target-network")]
@@ -284,41 +337,6 @@ def test_a_batch_targets_its_reward_plus_the_discounted_value_of_the_chosen_acti
     assert (targets.tolist(), targets.requires_grad) == ([target], False)
 
 
-def test_a_checkpoint_is_an_npz_whose_members_zstd_compresses(tmp_path: Path):
-    """
-    Asserts that a checkpoint's file is an `.npz` NumPy's own `load` reads
-    replay memory's arrays from, beside the `agent.pt` member, with every
-    member compressed with zstd.
-    """
-    blank(replay={"actions": zeros(4, "int64"), "held": zeros(4, bool)}).save(
-        tmp_path / "checkpoint.npz"
-    )
-
-    with load_npz(tmp_path / "checkpoint.npz") as archive:
-        assert (sorted(archive.files), archive["held"].dtype) == (
-            ["actions", "agent.pt", "held"],
-            bool
-        )
-        assert {member.compress_type for member in archive.zip.infolist()} == {
-            ZIP_ZSTANDARD
-        }
-
-
-@mark.parametrize(
-    "field",
-    [
-        param("discount",             id="an-undiscounted-value"),
-        param("exploration_fraction", id="exploring-across-the-whole-run")
-    ]
-)
-def test_the_settings_accept_a_fraction_of_one(field: str):
-    """
-    Asserts that a setting holding a fraction accepts one, the top of the
-    range its field declares, where 1.01 is refused.
-    """
-    assert getattr(AgentSettings(**{field: 1}), field) == 1
-
-
 def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path):
     """
     Asserts that a checkpoint holds each network's `state_dict` itself, and
@@ -335,6 +353,21 @@ def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path)
         {"": {"version": 1}},
         {"": {"version": 1}}
     )
+
+
+@mark.parametrize(
+    "field",
+    [
+        param("discount",             id="an-undiscounted-value"),
+        param("exploration_fraction", id="exploring-across-the-whole-run")
+    ]
+)
+def test_the_settings_accept_a_fraction_of_one(field: str):
+    """
+    Asserts that a setting holding a fraction accepts one, the top of the
+    range its field declares, where 1.01 is refused.
+    """
+    assert getattr(AgentSettings(**{field: 1}), field) == 1
 
 
 def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
@@ -405,6 +438,17 @@ def test_a_save_flushes_the_whole_archive_then_the_directory_it_lands_in(
     )
 
 
+def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
+    """
+    Asserts that a save beside the `.partial` file a killed save left behind
+    writes over it and leaves the checkpoint alone in its directory.
+    """
+    (tmp_path / "checkpoint.npz.partial").write_bytes(b"left by a killed save")
+    blank().save(tmp_path / "checkpoint.npz")
+
+    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
+
+
 @mark.parametrize(
     "damage",
     [
@@ -434,15 +478,14 @@ def test_a_damaged_checkpoint_is_refused_naming_its_file(
         Checkpoint.from_path(path)
 
 
-def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
+def test_a_warmup_as_long_as_the_batch_size_is_accepted():
     """
-    Asserts that a save beside the `.partial` file a killed save left behind
-    writes over it and leaves the checkpoint alone in its directory.
+    Asserts that a warm-up of exactly `batch_size` steps, the shortest the
+    settings take, is accepted.
     """
-    (tmp_path / "checkpoint.npz.partial").write_bytes(b"left by a killed save")
-    blank().save(tmp_path / "checkpoint.npz")
+    settings = AgentSettings(batch_size=8, warmup_steps=8)
 
-    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
+    assert settings.warmup_steps == settings.batch_size == 8
 
 
 def test_a_write_interrupted_partway_leaves_the_last_checkpoint_as_it_was(

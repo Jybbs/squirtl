@@ -8,15 +8,15 @@ Pins what the `squirtl` command itself defines, covering:
 
    - Each setting comes from its flag, then the `[tool.squirtl]` table of
      the working directory's `pyproject.toml`, then its default
-   - A key no setting declares, a bare token, and a `--no-` flag are each
-     refused
+   - A key no setting declares, a bare token, a `--no-` flag, and a
+     warm-up short of a batch are each refused
    - Reading the settings writes nothing
    - A command reading the settings its run recorded reads no such table
 """
 
 from collections.abc    import Callable, Mapping
 from common.cli         import Invoker
-from cyclopts           import App, Parameter, UnknownOptionError, UnusedCliTokensError
+from cyclopts           import App, Parameter, UnknownOptionError, UnusedCliTokensError, ValidationError
 from importlib.metadata import EntryPoint, entry_points, version
 from pathlib            import Path
 from pytest             import MonkeyPatch, fixture, mark, param, raises
@@ -110,6 +110,30 @@ def test_a_bool_setting_takes_no_negative_flag(read: Reader):
         read(["--emulator.no-open-window"], None)
 
 
+@mark.parametrize(
+    ("manifest", "argv"),
+    [
+        param(None, ["--agent.warmup-steps", "8"], id="a-flag"),
+        param("[tool.squirtl.agent]\nwarmup-steps = 8\n", [], id="the-agent-table")
+    ]
+)
+def test_a_warmup_short_of_the_batch_size_is_refused(
+    argv     : list[str],
+    manifest : str | None,
+    read     : Reader
+):
+    """
+    Asserts that a warm-up below the default `batch_size` of 32, from its
+    flag or from the `[tool.squirtl.agent]` table, raises the refusal the
+    agent's settings give, naming both, rather than reaching the command.
+    """
+    with raises(
+        ValidationError,
+        match = "a warm-up of 8 steps gathers fewer transitions than the 32 each"
+    ):
+        read(argv, manifest)
+
+
 def test_a_setting_takes_no_positional_token(read: Reader):
     """
     Asserts that a command taking `RunSettings` keyword-only, after a bare
@@ -163,6 +187,12 @@ def test_a_table_above_the_working_directory_is_not_read(
             ["--reward.starter", "0.7"],
             RunSettings(reward=RewardSettings(milestone=0.05, starter=0.7)),
             id = "the-reward-table-beside-a-flag"
+        ),
+        param(
+            "[tool.squirtl.agent]\nbatch-size = 8\n",
+            ["--agent.warmup-steps", "8"],
+            RunSettings(agent=AgentSettings(batch_size=8, warmup_steps=8)),
+            id = "the-agent-table-beside-a-flag"
         ),
         param(
             None,

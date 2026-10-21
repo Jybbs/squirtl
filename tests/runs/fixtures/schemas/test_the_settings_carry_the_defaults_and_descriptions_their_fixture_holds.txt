@@ -79,7 +79,7 @@
         },
         "warmup_steps": {
           "default": 50000,
-          "description": "The environment steps whose transitions replay memory gathers before the\nfirst update, whose default is the replay start size Mnih et al. set.",
+          "description": "The environment steps whose transitions replay memory gathers before the\nfirst update, no fewer than `batch_size`, whose default is the replay\nstart size Mnih et al. set.",
           "exclusiveMinimum": 0,
           "title": "Warmup Steps",
           "type": "integer"
