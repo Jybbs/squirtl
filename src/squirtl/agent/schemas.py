@@ -193,17 +193,17 @@ class Batch(Record):
         recording no autograd graph. Where `chooser` is the online network
         and `network` the target network, the target is van Hasselt et al.'s
         Double DQN target, and where both are the target network, it is the
-        highest value the target network gives, as Mnih et al.'s is.
+        highest value the target network gives, as Mnih et al.'s is, read
+        from one pass of `network`.
         """
         reached = self.next_observations
+        valued  = network(reached)
+        chosen  = valued if chooser is network else chooser(reached)
 
         return (
             self.rewards
             + discount
-                * network(reached).gather(
-                    1,
-                    chooser(reached).argmax(1, keepdim=True)
-                )[:, 0]
+                * valued.gather(1, chosen.argmax(1, keepdim=True))[:, 0]
                 * ~self.terminated
         )
 

@@ -180,6 +180,32 @@ def reversed_frames(observations: Mapping[str, Tensor]) -> Tensor:
     return -frames(observations)
 
 
+def test_a_batch_runs_a_network_choosing_for_itself_once():
+    """
+    Asserts that a batch whose choosing and valuing network are one network
+    runs it once on the observation reached, reading both the choice and its
+    value from that pass.
+    """
+    passes = []
+
+    def network(observations: Mapping[str, Tensor]) -> Tensor:
+        """
+        Values each frame as `frames` does, counting each pass.
+        """
+        passes.append(observations)
+
+        return frames(observations)
+
+    targets = Batch(
+        actions    = tensor([0]),
+        rewards    = tensor([1.0]),
+        terminated = tensor([False]),
+        windows    = {Entry.FRAMES: arange(5, dtype=uint8).reshape(1, 5, 1, 1)}
+    ).targets(network, 0.5, network)
+
+    assert (targets.tolist(), len(passes)) == ([3.0], 1)
+
+
 def test_a_batch_values_each_draw_at_the_action_it_took():
     """
     Asserts that a batch reads the value a network gives each draw's action
@@ -195,26 +221,6 @@ def test_a_batch_values_each_draw_at_the_action_it_took():
     )
 
     assert batch.values(frames).tolist() == [2.0, 5.0]
-
-
-def test_a_checkpoint_is_an_npz_whose_members_zstd_compresses(tmp_path: Path):
-    """
-    Asserts that a checkpoint's file is an `.npz` NumPy's own `load` reads
-    replay memory's arrays from, beside the `agent.pt` member, with every
-    member compressed with zstd.
-    """
-    blank(replay={"actions": zeros(4, "int64"), "held": zeros(4, bool)}).save(
-        tmp_path / "checkpoint.npz"
-    )
-
-    with load_npz(tmp_path / "checkpoint.npz") as archive:
-        assert (sorted(archive.files), archive["held"].dtype) == (
-            ["actions", "agent.pt", "held"],
-            bool
-        )
-        assert {member.compress_type for member in archive.zip.infolist()} == {
-            ZIP_ZSTANDARD
-        }
 
 
 @mark.parametrize(
@@ -276,6 +282,26 @@ def test_a_batch_targets_its_reward_plus_the_discounted_value_of_the_chosen_acti
     ).targets(chooser, 0.5, lambda observations: frames(observations).requires_grad_())
 
     assert (targets.tolist(), targets.requires_grad) == ([target], False)
+
+
+def test_a_checkpoint_is_an_npz_whose_members_zstd_compresses(tmp_path: Path):
+    """
+    Asserts that a checkpoint's file is an `.npz` NumPy's own `load` reads
+    replay memory's arrays from, beside the `agent.pt` member, with every
+    member compressed with zstd.
+    """
+    blank(replay={"actions": zeros(4, "int64"), "held": zeros(4, bool)}).save(
+        tmp_path / "checkpoint.npz"
+    )
+
+    with load_npz(tmp_path / "checkpoint.npz") as archive:
+        assert (sorted(archive.files), archive["held"].dtype) == (
+            ["actions", "agent.pt", "held"],
+            bool
+        )
+        assert {member.compress_type for member in archive.zip.infolist()} == {
+            ZIP_ZSTANDARD
+        }
 
 
 @mark.parametrize(
