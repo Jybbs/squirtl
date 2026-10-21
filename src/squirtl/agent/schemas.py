@@ -78,10 +78,19 @@ class AgentSettings(Record):
     accelerator torch reports and to the CPU where it reports none.
     """
 
-    discount: Fraction = 0.99
+    discount: Fraction = 0.997
     """
     The discount on the value of the state each step reaches, whose default
-    follows Mnih et al.
+    is the one Pleines et al. settle on for this game after tuning over 0.99,
+    0.997, 0.999, and 0.9995.
+    """
+
+    double_q: bool = True
+    """
+    Whether the online network chooses the action at the state each step
+    reaches and the target network values it, as van Hasselt et al.'s
+    Double DQN does, where otherwise the target network does both, as Mnih
+    et al.'s deep Q-network does.
     """
 
     epsilon_end: UnitInterval = 0.01
@@ -119,6 +128,18 @@ class AgentSettings(Record):
     """
     The environment steps between two copies of the online network into the
     target network, whose default follows CleanRL's `dqn_atari.py`.
+    """
+
+    update_steps: PositiveInt = 4
+    """
+    The environment steps between two updates of the online network, whose
+    default is the update frequency Mnih et al. set.
+    """
+
+    warmup_steps: PositiveInt = 50_000
+    """
+    The environment steps whose transitions replay memory gathers before the
+    first update, whose default is the replay start size Mnih et al. set.
     """
 
 
@@ -164,15 +185,26 @@ class Batch(Record):
         return {key: window[:, :-1] for key, window in self.windows.items()}
 
     @no_grad()
-    def targets(self, discount: float, network: QNetwork) -> Tensor:
+    def targets(self, chooser: QNetwork, discount: float, network: QNetwork) -> Tensor:
         """
-        Values each draw at its reward plus `discount` times the highest
-        value `network` gives the observation reached, or the reward alone
-        where it terminated, recording no autograd graph.
+        Values each draw at its reward plus `discount` times the value
+        `network` gives the observation reached under the action `chooser`
+        values highest there, or the reward alone where it terminated,
+        recording no autograd graph. Where `chooser` is the online network
+        and `network` the target network, the target is van Hasselt et al.'s
+        Double DQN target, and where both are the target network, it is the
+        highest value the target network gives, as Mnih et al.'s is.
         """
+        reached = self.next_observations
+
         return (
             self.rewards
-            + discount * network(self.next_observations).amax(1) * ~self.terminated
+            + discount
+                * network(reached).gather(
+                    1,
+                    chooser(reached).argmax(1, keepdim=True)
+                )[:, 0]
+                * ~self.terminated
         )
 
     def values(self, network: QNetwork) -> Tensor:

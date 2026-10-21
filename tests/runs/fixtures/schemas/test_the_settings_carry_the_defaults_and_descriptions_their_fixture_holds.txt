@@ -25,8 +25,14 @@
         },
         "discount": {
           "$ref": "#/$defs/Fraction",
-          "default": 0.99,
-          "description": "The discount on the value of the state each step reaches, whose default\nfollows Mnih et al."
+          "default": 0.997,
+          "description": "The discount on the value of the state each step reaches, whose default\nis the one Pleines et al. settle on for this game after tuning over 0.99,\n0.997, 0.999, and 0.9995."
+        },
+        "double_q": {
+          "default": true,
+          "description": "Whether the online network chooses the action at the state each step\nreaches and the target network values it, as van Hasselt et al.'s\nDouble DQN does, where otherwise the target network does both, as Mnih\net al.'s deep Q-network does.",
+          "title": "Double Q",
+          "type": "boolean"
         },
         "epsilon_end": {
           "$ref": "#/$defs/UnitInterval",
@@ -62,6 +68,20 @@
           "description": "The environment steps between two copies of the online network into the\ntarget network, whose default follows CleanRL's `dqn_atari.py`.",
           "exclusiveMinimum": 0,
           "title": "Sync Steps",
+          "type": "integer"
+        },
+        "update_steps": {
+          "default": 4,
+          "description": "The environment steps between two updates of the online network, whose\ndefault is the update frequency Mnih et al. set.",
+          "exclusiveMinimum": 0,
+          "title": "Update Steps",
+          "type": "integer"
+        },
+        "warmup_steps": {
+          "default": 50000,
+          "description": "The environment steps whose transitions replay memory gathers before the\nfirst update, whose default is the replay start size Mnih et al. set.",
+          "exclusiveMinimum": 0,
+          "title": "Warmup Steps",
           "type": "integer"
         }
       },
@@ -258,8 +278,8 @@
       "type": "integer"
     },
     "steps": {
-      "default": 10000000,
-      "description": "The environment steps the run takes, whose default follows CleanRL's\n`dqn_atari.py`.",
+      "default": 2500000,
+      "description": "The environment steps the run takes, whose default is ten of the\n250,000-step iterations Dopamine's DQN evaluates after.",
       "exclusiveMinimum": 0,
       "title": "Steps",
       "type": "integer"

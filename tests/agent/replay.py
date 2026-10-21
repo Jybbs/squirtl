@@ -15,6 +15,7 @@ from gymnasium.spaces import Box, Dict, MultiBinary
 from itertools        import pairwise
 from numpy            import arange, array, int8, ndarray, uint8, zeros
 from numpy.random     import default_rng
+from numpy.testing    import assert_array_equal
 from pytest           import fixture, mark, param, raises
 from torch.testing    import assert_close
 
@@ -101,7 +102,7 @@ def test_replay_draws_back_each_transition_it_holds_and_nothing_else(
 
     batch = replay.sample("cpu", 500)
 
-    assert len(replay) == held
+    assert replay.held.sum() == held
     assert {
         (
             *(batch.observations[key][draw].numpy().tobytes() for key in tiny),
@@ -297,7 +298,7 @@ def test_replay_loaded_from_another_replays_arrays_draws_and_stores_as_it_would(
     for replay in (saved, loaded):
         replay.store(0, stacked(elements(2, 1), tiny)[-1], 9.0, False)
 
-    assert len(loaded) == len(saved)
+    assert_array_equal(loaded.held, saved.held)
     assert_close(
         loaded.sample("cpu", 32).model_dump(),
         saved.sample("cpu", 32).model_dump(),
@@ -339,4 +340,4 @@ def test_replay_refuses_arrays_of_another_dtype_or_name(
     with raises(ValueError, match=refusal):
         loaded.load(change(saved.arrays))
 
-    assert len(loaded) == 0
+    assert not loaded.held.any()

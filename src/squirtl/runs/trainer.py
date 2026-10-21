@@ -245,10 +245,10 @@ class Trainer(AbstractContextManager):
     def play(self) -> Iterator[int]:
         """
         Plays one episode, the agent choosing each action, remembering each
-        transition, and updating after each step, and yields the agent's
-        step count after each one. It records the episode once it terminates
-        or truncates, whereas an episode the run's `steps` cut short goes
-        unrecorded.
+        transition, and updating on the steps its schedule names, and yields
+        the agent's step count after each one. It records the episode once
+        it terminates or truncates, whereas an episode the run's `steps` cut
+        short goes unrecorded.
         """
         observation, _ = self.env.reset(seed=self.seed)
         updates        = list[Update]()

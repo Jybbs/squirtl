@@ -157,10 +157,10 @@ class RunSettings(Record):
     follows CleanRL's `dqn_atari.py`.
     """
 
-    steps: PositiveInt = 10_000_000
+    steps: PositiveInt = 2_500_000
     """
-    The environment steps the run takes, whose default follows CleanRL's
-    `dqn_atari.py`.
+    The environment steps the run takes, whose default is ten of the
+    250,000-step iterations Dopamine's DQN evaluates after.
     """
 
     @property
@@ -558,7 +558,7 @@ class Episode(Outcome):
     loss: float | None
     """
     The mean Huber loss over the updates the episode's steps took, or `None`
-    where replay memory held too few transitions for any.
+    where none of its steps took one.
     """
 
     recording: Recording

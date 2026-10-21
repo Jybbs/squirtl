@@ -311,8 +311,9 @@ def test_an_episodes_line_averages_the_updates_its_steps_took(
 ):
     """
     Asserts that the first episode's line holds no loss or value, since its
-    six transitions fall short of a batch of eight, whereas each line after
-    it holds both.
+    six steps fall short of the warm-up of eight, whereas each line after it
+    holds both, the second from its updates at steps 8 and 12 and the third
+    from its update at step 16.
     """
     assert [
         (episode.loss is None, episode.value is None)

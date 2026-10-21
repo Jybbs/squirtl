@@ -6,8 +6,7 @@ slots.
 
 from collections.abc  import Mapping
 from gymnasium.spaces import Box, Dict, MultiBinary
-from numpy            import arange, asarray, count_nonzero, flatnonzero, float32, int64, ndarray, packbits, uint8
-from numpy            import unpackbits, zeros
+from numpy            import arange, asarray, flatnonzero, float32, int64, ndarray, packbits, uint8, unpackbits, zeros
 from numpy.random     import Generator
 from operator         import itemgetter
 from torch            import as_tensor
@@ -93,12 +92,6 @@ class Replay:
         self.pushed     = 0
         self.rewards    = zeros(capacity, float32)
         self.terminated = zeros(capacity, bool)
-
-    def __len__(self) -> int:
-        """
-        Counts the transitions replay memory holds.
-        """
-        return count_nonzero(self.held)
 
     @property
     def arrays(self) -> dict[str, ndarray]:

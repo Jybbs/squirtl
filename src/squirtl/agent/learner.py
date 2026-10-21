@@ -24,8 +24,9 @@ class Agent:
     """
     A deep Q-network agent after Mnih et al., choosing each action
     epsilon-greedily from its online network and training that network
-    toward targets its target network values, with the target network a copy
-    of the online network every `sync_steps` steps.
+    every `update_steps` steps after a warm-up of `warmup_steps`, toward the
+    Double DQN targets of van Hasselt et al. where `double_q` is set. Its
+    target network is a copy of the online network every `sync_steps` steps.
     """
 
     def __init__(
@@ -173,24 +174,35 @@ class Agent:
     def update(self) -> Update | None:
         """
         Takes one gradient step on the Huber loss between the online
-        network's values for a batch and the target network's targets, its
-        gradient's norm clipped at `max_grad_norm`, and none before replay
-        memory holds a batch.
+        network's values for a batch and the targets the target network
+        values, under the action the online network chooses where `double_q`
+        is set, its gradient's norm clipped at `max_grad_norm`. It takes one
+        on each environment step `update_steps` divides once the agent has
+        remembered `warmup_steps` steps, and none on any other.
 
         Returns:
-            The loss and the mean value the step read, or `None` where
-            replay memory holds too few transitions to draw a batch.
+            The loss and the mean value the step read, or `None` on an
+            environment step that takes none.
         """
-        if len(self.replay) < self.settings.batch_size:
+        settings = self.settings
+
+        if self.step < settings.warmup_steps or self.step % settings.update_steps:
             return None
 
-        batch  = self.replay.sample(self.settings.device, self.settings.batch_size)
+        batch  = self.replay.sample(settings.device, settings.batch_size)
         values = batch.values(self.online)
-        loss   = huber_loss(values, batch.targets(self.settings.discount, self.target))
+        loss   = huber_loss(
+            values,
+            batch.targets(
+                self.online if settings.double_q else self.target,
+                settings.discount,
+                self.target
+            )
+        )
 
         self.optimizer.zero_grad()
         loss.backward()
-        clip_grad_norm_(self.online.parameters(), self.settings.max_grad_norm)
+        clip_grad_norm_(self.online.parameters(), settings.max_grad_norm)
         self.optimizer.step()
 
         return Update(loss=loss.item(), value=values.mean().item())

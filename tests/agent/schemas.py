@@ -3,7 +3,8 @@ Pins the records the agent reads and writes, covering:
 
 - The device the settings default to, the values they refuse, and the
   bound a fraction accepts
-- The value and the target a batch reads for each draw
+- The value a batch reads for each draw, and its target under the action
+  one network chooses and another values
 - A checkpoint reading back as written with each `state_dict`'s metadata
   and replay memory's arrays, refusing a file holding more than tensors
   and plain values or a network entry that is no tensor
@@ -15,7 +16,7 @@ Pins the records the agent reads and writes, covering:
 - The weights read from a checkpoint's `agent.pt` member alone
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from numpy           import load as load_npz, zeros
 from numpy.testing   import assert_array_equal
 from os              import fstat, truncate
@@ -24,7 +25,7 @@ from pickle          import UnpicklingError
 from pydantic        import ValidationError
 from pytest          import MonkeyPatch, mark, param, raises
 from stat            import S_ISDIR
-from torch           import arange, device, equal, save, tensor, uint8
+from torch           import Tensor, arange, device, equal, save, tensor, uint8
 from torch.nn        import Linear
 from zipfile         import ZIP_ZSTANDARD, ZipFile
 
@@ -87,7 +88,9 @@ def test_the_device_defaults_to_the_accelerator_torch_reports(
         param("exploration_fraction", 0,    id="no-exploration"),
         param("learning_rate",        0,    id="no-learning-rate"),
         param("max_grad_norm",        0,    id="no-gradient-norm"),
-        param("sync_steps",           0,    id="no-steps-between-syncs")
+        param("sync_steps",           0,    id="no-steps-between-syncs"),
+        param("update_steps",         0,    id="no-steps-between-updates"),
+        param("warmup_steps",         0,    id="no-warmup")
     ]
 )
 def test_the_settings_refuse_a_value_outside_its_range(field: str, value: float):
@@ -127,6 +130,14 @@ def flip_agent_frame(path: Path):
     path.write_bytes(data)
 
 
+def frames(observations: Mapping[str, Tensor]) -> Tensor:
+    """
+    Values each frame of a one-pixel stack as one action, at the value its
+    pixel holds.
+    """
+    return observations[Entry.FRAMES][:, :, 0, 0].float()
+
+
 def mark_an_unknown_method(path: Path):
     """
     Writes into the central directory entry of the archive's first member at
@@ -161,6 +172,14 @@ def pack(agent: dict[str, object], path: Path, **members: bytes):
             archive.writestr(name, data)
 
 
+def reversed_frames(observations: Mapping[str, Tensor]) -> Tensor:
+    """
+    Values each frame of a one-pixel stack as one action, at the negative of
+    the value its pixel holds, so it values the first frame highest.
+    """
+    return -frames(observations)
+
+
 def test_a_batch_values_each_draw_at_the_action_it_took():
     """
     Asserts that a batch reads the value a network gives each draw's action
@@ -175,9 +194,7 @@ def test_a_batch_values_each_draw_at_the_action_it_took():
         windows    = {Entry.FRAMES: arange(10, dtype=uint8).reshape(2, 5, 1, 1)}
     )
 
-    assert batch.values(
-        lambda observations: observations[Entry.FRAMES][:, :, 0, 0].float()
-    ).tolist() == [2.0, 5.0]
+    assert batch.values(frames).tolist() == [2.0, 5.0]
 
 
 def test_a_checkpoint_is_an_npz_whose_members_zstd_compresses(tmp_path: Path):
@@ -230,36 +247,33 @@ def test_a_checkpoint_refuses_a_network_entry_that_is_no_tensor(
 
 
 @mark.parametrize(
-    ("terminated", "target"),
+    ("chooser", "terminated", "target"),
     [
-        param(False, 3.0, id="a-step-the-episode-goes-on-from"),
-        param(True,  1.0, id="a-terminated-step")
+        param(frames,          False, 3.0, id="the-valuing-networks-own-choice"),
+        param(reversed_frames, False, 1.5, id="another-networks-choice"),
+        param(frames,          True,  1.0, id="a-terminated-step")
     ]
 )
-def test_a_batch_targets_its_reward_plus_the_discounted_highest_value_reached(
+def test_a_batch_targets_its_reward_plus_the_discounted_value_of_the_chosen_action(
+    chooser    : Callable[[Mapping[str, Tensor]], Tensor],
     target     : float,
     terminated : bool
 ):
     """
     Asserts that a batch targets a draw at its reward of one plus 0.5 times
-    the highest value a network gives the stack its action reached, which a
-    network valuing each of a stack's frames as one action puts at the 4 of
-    frames 1 to 4, so 3, and at its reward alone where the step terminated
-    the episode, recording no autograd graph either way.
+    the value a network gives the stack its action reached under the action
+    `chooser` values highest there, recording no autograd graph. The network
+    values each of the stack's frames 1 to 4 as one action, so the 4 of its
+    own choice targets 3, the 1 of the first action, which a chooser valuing
+    the frames in reverse picks, targets 1.5, and a terminated step targets
+    its reward alone.
     """
     targets = Batch(
         actions    = tensor([0]),
         rewards    = tensor([1.0]),
         terminated = tensor([terminated]),
         windows    = {Entry.FRAMES: arange(5, dtype=uint8).reshape(1, 5, 1, 1)}
-    ).targets(
-        0.5,
-        lambda observations: (
-            observations[Entry.FRAMES][:, :, 0, 0]
-            .float()
-            .requires_grad_()
-        )
-    )
+    ).targets(chooser, 0.5, lambda observations: frames(observations).requires_grad_())
 
     assert (targets.tolist(), targets.requires_grad) == ([target], False)
 

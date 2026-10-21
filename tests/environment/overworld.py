@@ -151,9 +151,14 @@ def test_an_agent_learns_from_the_observations_the_environment_makes(
     agent = Agent(
         actions  = env.action_space.n,
         seed     = 0,
-        settings = AgentSettings(batch_size=4, capacity=64, device="cpu"),
-        space    = env.observation_space,
-        steps    = 8
+        settings = AgentSettings(
+            batch_size   = 4,
+            capacity     = 64,
+            device       = "cpu",
+            warmup_steps = 4
+        ),
+        space = env.observation_space,
+        steps = 8
     )
     observation, _ = env.reset(seed=0)
     agent.begin(observation)
