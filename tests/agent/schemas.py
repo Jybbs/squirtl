@@ -1,8 +1,10 @@
 """
 Pins the records the agent reads and writes, covering:
 
-- The device the settings default to, the values they refuse, a warm-up
-  short of a batch among them, and the bound a fraction accepts
+- The device the settings default to, and the values they refuse, a
+  warm-up short of a batch among them
+- The values the settings accept at a bound, a fraction of one and a
+  warm-up as long as a batch
 - The value a batch reads for each draw, and its target under the action
   one network chooses and another values
 - A checkpoint reading back as written with each `state_dict`'s metadata
@@ -96,9 +98,9 @@ def test_the_device_defaults_to_the_accelerator_torch_reports(
 def test_the_settings_refuse_a_value_outside_its_range(field: str, value: float):
     """
     Asserts that each setting refuses a value outside the range its field
-    declares.
+    declares, the error located at that field.
     """
-    with raises(ValidationError, match=field):
+    with raises(ValidationError, match=rf"(?m)^{field}$"):
         AgentSettings(**{field: value})
 
 

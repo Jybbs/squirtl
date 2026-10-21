@@ -64,8 +64,8 @@ def test_a_greedy_action_is_the_one_the_online_network_values_highest(
     [
         param(32, 1, 31, False, id="a-step-short-of-the-warmup"),
         param(32, 1, 32, True,  id="the-warmups-last-step"),
-        param(32, 4, 35, False, id="a-step-the-interval-skips"),
-        param(32, 4, 36, True,  id="a-step-the-interval-divides"),
+        param(33, 4, 35, False, id="a-step-the-interval-skips"),
+        param(33, 4, 36, True,  id="a-step-the-interval-divides"),
         param(40, 4, 36, False, id="a-step-the-interval-divides-inside-the-warmup")
     ]
 )
