@@ -129,7 +129,8 @@ class GameBoy(AbstractContextManager):
         Copies the red channel of the frame the emulator last rendered,
         which holds that frame in gray. PyBoy draws a cartridge made for
         the original Game Boy, as Pokémon Blue is, in the four grays of its
-        default `color_palette`, each with equal red, green, and blue.
+        default `color_palette`, each with equal red, green, and blue, until
+        the `c` key in an open window cycles it to a colored palette.
 
         Returns:
             A `(144, 160)` array of `uint8`, which no later frame overwrites.

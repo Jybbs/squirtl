@@ -339,6 +339,7 @@ def test_the_frame_a_step_observes_is_gymnasiums_grayscale_of_its_render(
     """
     with make(made().spec, render_mode="rgb_array") as env:
         overworld = env.unwrapped
+        # `AddRenderObservation` resets and renders `overworld` as it is built.
         grayscale = GrayscaleObservation(AddRenderObservation(overworld))
         shade(overworld.game_boy)
         frame = overworld.step(0)[0]

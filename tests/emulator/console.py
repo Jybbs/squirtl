@@ -14,7 +14,8 @@ Pins how `GameBoy` runs a cartridge through PyBoy, covering:
 from collections.abc import Callable, Iterator
 from common.console  import StandIn
 from functools       import partial
-from numpy           import arange, ndarray, shares_memory, tile, uint8, zeros
+from numpy           import arange, ndarray, shares_memory, tile, uint8
+from numpy.random    import default_rng
 from numpy.testing   import assert_array_equal
 from operator        import attrgetter
 from pyboy.utils     import PyBoyInvalidOperationException
@@ -244,13 +245,20 @@ def test_a_window_the_setting_opens_is_one_pyboy_runs(
 def test_the_frame_a_press_returns_holds_the_red_channel_alone(boot: Boot):
     """
     Asserts that the frame a press returns is a `(144, 160)` array of
-    `uint8` holding the red channel of PyBoy's RGBA frame alone, read from
-    a stand-in frame whose every pixel holds each channel's index in that
-    channel.
+    `uint8` holding the red channel of PyBoy's RGBA frame alone, read from a
+    stand-in frame of bytes a generator seeded at 0 draws, whose red channel
+    no reduction across the channels gives.
     """
+    game_boy                = boot(EmulatorSettings())
+    game_boy.emulator.frame = default_rng(0).integers(
+        256,
+        dtype = uint8,
+        size  = (144, 160, 4)
+    )
+
     assert_array_equal(
-        boot(EmulatorSettings()).press(None, 1),
-        zeros((144, 160), uint8),
+        game_boy.press(None, 1),
+        game_boy.emulator.frame[..., 0],
         strict = True
     )
 
