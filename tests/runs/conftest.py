@@ -72,10 +72,16 @@ def short(clone: Path, rom: Path) -> RunSettings:
     Builds the settings of a 20-step run in `clone` on the CPU, reading
     the cartridge `rom` writes, its episodes truncated after 6 steps, a
     checkpoint at the first episode end reaching each multiple of 10 steps,
-    and each update drawing 8 transitions from 64 slots.
+    and an update every fourth step from step 8 on, drawing 8 transitions
+    from 64 slots.
     """
     return RunSettings(
-        agent            = AgentSettings(batch_size=8, capacity=64, device="cpu"),
+        agent = AgentSettings(
+            batch_size   = 8,
+            capacity     = 64,
+            device       = "cpu",
+            warmup_steps = 8
+        ),
         checkpoint_steps = 10,
         environment      = EnvironmentSettings(max_episode_steps=6),
         steps            = 20

@@ -3,7 +3,9 @@ Pins the wrappers `Overworld.specification` names beside Gymnasium's
 own, covering:
 
 - The mean `ShrinkObservation` takes over each square or oblong block of a
-  frame small enough to average by hand
+  frame small enough to average by hand, and the cells it shrinks a frame
+  of PyBoy to at each block shape, which a reshape into blocks summed
+  over each block also gives
 - The `Outcome` `RecordOutcome` reports at an episode's last step alone,
   whether `TimeLimit` truncates the episode or the starter ends it
 """
@@ -11,7 +13,8 @@ own, covering:
 from common.console     import set_event
 from gymnasium          import Env
 from gymnasium.wrappers import RecordEpisodeStatistics, TimeLimit
-from numpy              import array, uint8
+from numpy              import array, uint8, unique
+from numpy.testing      import assert_array_equal
 from pytest             import fixture, mark, param
 
 from squirtl.environment.overworld import Overworld
@@ -65,6 +68,39 @@ def test_a_frame_shrinks_to_the_mean_of_each_block_rounding_a_half_up(
     result = ShrinkObservation(overworld, shape).observation(array(frame, uint8))
 
     assert (result.tolist(), result.dtype) == (shrunk, uint8)
+
+
+@mark.parametrize(
+    "shape",
+    [
+        param((72, 80),   id="blocks-of-2-by-2"),
+        param((48, 32),   id="blocks-of-3-by-5"),
+        param((144, 160), id="blocks-of-one-pixel"),
+        param((1, 1),     id="one-block-of-the-whole-frame")
+    ]
+)
+def test_a_frame_of_pyboy_shrinks_as_a_reshape_into_blocks_summed_shrinks_it(
+    shaded : Overworld,
+    shape  : tuple[int, int]
+):
+    """
+    Asserts that a gray frame of PyBoy holding all four of its grays shrinks
+    into the cells a reshape into `(height, rows, width, columns)` blocks
+    gives once each block is summed, a half added, and the sum divided by
+    the pixels each block holds, down to one block summing every pixel of
+    the frame.
+    """
+    frame         = shaded.game_boy.grayscale
+    height, width = shape
+    blocks        = frame.reshape(height, 144 // height, width, 160 // width)
+    pixels        = blocks.shape[1] * blocks.shape[3]
+
+    assert unique(frame).tolist() == [0, 85, 153, 255]
+    assert_array_equal(
+        ShrinkObservation(shaded, shape).observation(frame),
+        ((blocks.sum(axis=(1, 3)) + pixels // 2) // pixels).astype(uint8),
+        strict = True
+    )
 
 
 @mark.usefixtures("walking")

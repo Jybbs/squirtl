@@ -5,7 +5,8 @@ Pins the records one run reads and writes, covering:
   from the run down to each subject's settings, and the settings refusing
   a negative seed
 - The default, the bounds, and the description each field of the settings
-  declares, the run's own and each subject's
+  declares, the run's own and each subject's, and the defaults ending the
+  warm-up inside an anneal outlasting a random walk to the starter
 - The seed each stream derives from the run's one seed
 - The revision read from a clone, what marks it dirty, and the output it
   refuses
@@ -718,6 +719,19 @@ def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
     seeds = RunSettings().seeds
 
     assert "\n".join(f"{stream} {seed}" for stream, seed in seeds.items()) == snapshot
+
+
+def test_the_default_warmup_ends_inside_an_anneal_outlasting_a_random_walk():
+    """
+    Asserts that at the default settings the chance of a random action
+    anneals over at least the 37,000 presses a uniform random walk from the
+    bedroom can take to reach the starter, and that the warm-up ends before
+    that anneal does.
+    """
+    settings = RunSettings()
+    anneal   = settings.agent.exploration_fraction * settings.steps
+
+    assert settings.agent.warmup_steps < anneal and anneal >= 37_000
 
 
 def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(

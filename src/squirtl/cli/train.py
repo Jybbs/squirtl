@@ -37,6 +37,8 @@ def train(
     unless `--emulator.open-window` is set, logging a line per episode above
     a progress bar.
 
+    A setting on by default turns off as `--agent.double-q=false` does.
+
     The run writes its record, a line per episode, and a checkpoint into a
     directory of its own under `data/runs/`, which the command prints once
     the run ends. An interrupt, a termination signal, or `squirtl stop` ends

@@ -6,7 +6,7 @@ Defines the fixtures the tests of `squirtl.agent` request:
 - `episode`, `observation`, and `stacked`, random episodes and observations
   of that space, stacked as a frame stack stacks them
 - `play` and `resume`, which play an episode through an agent and restore
-  its checkpoint into another
+  its checkpoint into another built under the same settings
 """
 
 from collections.abc  import Callable, Mapping
@@ -112,10 +112,12 @@ def play(episode: Callable[[int], Observations]) -> Callable[..., None]:
 
 
 @fixture
-def resume(build: Callable[..., Agent], tmp_path: Path) -> Callable[[Agent], Agent]:
+def resume(space: Dict, tmp_path: Path) -> Callable[[Agent], Agent]:
     """
     Builds a function saving an agent's checkpoint under `tmp_path` and
-    restoring it into an agent built from seed 2.
+    restoring it into an agent built from seed 2 under the saved agent's
+    settings and run length, as a resumed run builds its agent under the
+    settings its run recorded.
     """
 
     def resume(agent: Agent) -> Agent:
@@ -126,7 +128,13 @@ def resume(build: Callable[..., Agent], tmp_path: Path) -> Callable[[Agent], Age
             The agent the checkpoint was restored into.
         """
         agent.checkpoint.save(tmp_path / "checkpoint.npz")
-        restored = build(seed=2)
+        restored = Agent(
+            actions  = agent.actions,
+            seed     = 2,
+            settings = agent.settings,
+            space    = space,
+            steps    = agent.steps
+        )
         restored.restore(Checkpoint.from_path(tmp_path / "checkpoint.npz"))
 
         return restored

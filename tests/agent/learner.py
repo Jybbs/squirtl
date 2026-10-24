@@ -2,13 +2,16 @@
 Pins the agent, each training step on the CPU under a fixed seed, covering:
 
 - An update changing the online network and leaving the target alone, no
-  update until replay memory holds a batch, the target each update moves
-  toward, the norm it clips the gradient to, the gradient it computes
-  afresh rather than adding to the one a parameter held, and the loss and
-  value it returns
+  update before the warm-up ends or on a step the update interval skips,
+  the Double DQN target each update moves toward and the target network's
+  own highest value in its place, the norm it clips the gradient to, the
+  gradient it computes afresh rather than adding to the one a parameter
+  held, and the loss and value it returns
 - The capacity of replay memory and Adam's learning rate, each read from
-  the settings the agent is built with
-- The target network copying the online network every `sync_steps` steps
+  the settings the agent is built with, and the NNPACK flag and the thread
+  count it sets for its whole process
+- The target network copying the online network every `sync_steps` steps,
+  before the update of a step both intervals divide
 - The chance of a random action across the run, the random actions it
   draws, and the greedy action it evaluates with no autograd graph
 - The weights a seed builds, which leave each of PyTorch's global generators
@@ -18,18 +21,34 @@ Pins the agent, each training step on the CPU under a fixed seed, covering:
   refused
 """
 
-from collections.abc     import Callable
+from collections.abc     import Callable, Iterator
+from contextlib          import ExitStack
 from copy                import deepcopy
 from numpy               import ndarray
-from pytest              import MonkeyPatch, approx, mark, param, raises
-from torch               import Tensor, as_tensor, equal, full, get_rng_state, is_inference_mode_enabled, manual_seed
-from torch               import no_grad, ones_like
+from pytest              import MonkeyPatch, approx, fixture, mark, param, raises
+from torch               import Tensor, arange, as_tensor, equal, full, get_num_threads, get_rng_state
+from torch               import is_inference_mode_enabled, manual_seed, no_grad, ones_like, set_num_threads, tensor
+from torch.backends      import nnpack
 from torch.nn            import Linear
-from torch.nn.functional import huber_loss
+from torch.nn.functional import huber_loss, one_hot
 from torch.nn.utils      import parameters_to_vector
 from torch.testing       import assert_close
 
 from squirtl.agent.learner import Agent
+
+
+@fixture
+def two_threads() -> Iterator[None]:
+    """
+    Sets the threads PyTorch runs on to two for the test, then back to the
+    count it held once the test ends, since an agent sets that count for its
+    whole process.
+    """
+    with ExitStack() as stack:
+        stack.callback(set_num_threads, get_num_threads())
+        set_num_threads(2)
+
+        yield
 
 
 def test_a_greedy_action_is_the_one_the_online_network_values_highest(
@@ -58,24 +77,30 @@ def test_a_greedy_action_is_the_one_the_online_network_values_highest(
 
 
 @mark.parametrize(
-    ("steps", "moved"),
+    ("warmup", "interval", "steps", "moved"),
     [
-        param(31, False, id="a-transition-short-of-a-batch"),
-        param(32, True, id="a-full-batch")
+        param(32, 1, 31, False, id="a-step-short-of-the-warmup"),
+        param(32, 1, 32, True,  id="the-warmups-last-step"),
+        param(33, 4, 35, False, id="a-step-the-interval-skips"),
+        param(33, 4, 36, True,  id="a-step-the-interval-divides"),
+        param(40, 4, 36, False, id="a-step-the-interval-divides-inside-the-warmup")
     ]
 )
-def test_an_update_waits_for_replay_to_hold_a_batch(
-    build : Callable[..., Agent],
-    moved : bool,
-    play  : Callable[..., None],
-    steps : int
+def test_an_update_lands_on_each_step_the_interval_divides_once_the_warmup_ends(
+    build    : Callable[..., Agent],
+    interval : int,
+    moved    : bool,
+    play     : Callable[..., None],
+    steps    : int,
+    warmup   : int
 ):
     """
     Asserts that an update leaves the online network as it was and returns
-    `None` while replay memory holds fewer transitions than `batch_size`,
-    and moves it and returns what it read once replay holds that many.
+    `None` before the agent has remembered `warmup_steps` steps or on a step
+    `update_steps` does not divide, and moves it and returns what it read on
+    a step `update_steps` divides once the agent has remembered that many.
     """
-    agent = build()
+    agent = build(update_steps=interval, warmup_steps=warmup)
     play(agent, steps)
     online = parameters_to_vector(agent.online.parameters())
 
@@ -86,14 +111,16 @@ def test_an_update_waits_for_replay_to_hold_a_batch(
 
 
 @mark.parametrize(
-    ("terminated", "target"),
+    ("double_q", "terminated", "target"),
     [
-        param(False, 1.5,  id="a-step-the-episode-goes-on-from"),
-        param(True,  1.0,  id="a-terminated-step")
+        param(True,  False, 2.0, id="the-online-networks-choice"),
+        param(False, False, 4.0, id="the-target-networks-own-choice"),
+        param(True,  True,  1.0, id="a-terminated-step")
     ]
 )
 def test_an_update_targets_each_reward_plus_the_discounted_value_that_follows(
     build       : Callable[..., Agent],
+    double_q    : bool,
     monkeypatch : MonkeyPatch,
     play        : Callable[..., None],
     target      : float,
@@ -101,18 +128,29 @@ def test_an_update_targets_each_reward_plus_the_discounted_value_that_follows(
 ):
     """
     Asserts that an update draws a batch of `batch_size` and moves each
-    value toward its reward of one plus `discount` times the highest value
-    the target network gives the observation reached, which a target network
-    whose last layer has zero weights and a bias of one puts at one, so
-    1.5 for a batch of 8 at a discount of 0.5, and toward the reward of one
-    alone where the step terminated the episode.
+    value toward its reward of one plus `discount` times the value the
+    target network gives the observation reached under the action the
+    online network chooses there, and under the action the target network
+    values highest where `double_q` is off. Each network's last layer
+    has zero weights, the online network's bias choosing action 2 and the
+    target network's valuing each action at its index, so a batch of 8 at a
+    discount of 0.5 targets 2.0 and 4.0, and the reward of one alone where
+    the step terminated the episode.
     """
-    agent   = build(batch_size=8, discount=0.5)
+    agent = build(
+        batch_size   = 8,
+        discount     = 0.5,
+        double_q     = double_q,
+        warmup_steps = 8
+    )
     targets = []
 
     with no_grad():
-        agent.target.head[-1].weight.zero_()
-        agent.target.head[-1].bias.fill_(1)
+        for network in (agent.online, agent.target):
+            network.head[-1].weight.zero_()
+
+        agent.online.head[-1].bias.copy_(one_hot(tensor(2), 7))
+        agent.target.head[-1].bias.copy_(arange(7))
 
     play(agent, 8, terminated)
     monkeypatch.setattr(
@@ -248,6 +286,29 @@ def test_a_restored_agent_draws_what_the_saved_agent_would(
     assert first == second
 
 
+def test_a_restored_agent_holds_the_saved_agents_replay_memory(
+    build  : Callable[..., Agent],
+    play   : Callable[..., None],
+    resume : Callable[[Agent], Agent]
+):
+    """
+    Asserts that an agent restoring a checkpoint holds every transition
+    the saved agent's replay memory held, drawing the batch the saved agent
+    draws.
+    """
+    saved = build()
+    play(saved, 40)
+    restored = resume(saved)
+
+    assert restored.replay.held.sum() == saved.replay.held.sum() == 40
+    assert_close(
+        restored.replay.sample("cpu", 32).model_dump(),
+        saved.replay.sample("cpu", 32).model_dump(),
+        atol = 0,
+        rtol = 0
+    )
+
+
 @mark.parametrize(
     ("seed", "same"),
     [param(1, True, id="the-same-seed"), param(2, False, id="another-seed")]
@@ -274,29 +335,6 @@ def test_a_seed_builds_the_online_networks_weights(
     )
 
 
-def test_a_restored_agent_holds_the_saved_agents_replay_memory(
-    build  : Callable[..., Agent],
-    play   : Callable[..., None],
-    resume : Callable[[Agent], Agent]
-):
-    """
-    Asserts that an agent restoring a checkpoint holds every transition
-    the saved agent's replay memory held, drawing the batch the saved agent
-    draws.
-    """
-    saved = build()
-    play(saved, 40)
-    restored = resume(saved)
-
-    assert len(restored.replay) == len(saved.replay) == 40
-    assert_close(
-        restored.replay.sample("cpu", 32).model_dump(),
-        saved.replay.sample("cpu", 32).model_dump(),
-        atol = 0,
-        rtol = 0
-    )
-
-
 def test_a_restored_agent_keeps_training_from_the_saved_state(
     build  : Callable[..., Agent],
     play   : Callable[..., None],
@@ -308,8 +346,8 @@ def test_a_restored_agent_keeps_training_from_the_saved_state(
     online network, Adam counting that update after the saved ones, so the
     optimizer steps the parameters the checkpoint loaded into.
     """
-    saved = build()
-    play(saved, 33)
+    saved = build(warmup_steps=32)
+    play(saved, 32)
     saved.update()
     saved.update()
     restored = resume(saved)
@@ -330,6 +368,30 @@ def test_a_restored_agent_keeps_training_from_the_saved_state(
     assert {state["step"].item() for state in restored.optimizer.state.values()} == {3}
 
 
+def test_a_step_both_intervals_divide_copies_the_target_before_its_update(
+    build : Callable[..., Agent],
+    play  : Callable[..., None]
+):
+    """
+    Asserts that on a step `sync_steps` and `update_steps` both divide, the
+    target network takes the online network's parameters before that step's
+    update moves them, so the target holds the online network as it stood
+    before the update.
+    """
+    agent = build(
+        batch_size   = 4,
+        sync_steps   = 4,
+        update_steps = 4,
+        warmup_steps = 4
+    )
+    play(agent, 4)
+    synced = parameters_to_vector(agent.online.parameters())
+    agent.update()
+
+    assert equal(parameters_to_vector(agent.target.parameters()), synced)
+    assert not equal(parameters_to_vector(agent.online.parameters()), synced)
+
+
 def test_an_update_changes_the_online_network_and_leaves_the_target_alone(
     build : Callable[..., Agent],
     play  : Callable[..., None]
@@ -339,7 +401,7 @@ def test_an_update_changes_the_online_network_and_leaves_the_target_alone(
     online network's parameters and leaves every parameter of the target
     network as it was.
     """
-    agent = build()
+    agent = build(warmup_steps=32)
     play(agent, 32)
     online, target = (
         parameters_to_vector(network.parameters()) for network in (
@@ -384,6 +446,50 @@ def test_the_agent_builds_on_the_settings_it_is_given(
 
 
 @mark.parametrize(
+    ("threads", "count"),
+    [param(None, 2, id="no-count-named"), param(1, 1, id="one-thread-named")]
+)
+@mark.usefixtures("two_threads")
+def test_building_an_agent_sets_the_thread_count_its_settings_name(
+    build   : Callable[..., Agent],
+    count   : int,
+    threads : int | None
+):
+    """
+    Asserts that building an agent sets the threads PyTorch runs on to the
+    `threads` its settings name, and leaves the two `two_threads` set where
+    they name none.
+    """
+    build(threads=threads)
+
+    assert get_num_threads() == count
+
+
+def test_an_update_clips_the_gradient_norm_at_max_grad_norm(
+    build : Callable[..., Agent],
+    play  : Callable[..., None]
+):
+    """
+    Asserts that the gradient Adam steps on carries a norm of
+    `max_grad_norm`, read through a hook that runs before the step.
+    """
+    agent = build(max_grad_norm=1e-3, warmup_steps=32)
+    norms = []
+    play(agent, 32)
+    agent.optimizer.register_step_pre_hook(
+        lambda *_: norms.append(
+            parameters_to_vector(
+                parameter.grad for parameter in agent.online.parameters()
+            ).norm().item()
+        )
+    )
+
+    agent.update()
+
+    assert norms == [approx(1e-3, rel=1e-4)]
+
+
+@mark.parametrize(
     "reseed",
     [
         param("torch.cuda.manual_seed_all", id="cuda"),
@@ -408,30 +514,6 @@ def test_building_an_agent_reseeds_no_accelerators_generator(
     assert reseeded == []
 
 
-def test_an_update_clips_the_gradient_norm_at_max_grad_norm(
-    build : Callable[..., Agent],
-    play  : Callable[..., None]
-):
-    """
-    Asserts that the gradient Adam steps on carries a norm of
-    `max_grad_norm`, read through a hook that runs before the step.
-    """
-    agent = build(max_grad_norm=1e-3)
-    norms = []
-    play(agent, 32)
-    agent.optimizer.register_step_pre_hook(
-        lambda *_: norms.append(
-            parameters_to_vector(
-                parameter.grad for parameter in agent.online.parameters()
-            ).norm().item()
-        )
-    )
-
-    agent.update()
-
-    assert norms == [approx(1e-3, rel=1e-4)]
-
-
 def test_an_update_computes_its_gradient_afresh(
     build : Callable[..., Agent],
     play  : Callable[..., None]
@@ -440,7 +522,7 @@ def test_an_update_computes_its_gradient_afresh(
     Asserts that an update leaves each parameter holding the gradient of its
     own batch alone, whatever gradient the parameter held before it.
     """
-    agent = build()
+    agent = build(warmup_steps=32)
     play(agent, 32)
     twin = deepcopy(agent)
 
@@ -466,7 +548,7 @@ def test_an_update_returns_the_loss_it_steps_on_and_the_batchs_mean_value(
     step on and the mean of the values the online network gave the batch's
     actions, both read before the step moves the network.
     """
-    agent = build()
+    agent = build(warmup_steps=32)
     read  = []
     play(agent, 32)
 
@@ -496,3 +578,16 @@ def test_building_an_agent_leaves_torchs_global_generator_alone(
     build()
 
     assert equal(get_rng_state(), manual_seed(5).get_state())
+
+
+def test_building_an_agent_turns_nnpack_off(build: Callable[..., Agent]):
+    """
+    Asserts that building an agent inside a block holding NNPACK on turns
+    it off for the whole process. `set_flags` returns the flag it replaces,
+    which reads that state back, and the block restores the flag it found
+    once it ends.
+    """
+    with nnpack.flags(enabled=True):
+        build()
+
+        assert nnpack.set_flags(True) == (False,)

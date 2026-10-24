@@ -1,9 +1,12 @@
 """
 Pins the records the agent reads and writes, covering:
 
-- The device the settings default to, the values they refuse, and the
-  bound a fraction accepts
-- The value and the target a batch reads for each draw
+- The device the settings default to, and the values they refuse, a
+  warm-up short of a batch among them
+- The values the settings accept at a bound, a fraction of one and a
+  warm-up as long as a batch
+- The value a batch reads for each draw, and its target under the action
+  one network chooses and another values
 - A checkpoint reading back as written with each `state_dict`'s metadata
   and replay memory's arrays, refusing a file holding more than tensors
   and plain values or a network entry that is no tensor
@@ -15,7 +18,7 @@ Pins the records the agent reads and writes, covering:
 - The weights read from a checkpoint's `agent.pt` member alone
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from numpy           import load as load_npz, zeros
 from numpy.testing   import assert_array_equal
 from os              import fstat, truncate
@@ -24,7 +27,7 @@ from pickle          import UnpicklingError
 from pydantic        import ValidationError
 from pytest          import MonkeyPatch, mark, param, raises
 from stat            import S_ISDIR
-from torch           import arange, device, equal, save, tensor, uint8
+from torch           import Tensor, arange, device, equal, save, tensor, uint8
 from torch.nn        import Linear
 from zipfile         import ZIP_ZSTANDARD, ZipFile
 
@@ -87,16 +90,52 @@ def test_the_device_defaults_to_the_accelerator_torch_reports(
         param("exploration_fraction", 0,    id="no-exploration"),
         param("learning_rate",        0,    id="no-learning-rate"),
         param("max_grad_norm",        0,    id="no-gradient-norm"),
-        param("sync_steps",           0,    id="no-steps-between-syncs")
+        param("sync_steps",           0,    id="no-steps-between-syncs"),
+        param("threads",              0,    id="no-threads"),
+        param("update_steps",         0,    id="no-steps-between-updates"),
+        param("warmup_steps",         0,    id="no-warmup")
     ]
 )
 def test_the_settings_refuse_a_value_outside_its_range(field: str, value: float):
     """
     Asserts that each setting refuses a value outside the range its field
-    declares.
+    declares, the error located at that field.
     """
-    with raises(ValidationError, match=field):
+    with raises(ValidationError, match=rf"(?m)^{field}$"):
         AgentSettings(**{field: value})
+
+
+@mark.parametrize(
+    ("batch_size", "warmup_steps", "message"),
+    [
+        param(
+            32,
+            31,
+            "a warm-up of 31 steps gathers fewer transitions than the 32 each update "
+            "draws",
+            id = "a-step-short-of-the-default-batch"
+        ),
+        param(
+            2048,
+            1000,
+            "a warm-up of 1,000 steps gathers fewer transitions than the 2,048 each "
+            "update draws",
+            id = "a-batch-past-a-thousand"
+        )
+    ]
+)
+def test_a_warmup_short_of_the_batch_size_is_refused(
+    batch_size   : int,
+    message      : str,
+    warmup_steps : int
+):
+    """
+    Asserts that a warm-up of fewer steps than `batch_size` is refused, the
+    error naming the warm-up and the batch each update draws, each with its
+    thousands separated.
+    """
+    with raises(ValidationError, match=message):
+        AgentSettings(batch_size=batch_size, warmup_steps=warmup_steps)
 
 
 def cut_in_half(path: Path):
@@ -125,6 +164,14 @@ def flip_agent_frame(path: Path):
     data = bytearray(path.read_bytes())
     data[member.header_offset + 30 + len(member.filename)] ^= 0xFF
     path.write_bytes(data)
+
+
+def frames(observations: Mapping[str, Tensor]) -> Tensor:
+    """
+    Values each frame of a one-pixel stack as one action, at the value its
+    pixel holds.
+    """
+    return observations[Entry.FRAMES][:, :, 0, 0].float()
 
 
 def mark_an_unknown_method(path: Path):
@@ -161,6 +208,40 @@ def pack(agent: dict[str, object], path: Path, **members: bytes):
             archive.writestr(name, data)
 
 
+def reversed_frames(observations: Mapping[str, Tensor]) -> Tensor:
+    """
+    Values each frame of a one-pixel stack as one action, at the negative of
+    the value its pixel holds, so it values the first frame highest.
+    """
+    return -frames(observations)
+
+
+def test_a_batch_runs_a_network_choosing_for_itself_once():
+    """
+    Asserts that a batch whose choosing and valuing network are one network
+    runs it once on the observation reached, reading both the choice and its
+    value from that pass.
+    """
+    passes = []
+
+    def network(observations: Mapping[str, Tensor]) -> Tensor:
+        """
+        Values each frame as `frames` does, counting each pass.
+        """
+        passes.append(observations)
+
+        return frames(observations)
+
+    targets = Batch(
+        actions    = tensor([0]),
+        rewards    = tensor([1.0]),
+        terminated = tensor([False]),
+        windows    = {Entry.FRAMES: arange(5, dtype=uint8).reshape(1, 5, 1, 1)}
+    ).targets(network, 0.5, network)
+
+    assert (targets.tolist(), len(passes)) == ([3.0], 1)
+
+
 def test_a_batch_values_each_draw_at_the_action_it_took():
     """
     Asserts that a batch reads the value a network gives each draw's action
@@ -175,9 +256,7 @@ def test_a_batch_values_each_draw_at_the_action_it_took():
         windows    = {Entry.FRAMES: arange(10, dtype=uint8).reshape(2, 5, 1, 1)}
     )
 
-    assert batch.values(
-        lambda observations: observations[Entry.FRAMES][:, :, 0, 0].float()
-    ).tolist() == [2.0, 5.0]
+    assert batch.values(frames).tolist() == [2.0, 5.0]
 
 
 def test_a_checkpoint_is_an_npz_whose_members_zstd_compresses(tmp_path: Path):
@@ -230,53 +309,35 @@ def test_a_checkpoint_refuses_a_network_entry_that_is_no_tensor(
 
 
 @mark.parametrize(
-    ("terminated", "target"),
+    ("chooser", "terminated", "target"),
     [
-        param(False, 3.0, id="a-step-the-episode-goes-on-from"),
-        param(True,  1.0, id="a-terminated-step")
+        param(frames,          False, 3.0, id="the-valuing-networks-own-choice"),
+        param(reversed_frames, False, 1.5, id="another-networks-choice"),
+        param(frames,          True,  1.0, id="a-terminated-step")
     ]
 )
-def test_a_batch_targets_its_reward_plus_the_discounted_highest_value_reached(
+def test_a_batch_targets_its_reward_plus_the_discounted_value_of_the_chosen_action(
+    chooser    : Callable[[Mapping[str, Tensor]], Tensor],
     target     : float,
     terminated : bool
 ):
     """
     Asserts that a batch targets a draw at its reward of one plus 0.5 times
-    the highest value a network gives the stack its action reached, which a
-    network valuing each of a stack's frames as one action puts at the 4 of
-    frames 1 to 4, so 3, and at its reward alone where the step terminated
-    the episode, recording no autograd graph either way.
+    the value a network gives the stack its action reached under the action
+    `chooser` values highest there, recording no autograd graph. The network
+    values each of the stack's frames 1 to 4 as one action, so the 4 of its
+    own choice targets 3, the 1 of the first action, which a chooser valuing
+    the frames in reverse picks, targets 1.5, and a terminated step targets
+    its reward alone.
     """
     targets = Batch(
         actions    = tensor([0]),
         rewards    = tensor([1.0]),
         terminated = tensor([terminated]),
         windows    = {Entry.FRAMES: arange(5, dtype=uint8).reshape(1, 5, 1, 1)}
-    ).targets(
-        0.5,
-        lambda observations: (
-            observations[Entry.FRAMES][:, :, 0, 0]
-            .float()
-            .requires_grad_()
-        )
-    )
+    ).targets(chooser, 0.5, lambda observations: frames(observations).requires_grad_())
 
     assert (targets.tolist(), targets.requires_grad) == ([target], False)
-
-
-@mark.parametrize(
-    "field",
-    [
-        param("discount",             id="an-undiscounted-value"),
-        param("exploration_fraction", id="exploring-across-the-whole-run")
-    ]
-)
-def test_the_settings_accept_a_fraction_of_one(field: str):
-    """
-    Asserts that a setting holding a fraction accepts one, the top of the
-    range its field declares, where 1.01 is refused.
-    """
-    assert getattr(AgentSettings(**{field: 1}), field) == 1
 
 
 def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path):
@@ -295,6 +356,21 @@ def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path)
         {"": {"version": 1}},
         {"": {"version": 1}}
     )
+
+
+@mark.parametrize(
+    "field",
+    [
+        param("discount",             id="an-undiscounted-value"),
+        param("exploration_fraction", id="exploring-across-the-whole-run")
+    ]
+)
+def test_the_settings_accept_a_fraction_of_one(field: str):
+    """
+    Asserts that a setting holding a fraction accepts one, the top of the
+    range its field declares, where 1.01 is refused.
+    """
+    assert getattr(AgentSettings(**{field: 1}), field) == 1
 
 
 def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
@@ -365,6 +441,17 @@ def test_a_save_flushes_the_whole_archive_then_the_directory_it_lands_in(
     )
 
 
+def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
+    """
+    Asserts that a save beside the `.partial` file a killed save left behind
+    writes over it and leaves the checkpoint alone in its directory.
+    """
+    (tmp_path / "checkpoint.npz.partial").write_bytes(b"left by a killed save")
+    blank().save(tmp_path / "checkpoint.npz")
+
+    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
+
+
 @mark.parametrize(
     "damage",
     [
@@ -394,15 +481,14 @@ def test_a_damaged_checkpoint_is_refused_naming_its_file(
         Checkpoint.from_path(path)
 
 
-def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
+def test_a_warmup_as_long_as_the_batch_size_is_accepted():
     """
-    Asserts that a save beside the `.partial` file a killed save left behind
-    writes over it and leaves the checkpoint alone in its directory.
+    Asserts that a warm-up of exactly `batch_size` steps, the shortest the
+    settings take, is accepted.
     """
-    (tmp_path / "checkpoint.npz.partial").write_bytes(b"left by a killed save")
-    blank().save(tmp_path / "checkpoint.npz")
+    settings = AgentSettings(batch_size=8, warmup_steps=8)
 
-    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
+    assert settings.warmup_steps == settings.batch_size == 8
 
 
 def test_a_write_interrupted_partway_leaves_the_last_checkpoint_as_it_was(

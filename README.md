@@ -40,7 +40,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 
 ## Training
 
-`squirtl train` trains the agent headless for `--steps` environment steps, 10,000,000 by default as CleanRL's `dqn_atari.py` sets, logging a line per episode above a progress bar and printing the run's directory once the run ends. Every setting is a flag (*`squirtl train --help` lists each one beside its default*) or a key under `[tool.squirtl]` in `pyproject.toml`, and `--emulator.open-window` draws the game in a window:
+`squirtl train` trains the agent headless for `--steps` environment steps, 2,500,000 by default, ten of the 250,000-step iterations Dopamine's DQN evaluates after, logging a line per episode above a progress bar and printing the run's directory once the run ends. Every setting is a flag (*`squirtl train --help` lists each one beside its default, and a setting on by default turns off as `--agent.double-q=false` does*) or a key under `[tool.squirtl]` in `pyproject.toml`, and `--emulator.open-window` draws the game in a window:
 
 ```bash
 squirtl train --steps 1000000
@@ -125,13 +125,13 @@ Where:
 
 This equation represents a contraction mapping in the space of value functions, guaranteeing convergence to a unique fixed point (the optimal Q-function) under certain conditions. Interestingly enough, this is reminiscent of the convergence properties of other iterative algorithms in Bellman's purview, like the Bellman-Ford algorithm for finding shortest paths.
 
-In practice, we use a neural network $`Q(s, a; \theta)`$ to approximate $`Q(s, a)`$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network is trained to minimize the Huber loss $`\ell`$ on the gap between each target and the value the network gives:
+In practice, we use a neural network $`Q(s, a; \theta)`$ to approximate $`Q(s, a)`$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network takes a gradient step on every fourth step once the run has taken 50,000 steps, the update frequency and the replay start size Mnih et al. set,[^mnih2015] each step minimizing the Huber loss $`\ell`$ on the gap between each target and the value the network gives:
 
 $`\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} [\ell(y - Q(s, a; \theta))], \quad \ell(x) = \begin{cases} \tfrac{1}{2} x^2, & |x| \le 1 \\ |x| - \tfrac{1}{2}, & \text{otherwise} \end{cases}`$
 
 Where:
 
-- $`y = r + \gamma \max_{a'} Q(s', a'; \theta^-)`$ is the target Q-value, or $`y = r`$ where the step terminates the episode, whereas a step the time limit cuts short keeps the discounted term
+- $`y = r + \gamma \, Q(s', \arg\max_{a'} Q(s', a'; \theta); \theta^-)`$ is the target Q-value, the online network choosing the next action and the target network valuing it as van Hasselt et al.'s Double DQN does,[^vanhasselt2016] or $`y = r`$ where the step terminates the episode, whereas a step the time limit cuts short keeps the discounted term
 - $`\theta`$ are the parameters of the online network
 - $`\theta^-`$ are the parameters of the target network
 - $`U(D)`$ is a uniform distribution over the replay buffer D
@@ -337,3 +337,5 @@ I also would be remiss if I didn't thank **Sean Sullivan** for constantly helpin
 [^agarwal2021]: Agarwal et al. 2021. "Deep Reinforcement Learning at the Edge of the Statistical Precipice." *Advances in Neural Information Processing Systems* 34: 29304–29320. <https://proceedings.neurips.cc/paper/2021/hash/f514cec81cb148559cf475e7426eed5e-Abstract.html>
 
 [^pleines2025]: Pleines et al. 2025. "Pokemon Red via Reinforcement Learning." arXiv:2502.19920. <https://arxiv.org/abs/2502.19920>
+
+[^vanhasselt2016]: van Hasselt et al. 2016. "Deep Reinforcement Learning with Double Q-Learning." *Proceedings of the AAAI Conference on Artificial Intelligence* 30(1). <https://doi.org/10.1609/aaai.v30i1.10295>

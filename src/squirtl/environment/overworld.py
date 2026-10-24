@@ -8,7 +8,7 @@ from functools import reduce
 from gymnasium import Env
 from gymnasium.envs.registration import EnvSpec
 from gymnasium.spaces            import Box, Discrete
-from gymnasium.wrappers          import FrameStackObservation, GrayscaleObservation, RecordEpisodeStatistics
+from gymnasium.wrappers          import FrameStackObservation, RecordEpisodeStatistics
 from numpy    import ndarray, uint8
 from operator import add
 from typing   import Any
@@ -24,7 +24,7 @@ from squirtl.reward.schemas       import RewardSettings, Term
 class Overworld(Env):
     """
     The game from Red's bedroom to the starter as a Gymnasium `Env`, whose
-    actions are `presses`, whose observation is the RGB screen a step ends
+    actions are `presses`, whose observation is the gray frame a step ends
     on, and whose episode terminates at the starter, each episode kept as
     the `recording` that `play` steps through again.
     """
@@ -45,7 +45,7 @@ class Overworld(Env):
         intro leaves, which a run records and `squirtl watch` checks.
 
         Args:
-            render_mode: `rgb_array`, under which `render` returns the
+            render_mode: `rgb_array`, under which `render` returns the RGB
                          screen, or `None` where `gymnasium.make` names
                          no mode.
         """
@@ -55,7 +55,7 @@ class Overworld(Env):
 
         self.action_space = Discrete(len(self.presses))
         self.metadata     = self.metadata | {"render_fps": environment.steps_per_second}
-        self.observation_space = Box(0, 255, self.game_boy.screen.shape, uint8)
+        self.observation_space = Box(0, 255, self.game_boy.grayscale.shape, uint8)
         self.render_mode       = render_mode
         self.reward            = reward
         self.settings          = environment
@@ -98,7 +98,7 @@ class Overworld(Env):
 
     def render(self) -> ndarray:
         """
-        Copies the screen the last step or reset ended on.
+        Copies the RGB screen the last step or reset ended on.
         """
         return self.game_boy.screen
 
@@ -116,7 +116,7 @@ class Overworld(Env):
         state `GameBoy.start` saves holds no rendered screen.
 
         Returns:
-            The screen that frame shows beside an empty info dict.
+            That frame in gray beside an empty info dict.
         """
         super().reset(seed=seed)
 
@@ -147,8 +147,8 @@ class Overworld(Env):
         through `TimeLimit` and wrapped in these, each around the
         one before:
 
-        - `GrayscaleObservation`, `ShrinkObservation` to `frame_shape`, and
-          `FrameStackObservation` of `frame_stack` frames
+        - `ShrinkObservation` to `frame_shape` and `FrameStackObservation`
+          of `frame_stack` frames
         - `ProgressObservation`, setting the progress beside the frames
         - `RecordEpisodeStatistics`, recording each episode's return, length,
           and time
@@ -157,7 +157,6 @@ class Overworld(Env):
         return EnvSpec(
             "squirtl/Overworld-v0",
             additional_wrappers = (
-                GrayscaleObservation.wrapper_spec(),
                 ShrinkObservation.wrapper_spec(shape=environment.frame_shape),
                 FrameStackObservation.wrapper_spec(stack_size=environment.frame_stack),
                 ProgressObservation.wrapper_spec(size=environment.grid_size),
@@ -183,17 +182,17 @@ class Overworld(Env):
         Returns:
             The five values Gymnasium's `step` returns:
 
-            - The screen the step ends on
+            - The gray frame the step ends on
             - Its reward
             - Whether it found the starter
             - `False` for truncation, which `TimeLimit` reports
             - Each term's share of the reward, as the info dict
         """
-        screen = self.game_boy.press(
+        frame = self.game_boy.press(
             self.presses[action],
             self.settings.frames_per_step
         )
         score = self.progress.score()
         self.actions.append(action)
 
-        return screen, score.total, score.terminated, False, score.shares
+        return frame, score.total, score.terminated, False, score.shares

@@ -124,6 +124,20 @@ class GameBoy(AbstractContextManager):
             return file_digest(state, "sha256").hexdigest()
 
     @property
+    def grayscale(self) -> ndarray:
+        """
+        Copies the red channel of the frame the emulator last rendered,
+        which holds that frame in gray. PyBoy draws a cartridge made for
+        the original Game Boy, as Pokémon Blue is, in the four grays of its
+        default `color_palette`, each with equal red, green, and blue, until
+        the `c` key in an open window cycles it to a colored palette.
+
+        Returns:
+            A `(144, 160)` array of `uint8`, which no later frame overwrites.
+        """
+        return self.emulator.screen.ndarray[..., 0].copy()
+
+    @property
     def screen(self) -> ndarray:
         """
         Copies the frame the emulator last rendered without its alpha
@@ -173,7 +187,7 @@ class GameBoy(AbstractContextManager):
                         tick.
 
         Returns:
-            The screen that last frame shows, as `screen` copies it.
+            The last frame in gray, as `grayscale` copies it.
         """
         if button:
             if frames < self.settings.hold:
@@ -186,7 +200,7 @@ class GameBoy(AbstractContextManager):
 
         self.emulator.tick(frames)
 
-        return self.screen
+        return self.grayscale
 
     def read(self, symbol: Symbol, offset: int = 0) -> int:
         """
