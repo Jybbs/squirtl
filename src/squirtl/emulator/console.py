@@ -220,9 +220,10 @@ class GameBoy(AbstractContextManager):
 
     def start(self):
         """
-        Plays the intro to Red's bedroom through PyBoy's game wrapper, which
-        renders none of its frames and saves that state for `reset`, writing
-        0 into DIV until `reset` writes each episode's `timer_div`.
+        Plays the intro to Blue's bedroom through PyBoy's game wrapper,
+        which names the player BLUE and the rival RED and renders none of
+        its frames. It saves that state for `reset`, writing 0 into DIV
+        until `reset` writes each episode's `timer_div`.
         """
         # `start_game` navigates the naming screens of Pokémon Blue alone.
         self.emulator.game_wrapper.start_game(0)
