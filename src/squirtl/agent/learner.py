@@ -9,7 +9,8 @@ from copy                import deepcopy
 from gymnasium.spaces    import Dict
 from numpy               import interp, ndarray
 from numpy.random        import default_rng
-from torch               import as_tensor, default_generator, inference_mode
+from torch               import as_tensor, default_generator, inference_mode, set_num_threads
+from torch.backends      import nnpack
 from torch.nn.functional import huber_loss
 from torch.nn.utils      import clip_grad_norm_
 from torch.optim         import Adam
@@ -40,12 +41,20 @@ class Agent:
         """
         Builds both networks for `actions` actions over `space`, Adam over
         the online network, and empty replay memory for a run of `steps`
-        steps.
+        steps. Before building them, it turns NNPACK off for the whole
+        process and sets the process's thread count to the `threads` the
+        settings name, where they name one.
 
         Args:
             seed: The unsigned 64-bit seed the weights, the random actions,
                   and the replay draws each start from.
         """
+        # NNPACK runs this network's convolutions on the CPU slower than PyTorch's own.
+        nnpack.set_flags(False)
+
+        if settings.threads:
+            set_num_threads(settings.threads)
+
         self.exploration, sampling = default_rng(seed).spawn(2)
 
         with fork_rng(devices=[]):

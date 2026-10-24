@@ -131,6 +131,13 @@ class AgentSettings(Record):
     target network, whose default follows CleanRL's `dqn_atari.py`.
     """
 
+    threads: PositiveInt | None = None
+    """
+    The threads PyTorch spreads each operation on the CPU across, set for
+    the agent's whole process through `torch.set_num_threads` before its
+    networks are built, whose default leaves the count PyTorch chooses.
+    """
+
     update_steps: PositiveInt = 4
     """
     The environment steps between two updates of the online network, whose

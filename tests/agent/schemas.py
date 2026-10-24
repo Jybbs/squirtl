@@ -91,6 +91,7 @@ def test_the_device_defaults_to_the_accelerator_torch_reports(
         param("learning_rate",        0,    id="no-learning-rate"),
         param("max_grad_norm",        0,    id="no-gradient-norm"),
         param("sync_steps",           0,    id="no-steps-between-syncs"),
+        param("threads",              0,    id="no-threads"),
         param("update_steps",         0,    id="no-steps-between-updates"),
         param("warmup_steps",         0,    id="no-warmup")
     ]

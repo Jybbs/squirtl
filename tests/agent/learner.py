@@ -8,7 +8,8 @@ Pins the agent, each training step on the CPU under a fixed seed, covering:
   gradient it computes afresh rather than adding to the one a parameter
   held, and the loss and value it returns
 - The capacity of replay memory and Adam's learning rate, each read from
-  the settings the agent is built with
+  the settings the agent is built with, and the NNPACK flag and the thread
+  count it sets for its whole process
 - The target network copying the online network every `sync_steps` steps,
   before the update of a step both intervals divide
 - The chance of a random action across the run, the random actions it
@@ -20,18 +21,34 @@ Pins the agent, each training step on the CPU under a fixed seed, covering:
   refused
 """
 
-from collections.abc     import Callable
+from collections.abc     import Callable, Iterator
+from contextlib          import ExitStack
 from copy                import deepcopy
 from numpy               import ndarray
-from pytest              import MonkeyPatch, approx, mark, param, raises
-from torch               import Tensor, arange, as_tensor, equal, full, get_rng_state, is_inference_mode_enabled
-from torch               import manual_seed, no_grad, ones_like, tensor
+from pytest              import MonkeyPatch, approx, fixture, mark, param, raises
+from torch               import Tensor, arange, as_tensor, equal, full, get_num_threads, get_rng_state
+from torch               import is_inference_mode_enabled, manual_seed, no_grad, ones_like, set_num_threads, tensor
+from torch.backends      import nnpack
 from torch.nn            import Linear
 from torch.nn.functional import huber_loss, one_hot
 from torch.nn.utils      import parameters_to_vector
 from torch.testing       import assert_close
 
 from squirtl.agent.learner import Agent
+
+
+@fixture
+def two_threads() -> Iterator[None]:
+    """
+    Sets the threads PyTorch runs on to two for the test, then back to the
+    count it held once the test ends, since an agent sets that count for its
+    whole process.
+    """
+    with ExitStack() as stack:
+        stack.callback(set_num_threads, get_num_threads())
+        set_num_threads(2)
+
+        yield
 
 
 def test_a_greedy_action_is_the_one_the_online_network_values_highest(
@@ -429,28 +446,23 @@ def test_the_agent_builds_on_the_settings_it_is_given(
 
 
 @mark.parametrize(
-    "reseed",
-    [
-        param("torch.cuda.manual_seed_all", id="cuda"),
-        param("torch.mps.manual_seed",      id="mps")
-    ]
+    ("threads", "count"),
+    [param(None, 2, id="no-count-named"), param(1, 1, id="one-thread-named")]
 )
-def test_building_an_agent_reseeds_no_accelerators_generator(
-    build       : Callable[..., Agent],
-    monkeypatch : MonkeyPatch,
-    reseed      : str
+@mark.usefixtures("two_threads")
+def test_building_an_agent_sets_the_thread_count_its_settings_name(
+    build   : Callable[..., Agent],
+    count   : int,
+    threads : int | None
 ):
     """
-    Asserts that building an agent reseeds no accelerator's global
-    generator, which the fork of the CPU generator its weights draw from
-    leaves unrestored.
+    Asserts that building an agent sets the threads PyTorch runs on to the
+    `threads` its settings name, and leaves the two `two_threads` set where
+    they name none.
     """
-    reseeded = []
-    monkeypatch.setattr(reseed, reseeded.append)
+    build(threads=threads)
 
-    build()
-
-    assert reseeded == []
+    assert get_num_threads() == count
 
 
 def test_an_update_clips_the_gradient_norm_at_max_grad_norm(
@@ -475,6 +487,31 @@ def test_an_update_clips_the_gradient_norm_at_max_grad_norm(
     agent.update()
 
     assert norms == [approx(1e-3, rel=1e-4)]
+
+
+@mark.parametrize(
+    "reseed",
+    [
+        param("torch.cuda.manual_seed_all", id="cuda"),
+        param("torch.mps.manual_seed",      id="mps")
+    ]
+)
+def test_building_an_agent_reseeds_no_accelerators_generator(
+    build       : Callable[..., Agent],
+    monkeypatch : MonkeyPatch,
+    reseed      : str
+):
+    """
+    Asserts that building an agent reseeds no accelerator's global
+    generator, which the fork of the CPU generator its weights draw from
+    leaves unrestored.
+    """
+    reseeded = []
+    monkeypatch.setattr(reseed, reseeded.append)
+
+    build()
+
+    assert reseeded == []
 
 
 def test_an_update_computes_its_gradient_afresh(
@@ -541,3 +578,16 @@ def test_building_an_agent_leaves_torchs_global_generator_alone(
     build()
 
     assert equal(get_rng_state(), manual_seed(5).get_state())
+
+
+def test_building_an_agent_turns_nnpack_off(build: Callable[..., Agent]):
+    """
+    Asserts that building an agent inside a block holding NNPACK on turns
+    it off for the whole process. `set_flags` returns the flag it replaces,
+    which reads that state back, and the block restores the flag it found
+    once it ends.
+    """
+    with nnpack.flags(enabled=True):
+        build()
+
+        assert nnpack.set_flags(True) == (False,)

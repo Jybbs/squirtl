@@ -69,6 +69,11 @@ Each of these exits 1 before any directory is made:
 │                               the online network into the target network,    │
 │                               whose default follows CleanRL's dqn_atari.py.  │
 │                               [default: 1000]                                │
+│ --agent.threads INT           The threads PyTorch spreads each operation on  │
+│                               the CPU across, set for the agent's whole      │
+│                               process through torch.set_num_threads before   │
+│                               its networks are built, whose default leaves   │
+│                               the count PyTorch chooses.                     │
 │ --agent.update-steps INT      The environment steps between two updates of   │
 │                               the online network, whose default is the       │
 │                               update frequency Mnih et al. set. [default: 4] │

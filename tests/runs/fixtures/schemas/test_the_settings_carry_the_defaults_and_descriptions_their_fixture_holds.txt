@@ -70,6 +70,20 @@
           "title": "Sync Steps",
           "type": "integer"
         },
+        "threads": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The threads PyTorch spreads each operation on the CPU across, set for\nthe agent's whole process through `torch.set_num_threads` before its\nnetworks are built, whose default leaves the count PyTorch chooses.",
+          "title": "Threads"
+        },
         "update_steps": {
           "default": 4,
           "description": "The environment steps between two updates of the online network, whose\ndefault is the update frequency Mnih et al. set.",

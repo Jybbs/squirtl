@@ -199,6 +199,18 @@ def test_a_table_above_the_working_directory_is_not_read(
             ["--agent.double-q=false"],
             RunSettings(agent=AgentSettings(double_q=False)),
             id = "a-setting-on-by-default-turned-off"
+        ),
+        param(
+            "[tool.squirtl.agent]\nthreads = 1\n",
+            ["--agent.device", "cpu"],
+            RunSettings(agent=AgentSettings(device="cpu", threads=1)),
+            id = "a-thread-count-in-the-agent-table-beside-a-device-flag"
+        ),
+        param(
+            None,
+            ["--agent.threads", "1"],
+            RunSettings(agent=AgentSettings(threads=1)),
+            id = "a-thread-count-flag"
         )
     ]
 )
