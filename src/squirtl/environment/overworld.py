@@ -1,7 +1,7 @@
 """
-Defines `Overworld`, the environment an agent plays Pokémon Blue in from
-Blue's bedroom to the starter, which `Overworld.specification` specifies
-with its wrappers.
+Defines `Overworld`, the environment an agent plays Pokémon Blue in,
+from the bedroom of Blue, the player character, to the starter, which
+`Overworld.specification` specifies with its wrappers.
 """
 
 from functools import reduce

@@ -167,7 +167,7 @@ This periodic update is reminiscent of the concept of "batching" in amortized an
 
 ### Application to Pokémon Blue
 
-In the context of Pokémon Blue, the state $`s`$ is a `Dict` observation holding the last four screens in grayscale at $`72 \times 80`$, a binary $`48 \times 48`$ grid marking each square of the current map the episode has reached, centered on the player, and a binary vector of the milestone and starter flags. The action space $`A`$ holds one discrete action for no press and one for each of A, B, and the four directions, each press holding its button for 2 of the 17 frames a step advances. An episode starts in Blue's bedroom and ends as terminated at the starter or as truncated after 10,240 steps, the budget Pleines et al. start each episode with.[^pleines2025]
+In the context of Pokémon Blue, the state $`s`$ is a `Dict` observation holding the last four screens in grayscale at $`72 \times 80`$, a binary $`48 \times 48`$ grid marking each square of the current map the episode has reached, centered on the player, and a binary vector of the milestone and starter flags. The action space $`A`$ holds one discrete action for no press and one for each of A, B, and the four directions, each press holding its button for 2 of the 17 frames a step advances. An episode starts in the bedroom of Blue, the player character, and ends as terminated at the starter or as truncated after 10,240 steps, the budget Pleines et al. start each episode with.[^pleines2025]
 
 The reward function $`R(s, a, s')`$ sums three terms, each paying for what a step adds to its episode, and holds every step's reward within 1, the bound Mnih et al. clip each reward to,[^mnih2015] with the starter the largest term:
 
