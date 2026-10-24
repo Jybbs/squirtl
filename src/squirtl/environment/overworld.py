@@ -1,7 +1,7 @@
 """
-Defines `Overworld`, the environment an agent plays Pokémon Blue in from
-Red's bedroom to the starter, which `Overworld.specification` specifies with
-its wrappers.
+Defines `Overworld`, the environment an agent plays Pokémon Blue in,
+from the bedroom of Blue, the player character, to the starter, which
+`Overworld.specification` specifies with its wrappers.
 """
 
 from functools import reduce
@@ -23,7 +23,7 @@ from squirtl.reward.schemas       import RewardSettings, Term
 
 class Overworld(Env):
     """
-    The game from Red's bedroom to the starter as a Gymnasium `Env`, whose
+    The game from Blue's bedroom to the starter as a Gymnasium `Env`, whose
     actions are `presses`, whose observation is the gray frame a step ends
     on, and whose episode terminates at the starter, each episode kept as
     the `recording` that `play` steps through again.
@@ -40,7 +40,7 @@ class Overworld(Env):
         render_mode : str | None = None
     ):
         """
-        Boots `cartridge` and plays its intro to Red's bedroom, where every
+        Boots `cartridge` and plays its intro to Blue's bedroom, where every
         episode starts, keeping as `digest` the digest of the state the
         intro leaves, which a run records and `squirtl watch` checks.
 
@@ -109,7 +109,7 @@ class Overworld(Env):
         seed    : int | None            = None
     ) -> tuple[ndarray, dict[str, Any]]:
         """
-        Loads Red's bedroom with the DIV of the `Recording` that `options`
+        Loads Blue's bedroom with the DIV of the `Recording` that `options`
         holds under `recording`, or otherwise one from the environment's
         generator, which `seed` reseeds, and starts the episode's progress
         and its record. It then advances one frame with no press, since the
