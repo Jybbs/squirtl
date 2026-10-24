@@ -9,18 +9,20 @@ Pins how `Overworld` keeps Gymnasium's environment contract, covering:
   records
 - Each step's reward, termination, and shares, and the truncation and the
   statistics each episode records
+- The gray frame each step observes, which Gymnasium's
+  `GrayscaleObservation` makes of the RGB screen the step renders
 - The wrappers, spaces, grid, flags, render, and render rate it is made
   with, and an agent learning from its observations
 """
 
 from collections.abc  import Callable
-from common.console   import set_event, stand
+from common.console   import set_event, shade, stand
 from gymnasium        import Env, make
 from gymnasium.spaces import Box, Discrete
 from gymnasium.utils.env_checker import check_env
-from gymnasium.wrappers          import RecordEpisodeStatistics, TimeLimit
+from gymnasium.wrappers          import AddRenderObservation, GrayscaleObservation, RecordEpisodeStatistics, TimeLimit
 from hashlib        import sha256
-from numpy          import argwhere, uint8
+from numpy          import argwhere, uint8, unique
 from numpy.random   import default_rng
 from numpy.testing  import assert_array_equal
 from pytest         import approx, mark, param
@@ -65,7 +67,7 @@ def test_a_reset_given_a_recording_matches_a_seeded_reset_at_its_timer_div(
     """
     Asserts that a reset given a recording in its options makes the calls
     a seeded reset drawing the recording's `timer_div` makes, reaching
-    the same screen and starting the same recording, since a reset at one
+    the same frame and starting the same recording, since a reset at one
     `timer_div` always leaves the console in one state.
     """
     resets = []
@@ -83,11 +85,11 @@ def test_a_reset_given_a_recording_matches_a_seeded_reset_at_its_timer_div(
         )
     ):
         overworld.game_boy.emulator.calls.clear()
-        screen, _ = overworld.reset(options=options, seed=seed)
+        frame, _ = overworld.reset(options=options, seed=seed)
         resets.append(
             (
                 overworld.game_boy.emulator.calls.copy(),
-                screen.tolist(),
+                frame.tolist(),
                 overworld.recording
             )
         )
@@ -230,15 +232,15 @@ def test_a_step_returns_its_score_and_never_truncates(
     terminated : bool
 ):
     """
-    Asserts that a step returns the screen it ends on, the reward its score
-    totals, whether it found the starter, no truncation, which `TimeLimit`
-    reports, and each term's share as its info dict.
+    Asserts that a step returns the gray frame it ends on, the reward
+    its score totals, whether it found the starter, no truncation, which
+    `TimeLimit` reports, and each term's share as its info dict.
     """
     overworld.reset(seed=0)
     set_event(event, overworld.game_boy.emulator.memory)
-    screen, earned, ended, truncated, info = overworld.step(0)
+    frame, earned, ended, truncated, info = overworld.step(0)
 
-    assert_array_equal(screen, overworld.render())
+    assert_array_equal(frame, overworld.game_boy.grayscale, strict=True)
     assert (earned, ended, truncated) == (reward, terminated, False)
     assert info == {term: reward if term is event.term else 0.0 for term in Term}
 
@@ -274,8 +276,8 @@ def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
     ) == (
         "squirtl/Overworld-v0", 10_240,
         [
-            "GrayscaleObservation", "ShrinkObservation", "FrameStackObservation",
-            "ProgressObservation", "RecordEpisodeStatistics", "RecordOutcome"
+            "ShrinkObservation", "FrameStackObservation", "ProgressObservation",
+            "RecordEpisodeStatistics", "RecordOutcome"
         ]
     )
 
@@ -324,6 +326,29 @@ def test_the_observation_lies_in_its_space_at_the_shapes_the_settings_name(
         shapes[Entry.FRAMES],
         uint8
     )
+
+
+def test_the_frame_a_step_observes_is_gymnasiums_grayscale_of_its_render(
+    made: Callable[..., Env]
+):
+    """
+    Asserts that the gray frame a step on PyBoy observes is, pixel for
+    pixel, the one Gymnasium's `GrayscaleObservation` makes of the RGB
+    screen the step renders, on a frame `shade` draws all four of PyBoy's
+    grays into.
+    """
+    with make(made().spec, render_mode="rgb_array") as env:
+        overworld = env.unwrapped
+        grayscale = GrayscaleObservation(AddRenderObservation(overworld))
+        shade(overworld.game_boy)
+        frame = overworld.step(0)[0]
+
+        assert unique(frame).tolist() == [0, 85, 153, 255]
+        assert_array_equal(
+            frame,
+            grayscale.observation(overworld.render()),
+            strict = True
+        )
 
 
 def test_the_observation_carries_the_grid_and_the_flags_of_the_episodes_progress(

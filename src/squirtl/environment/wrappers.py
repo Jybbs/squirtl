@@ -7,7 +7,7 @@ and `RecordOutcome`, which reports what each episode reached.
 from gymnasium        import Env, ObservationWrapper, Wrapper
 from gymnasium.spaces import Box, Dict, MultiBinary
 from gymnasium.utils  import RecordConstructorArgs
-from numpy            import ndarray, uint8
+from numpy            import full, ndarray, ndindex, uint32, uint8
 from typing           import Any
 
 from squirtl.environment.schemas import Entry, Outcome
@@ -111,18 +111,24 @@ class ShrinkObservation(ObservationWrapper, RecordConstructorArgs):
 
     def observation(self, frame: ndarray) -> ndarray:
         """
-        Averages each block of `frame` into its cell of `shape`.
+        Averages each block of `frame` into its cell of `shape` by adding
+        one strided slice of `frame` for each offset into a block, the slice
+        holding the pixel at that offset in every block. The sum runs in
+        `uint32`, which no frame the size of the screen overflows.
 
         Returns:
             A `shape` array of `uint8`.
         """
-        height, width = self.shape
-        blocks        = frame.reshape(
-            height,
-            frame.shape[0] // height,
-            width,
-            frame.shape[1] // width
+        rows, columns = (
+            pixels // cells for pixels, cells in zip(frame.shape, self.shape)
         )
-        cells = blocks.shape[1] * blocks.shape[3]
+        block   = rows * columns
+        offsets = ndindex(rows, columns)
 
-        return ((blocks.sum(axis=(1, 3)) + cells // 2) // cells).astype(uint8)
+        return (
+            sum(
+                (frame[row::rows, column::columns] for row, column in offsets),
+                full(self.shape, block // 2, uint32)
+            )
+            // block
+        ).astype(uint8)

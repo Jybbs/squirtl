@@ -3,8 +3,9 @@ Pins how `GameBoy` runs a cartridge through PyBoy, covering:
 
 - The arguments a boot hands PyBoy, the SDL2 window it opens, and the save
   beside the cartridge that a boot never reads and a close never writes
-- Each press, its one tick, the screen read after it as an RGB copy, and a
-  press refused for holding its button past its frames
+- Each press, its one tick, and the gray frame read after it, beside the
+  RGB screen, each a copy, and a press refused for holding its button past
+  its frames
 - The byte each symbol reads, the digest of the state a reset leaves, the
   stop a close makes, the intro a start plays, and the state and DIV a
   reset returns to
@@ -13,7 +14,7 @@ Pins how `GameBoy` runs a cartridge through PyBoy, covering:
 from collections.abc import Callable, Iterator
 from common.console  import StandIn
 from functools       import partial
-from numpy           import arange, shares_memory, tile, uint8
+from numpy           import arange, ndarray, shares_memory, tile, uint8, zeros
 from numpy.testing   import assert_array_equal
 from operator        import attrgetter
 from pyboy.utils     import PyBoyInvalidOperationException
@@ -240,26 +241,50 @@ def test_a_window_the_setting_opens_is_one_pyboy_runs(
         assert game_boy.emulator.tick(1)
 
 
-def test_the_screen_a_press_returns_holds_the_rgb_channels_alone(boot: Boot):
+def test_the_frame_a_press_returns_holds_the_red_channel_alone(boot: Boot):
     """
-    Asserts that the screen a press returns is a `(144, 160, 3)` array of
-    `uint8` holding the red, green, and blue channels of PyBoy's RGBA frame
-    in that order, read from a stand-in frame whose every pixel holds each
-    channel's index in that channel.
+    Asserts that the frame a press returns is a `(144, 160)` array of
+    `uint8` holding the red channel of PyBoy's RGBA frame alone, read from
+    a stand-in frame whose every pixel holds each channel's index in that
+    channel.
     """
     assert_array_equal(
         boot(EmulatorSettings()).press(None, 1),
+        zeros((144, 160), uint8),
+        strict = True
+    )
+
+
+def test_the_screen_holds_the_rgb_channels_alone(boot: Boot):
+    """
+    Asserts that the screen is a `(144, 160, 3)` array of `uint8` holding
+    the red, green, and blue channels of PyBoy's RGBA frame in that order,
+    read from a stand-in frame whose every pixel holds each channel's index
+    in that channel.
+    """
+    assert_array_equal(
+        boot(EmulatorSettings()).screen,
         tile(arange(3, dtype=uint8), (144, 160, 1)),
         strict = True
     )
 
 
-def test_the_screen_a_press_returns_is_a_copy(game_boy: GameBoy):
+@mark.parametrize(
+    "read",
+    [
+        param(lambda game_boy: game_boy.press(None, 1), id="the-frame-a-press-returns"),
+        param(attrgetter("screen"),                     id="the-screen")
+    ]
+)
+def test_each_frame_read_is_a_copy(
+    game_boy : GameBoy,
+    read     : Callable[[GameBoy], ndarray]
+):
     """
-    Asserts that the screen a press returns shares no memory with the frame
-    PyBoy overwrites at each rendered frame.
+    Asserts that the gray frame a press returns and the RGB screen each
+    share no memory with the frame PyBoy overwrites at each rendered frame.
     """
-    assert not shares_memory(game_boy.press(None, 1), game_boy.emulator.screen.ndarray)
+    assert not shares_memory(read(game_boy), game_boy.emulator.screen.ndarray)
 
 
 @mark.parametrize(
