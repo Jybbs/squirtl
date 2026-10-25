@@ -1,0 +1,26 @@
+| **Run** | **Policy** | **Step** | **Episodes** | **Reached the starter** | **Steps to the starter** | **Positions** | **Return** | **Milestone pay** | **Novelty pay** | **Starter pay** |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `20261003T000000.000000Z` | Agent | 100 | 2 | 0.5 | 40 | 10 | 0.3025 | 0 | 0.0025 | 0.3 |
+| `20261003T000000.000000Z` | Baseline |  | 2 | 0 | none | 10 | 0 | 0 | 0 | 0 |
+| `20261004T000000.000000Z` | Agent | 1,000,000 | 2 | 0 | none | 10 | 0.5 | 0 | 0.5 | 0 |
+| `20261004T000000.000000Z` | Baseline |  | 2 | 0 | none | 10 | 0.125 | 0 | 0.125 | 0 |
+| `20261005T000000.000000Z` | Agent | 100 | 2 | 0 | none | 10 | 0.625 | 0 | 0.625 | 0 |
+| `20261005T000000.000000Z` | Baseline |  | 2 | 0 | none | 10 | 0 | 0 | 0 | 0 |
+| `20261006T000000.000000Z` | Against | 100 | 2 | 0 | none | 10 | 0.125 | 0 | 0.125 | 0 |
+| `20261006T000000.000000Z` | Baseline |  | 2 | 0 | none | 10 | 0 | 0 | 0 | 0 |
+| `20261007T000000.000000Z` | Against | 100 | 2 | 0 | none | 10 | 0.375 | 0 | 0.375 | 0 |
+| `20261007T000000.000000Z` | Baseline |  | 2 | 0 | none | 10 | 0.125 | 0 | 0.125 | 0 |
+
+| **Measure** | **Agent** | **Baseline** | **Against** |
+| --- | --- | --- | --- |
+| Reached the starter | 0.16667 [0, 0.5] over 3 runs | 0 [0, 0] over 3 runs | 0 [0, 0] over 2 runs |
+| Steps to the starter | 40 over 1 run | none | none |
+| Positions | 10 [10, 10] over 3 runs | 10 [10, 10] over 3 runs | 10 [10, 10] over 2 runs |
+| Return | 0.47583 [0.3025, 0.625] over 3 runs | 0.041667 [0, 0.125] over 3 runs | 0.25 [0.125, 0.375] over 2 runs |
+| Milestone pay | 0 [0, 0] over 3 runs | 0 [0, 0] over 3 runs | 0 [0, 0] over 2 runs |
+| Novelty pay | 0.37583 [0.0025, 0.625] over 3 runs | 0.041667 [0, 0.125] over 3 runs | 0.25 [0.125, 0.375] over 2 runs |
+| Starter pay | 0.1 [0, 0.3] over 3 runs | 0 [0, 0] over 3 runs | 0 [0, 0] over 2 runs |
+
+The agent beats its baseline with a probability of 1 [1, 1] over 3 and 3 runs, on each run's mean return.
+
+The agent beats the runs against it with a probability of 0.83333 [0.33333, 1] over 3 and 2 runs, on each run's mean return.

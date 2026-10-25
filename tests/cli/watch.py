@@ -4,7 +4,8 @@ Pins what `squirtl watch` does, covering:
 - An episode played back through the emulator's window to the return the
   run recorded, the last by default and any other the flag names, a nonzero
   return under the reward settings the run recorded among them
-- The playback reaching another return, an episode the run never recorded,
+- The playback reaching another return, a console whose intro leaves
+  another state than the run recorded, an episode the run never recorded,
   and a directory holding no run, each exiting 1
 """
 
@@ -72,6 +73,30 @@ def test_a_playback_reaches_a_nonzero_return_under_the_recorded_reward(
         invocation.code,
         "reached the return of 0.2500 the run recorded" in invocation.log
     ) == (0, True)
+
+
+def test_a_console_starting_from_another_state_than_the_runs_exits_1_before_playing(
+    invoke  : Invoker,
+    trained : Path,
+    windows : list[str]
+):
+    """
+    Asserts that playing back a run whose record holds another digest than
+    the state the console's intro leaves exits 1, logging both digests, and
+    plays no episode.
+    """
+    run = Run.read(trained)
+    run.record.write_text(
+        run.model_copy(update={"digest": "0"}).model_dump_json(),
+        encoding = "utf-8"
+    )
+    invocation = invoke(["watch", str(trained)])
+
+    assert (
+        invocation.code,
+        f"a state of digest {run.digest}, where the run recorded 0" in invocation.log,
+        "playback" in invocation.log
+    ) == (1, True, False)
 
 
 def test_a_playback_reaching_another_return_exits_1(

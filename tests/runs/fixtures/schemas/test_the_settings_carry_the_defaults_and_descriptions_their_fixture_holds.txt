@@ -25,8 +25,14 @@
         },
         "discount": {
           "$ref": "#/$defs/Fraction",
-          "default": 0.99,
-          "description": "The discount on the value of the state each step reaches, whose default\nfollows Mnih et al."
+          "default": 0.997,
+          "description": "The discount on the value of the state each step reaches, whose default\nis the one Pleines et al. settle on for this game after tuning over 0.99,\n0.997, 0.999, and 0.9995."
+        },
+        "double_q": {
+          "default": true,
+          "description": "Whether the online network chooses the action at the state each step\nreaches and the target network values it, as van Hasselt et al.'s\nDouble DQN does, where otherwise the target network does both, as Mnih\net al.'s deep Q-network does.",
+          "title": "Double Q",
+          "type": "boolean"
         },
         "epsilon_end": {
           "$ref": "#/$defs/UnitInterval",
@@ -62,6 +68,34 @@
           "description": "The environment steps between two copies of the online network into the\ntarget network, whose default follows CleanRL's `dqn_atari.py`.",
           "exclusiveMinimum": 0,
           "title": "Sync Steps",
+          "type": "integer"
+        },
+        "threads": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The threads PyTorch spreads each operation on the CPU across, set for\nthe agent's whole process through `torch.set_num_threads` before its\nnetworks are built, whose default leaves the count PyTorch chooses.",
+          "title": "Threads"
+        },
+        "update_steps": {
+          "default": 4,
+          "description": "The environment steps between two updates of the online network, whose\ndefault is the update frequency Mnih et al. set.",
+          "exclusiveMinimum": 0,
+          "title": "Update Steps",
+          "type": "integer"
+        },
+        "warmup_steps": {
+          "default": 50000,
+          "description": "The environment steps whose transitions replay memory gathers before the\nfirst update, no fewer than `batch_size`, whose default is the replay\nstart size Mnih et al. set.",
+          "exclusiveMinimum": 0,
+          "title": "Warmup Steps",
           "type": "integer"
         }
       },
@@ -153,6 +187,32 @@
       "title": "EnvironmentSettings",
       "type": "object"
     },
+    "EvaluationSettings": {
+      "additionalProperties": false,
+      "description": "The settings an evaluation reads, each a field of\n`RunSettings.evaluation` and a key under `[tool.squirtl.evaluation]`\nin `pyproject.toml`.",
+      "properties": {
+        "environments": {
+          "description": "The environments an evaluation plays its episodes across in parallel,\neach in a worker process of its own, which defaults to the CPUs the\nprocess may use.",
+          "exclusiveMinimum": 0,
+          "title": "Environments",
+          "type": "integer"
+        },
+        "episodes": {
+          "default": 30,
+          "description": "The episodes each evaluation plays of the agent and of the random\nbaseline, whose default follows Mnih et al.",
+          "exclusiveMinimum": 0,
+          "title": "Episodes",
+          "type": "integer"
+        },
+        "epsilon": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.05,
+          "description": "The chance of a random action at each step of the agent's evaluation\nepisodes, whose default follows Mnih et al."
+        }
+      },
+      "title": "EvaluationSettings",
+      "type": "object"
+    },
     "Fraction": {
       "exclusiveMinimum": 0,
       "maximum": 1,
@@ -209,6 +269,17 @@
       "$ref": "#/$defs/EnvironmentSettings",
       "description": "The settings the environment reads."
     },
+    "evaluation": {
+      "$ref": "#/$defs/EvaluationSettings",
+      "description": "The settings each evaluation of the agent reads."
+    },
+    "evaluation_steps": {
+      "default": 250000,
+      "description": "The environment steps between the evaluations a run plays, each where\nan episode end or the run's last step first reaches a multiple of them,\nwhose default is the 250,000 steps of each iteration Dopamine's DQN\nevaluates after.",
+      "exclusiveMinimum": 0,
+      "title": "Evaluation Steps",
+      "type": "integer"
+    },
     "reward": {
       "$ref": "#/$defs/RewardSettings",
       "description": "The settings the reward reads."
@@ -221,8 +292,8 @@
       "type": "integer"
     },
     "steps": {
-      "default": 10000000,
-      "description": "The environment steps the run takes, whose default follows CleanRL's\n`dqn_atari.py`.",
+      "default": 2500000,
+      "description": "The environment steps the run takes, whose default is ten of the\n250,000-step iterations Dopamine's DQN evaluates after.",
       "exclusiveMinimum": 0,
       "title": "Steps",
       "type": "integer"

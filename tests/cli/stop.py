@@ -48,7 +48,7 @@ def test_a_stop_of_a_directory_holding_no_run_exits_1_and_writes_nothing(
         param(
             "{}",
             [f"Run.{field}: Field required" for field in (
-                "revision", "settings", "started"
+                "digest", "revision", "settings", "started"
             )],
             id = "an-empty-object"
         ),

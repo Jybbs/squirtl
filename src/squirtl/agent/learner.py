@@ -9,7 +9,8 @@ from copy                import deepcopy
 from gymnasium.spaces    import Dict
 from numpy               import interp, ndarray
 from numpy.random        import default_rng
-from torch               import as_tensor, default_generator, inference_mode
+from torch               import as_tensor, default_generator, inference_mode, set_num_threads
+from torch.backends      import nnpack
 from torch.nn.functional import huber_loss
 from torch.nn.utils      import clip_grad_norm_
 from torch.optim         import Adam
@@ -17,15 +18,16 @@ from torch.random        import fork_rng
 
 from squirtl.agent.networks import QNetwork
 from squirtl.agent.replay   import Replay
-from squirtl.agent.schemas  import AgentSettings, Checkpoint, Update
+from squirtl.agent.schemas  import AgentSettings, Checkpoint, Update, Weights
 
 
 class Agent:
     """
     A deep Q-network agent after Mnih et al., choosing each action
     epsilon-greedily from its online network and training that network
-    toward targets its target network values, with the target network a copy
-    of the online network every `sync_steps` steps.
+    every `update_steps` steps after a warm-up of `warmup_steps`, toward the
+    Double DQN targets of van Hasselt et al. where `double_q` is set. Its
+    target network is a copy of the online network every `sync_steps` steps.
     """
 
     def __init__(
@@ -39,12 +41,20 @@ class Agent:
         """
         Builds both networks for `actions` actions over `space`, Adam over
         the online network, and empty replay memory for a run of `steps`
-        steps.
+        steps. Before building them, it turns NNPACK off for the whole
+        process and sets the process's thread count to the `threads` the
+        settings name, where they name one.
 
         Args:
             seed: The unsigned 64-bit seed the weights, the random actions,
                   and the replay draws each start from.
         """
+        # NNPACK runs this network's convolutions on the CPU slower than PyTorch's own.
+        nnpack.set_flags(False)
+
+        if settings.threads:
+            set_num_threads(settings.threads)
+
         self.exploration, sampling = default_rng(seed).spawn(2)
 
         with fork_rng(devices=[]):
@@ -67,12 +77,11 @@ class Agent:
         memory's arrays uncopied.
         """
         return Checkpoint(
+            **dict(self.weights),
             exploration = self.exploration.bit_generator.state,
-            online      = self.online.state_dict(),
             optimizer   = self.optimizer.state_dict(),
             replay      = self.replay.arrays,
             sampling    = self.replay.generator.bit_generator.state,
-            step        = self.step,
             target      = self.target.state_dict()
         )
 
@@ -88,6 +97,14 @@ class Agent:
             [0, self.settings.exploration_fraction * self.steps],
             [self.settings.epsilon_start, self.settings.epsilon_end]
         )
+
+    @property
+    def weights(self) -> Weights:
+        """
+        Gathers the online network's `state_dict`, uncopied, beside the step
+        it has reached, which an evaluation plays from.
+        """
+        return Weights(online=self.online.state_dict(), step=self.step)
 
     @inference_mode()
     def act(self, observation: Mapping[str, ndarray]) -> int:
@@ -136,40 +153,65 @@ class Agent:
 
     def restore(self, checkpoint: Checkpoint):
         """
-        Loads `checkpoint` into both networks, the optimizer, the step
-        count, both generators, and replay memory, in place, so the
-        optimizer keeps stepping the parameters of the network the
+        Loads `checkpoint` into replay memory, both networks, the optimizer,
+        the step count, and both generators, the networks in place, so
+        the optimizer keeps stepping the parameters of the network the
         checkpoint loads into.
+
+        Raises:
+            ValueError: Where replay memory's arrays or a network's entries
+                        differ from the agent's, as a checkpoint another
+                        agent wrote holds them.
         """
+        self.replay.load(checkpoint.replay)
+
+        try:
+            self.online.load_state_dict(checkpoint.online)
+            self.target.load_state_dict(checkpoint.target)
+        except RuntimeError as error:
+            # `load_state_dict` raises `RuntimeError` on an entry one side lacks or the
+            # network holds at another shape.
+            raise ValueError(
+                f"the checkpoint's networks differ from the agent's: {error}"
+            ) from error
+
         self.exploration.bit_generator.state      = checkpoint.exploration
         self.replay.generator.bit_generator.state = checkpoint.sampling
         self.step = checkpoint.step
-        self.online.load_state_dict(checkpoint.online)
         self.optimizer.load_state_dict(checkpoint.optimizer)
-        self.replay.load(checkpoint.replay)
-        self.target.load_state_dict(checkpoint.target)
 
     def update(self) -> Update | None:
         """
         Takes one gradient step on the Huber loss between the online
-        network's values for a batch and the target network's targets, its
-        gradient's norm clipped at `max_grad_norm`, and none before replay
-        memory holds a batch.
+        network's values for a batch and the targets the target network
+        values, under the action the online network chooses where `double_q`
+        is set, its gradient's norm clipped at `max_grad_norm`. It takes one
+        on each environment step `update_steps` divides once the agent has
+        remembered `warmup_steps` steps, and none on any other.
 
         Returns:
-            The loss and the mean value the step read, or `None` where
-            replay memory holds too few transitions to draw a batch.
+            The loss and the mean value the step read, or `None` on an
+            environment step that takes none.
         """
-        if len(self.replay) < self.settings.batch_size:
+        settings = self.settings
+
+        if self.step < settings.warmup_steps or self.step % settings.update_steps:
             return None
 
-        batch  = self.replay.sample(self.settings.device, self.settings.batch_size)
+        batch  = self.replay.sample(settings.device, settings.batch_size)
         values = batch.values(self.online)
-        loss   = huber_loss(values, batch.targets(self.settings.discount, self.target))
+        loss   = huber_loss(
+            values,
+            batch.targets(
+                self.online if settings.double_q else self.target,
+                settings.discount,
+                self.target
+            )
+        )
 
         self.optimizer.zero_grad()
         loss.backward()
-        clip_grad_norm_(self.online.parameters(), self.settings.max_grad_norm)
+        clip_grad_norm_(self.online.parameters(), settings.max_grad_norm)
         self.optimizer.step()
 
         return Update(loss=loss.item(), value=values.mean().item())

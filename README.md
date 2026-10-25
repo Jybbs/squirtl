@@ -19,7 +19,7 @@ mise doctor project
 
 `mise trust squirtl` marks the clone's `.mise/config.toml` as a file mise may read, and `mise -C squirtl install` installs the tools it pins before the shell enters the clone. Once `cd` runs, the activated mise puts the pinned `uv` and the `.mise/bin` folder holding the `squirtl` script on the path, even when the block is pasted whole. That script starts `squirtl` through `uv run --exact --locked`, which installs the package into `.venv` from `uv.lock` on its first run and refuses a `uv.lock` that lags `pyproject.toml`. `mise doctor project` then reports each thing the clone still needs beside the command that supplies it.
 
-*SquiRtL* ships no part of the game, so it runs on your own legal copy of the English Pokémon Blue ROM, which never enters the repository. It sits at `data/rom.gb`, which `.gitignore` keeps out of `git status` and `mise doctor project` checks for, and a run refuses any ROM there whose SHA-1 is not the one the [pret/pokered](https://github.com/pret/pokered) disassembly lists for the English Pokémon Blue. The refusal covers a Pokémon Red ROM as well, since PyBoy's game wrapper plays the intro through Blue's naming screens alone.
+*SquiRtL* ships no part of the game, so it runs on your own legal copy of the English Pokémon Blue ROM, which never enters the repository. It sits at `data/rom.gb`, which `.gitignore` keeps out of `git status` and `mise doctor project` checks for, and a run refuses any ROM there whose SHA-1 is not the one the [pret/pokered](https://github.com/pret/pokered) disassembly lists for the English Pokémon Blue. The refusal covers a Pokémon Red ROM as well, since PyBoy's game wrapper plays the intro through the naming screens of Pokémon Blue alone.
 
 Each step of the development loop runs as a mise task, which `mise tasks` lists in full:
 
@@ -40,7 +40,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 
 ## Training
 
-`squirtl train` trains the agent headless for `--steps` environment steps, 10,000,000 by default as CleanRL's `dqn_atari.py` sets, logging a line per episode above a progress bar and printing the run's directory once the run ends. Every setting is a flag (*`squirtl train --help` lists each one beside its default*) or a key under `[tool.squirtl]` in `pyproject.toml`, and `--emulator.open-window` draws the game in a window:
+`squirtl train` trains the agent headless for `--steps` environment steps, 2,500,000 by default, ten of the 250,000-step iterations Dopamine's DQN evaluates after, logging a line per episode above a progress bar and printing the run's directory once the run ends. Every setting is a flag (*`squirtl train --help` lists each one beside its default, and a setting on by default turns off as `--agent.double-q=false` does*) or a key under `[tool.squirtl]` in `pyproject.toml`, and `--emulator.open-window` draws the game in a window:
 
 ```bash
 squirtl train --steps 1000000
@@ -53,11 +53,24 @@ Each run writes into a directory of its own under `data/runs/`, named for the in
 
 | **File** | **What It Holds** |
 |---|---|
-| `run.json` | *The settings the run read, the commit and the digest of `uv.lock` it ran on, the instant it started, and the run it resumes* |
-| `episodes.jsonl` | *One line per episode, holding its return, length, and wall time, whether it reached the starter, each reward term's total, the positions it reached, $`\varepsilon`$, the mean loss and value over its updates, and the start and presses it played from, both compressed with zstd, beside the `timer_div` its reset wrote* |
-| `checkpoint.npz` | *The networks, Adam's state, the generators, and replay memory, written at the first episode end reaching each multiple of `--checkpoint-steps` and at the run's end, each write taking the file's name only once whole* |
+| `run.json` | *The settings the run read, the commit and the digest of `uv.lock` it ran on, the SHA-256 digest of the state the game's intro leaves the console in, the instant it started, and the run it resumes* |
+| `episodes.jsonl` | *One line per episode, holding its return, length, and wall time, whether it reached the starter, each reward term's total, the positions it reached, $`\varepsilon`$, the mean loss and value over its updates, and the presses it played, compressed with zstd, beside the `timer_div` its reset wrote, since a reset at one `timer_div` always leaves the console in one state* |
+| `evaluations.jsonl` | *One line per evaluation of the agent, while the run trains or under `squirtl evaluate`, holding the step it read the agent at and what each of its episodes reached* |
+| `baseline.json` | *The random baseline's evaluation under the run's evaluation seeds, written at the run's first evaluation* |
+| `checkpoint.npz` | *The networks, Adam's state, the generators, and replay memory, written at the first episode end reaching each multiple of `--checkpoint-steps` and at the run's end, each write flushed to disk after `episodes.jsonl` and taking the file's name only once whole* |
 
-An interrupt, a termination signal, or `squirtl stop` from another shell ends a run at the end of its episode with a checkpoint, and a second interrupt ends it at once on the last checkpoint. `squirtl train --resume` continues a stopped run in a new directory under the settings that run recorded and ends with the weights it would have reached had it never stopped, while `squirtl watch` plays a recorded episode back through the emulator's window to the return the run recorded for it.
+An interrupt, a termination signal, or `squirtl stop` from another shell ends a run at the end of its episode with a checkpoint, and a second interrupt ends it at once on the last checkpoint. `squirtl train --resume` continues a stopped run in a new directory under the settings that run recorded and ends with the weights it would have reached had it never stopped, refusing before it makes any directory a checkpoint that is damaged, already holds the run's steps, or runs past the episodes the log recorded. `squirtl watch` plays a recorded episode back through the emulator's window to the return the run recorded for it, once the state the intro leaves matches the digest the run recorded.
+
+## Evaluation
+
+`squirtl evaluate` plays evaluation episodes of each run's agent from its last checkpoint, at the $`\varepsilon`$ of 0.05 and over the 30 episodes Mnih et al. evaluate with,[^mnih2015] beside a random baseline under the same seeds, across the worker processes `gymnasium.make_vec` runs in parallel. Each evaluation lands in the run's directory, so a second call reads it rather than playing it again, and a run also evaluates its agent while it trains, at the first episode end reaching each multiple of `--evaluation-steps`:
+
+```bash
+squirtl evaluate data/runs/<run> data/runs/<other run>
+squirtl evaluate data/runs/<run> --against data/runs/<rival run>
+```
+
+The command prints Markdown to paste into an issue or a pull request, listing each run's measures, meaning the share of episodes reaching the starter, the steps those episodes took, the positions reached, the return, and each reward term's part of it. Beneath them sit each measure's interquartile mean across the runs, with its 95% percentile bootstrap interval and the count of runs behind it, and the probability that the agent beats its baseline and the runs `--against` names, as Agarwal et al. recommend comparing two agents.[^agarwal2021]
 
 ## Reinforcement Learning
 
@@ -112,13 +125,13 @@ Where:
 
 This equation represents a contraction mapping in the space of value functions, guaranteeing convergence to a unique fixed point (the optimal Q-function) under certain conditions. Interestingly enough, this is reminiscent of the convergence properties of other iterative algorithms in Bellman's purview, like the Bellman-Ford algorithm for finding shortest paths.
 
-In practice, we use a neural network $`Q(s, a; \theta)`$ to approximate $`Q(s, a)`$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network is trained to minimize the Huber loss $`\ell`$ on the gap between each target and the value the network gives:
+In practice, we use a neural network $`Q(s, a; \theta)`$ to approximate $`Q(s, a)`$. This approximation transforms the problem from a tabular method to a function approximation method, allowing us to handle the curse of dimensionality in large state spaces. The network takes a gradient step on every fourth step once the run has taken 50,000 steps, the update frequency and the replay start size Mnih et al. set,[^mnih2015] each step minimizing the Huber loss $`\ell`$ on the gap between each target and the value the network gives:
 
 $`\hspace{0.5cm} \displaystyle L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} [\ell(y - Q(s, a; \theta))], \quad \ell(x) = \begin{cases} \tfrac{1}{2} x^2, & |x| \le 1 \\ |x| - \tfrac{1}{2}, & \text{otherwise} \end{cases}`$
 
 Where:
 
-- $`y = r + \gamma \max_{a'} Q(s', a'; \theta^-)`$ is the target Q-value, or $`y = r`$ where the step terminates the episode, whereas a step the time limit cuts short keeps the discounted term
+- $`y = r + \gamma \, Q(s', \arg\max_{a'} Q(s', a'; \theta); \theta^-)`$ is the target Q-value, the online network choosing the next action and the target network valuing it as van Hasselt et al.'s Double DQN does,[^vanhasselt2016] or $`y = r`$ where the step terminates the episode, whereas a step the time limit cuts short keeps the discounted term
 - $`\theta`$ are the parameters of the online network
 - $`\theta^-`$ are the parameters of the target network
 - $`U(D)`$ is a uniform distribution over the replay buffer D
@@ -154,7 +167,7 @@ This periodic update is reminiscent of the concept of "batching" in amortized an
 
 ### Application to Pokémon Blue
 
-In the context of Pokémon Blue, the state $`s`$ is a `Dict` observation holding the last four screens in grayscale at $`72 \times 80`$, a binary $`48 \times 48`$ grid marking each square of the current map the episode has reached, centered on the player, and a binary vector of the milestone and starter flags. The action space $`A`$ holds one discrete action for no press and one for each of A, B, and the four directions, each press holding its button for 2 of the 17 frames a step advances. An episode starts in Red's bedroom and ends as terminated at the starter or as truncated after 10,240 steps, the budget Pleines et al. start each episode with.[^pleines2025]
+In the context of Pokémon Blue, the state $`s`$ is a `Dict` observation holding the last four screens in grayscale at $`72 \times 80`$, a binary $`48 \times 48`$ grid marking each square of the current map the episode has reached, centered on the player, and a binary vector of the milestone and starter flags. The action space $`A`$ holds one discrete action for no press and one for each of A, B, and the four directions, each press holding its button for 2 of the 17 frames a step advances. An episode starts in the bedroom of Blue, the player character, and ends as terminated at the starter or as truncated after 10,240 steps, the budget Pleines et al. start each episode with.[^pleines2025]
 
 The reward function $`R(s, a, s')`$ sums three terms, each paying for what a step adds to its episode, and holds every step's reward within 1, the bound Mnih et al. clip each reward to,[^mnih2015] with the starter the largest term:
 
@@ -175,12 +188,13 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 | **Subpackage** | **What It Holds** |
 |---|---|
 | `squirtl.agent` | *The deep Q-network agent, meaning the Q-network reading each entry of an observation through an encoder of its own, replay memory holding each element of each entry once with each binary entry packed eight cells to a byte, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from, replay memory included* |
-| `squirtl.cli` | *The `squirtl` command and its `train`, `stop`, and `watch` subcommands* |
+| `squirtl.cli` | *The `squirtl` command and its `evaluate`, `stop`, `train`, and `watch` subcommands* |
 | `squirtl.emulator` | *The cartridge a run reads, refused unless its SHA-1 is the one pret/pokered lists for the English Pokémon Blue, and `GameBoy` running it headless through PyBoy with no save beside it, beside the buttons a step presses and the addresses in the game's memory the package reads* |
-| `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Red's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, the time limit truncating an episode, and the recording of each episode's start and presses* |
-| `squirtl.repo` | *The records read from the label, ruleset, and settings registries under `.github/`, and the `gh` commands `mise labels` and `mise rulesets` send once you confirm them* |
+| `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Blue's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, the time limit truncating an episode, the outcome each episode's last step reports, and the recording of each episode's `timer_div` and presses* |
+| `squirtl.evaluation` | *The evaluation of an agent, meaning the episodes it plays across worker processes from a seed per episode number, the random baseline under the same seeds, the measures a reader judges a policy by, and the interquartile mean, the percentile bootstrap interval, and the probability of improvement compared across runs* |
+| `squirtl.repo` | *The records read from the label, ruleset, and settings registries under `.github/`, the `gh` commands `mise labels` and `mise rulesets` send once you confirm them, and the checks `mise audit` runs* |
 | `squirtl.reward` | *The reward each step earns, meaning a novelty for each map position an episode reaches for the first time, a milestone for each event flag on the way to the starter, and the starter, which ends the episode, with every step's reward held within 1 and each term's share reported beside it* |
-| `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, the training loop driving the environment and the agent, and the directory under `data/runs/` recording each run's settings, its commit, the digest of `uv.lock`, its episodes, and its checkpoint* |
+| `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, the training loop driving the environment and the agent, and the directory under `data/runs/` recording each run's settings, its commit, the digest of `uv.lock`, its episodes, its evaluations, and its checkpoint* |
 
 ## Metrics & Analysis
 
@@ -318,6 +332,10 @@ This project was developed under the supervision and thoughtful direction of [Pr
 
 I also would be remiss if I didn't thank **Sean Sullivan** for constantly helping me contextualize my thoughts and for his advocacy of my work and capabilities in all things technology. Thank you, Wes and Sean!
 
+[^mnih2015]: Mnih et al. 2015. "Human-level control through deep reinforcement learning." *Nature* 518(7540): 529–533. <https://doi.org/10.1038/nature14236>
+
+[^agarwal2021]: Agarwal et al. 2021. "Deep Reinforcement Learning at the Edge of the Statistical Precipice." *Advances in Neural Information Processing Systems* 34: 29304–29320. <https://proceedings.neurips.cc/paper/2021/hash/f514cec81cb148559cf475e7426eed5e-Abstract.html>
+
 [^pleines2025]: Pleines et al. 2025. "Pokemon Red via Reinforcement Learning." arXiv:2502.19920. <https://arxiv.org/abs/2502.19920>
 
-[^mnih2015]: Mnih et al. 2015. "Human-level control through deep reinforcement learning." *Nature* 518(7540): 529–533. <https://doi.org/10.1038/nature14236>
+[^vanhasselt2016]: van Hasselt et al. 2016. "Deep Reinforcement Learning with Double Q-Learning." *Proceedings of the AAAI Conference on Artificial Intelligence* 30(1). <https://doi.org/10.1609/aaai.v30i1.10295>

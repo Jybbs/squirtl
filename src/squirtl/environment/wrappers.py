@@ -1,14 +1,16 @@
 """
-Defines `ProgressObservation` and `ShrinkObservation`, the observation
-wrappers `Overworld.make` applies beside Gymnasium's own.
+Defines the wrappers `Overworld.specification` names beside Gymnasium's own,
+`ProgressObservation` and `ShrinkObservation`, which shape the observation,
+and `RecordOutcome`, which reports what each episode reached.
 """
 
-from gymnasium        import Env, ObservationWrapper
+from gymnasium        import Env, ObservationWrapper, Wrapper
 from gymnasium.spaces import Box, Dict, MultiBinary
 from gymnasium.utils  import RecordConstructorArgs
-from numpy            import ndarray, uint8
+from numpy            import full, ndarray, ndindex, uint32, uint8
+from typing           import Any
 
-from squirtl.environment.schemas import Entry
+from squirtl.environment.schemas import Entry, Outcome
 from squirtl.reward.schemas      import Event
 
 
@@ -53,6 +55,44 @@ class ProgressObservation(ObservationWrapper, RecordConstructorArgs):
         }
 
 
+class RecordOutcome(Wrapper, RecordConstructorArgs):
+    """
+    Reports what each episode reached as an `Outcome` in the info dict
+    of its last step under `outcome`, reading the return, the length, and
+    the time from the statistics `RecordEpisodeStatistics` adds beneath
+    it, and the positions and the shares from the unwrapped environment's
+    `Progress`.
+    """
+
+    def __init__(self, env: Env):
+        """
+        Wraps `env`, which `RecordEpisodeStatistics` wraps.
+        """
+        RecordConstructorArgs.__init__(self)
+        Wrapper.__init__(self, env)
+
+    def step(self, action: int) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+        """
+        Steps the wrapped environment and adds the episode's `Outcome` to
+        the info dict once the step terminates or truncates it.
+        """
+        observation, reward, terminated, truncated, info = self.env.step(action)
+
+        if terminated or truncated:
+            progress        = self.get_wrapper_attr("progress")
+            statistics      = info["episode"]
+            info["outcome"] = Outcome(
+                length     = statistics["l"],
+                positions  = len(progress.positions),
+                reward     = statistics["r"],
+                seconds    = statistics["t"],
+                shares     = progress.shares,
+                terminated = terminated
+            )
+
+        return observation, reward, terminated, truncated, info
+
+
 class ShrinkObservation(ObservationWrapper, RecordConstructorArgs):
     """
     Shrinks each grayscale frame to `shape` by averaging the block of pixels
@@ -71,18 +111,24 @@ class ShrinkObservation(ObservationWrapper, RecordConstructorArgs):
 
     def observation(self, frame: ndarray) -> ndarray:
         """
-        Averages each block of `frame` into its cell of `shape`.
+        Averages each block of `frame` into its cell of `shape` by adding
+        one strided slice of `frame` for each offset into a block, the slice
+        holding the pixel at that offset in every block. The sum runs in
+        `uint32`, which no frame the size of the screen overflows.
 
         Returns:
             A `shape` array of `uint8`.
         """
-        height, width = self.shape
-        blocks        = frame.reshape(
-            height,
-            frame.shape[0] // height,
-            width,
-            frame.shape[1] // width
+        rows, columns = (
+            pixels // cells for pixels, cells in zip(frame.shape, self.shape)
         )
-        cells = blocks.shape[1] * blocks.shape[3]
+        block   = rows * columns
+        offsets = ndindex(rows, columns)
 
-        return ((blocks.sum(axis=(1, 3)) + cells // 2) // cells).astype(uint8)
+        return (
+            sum(
+                (frame[row::rows, column::columns] for row, column in offsets),
+                full(self.shape, block // 2, uint32)
+            )
+            // block
+        ).astype(uint8)

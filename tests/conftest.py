@@ -6,11 +6,13 @@ running it, and the collection hook lets a test open a network connection
 only when it carries the `network` mark. The `rom`, `cartridge`, and
 `settings` fixtures serve the tests of the emulator, the reward, and the
 environment, so none needs the user's own ROM, `clone` serves every test
-starting a run, which reads the clone it runs in, and `outside` every test
-reading a working directory no clone holds.
+starting a run, which reads the clone it runs in, `outside` every test
+reading a working directory no clone holds, and `evaluators` every test of a
+run's evaluation that starts no worker process.
 """
 
 from collections.abc   import Callable, Iterable, Iterator, Mapping
+from common.evaluation import EvaluatorStandIn
 from io                import StringIO
 from os                import devnull
 from pathlib           import Path
@@ -168,6 +170,31 @@ def settings() -> RewardSettings:
     from one another, so every sum a step earns is exact.
     """
     return RewardSettings(milestone=0.125, novelty=0.0625, starter=0.5)
+
+
+@fixture
+def evaluators(monkeypatch: MonkeyPatch) -> list[EvaluatorStandIn]:
+    """
+    Makes each evaluation a run plays go through an `EvaluatorStandIn`
+    rather than worker processes on PyBoy.
+
+    Returns:
+        Each stand-in, in the order the runs built them.
+    """
+    built = []
+
+    def build(*arguments: object) -> EvaluatorStandIn:
+        """
+        Builds a stand-in for the evaluator `arguments` describe and records
+        it.
+        """
+        built.append(stand_in := EvaluatorStandIn(*arguments))
+
+        return stand_in
+
+    monkeypatch.setattr("squirtl.runs.schemas.Evaluator", build)
+
+    return built
 
 
 @fixture

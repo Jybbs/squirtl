@@ -1,11 +1,13 @@
 """
 Defines the fixtures the tests of `squirtl.environment` request, `made`,
-which makes the wrapped environment on PyBoy, `overworld`, an `Overworld` on
-`StandIn`, and `walking`, which moves the player along each tick of it.
+which makes the wrapped environment on PyBoy, `overworld`, an `Overworld`
+on `StandIn`, `shaded`, an `Overworld` on PyBoy whose frame holds all
+four of its grays, and `walking`, which moves the player along each tick
+of `overworld`.
 """
 
 from collections.abc import Callable, Iterator
-from common.console  import StandIn
+from common.console  import StandIn, shade
 from contextlib      import ExitStack
 from gymnasium       import Env
 from pytest          import MonkeyPatch, fixture
@@ -21,8 +23,9 @@ from squirtl.reward.schemas        import RewardSettings
 def made(cartridge: Cartridge) -> Iterator[Callable[..., Env]]:
     """
     Builds a factory making the environment on PyBoy from `cartridge`
-    through `Overworld.make` under the default settings, any keyword setting
-    a field of `EnvironmentSettings`, and closing each with the test.
+    through the spec `Overworld.specification` gives under the default
+    settings, any keyword setting a field of `EnvironmentSettings`, and
+    closing each with the test.
     """
     with ExitStack() as stack:
 
@@ -31,12 +34,12 @@ def made(cartridge: Cartridge) -> Iterator[Callable[..., Env]]:
             Makes the environment `environment` describes.
             """
             return stack.enter_context(
-                Overworld.make(
+                Overworld.specification(
                     cartridge,
                     EmulatorSettings(),
                     EnvironmentSettings(**environment),
                     RewardSettings()
-                )
+                ).make()
             )
 
         yield make
@@ -61,6 +64,24 @@ def overworld(
         EnvironmentSettings(frames_per_step=20),
         settings
     )
+
+
+@fixture
+def shaded(made: Callable[..., Env]) -> Overworld:
+    """
+    Makes the environment on PyBoy and resets it, draws all four of PyBoy's
+    grays into its next frame through `shade`, then steps it once.
+
+    Returns:
+        The unwrapped `Overworld`, whose `game_boy.grayscale` holds the frame
+        that step observes.
+    """
+    env = made()
+    env.reset(seed=0)
+    shade(env.unwrapped.game_boy)
+    env.unwrapped.step(0)
+
+    return env.unwrapped
 
 
 @fixture

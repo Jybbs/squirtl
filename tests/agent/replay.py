@@ -6,8 +6,8 @@ Pins replay memory, covering:
 - A reset observation drawn back element by element, and a `Box` bounded
   at 0 and 1 held unpacked
 - The generator its draws come from, and its 606 MB at the default capacity
-- The arrays it gathers for a checkpoint, the copy it loads from them, and
-  the arrays of another capacity it refuses
+- The arrays it gathers for a checkpoint and loads back uncopied, and the
+  arrays of another capacity, dtype, or name it refuses
 """
 
 from collections.abc  import Callable, Mapping
@@ -15,6 +15,7 @@ from gymnasium.spaces import Box, Dict, MultiBinary
 from itertools        import pairwise
 from numpy            import arange, array, int8, ndarray, uint8, zeros
 from numpy.random     import default_rng
+from numpy.testing    import assert_array_equal
 from pytest           import fixture, mark, param, raises
 from torch.testing    import assert_close
 
@@ -101,7 +102,7 @@ def test_replay_draws_back_each_transition_it_holds_and_nothing_else(
 
     batch = replay.sample("cpu", 500)
 
-    assert len(replay) == held
+    assert replay.held.sum() == held
     assert {
         (
             *(batch.observations[key][draw].numpy().tobytes() for key in tiny),
@@ -241,29 +242,21 @@ def test_replay_holds_a_box_bounded_at_0_and_1_unpacked_in_its_dtype():
     assert replay.sample("cpu", 1).windows[Entry.FLAGS].tolist() == [[[0, 1], [1, 0]]]
 
 
-def test_replay_loaded_from_another_replays_arrays_draws_and_stores_as_it_would(
-    stacked : Stacked,
-    tiny    : Dict
-):
+def test_replay_keeps_the_arrays_it_loads_uncopied(stacked: Stacked, tiny: Dict):
     """
-    Asserts that replay memory loading the arrays another one gathers holds
-    the same transitions, draws the batch the other draws from a generator
-    at the same state, and writes its next element into the slot the other
-    writes into, since it reads `pushed` back.
+    Asserts that replay memory loading arrays holds those arrays themselves
+    rather than copies of them.
     """
-    saved, loaded = (Replay(16, default_rng(4), tiny) for _ in range(2))
+    saved = Replay(16, default_rng(4), tiny)
     fill(saved, stacked, tiny)
-    loaded.load(saved.arrays)
+    given  = {name: array.copy() for name, array in saved.arrays.items()}
+    loaded = Replay(16, default_rng(4), tiny)
+    loaded.load(given)
 
-    for replay in (saved, loaded):
-        replay.store(0, stacked(elements(2, 1), tiny)[-1], 9.0, False)
-
-    assert len(loaded) == len(saved)
-    assert_close(
-        loaded.sample("cpu", 32).model_dump(),
-        saved.sample("cpu", 32).model_dump(),
-        atol = 0,
-        rtol = 0
+    assert all(
+        array is given[name]
+        for name, array in loaded.arrays.items()
+        if name != "pushed"
     )
 
 
@@ -286,3 +279,65 @@ def test_replay_refuses_the_arrays_of_another_capacity(
 
     with raises(ValueError, match="where the arrays loaded hold"):
         Replay(12, default_rng(0), tiny).load(saved.arrays)
+
+
+def test_replay_loaded_from_another_replays_arrays_draws_and_stores_as_it_would(
+    stacked : Stacked,
+    tiny    : Dict
+):
+    """
+    Asserts that replay memory loading the arrays another one gathers holds
+    the same transitions, draws the batch the other draws from a generator
+    at the same state, and writes its next element into the slot the other
+    writes into, since it reads `pushed` back.
+    """
+    saved, loaded = (Replay(16, default_rng(4), tiny) for _ in range(2))
+    fill(saved, stacked, tiny)
+    loaded.load({name: array.copy() for name, array in saved.arrays.items()})
+
+    for replay in (saved, loaded):
+        replay.store(0, stacked(elements(2, 1), tiny)[-1], 9.0, False)
+
+    assert_array_equal(loaded.held, saved.held)
+    assert_close(
+        loaded.sample("cpu", 32).model_dump(),
+        saved.sample("cpu", 32).model_dump(),
+        atol = 0,
+        rtol = 0
+    )
+
+
+@mark.parametrize(
+    ("change", "refusal"),
+    [
+        param(
+            lambda arrays: arrays | {"rewards": arrays["rewards"].astype("float64")},
+            "holds `rewards` as float32",
+            id = "rewards-of-another-dtype"
+        ),
+        param(
+            lambda arrays: arrays | {"extra": arrays["held"]},
+            "where the arrays loaded are",
+            id = "an-array-it-holds-none-of"
+        )
+    ]
+)
+def test_replay_refuses_arrays_of_another_dtype_or_name(
+    change  : Callable[[dict[str, ndarray]], dict[str, ndarray]],
+    refusal : str,
+    stacked : Stacked,
+    tiny    : Dict
+):
+    """
+    Asserts that replay memory refuses arrays one of which holds another
+    dtype than its own, which `copyto` would have cast without a word, or
+    which name an array it holds none of, taking none of them.
+    """
+    saved = Replay(16, default_rng(4), tiny)
+    fill(saved, stacked, tiny)
+    loaded = Replay(16, default_rng(4), tiny)
+
+    with raises(ValueError, match=refusal):
+        loaded.load(change(saved.arrays))
+
+    assert not loaded.held.any()

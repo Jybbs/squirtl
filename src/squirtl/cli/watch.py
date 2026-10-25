@@ -27,13 +27,14 @@ def watch(
 ) -> int | None:
     """
     Opens the emulator's window and plays back one episode the run recorded,
-    from the state its reset left to the return the run recorded for it, at
-    the sixty steps a second the window paces.
+    from the reset at the `timer_div` the run recorded for it to the return
+    the run recorded, at the sixty steps a second the window paces.
 
     A directory holding no run, an episode the run never recorded, or a
     cartridge the emulator refuses exits 1 before the window opens, and
-    a playback reaching a return other than the one recorded exits 1 once
-    it ends.
+    a console whose intro leaves a state of another digest than the run's
+    exits 1 before playing anything. A playback reaching a return other than
+    the one recorded exits 1 once it ends.
     """
     listen()
 
@@ -48,6 +49,16 @@ def watch(
         run.settings.environment,
         run.settings.reward
     ) as overworld:
+        if overworld.digest != run.digest:
+            logger.error(
+                "The intro left the console in a state of digest {}, where the run "
+                "recorded {}",
+                overworld.digest,
+                run.digest
+            )
+
+            return 1
+
         reward = overworld.play(recorded.recording)
 
     if reward != recorded.reward:

@@ -5,6 +5,7 @@ the protocols naming the PyBoy members it calls: `Emulator`, `GameWrapper`,
 """
 
 from contextlib import AbstractContextManager
+from hashlib    import file_digest
 from io         import BytesIO
 from numpy      import ndarray
 from pyboy      import PyBoy
@@ -68,11 +69,6 @@ class Emulator(Protocol):
         Presses the button `input` names for the next `delay` frames.
         """
 
-    def load_state(self, file_like_object: BinaryIO):
-        """
-        Restores the whole state of the emulator from `file_like_object`.
-        """
-
     def save_state(self, file_like_object: BinaryIO):
         """
         Writes the whole state of the emulator into `file_like_object`.
@@ -114,6 +110,34 @@ class GameBoy(AbstractContextManager):
         self.settings = settings
 
     @property
+    def digest(self) -> str:
+        """
+        Hashes the whole state of the console as PyBoy saves it, which is
+        the same after every `reset` at one `timer_div`.
+
+        Returns:
+            The hex digest of the state's SHA-256.
+        """
+        with BytesIO() as state:
+            self.emulator.save_state(state)
+
+            return file_digest(state, "sha256").hexdigest()
+
+    @property
+    def grayscale(self) -> ndarray:
+        """
+        Copies the red channel of the frame the emulator last rendered,
+        which holds that frame in gray. PyBoy draws a cartridge made for
+        the original Game Boy, as Pokémon Blue is, in the four grays of its
+        default `color_palette`, each with equal red, green, and blue, until
+        the `c` key in an open window cycles it to a colored palette.
+
+        Returns:
+            A `(144, 160)` array of `uint8`, which no later frame overwrites.
+        """
+        return self.emulator.screen.ndarray[..., 0].copy()
+
+    @property
     def screen(self) -> ndarray:
         """
         Copies the frame the emulator last rendered without its alpha
@@ -143,16 +167,6 @@ class GameBoy(AbstractContextManager):
             settings
         )
 
-    def capture(self) -> bytes:
-        """
-        Saves the whole state of the console in memory, which `restore`
-        loads back.
-        """
-        with BytesIO() as state:
-            self.emulator.save_state(state)
-
-            return state.getvalue()
-
     def close(self):
         """
         Stops the emulator without saving, since PyBoy's default `stop()`
@@ -173,7 +187,7 @@ class GameBoy(AbstractContextManager):
                         tick.
 
         Returns:
-            The screen that last frame shows, as `screen` copies it.
+            The last frame in gray, as `grayscale` copies it.
         """
         if button:
             if frames < self.settings.hold:
@@ -186,7 +200,7 @@ class GameBoy(AbstractContextManager):
 
         self.emulator.tick(frames)
 
-        return self.screen
+        return self.grayscale
 
     def read(self, symbol: Symbol, offset: int = 0) -> int:
         """
@@ -204,18 +218,15 @@ class GameBoy(AbstractContextManager):
         """
         self.emulator.game_wrapper.reset_game(timer_div)
 
-    def restore(self, state: bytes):
-        """
-        Loads a state `capture` saved, returning the console to that
-        instant.
-        """
-        self.emulator.load_state(BytesIO(state))
-
     def start(self):
         """
-        Plays the intro to Red's bedroom through PyBoy's game wrapper, which
-        renders none of its frames and saves that state for `reset`, writing
-        0 into DIV until `reset` writes each episode's `timer_div`.
+        Plays the intro to Blue's bedroom through PyBoy's game wrapper,
+        which renders none of the intro's frames and saves the state the
+        intro leaves for `reset`, writing 0 into DIV until `reset` writes
+        each episode's `timer_div`.
+
+        The wrapper takes the first preset on both naming screens, BLUE for
+        the player and RED for the rival.
         """
         # `start_game` navigates the naming screens of Pokémon Blue alone.
         self.emulator.game_wrapper.start_game(0)

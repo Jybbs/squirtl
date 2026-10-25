@@ -8,20 +8,22 @@ Pins what the `squirtl` command itself defines, covering:
 
    - Each setting comes from its flag, then the `[tool.squirtl]` table of
      the working directory's `pyproject.toml`, then its default
-   - A key no setting declares, a bare token, and a `--no-` flag are each
-     refused
+   - A key no setting declares, a bare token, a `--no-` flag, and a
+     warm-up short of a batch are each refused
    - Reading the settings writes nothing
+   - A command reading the settings its run recorded reads no such table
 """
 
 from collections.abc    import Callable, Mapping
 from common.cli         import Invoker
-from cyclopts           import App, Parameter, UnknownOptionError, UnusedCliTokensError
+from cyclopts           import App, Parameter, UnknownOptionError, UnusedCliTokensError, ValidationError
 from importlib.metadata import EntryPoint, entry_points, version
 from pathlib            import Path
 from pytest             import MonkeyPatch, fixture, mark, param, raises
 from syrupy.assertion   import SnapshotAssertion
 from typing             import Annotated
 
+from squirtl.agent.schemas    import AgentSettings
 from squirtl.cli              import app
 from squirtl.emulator.schemas import EmulatorSettings
 from squirtl.reward.schemas   import RewardSettings
@@ -34,10 +36,10 @@ type Reader = Callable[[list[str], str | None], RunSettings]
 def read(checkout: Callable[[Mapping[str, str]], None]) -> Reader:
     """
     Builds a reader that parses `argv` the way a command taking
-    `RunSettings` would, through the configuration the app reads, in the
-    working directory `checkout` makes of `tmp_path`.
+    `RunSettings` would, through the configuration `squirtl train` reads, in
+    the working directory `checkout` makes of `tmp_path`.
     """
-    probe = App(config=app.config, default_parameter=app.default_parameter)
+    probe = App(config=app["train"].config, default_parameter=app.default_parameter)
 
     @probe.command
     def received(
@@ -108,6 +110,30 @@ def test_a_bool_setting_takes_no_negative_flag(read: Reader):
         read(["--emulator.no-open-window"], None)
 
 
+@mark.parametrize(
+    ("manifest", "argv"),
+    [
+        param(None, ["--agent.warmup-steps", "8"], id="a-flag"),
+        param("[tool.squirtl.agent]\nwarmup-steps = 8\n", [], id="the-agent-table")
+    ]
+)
+def test_a_warmup_short_of_the_batch_size_is_refused(
+    argv     : list[str],
+    manifest : str | None,
+    read     : Reader
+):
+    """
+    Asserts that a warm-up below the default `batch_size` of 32, from its
+    flag or from the `[tool.squirtl.agent]` table, raises the refusal the
+    agent's settings give, naming both, rather than reaching the command.
+    """
+    with raises(
+        ValidationError,
+        match = "a warm-up of 8 steps gathers fewer transitions than the 32 each"
+    ):
+        read(argv, manifest)
+
+
 def test_a_setting_takes_no_positional_token(read: Reader):
     """
     Asserts that a command taking `RunSettings` keyword-only, after a bare
@@ -161,6 +187,30 @@ def test_a_table_above_the_working_directory_is_not_read(
             ["--reward.starter", "0.7"],
             RunSettings(reward=RewardSettings(milestone=0.05, starter=0.7)),
             id = "the-reward-table-beside-a-flag"
+        ),
+        param(
+            "[tool.squirtl.agent]\nbatch-size = 8\n",
+            ["--agent.warmup-steps", "8"],
+            RunSettings(agent=AgentSettings(batch_size=8, warmup_steps=8)),
+            id = "the-agent-table-beside-a-flag"
+        ),
+        param(
+            None,
+            ["--agent.double-q=false"],
+            RunSettings(agent=AgentSettings(double_q=False)),
+            id = "a-setting-on-by-default-turned-off"
+        ),
+        param(
+            "[tool.squirtl.agent]\nthreads = 1\n",
+            ["--agent.device", "cpu"],
+            RunSettings(agent=AgentSettings(device="cpu", threads=1)),
+            id = "a-thread-count-in-the-agent-table-beside-a-device-flag"
+        ),
+        param(
+            None,
+            ["--agent.threads", "1"],
+            RunSettings(agent=AgentSettings(threads=1)),
+            id = "a-thread-count-flag"
         )
     ]
 )
@@ -176,7 +226,8 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
     field declares.
 
     A flag for one of a subject's settings leaves in place the others that
-    subject's table sets.
+    subject's table sets, and a setting on by default reads `false` from its
+    flag's `=false` form, the one the help of `squirtl train` names.
     """
     assert read(argv, manifest) == settings
 
@@ -184,10 +235,11 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
 @mark.parametrize(
     "command",
     [
-        param([],        id="the-app"),
-        param(["stop"],  id="stop"),
-        param(["train"], id="train"),
-        param(["watch"], id="watch")
+        param([],           id="the-app"),
+        param(["evaluate"], id="evaluate"),
+        param(["stop"],     id="stop"),
+        param(["train"],    id="train"),
+        param(["watch"],    id="watch")
     ]
 )
 def test_help_text(
@@ -201,9 +253,11 @@ def test_help_text(
     file holds, the app's carrying the description the manifest declares
     and each command's its docstring and each flag's, so a change to what a
     command documents is reviewed as a diff. The device defaults to the CPU
-    here, whatever accelerator the machine running the suite reports.
+    and an evaluation to four environments here, whatever accelerator and
+    CPUs the machine running the suite reports.
     """
     monkeypatch.setattr("squirtl.agent.schemas.current_accelerator", lambda **_: None)
+    monkeypatch.setattr("squirtl.evaluation.schemas.process_cpu_count", lambda: 4)
     invocation = invoke([*command, "--help"])
 
     assert invocation.code == 0
@@ -238,3 +292,34 @@ def test_version_reports_installed_package(invoke: Invoker, script: EntryPoint):
 
     assert invocation.code == 0
     assert invocation.output.strip() == version(script.dist.name)
+
+
+@mark.parametrize(
+    "command",
+    [
+        param("evaluate", id="evaluate"),
+        param("stop", id="stop"),
+        param("watch", id="watch")
+    ]
+)
+@mark.usefixtures("evaluators", "windows")
+def test_a_command_reading_its_runs_settings_reads_no_settings_table(
+    checkout : Callable[[Mapping[str, str]], None],
+    command  : str,
+    invoke   : Invoker,
+    trained  : Path
+):
+    """
+    Asserts that a command reading the settings its run recorded exits zero
+    beside a `pyproject.toml` whose `[tool.squirtl]` table sets a run's
+    settings, which it reads none of, rather than refusing each key as one
+    it does not declare.
+    """
+    checkout(
+        {
+            "pyproject.toml":
+                "[tool.squirtl]\nseed = 7\n\n[tool.squirtl.agent]\nbatch-size = 8\n"
+        }
+    )
+
+    assert invoke([command, str(trained)]).code == 0

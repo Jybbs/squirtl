@@ -9,17 +9,20 @@ Pins how `Overworld` keeps Gymnasium's environment contract, covering:
   records
 - Each step's reward, termination, and shares, and the truncation and the
   statistics each episode records
+- The gray frame each step observes, which Gymnasium's
+  `GrayscaleObservation` makes of the RGB screen the step renders
 - The wrappers, spaces, grid, flags, render, and render rate it is made
   with, and an agent learning from its observations
 """
 
 from collections.abc  import Callable
-from common.console   import set_event, stand
+from common.console   import set_event, shade, stand
 from gymnasium        import Env, make
 from gymnasium.spaces import Box, Discrete
 from gymnasium.utils.env_checker import check_env
-from gymnasium.wrappers          import RecordEpisodeStatistics, TimeLimit
-from numpy          import argwhere, uint8
+from gymnasium.wrappers          import AddRenderObservation, GrayscaleObservation, RecordEpisodeStatistics, TimeLimit
+from hashlib        import sha256
+from numpy          import argwhere, uint8, unique
 from numpy.random   import default_rng
 from numpy.testing  import assert_array_equal
 from pytest         import approx, mark, param
@@ -39,10 +42,14 @@ from squirtl.reward.schemas        import Event, Position, RewardSettings, Term
 def test_a_build_plays_the_intro_before_any_reset(overworld: Overworld):
     """
     Asserts that building the environment plays the intro once at a
-    `timer_div` of 0 and resets nothing, its one other call the read of the
-    screen that sizes its observation space.
+    `timer_div` of 0 and resets nothing, then saves the state that leaves
+    for its `digest`, the SHA-256 of the stand-in's 64 KiB of zeros, and
+    reads the screen that sizes its observation space.
     """
-    assert overworld.game_boy.emulator.calls == [("start_game", 0), ("screen",)]
+    assert (overworld.game_boy.emulator.calls, overworld.digest) == (
+        [("start_game", 0), ("save_state",), ("screen",)],
+        sha256(bytes(0x10000)).hexdigest()
+    )
 
 
 def test_a_close_stops_the_emulator_without_saving(overworld: Overworld):
@@ -54,25 +61,40 @@ def test_a_close_stops_the_emulator_without_saving(overworld: Overworld):
     assert overworld.game_boy.emulator.calls[-1] == ("stop", False)
 
 
-def test_a_reset_given_a_recording_loads_its_start_and_takes_its_timer_div(
+def test_a_reset_given_a_recording_matches_a_seeded_reset_at_its_timer_div(
     overworld: Overworld
 ):
     """
-    Asserts that a reset given a recording in its options loads the state
-    the recording started from in place of the game wrapper's, draws no DIV,
-    and starts a recording of its own from that state and `timer_div`.
+    Asserts that a reset given a recording in its options makes the calls
+    a seeded reset drawing the recording's `timer_div` makes, reaching
+    the same frame and starting the same recording, since a reset at one
+    `timer_div` always leaves the console in one state.
     """
-    recording = Recording(presses=b"", start=bytes(range(256)) * 256, timer_div=77)
-    overworld.game_boy.emulator.calls.clear()
-    overworld.reset(options={"recording": recording})
+    resets = []
 
-    assert overworld.game_boy.emulator.calls == [
-        ("load_state",),
-        ("save_state",),
-        ("tick", 1),
-        ("screen",)
-    ]
-    assert overworld.recording == recording
+    for options, seed in (
+        ({}, 0),
+        (
+            {
+                "recording": Recording(
+                    presses   = b"",
+                    timer_div = default_rng(0).integers(256)
+                )
+            },
+            None
+        )
+    ):
+        overworld.game_boy.emulator.calls.clear()
+        frame, _ = overworld.reset(options=options, seed=seed)
+        resets.append(
+            (
+                overworld.game_boy.emulator.calls.copy(),
+                frame.tolist(),
+                overworld.recording
+            )
+        )
+
+    assert resets[0] == resets[1]
 
 
 def test_a_reset_starts_the_progress_afresh(overworld: Overworld):
@@ -131,9 +153,14 @@ def test_an_agent_learns_from_the_observations_the_environment_makes(
     agent = Agent(
         actions  = env.action_space.n,
         seed     = 0,
-        settings = AgentSettings(batch_size=4, capacity=64, device="cpu"),
-        space    = env.observation_space,
-        steps    = 8
+        settings = AgentSettings(
+            batch_size   = 4,
+            capacity     = 64,
+            device       = "cpu",
+            warmup_steps = 4
+        ),
+        space = env.observation_space,
+        steps = 8
     )
     observation, _ = env.reset(seed=0)
     agent.begin(observation)
@@ -157,15 +184,14 @@ def test_a_reset_writes_a_div_its_seed_draws_then_draws_one_idle_frame(
     """
     Asserts that a seeded reset hands the game wrapper the first of DIV's
     256 values its seed draws, from the `PCG64` generator Gymnasium and
-    `default_rng` both build, saves the state that leaves for the episode's
-    recording, then advances one idle frame and reads its screen.
+    `default_rng` both build, then advances one idle frame and reads its
+    screen.
     """
     overworld.game_boy.emulator.calls.clear()
     overworld.reset(seed=seed)
 
     assert overworld.game_boy.emulator.calls == [
         ("reset_game", default_rng(seed).integers(256)),
-        ("save_state",),
         ("tick", 1),
         ("screen",)
     ]
@@ -206,15 +232,15 @@ def test_a_step_returns_its_score_and_never_truncates(
     terminated : bool
 ):
     """
-    Asserts that a step returns the screen it ends on, the reward its score
-    totals, whether it found the starter, no truncation, which `TimeLimit`
-    reports, and each term's share as its info dict.
+    Asserts that a step returns the gray frame it ends on, the reward
+    its score totals, whether it found the starter, no truncation, which
+    `TimeLimit` reports, and each term's share as its info dict.
     """
     overworld.reset(seed=0)
     set_event(event, overworld.game_boy.emulator.memory)
-    screen, earned, ended, truncated, info = overworld.step(0)
+    frame, earned, ended, truncated, info = overworld.step(0)
 
-    assert_array_equal(screen, overworld.render())
+    assert_array_equal(frame, overworld.game_boy.grayscale, strict=True)
     assert (earned, ended, truncated) == (reward, terminated, False)
     assert info == {term: reward if term is event.term else 0.0 for term in Term}
 
@@ -237,9 +263,10 @@ def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
     made: Callable[..., Env]
 ):
     """
-    Asserts that the environment's spec names it and every wrapper
-    shaping its observation, in the order each wraps the last, and that
-    `gymnasium.make` remakes from it an environment of an equal spec.
+    Asserts that the environment's spec names it, every wrapper shaping its
+    observation, and the two recording each episode, in the order each wraps
+    the last, and that `gymnasium.make` remakes from it an environment of an
+    equal spec.
     """
     spec = made().spec
 
@@ -249,8 +276,8 @@ def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
     ) == (
         "squirtl/Overworld-v0", 10_240,
         [
-            "GrayscaleObservation", "ShrinkObservation", "FrameStackObservation",
-            "ProgressObservation", "RecordEpisodeStatistics"
+            "ShrinkObservation", "FrameStackObservation", "ProgressObservation",
+            "RecordEpisodeStatistics", "RecordOutcome"
         ]
     )
 
@@ -299,6 +326,30 @@ def test_the_observation_lies_in_its_space_at_the_shapes_the_settings_name(
         shapes[Entry.FRAMES],
         uint8
     )
+
+
+def test_the_frame_a_step_observes_is_gymnasiums_grayscale_of_its_render(
+    made: Callable[..., Env]
+):
+    """
+    Asserts that the gray frame a step on PyBoy observes is, pixel for
+    pixel, the one Gymnasium's `GrayscaleObservation` makes of the RGB
+    screen the step renders, on a frame `shade` draws all four of PyBoy's
+    grays into.
+    """
+    with make(made().spec, render_mode="rgb_array") as env:
+        overworld = env.unwrapped
+        # `AddRenderObservation` resets and renders `overworld` as it is built.
+        grayscale = GrayscaleObservation(AddRenderObservation(overworld))
+        shade(overworld.game_boy)
+        frame = overworld.step(0)[0]
+
+        assert unique(frame).tolist() == [0, 85, 153, 255]
+        assert_array_equal(
+            frame,
+            grayscale.observation(overworld.render()),
+            strict = True
+        )
 
 
 def test_the_observation_carries_the_grid_and_the_flags_of_the_episodes_progress(
@@ -370,14 +421,12 @@ def test_the_time_limit_truncates_the_episode_and_records_it(made: Callable[...,
 
 
 @mark.usefixtures("walking")
-def test_an_episode_keeps_its_start_its_timer_div_and_each_action_as_its_recording(
+def test_an_episode_keeps_its_timer_div_and_each_action_as_its_recording(
     overworld: Overworld
 ):
     """
-    Asserts that an episode's recording holds the state its reset left the
-    console in, read before the idle frame moves the player, the `timer_div`
-    that reset drew, and each step's action in the order the steps took
-    them.
+    Asserts that an episode's recording holds the `timer_div` its reset drew
+    and each step's action in the order the steps took them.
     """
     overworld.reset(seed=0)
 
@@ -386,7 +435,6 @@ def test_an_episode_keeps_its_start_its_timer_div_and_each_action_as_its_recordi
 
     assert overworld.recording == Recording(
         presses   = bytes([2, 0, 6]),
-        start     = bytes(0x10000),
         timer_div = default_rng(0).integers(256)
     )
 

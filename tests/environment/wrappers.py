@@ -1,13 +1,39 @@
 """
-Pins the mean `ShrinkObservation` takes over each square or oblong block of
-a frame small enough to average by hand.
+Pins the wrappers `Overworld.specification` names beside Gymnasium's
+own, covering:
+
+- The mean `ShrinkObservation` takes over each square or oblong block of a
+  frame small enough to average by hand, and the cells it shrinks a frame
+  of PyBoy to at each block shape, which a reshape into blocks summed
+  over each block also gives
+- The `Outcome` `RecordOutcome` reports at an episode's last step alone,
+  whether `TimeLimit` truncates the episode or the starter ends it
 """
 
-from numpy  import array, uint8
-from pytest import mark, param
+from common.console     import set_event
+from gymnasium          import Env
+from gymnasium.wrappers import RecordEpisodeStatistics, TimeLimit
+from numpy              import array, uint8, unique
+from numpy.testing      import assert_array_equal
+from pytest             import fixture, mark, param
 
 from squirtl.environment.overworld import Overworld
-from squirtl.environment.wrappers  import ShrinkObservation
+from squirtl.environment.schemas   import Outcome
+from squirtl.environment.wrappers  import RecordOutcome, ShrinkObservation
+from squirtl.reward.schemas        import Event, Term
+
+
+@fixture
+def recorded(overworld: Overworld) -> Env:
+    """
+    Wraps `overworld` in `RecordOutcome` around `RecordEpisodeStatistics`
+    around a `TimeLimit` of three steps, the order `Overworld.specification`
+    names them in, and resets it.
+    """
+    env = RecordOutcome(RecordEpisodeStatistics(TimeLimit(overworld, 3)))
+    env.reset(seed=0)
+
+    return env
 
 
 @mark.parametrize(
@@ -42,3 +68,75 @@ def test_a_frame_shrinks_to_the_mean_of_each_block_rounding_a_half_up(
     result = ShrinkObservation(overworld, shape).observation(array(frame, uint8))
 
     assert (result.tolist(), result.dtype) == (shrunk, uint8)
+
+
+@mark.parametrize(
+    "shape",
+    [
+        param((72, 80),   id="blocks-of-2-by-2"),
+        param((48, 32),   id="blocks-of-3-by-5"),
+        param((144, 160), id="blocks-of-one-pixel"),
+        param((1, 1),     id="one-block-of-the-whole-frame")
+    ]
+)
+def test_a_frame_of_pyboy_shrinks_as_a_reshape_into_blocks_summed_shrinks_it(
+    shaded : Overworld,
+    shape  : tuple[int, int]
+):
+    """
+    Asserts that a gray frame of PyBoy holding all four of its grays shrinks
+    into the cells a reshape into `(height, rows, width, columns)` blocks
+    gives once each block is summed, a half added, and the sum divided by
+    the pixels each block holds, down to one block summing every pixel of
+    the frame.
+    """
+    frame         = shaded.game_boy.grayscale
+    height, width = shape
+    blocks        = frame.reshape(height, 144 // height, width, 160 // width)
+    pixels        = blocks.shape[1] * blocks.shape[3]
+
+    assert unique(frame).tolist() == [0, 85, 153, 255]
+    assert_array_equal(
+        ShrinkObservation(shaded, shape).observation(frame),
+        ((blocks.sum(axis=(1, 3)) + pixels // 2) // pixels).astype(uint8),
+        strict = True
+    )
+
+
+@mark.usefixtures("walking")
+def test_a_truncated_episode_reports_its_outcome_at_its_last_step_alone(recorded: Env):
+    """
+    Asserts that an episode `TimeLimit` truncates after three steps, each
+    reaching a new square at 0.0625, reports no outcome before its last step
+    and there the three steps, the four positions its start included, the
+    return of 0.1875 the novelty pays, the time `RecordEpisodeStatistics`
+    records, and no termination.
+    """
+    infos = [recorded.step(0)[4] for _ in range(3)]
+
+    assert ["outcome" in info for info in infos] == [False, False, True]
+    assert infos[-1]["outcome"] == Outcome(
+        length     = 3,
+        positions  = 4,
+        reward     = 0.1875,
+        seconds    = infos[-1]["episode"]["t"],
+        shares     = {Term.MILESTONE: 0.0, Term.NOVELTY: 0.1875, Term.STARTER: 0.0},
+        terminated = False
+    )
+
+
+def test_an_episode_reaching_the_starter_reports_its_termination(
+    overworld : Overworld,
+    recorded  : Env
+):
+    """
+    Asserts that an episode whose first step sets the starter's flag reports
+    there an outcome of one step that terminated, paying the starter alone.
+    """
+    set_event(Event.EVENT_GOT_STARTER, overworld.game_boy.emulator.memory)
+    *_, terminated, truncated, info = recorded.step(0)
+
+    assert (terminated, truncated, info["outcome"].length, info["outcome"].shares) == (
+        True, False, 1,
+        {Term.MILESTONE: 0.0, Term.NOVELTY: 0.0, Term.STARTER: 0.5}
+    )

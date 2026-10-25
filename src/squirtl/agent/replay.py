@@ -6,9 +6,9 @@ slots.
 
 from collections.abc  import Mapping
 from gymnasium.spaces import Box, Dict, MultiBinary
-from numpy            import arange, asarray, copyto, count_nonzero, flatnonzero, float32, int64, ndarray, packbits
-from numpy            import uint8, unpackbits, zeros
+from numpy            import arange, asarray, flatnonzero, float32, int64, ndarray, packbits, uint8, unpackbits, zeros
 from numpy.random     import Generator
+from operator         import itemgetter
 from torch            import as_tensor
 
 from squirtl.agent.schemas import Batch
@@ -93,12 +93,6 @@ class Replay:
         self.rewards    = zeros(capacity, float32)
         self.terminated = zeros(capacity, bool)
 
-    def __len__(self) -> int:
-        """
-        Counts the transitions replay memory holds.
-        """
-        return count_nonzero(self.held)
-
     @property
     def arrays(self) -> dict[str, ndarray]:
         """
@@ -139,24 +133,41 @@ class Replay:
 
     def load(self, arrays: Mapping[str, ndarray]):
         """
-        Copies each array of `arrays` into the one `self.arrays` holds under
-        its name, then reads `pushed` back from the array of no dimensions
-        holding it.
+        Takes each array of `arrays` in place of the one `self.arrays` holds
+        under its name, uncopied, then reads `pushed` back from the array of
+        no dimensions holding it, once every name, shape, and dtype matches.
 
         Raises:
-            ValueError: Where an array's shape differs from the shape of the
-                        one it replaces.
+            ValueError: Where `arrays` names other arrays than replay memory
+                        holds, or one differs in shape or dtype from the one
+                        it replaces, before any is taken.
         """
-        for name, array in self.arrays.items():
-            if arrays[name].shape != array.shape:
+        held = self.arrays
+
+        if arrays.keys() != held.keys():
+            raise ValueError(
+                f"replay memory holds {sorted(held)}, where the arrays loaded are "
+                f"{sorted(arrays)}"
+            )
+
+        for name, array in held.items():
+            if (arrays[name].dtype, arrays[name].shape) != (array.dtype, array.shape):
                 raise ValueError(
-                    f"replay memory holds `{name}` at the shape {array.shape}, "
-                    f"where the arrays loaded hold {arrays[name].shape}"
+                    f"replay memory holds `{name}` as {array.dtype} at the shape "
+                    f"{array.shape}, where the arrays loaded hold "
+                    f"{arrays[name].dtype} at {arrays[name].shape}"
                 )
 
-            copyto(array, arrays[name])
-
+        self.actions, self.held, self.rewards, self.terminated = itemgetter(
+            "actions",
+            "held",
+            "rewards",
+            "terminated"
+        )(arrays)
         self.pushed = arrays["pushed"].item()
+
+        for key, column in self.columns.items():
+            column.elements = arrays[key]
 
     def push(self, elements: Mapping[str, ndarray]):
         """

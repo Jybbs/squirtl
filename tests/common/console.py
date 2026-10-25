@@ -1,14 +1,17 @@
 """
 Defines `StandIn`, which records each call `GameBoy` makes on `PyBoy` and
 each read of its screen, beside `set_event` and `stand`, which set a flag
-and the player's position in the memory of `StandIn` or of `PyBoy`.
+and the player's position in the memory of `StandIn` or of `PyBoy`, and
+`shade`, which draws every gray PyBoy draws into a console's next frame.
 """
 
 from collections.abc import MutableSequence
 from numpy           import arange, tile, uint8
+from numpy.random    import default_rng
 from types           import SimpleNamespace
 from typing          import BinaryIO
 
+from squirtl.emulator.console import GameBoy
 from squirtl.emulator.schemas import Symbol
 from squirtl.reward.schemas   import Event, Position
 
@@ -63,14 +66,6 @@ class StandIn:
         """
         self.calls.append(("button", input, delay))
 
-    def load_state(self, file_like_object: BinaryIO):
-        """
-        Records a load and reads the memory a save wrote from
-        `file_like_object`.
-        """
-        self.calls.append(("load_state",))
-        self.memory[:] = file_like_object.read()
-
     def save_state(self, file_like_object: BinaryIO):
         """
         Records a save and writes the memory into `file_like_object`.
@@ -100,6 +95,25 @@ def set_event(event: Event, memory: MutableSequence[int]):
     byte, bit = divmod(event, 8)
 
     memory[Symbol.W_EVENT_FLAGS + byte] |= 1 << bit
+
+
+def shade(game_boy: GameBoy):
+    """
+    Draws each of the four grays PyBoy's default palette holds into the next
+    frame `game_boy` renders, at the addresses Pan Docs gives:
+
+    - Plays 120 frames, past the 65th, where PyBoy's boot ROM hands the
+      cartridge the CPU
+    - Fills the 256 tiles the background draws from, at `0x8000` under the
+      LCDC the boot ROM leaves, with bytes a generator seeded at 0 draws
+    - Writes `0xE4` into BGP at `0xFF47`, drawing each color in the shade of
+      its own index
+    """
+    game_boy.press(None, 120)
+
+    memory                = game_boy.emulator.memory
+    memory[0x8000:0x9000] = default_rng(0).integers(256, size=0x1000).tolist()
+    memory[0xFF47]        = 0xE4
 
 
 def stand(memory: MutableSequence[int], position: Position):

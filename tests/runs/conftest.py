@@ -18,7 +18,7 @@ from squirtl.agent.schemas       import AgentSettings
 from squirtl.emulator.schemas    import Cartridge
 from squirtl.environment.schemas import EnvironmentSettings, Recording
 from squirtl.reward.schemas      import Term
-from squirtl.runs.schemas        import Episode, Revision, Run, RunSettings
+from squirtl.runs.schemas        import Episode, Handover, Revision, Run, RunSettings
 from squirtl.runs.trainer        import Trainer
 
 
@@ -35,9 +35,11 @@ def revision() -> Revision:
 def run(revision: Revision) -> Run:
     """
     Builds a run of the default settings at `revision`, started at midnight
-    UTC on 4 October 2026, for a test that writes no directory.
+    UTC on 4 October 2026 from a state of digest `0`, for a test that writes
+    no directory.
     """
     return Run(
+        digest   = "0",
         revision = revision,
         settings = RunSettings(),
         started  = datetime(2026, 10, 4, tzinfo=UTC)
@@ -47,16 +49,15 @@ def run(revision: Revision) -> Run:
 @fixture
 def episode() -> Episode:
     """
-    Builds the record of a truncated three-step episode that earned
-    a novelty twice, with no update, from a start of 64 bytes and a
-    `timer_div` of 9.
+    Builds the record of a truncated three-step episode that earned a
+    novelty twice, with no update, from a reset at a `timer_div` of 9.
     """
     return Episode(
         epsilon    = 1.0,
         length     = 3,
         loss       = None,
         positions  = 3,
-        recording  = Recording(presses=bytes([1, 4, 4]), start=bytes(64), timer_div=9),
+        recording  = Recording(presses=bytes([1, 4, 4]), timer_div=9),
         reward     = 0.125,
         seconds    = 0.5,
         shares     = {Term.MILESTONE: 0.0, Term.NOVELTY: 0.125, Term.STARTER: 0.0},
@@ -71,10 +72,16 @@ def short(clone: Path, rom: Path) -> RunSettings:
     Builds the settings of a 20-step run in `clone` on the CPU, reading
     the cartridge `rom` writes, its episodes truncated after 6 steps, a
     checkpoint at the first episode end reaching each multiple of 10 steps,
-    and each update drawing 8 transitions from 64 slots.
+    and an update every fourth step from step 8 on, drawing 8 transitions
+    from 64 slots.
     """
     return RunSettings(
-        agent            = AgentSettings(batch_size=8, capacity=64, device="cpu"),
+        agent = AgentSettings(
+            batch_size   = 8,
+            capacity     = 64,
+            device       = "cpu",
+            warmup_steps = 8
+        ),
         checkpoint_steps = 10,
         environment      = EnvironmentSettings(max_episode_steps=6),
         steps            = 20
@@ -90,18 +97,16 @@ def trainer(cartridge: Cartridge, short: RunSettings) -> Callable[..., Trainer]:
     """
     seconds = count()
 
-    def build(resumes: str | None = None, **fields: object) -> Trainer:
+    def build(resumes: Run | None = None, **fields: object) -> Trainer:
         """
-        Starts the run `fields` describe, continuing the run `resumes` names
-        where it names one, and builds its trainer.
+        Builds the trainer of the run `fields` describe, which continues the
+        run `resumes` from its checkpoint where it is one.
         """
         return Trainer(
             cartridge,
-            Run.start(
-                short.model_copy(update=fields),
-                datetime(2026, 10, 4, tzinfo=UTC) + timedelta(seconds=next(seconds)),
-                resumes
-            )
+            short.model_copy(update=fields),
+            datetime(2026, 10, 4, tzinfo=UTC) + timedelta(seconds=next(seconds)),
+            resumes and Handover.from_run(resumes)
         )
 
     return build
