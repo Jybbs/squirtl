@@ -15,9 +15,12 @@ concurrency:
 jobs:
   check:
     name            : ${{ matrix.name }}
-    outputs         : { coverage: "${{ steps.attach.outputs.artifact-url }}" }
     runs-on         : &runner ubuntu-26.04
     timeout-minutes : &timeout 15
+
+    outputs:
+      coverage      : ${{ matrix.report.name == 'coverage' && steps.attach.outputs.artifact-url || '' }}
+      site-coverage : ${{ matrix.report.name == 'site-coverage' && steps.attach.outputs.artifact-url || '' }}
 
     strategy:
       fail-fast: false
@@ -27,19 +30,41 @@ jobs:
           - name  : 🗺️ Audit
             task  : repo:audit
             tools : &package python uv
-          - name  : 💾 Lockfile
+          - name  : 📦 Lockfile
             task  : lock:check
-            tools : *package
+            tools : bun python uv
           - name  : 🪻 Prose
             task  : py:lint
             tools : *package
           - name   : 🏟️ Suite
-            report : coverage
+            report : { name: coverage, path: .cache/coverage/html }
             task   : py:coverage
             tools  : *package
           - name  : 🗝️ Workflows
             task  : gha:lint
             tools : zizmor
+          - name   : ☂️ Coverage
+            report : { name: site-coverage, path: .cache/coverage/site }
+            task   : site:coverage
+            tools  : &site bun lychee node
+          - name  : 🍂 Cruft
+            task  : site:cruft
+            tools : *site
+          - name  : ⛓️ Links
+            task  : site:links
+            tools : *site
+          - name  : 🧶 Lint
+            task  : site:lint
+            tools : *site
+          - name  : 💾 Press
+            task  : site:press
+            tools : *site
+          - name  : 🎨 Proof
+            task  : site:proof
+            tools : *site
+          - name  : 🚩 Types
+            task  : site:typecheck
+            tools : *site
 
     steps:
       - &checkout
@@ -59,7 +84,7 @@ jobs:
         id   : attach
         if   : ${{ !cancelled() && matrix.report }}
         uses : actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with : { name: "${{ matrix.report }}", path: .cache/coverage/html, retention-days: 14 }
+        with : { name: "${{ matrix.report.name }}", path: "${{ matrix.report.path }}", retention-days: 14 }
 
   brief:
     name            : 🎒 Brief

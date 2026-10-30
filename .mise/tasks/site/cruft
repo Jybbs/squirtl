@@ -1,0 +1,7 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE alias       = "cruft"
+#MISE depends     = ["site:install"]
+#MISE description = "Report every unused file, export, and dependency in the site, and every import cycle, through knip"
+#MISE dir         = "docs"
+
+node_modules/.bin/knip --config .vitepress/knip.ts "$@"

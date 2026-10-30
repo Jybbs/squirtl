@@ -1,0 +1,25 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE alias       = "links"
+#MISE depends     = ["site:press"]
+#MISE description = "Check every link, asset, and heading fragment in the built site, the README, and the contributing guide, with no network"
+#MISE dir         = "docs"
+
+dist="$PWD/.vitepress/dist"
+read -r homepage base < <(node --input-type=module <<'NODE'
+import { projectFacts } from "./.vitepress/lib/config/manifest.ts"
+const { base, homepage } = projectFacts(import.meta.url)
+console.log(homepage, base)
+NODE
+)
+
+lychee \
+  --fallback-extensions html \
+  --include-fragments \
+  --index-files index.html \
+  --no-progress \
+  --offline \
+  --remap "^${homepage//./\\.} file://$dist/" \
+  --remap "^file://$dist${base%/}(/|\$) file://$dist/" \
+  --root-dir "$dist" \
+  "$@" \
+  .vitepress/dist ../README.md ../.github/CONTRIBUTING.md

@@ -30,6 +30,10 @@ version         = "0.2.0"
 [project.scripts]
 squirtl = "squirtl.cli:app"
 
+[project.urls]
+Homepage   = "https://squirtl.fyi/"
+Repository = "https://github.com/Jybbs/squirtl"
+
 [dependency-groups]
 dev = [
     "minijinja",

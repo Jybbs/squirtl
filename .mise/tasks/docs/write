@@ -1,0 +1,5 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE alias       = "write"
+#MISE description = "Write every file the package declares into `docs/`, through `squirtl write docs`"
+
+squirtl write docs

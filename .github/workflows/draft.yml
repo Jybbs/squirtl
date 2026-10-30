@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   draft:
-    name            : 🛳️ Draft
+    name            : 🕹️ Draft
     cache-mode      : none
     permissions     : { contents: write }
     runs-on         : &runner ubuntu-26.04

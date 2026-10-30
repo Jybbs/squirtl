@@ -1,0 +1,3 @@
+.section-ribbon { clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 88%, 0 100%); }
+
+.content:has(.section-mark) .vp-doc > div > :is(h1, h1 + p) { padding-right: var(--spacing-ribbon-room); }

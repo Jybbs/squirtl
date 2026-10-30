@@ -1,0 +1,10 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE alias       = "draw"
+#MISE depends     = ["site:install"]
+#MISE description = "Rewrite every mark the site's `MARKS` registry lists from the drawing it names"
+#MISE dir         = "docs"
+
+node_modules/.bin/vitest run \
+  --config .vitepress/vitest.config.ts \
+  --update=all \
+  .vitepress/tests/lib/config/marks.test.ts

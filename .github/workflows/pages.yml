@@ -1,0 +1,88 @@
+name        : 🕹️ Pages
+run-name    : 🕹️ Pages · ${{ github.ref_name }}
+cache-mode  : read
+env         : { SITE: docs/.vitepress/dist }
+permissions : { contents: read }
+
+on:
+  push:
+    branches : [main]
+    paths:
+      - .github/actions/provision/action.yml
+      - .github/workflows/pages.yml
+      - .mise/config.toml
+      - .mise/mise.lock
+      - .mise/tasks/site/**
+      - docs/**
+      - pyproject.toml
+
+  workflow_dispatch:
+
+concurrency:
+  cancel-in-progress : false
+  group              : ${{ github.workflow }}
+
+jobs:
+  press:
+    name            : 💾 Press
+    runs-on         : &runner ubuntu-26.04
+    timeout-minutes : &timeout 15
+
+    steps:
+      - &checkout
+        name : Check out the repository
+        uses : actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with : { persist-credentials: false }
+
+      - name : Provision the tools the site's tasks read
+        uses : $/.github/actions/provision
+        with : { tools: bun lychee node }
+
+      - name : "mise run site:press ::: site:links"
+        run  : "mise run site:press ::: site:links"
+
+      - name : Upload the built site
+        uses : actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with : { name: site, path: "${{ env.SITE }}", retention-days: 1 }
+
+  deploy:
+    name            : 👾 Deploy
+    cache-mode      : none
+    needs           : press
+    outputs         : { url: "${{ steps.deploy.outputs.deployment-url }}" }
+    runs-on         : *runner
+    timeout-minutes : *timeout
+
+    steps:
+      - name : Download the built site
+        uses : actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with : { name: site, path: "${{ env.SITE }}" }
+
+      - name : Publish the site to Cloudflare Pages
+        id   : deploy
+        if   : github.ref == 'refs/heads/main'
+        uses : cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0
+
+        with:
+          accountId       : ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken        : ${{ secrets.CLOUDFLARE_TOKEN }}
+          command         : pages deploy ${{ env.SITE }} --project-name=squirtl --branch=main
+          wranglerVersion : 4.151.3
+
+  brief:
+    name            : 🎒 Brief
+    if              : always()
+    needs           : [deploy, press]
+    runs-on         : *runner
+    timeout-minutes : *timeout
+
+    steps:
+      - *checkout
+
+      - name : Provision the tools the summary reads
+        uses : $/.github/actions/provision
+        with : { tools: python uv }
+
+      - name : Write the summary and exit with the verdict
+        env  : { NEEDS: "${{ toJSON(needs) }}" }
+        run  : mise run gha:brief

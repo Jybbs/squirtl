@@ -4,8 +4,8 @@ metadata carries beneath its usage line and whose `--version` flag prints
 the version that metadata names. `squirtl train` takes each setting
 from the flag passed for it, then from the `[tool.squirtl]` table of the
 `pyproject.toml` in the working directory, and otherwise from the default
-its field declares, whereas every other command reads the settings its run
-recorded and so reads no such table.
+its field declares, whereas a command reading a run takes the settings that
+run recorded, and no other command reads that table.
 """
 
 from cyclopts           import App, Parameter
@@ -16,6 +16,7 @@ from squirtl.cli.evaluate import evaluate
 from squirtl.cli.stop     import stop
 from squirtl.cli.train    import train
 from squirtl.cli.watch    import watch
+from squirtl.cli.write    import docs
 
 app = App(
     default_parameter = Parameter(negative=()),
@@ -34,3 +35,7 @@ app.command(
     )
 )
 app.command(watch)
+app.command(
+    App(help="Writes files the package declares into the checkout.", name="write")
+)
+app["write"].command(docs)

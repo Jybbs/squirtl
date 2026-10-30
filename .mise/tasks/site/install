@@ -1,0 +1,6 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE description = "Install the site's packages into `docs/node_modules` from `docs/bun.lock`, pruning any package the lockfile no longer names"
+#MISE dir         = "docs"
+
+bun install --frozen-lockfile
+bun prune

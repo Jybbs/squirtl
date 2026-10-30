@@ -1,0 +1,45 @@
+{
+  "agent": {
+    "batch_size": 32,
+    "capacity": 100000,
+    "discount": 0.997,
+    "double_q": true,
+    "epsilon_end": 0.01,
+    "epsilon_start": 1.0,
+    "exploration_fraction": 0.1,
+    "learning_rate": 0.0001,
+    "max_grad_norm": 10.0,
+    "sync_steps": 1000,
+    "threads": null,
+    "update_steps": 4,
+    "warmup_steps": 50000
+  },
+  "checkpoint_steps": 250000,
+  "emulator": {
+    "cartridge": "data/rom.gb",
+    "hold": 2,
+    "open_window": false
+  },
+  "environment": {
+    "frame_shape": [
+      72,
+      80
+    ],
+    "frame_stack": 4,
+    "frames_per_step": 17,
+    "grid_size": 48,
+    "max_episode_steps": 10240
+  },
+  "evaluation": {
+    "episodes": 30,
+    "epsilon": 0.05
+  },
+  "evaluation_steps": 250000,
+  "reward": {
+    "milestone": 0.1,
+    "novelty": 0.00025,
+    "starter": 0.6
+  },
+  "seed": 1,
+  "steps": 2500000
+}

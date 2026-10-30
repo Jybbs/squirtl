@@ -1,0 +1,6 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE depends     = ["site:install"]
+#MISE description = "Run the site's suite under coverage, failing below `fail_under` on statements, branches, functions, or lines, and writing the HTML report"
+#MISE dir         = "docs"
+
+node_modules/.bin/vitest run --config .vitepress/vitest.config.ts --coverage "$@"

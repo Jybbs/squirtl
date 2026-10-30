@@ -1,0 +1,27 @@
+.sees {
+  grid-template-areas   : 'screen screen' 'screen-say screen-say' 'frames grid' 'frames-say grid-say' 'flags flags';
+  grid-template-columns : minmax(0, 160fr) minmax(0, 144fr);
+}
+
+.sees-screen { grid-area: screen; }
+
+.sees-screen-say { grid-area: screen-say; }
+
+.sees-frames { grid-area: frames; }
+
+.sees-frames-say { grid-area: frames-say; }
+
+.sees-grid { grid-area: grid; }
+
+.sees-grid-say { grid-area: grid-say; }
+
+.sees-flags { grid-area: flags; }
+
+.sees-art { box-shadow: 0 0 0 var(--border-width-hairline) var(--color-rule); }
+
+@container (width >= 40rem) {
+  .sees {
+    grid-template-areas   : 'screen frames grid' 'screen-say frames-say grid-say' 'flags flags flags';
+    grid-template-columns : minmax(0, 160fr) minmax(0, 160fr) minmax(0, 144fr);
+  }
+}

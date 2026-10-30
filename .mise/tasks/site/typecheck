@@ -1,0 +1,10 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE alias       = "typecheck"
+#MISE depends     = ["site:install"]
+#MISE description = "Type-check the site's TypeScript with `tsc`, failing on a single-file component it cannot read"
+#MISE dir         = "docs"
+
+vue=$(git ls-files --cached --others --exclude-standard -- '*.vue')
+[[ -z "$vue" ]] \
+  || { echo "The site declares every component as a .tsx module, so $vue has no place" >&2; exit 1; }
+node_modules/.bin/tsc -p .vitepress/tsconfig.json "$@"

@@ -1,0 +1,30 @@
+{
+  "name": "squirtl-docs",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "@tailwindcss/node": "4.3.3",
+    "@tailwindcss/oxide": "4.3.3",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "26.6.5",
+    "@vitejs/plugin-vue-jsx": "5.1.6",
+    "@vitest/coverage-v8": "5.0.5",
+    "@vue/test-utils": "2.5.1",
+    "@vue/tsconfig": "0.9.1",
+    "@vueuse/core": "14.4.0",
+    "@zag-js/slider": "1.46.0",
+    "@zag-js/vue": "1.46.0",
+    "happy-dom": "21.0.4",
+    "knip": "6.40.0",
+    "markdown-it-mathjax3": "4.3.2",
+    "oxlint": "1.89.0",
+    "smol-toml": "1.9.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.3.3",
+    "vitepress": "2.0.0-alpha.20",
+    "vitest": "5.0.5",
+    "vue": "3.5.44"
+  }
+}

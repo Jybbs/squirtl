@@ -465,7 +465,8 @@ def test_inline_metadata_refuses_two_script_blocks():
             3,
             id = "a-key-and-its-value"
         ),
-        param(("[tool.uv]", "requires-python"), None, id="a-key-before-its-table")
+        param(("[tool.uv]", "requires-python"), None, id="a-key-before-its-table"),
+        param(("[tool.uv]", "required"), None, id="a-needle-inside-a-longer-name")
     ]
 )
 def test_a_finding_locates_each_needle_from_the_line_of_the_one_before(
@@ -477,7 +478,7 @@ def test_a_finding_locates_each_needle_from_the_line_of_the_one_before(
     Pins that a finding sits on the first line holding the last needle at
     or after the line holding the one before it, so a key and the value it
     names may share a line, and on no line where a needle appears nowhere
-    from there on.
+    from there on or only inside a longer name.
     """
     checkout(
         {
@@ -848,7 +849,7 @@ def test_the_tasks_split_the_scripts_a_toml_task_runs(fp: FakeProcess):
         stdout = dumps([listing[0] | {"run": ["uv run a", {"task": "py:y"}]}])
     )
 
-    assert Tasks.read().tasks[0].runs == [("a",)]
+    assert Tasks.read().tasks[0].runs("uv", "run") == [("a",)]
 
     fp.register(
         ["mise", "tasks", "ls", fp.any()],
@@ -937,6 +938,11 @@ def test_a_push_filter_reads_each_pattern_as_github_does(
     [
         param("mise run --raw py:lint", ["py:lint"], id="a-flag-first"),
         param(
+            "'mise run site:press ::: site:links'",
+            ["site:press", "site:links"],
+            id = "a-chain"
+        ),
+        param(
             "'echo \"$(mise run gha:brief)\"'",
             ["gha:brief"],
             id = "a-quoted-substitution"
@@ -950,7 +956,8 @@ def test_a_step_names_the_task_each_mise_run_starts(
 ):
     """
     Pins that a step names the task a `mise run` starts past any flag before
-    it, and inside a quoted command substitution.
+    it, every task of a chain it joins with `:::`, and a task inside a
+    quoted command substitution.
     """
     checkout({"ci.yml": f"jobs:\n  a:\n    steps:\n      - run: {run}\n"})
     [job] = Workflow.from_path(Path("ci.yml")).jobs

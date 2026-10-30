@@ -239,7 +239,8 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
         param(["evaluate"], id="evaluate"),
         param(["stop"],     id="stop"),
         param(["train"],    id="train"),
-        param(["watch"],    id="watch")
+        param(["watch"],    id="watch"),
+        param(["write", "docs"], id="write-docs")
     ]
 )
 def test_help_text(

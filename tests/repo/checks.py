@@ -11,6 +11,8 @@ Pins what each check `repo:audit` runs reports, covering:
   `mise tasks validate` reports
 - The label registry against the files naming its labels
 - The layout of the package and the docstrings of its Python
+- The files `squirtl write docs` writes against their declarations, the
+  docs site's pins that move together, and the flags of each `bun install`
 - How `Audit` reads every check and reports what they find
 
 Each case writes the files it reads under `tmp_path` through the `checkout`
@@ -23,16 +25,16 @@ program.
 from collections.abc   import Callable, Mapping
 from json              import dumps
 from pathlib           import Path
-from pytest            import CaptureFixture, fixture, mark, param, raises
+from pytest            import CaptureFixture, MonkeyPatch, fixture, mark, param, raises
 from pytest_subprocess import FakeProcess
 from textwrap          import dedent
 
+from squirtl.docs.outputs     import Inventory
 from squirtl.emulator.schemas import Record
 from squirtl.repo.checks  import (
     Anchors, Attribution, Audit, Check, Commits, Docstrings, Gates, Inputs,
-    LabelCheck, Layout, Pins, Rows, Runners, ScriptCheck, Subsets, Summaries,
-    TaskCheck,
-    Warming
+    Installs, LabelCheck, Layout, Pins, Rendered, Rows, Runners, ScriptCheck,
+    SitePins, Subsets, Summaries, TaskCheck, Warming
 )
 from squirtl.repo.schemas import Finding, Severity, Task, TaskIssue, Tasks, Tree, Unreadable
 
@@ -205,10 +207,11 @@ def provision() -> str:
     ]
 )
 def test_pins_report_each_home_that_departs_from_the_pin(
-    found    : list[tuple[int, str]],
-    manifest : str,
-    rewrite  : tuple[str, str],
-    scan     : Scan
+    found       : list[tuple[int, str]],
+    manifest    : str,
+    mise_config : str,
+    rewrite     : tuple[str, str],
+    scan        : Scan
 ):
     """
     Pins that the pins check passes a manifest repeating the Python minor
@@ -218,8 +221,8 @@ def test_pins_report_each_home_that_departs_from_the_pin(
     findings = scan(
         Pins,
         {
-            ".mise/config.toml" : '[tools]\npython = "3.14.6"\nuv = "0.12.13"\n',
-            "pyproject.toml"    : manifest.replace(*rewrite) if rewrite[0] else manifest
+            ".mise/config.toml" : mise_config,
+            "pyproject.toml"    : manifest.replace(*rewrite)
         }
     )
 
@@ -680,6 +683,47 @@ def test_inputs_report_an_input_the_manifest_does_not_declare(
     ]
 
 
+def test_installs_hold_each_toml_task_to_the_lockfile(scan: Scan):
+    """
+    Pins that the installs check reads each script a task declared in TOML
+    runs, passing a frozen install and reporting an unlocked `bun i` and a
+    `bunx`, each on the first line after the task's name holding it, so the
+    `bun i` lands on its own line rather than on the `bun install` above it.
+    """
+    task = Task(
+        depends = [],
+        name    = "site:x",
+        run     = ["bun install --frozen-lockfile", "bun i", "bunx knip"],
+        source  = Path(".mise/config.toml").absolute()
+    )
+
+    findings = scan(
+        Installs,
+        {
+            ".mise/config.toml": (
+                '[tasks."site:x"]\nrun = [\n'
+                '  "bun install --frozen-lockfile",\n  "bun i",\n  "bunx knip"\n]\n'
+            )
+        },
+        Tasks(issues=[], tasks=[task])
+    )
+
+    assert findings == [
+        (
+            ".mise/config.toml",
+            4,
+            "`bun i` in the task `site:x` carries neither `--frozen-lockfile` nor "
+            "`--lockfile-only`"
+        ),
+        (
+            ".mise/config.toml",
+            5,
+            "`bunx` in the task `site:x` can run a copy of a tool from outside "
+            "`docs/node_modules`"
+        )
+    ]
+
+
 def test_labels_report_a_label_in_no_category_and_a_malformed_row(scan: Scan):
     """
     Pins that the label check reports a label no category files, and
@@ -701,36 +745,25 @@ def test_labels_report_a_label_in_no_category_and_a_malformed_row(scan: Scan):
         scan(LabelCheck, {".github/labels.toml": row.format("3AA6F0")})
 
 
-def test_rows_leave_out_the_rows_of_a_workflow_no_pull_request_runs(
-    scan     : Scan,
-    workflow : str
+def test_rendered_reports_an_identity_that_fails_validation(
+    monkeypatch : MonkeyPatch,
+    scan        : Scan
 ):
     """
-    Pins that the row check reads only the workflows a pull request runs,
-    so a task a push-only workflow runs that `repo:ci` does not depend on is
-    no finding.
+    Pins that the rendered check raises `Unreadable` on the identity's
+    declaration where the identity the inventory writes out fails to
+    validate, so the audit reports it as a finding rather than ending.
     """
-    pushed = dedent(workflow).replace("pull_request", "push")
-    sweep  = Task(
-        depends = ["gha:lint", "py:lint"],
-        name    = "repo:ci",
-        source  = Path(".mise/tasks/repo/ci").absolute()
+    monkeypatch.setattr(
+        "squirtl.identity.schemas.Identity.read",
+        classmethod(lambda cls: cls.model_validate({}))
     )
 
-    findings = scan(
-        Rows,
-        {
-            ".github/workflows/ci.yml"   : workflow,
-            ".github/workflows/warm.yml" : pushed.replace("py:lint", "gha:prune"),
-            ".mise/tasks/repo/ci"        : (
-                "#!/usr/bin/env -S bash -euo pipefail\n"
-                '#MISE depends = ["gha:lint", "py:lint"]\n'
-            )
-        },
-        Tasks(issues=[], tasks=[sweep])
-    )
-
-    assert findings == []
+    with raises(
+        Unreadable,
+        match = "`src/squirtl/identity/identity.toml` fails validation"
+    ):
+        scan(Rendered, {})
 
 
 @mark.parametrize(
@@ -1028,58 +1061,61 @@ def test_rows_hold_the_pull_request_rows_to_the_sweep(
     assert findings == found
 
 
-def test_rows_report_a_checkout_with_no_sweep(scan: Scan, workflow: str):
+def test_rendered_reports_each_file_drifted_from_its_declaration(scan: Scan):
     """
-    Pins that the row check reports a checkout whose tasks hold no
-    `repo:ci`, on `.mise/config.toml`.
+    Pins that the rendered check passes a checkout holding every file the
+    inventory lists as written, and reports a file edited by hand and a file
+    missing, each on its own path.
     """
-    findings = scan(
-        Rows,
-        {".github/workflows/ci.yml": workflow},
-        Tasks(issues=[], tasks=[])
+    outputs = {str(output.path): output.text for output in Inventory.read().outputs}
+    *kept, edited, missing = outputs
+
+    drifted = scan(
+        Rendered,
+        {**{path: outputs[path] for path in kept}, edited: "by hand\n"}
     )
 
-    assert findings == [(".mise/config.toml", None, "mise lists no `repo:ci` task")]
+    assert scan(Rendered, outputs) == []
+    assert drifted == [
+        (
+            path, None,
+            f"`{path}` has drifted from the declaration it is written from, which "
+            "`mise write` writes it from again"
+        )
+        for path in (edited, missing)
+    ]
 
 
-def test_scripts_hold_a_pin_to_every_version_the_lockfile_resolves(
-    checkout : Callable[[Mapping[str, str]], None],
-    manifest : str,
-    scan     : Scan
+def test_rows_leave_out_the_rows_of_a_workflow_no_pull_request_runs(
+    scan     : Scan,
+    workflow : str
 ):
     """
-    Pins that the script check matches a declared package to the lockfile's
-    entries as PEP 503 normalizes their names, and reports a pin admitting
-    only one of the versions a marker splits the package into.
+    Pins that the row check reads only the workflows a pull request runs,
+    so a task a push-only workflow runs that `repo:ci` does not depend on is
+    no finding.
     """
-    checkout(
-        {
-            ".mise/tasks/gha/brief.py": (
-                "#!/usr/bin/env -S uv run --exact --locked --script\n"
-                "# /// script\n"
-                '# dependencies = ["minijinja==2.24.0"]\n'
-                "# ///\n"
-            ),
-
-            "pyproject.toml": manifest,
-
-            "uv.lock": (
-                '[[package]]\nname = "MiniJinja"\nversion = "2.23.0"\n\n'
-                '[[package]]\nname = "minijinja"\nversion = "2.24.0"\n'
-            )
-        }
+    pushed = dedent(workflow).replace("pull_request", "push")
+    sweep  = Task(
+        depends = ["gha:lint", "py:lint"],
+        name    = "repo:ci",
+        source  = Path(".mise/tasks/repo/ci").absolute()
     )
-    Path(".mise/tasks/gha/brief.py").chmod(0o755)
 
-    findings = scan(ScriptCheck, {}, Tasks(issues=[], tasks=[]))
+    findings = scan(
+        Rows,
+        {
+            ".github/workflows/ci.yml"   : workflow,
+            ".github/workflows/warm.yml" : pushed.replace("py:lint", "gha:prune"),
+            ".mise/tasks/repo/ci"        : (
+                "#!/usr/bin/env -S bash -euo pipefail\n"
+                '#MISE depends = ["gha:lint", "py:lint"]\n'
+            )
+        },
+        Tasks(issues=[], tasks=[sweep])
+    )
 
-    assert [(line, message) for _, line, message in findings] == [
-        (
-            3,
-            "`.mise/tasks/gha/brief.py` declares `minijinja==2.24.0`, whereas "
-            "`uv.lock` resolves 2.23.0, 2.24.0"
-        )
-    ]
+    assert findings == []
 
 
 @mark.parametrize(
@@ -1181,42 +1217,18 @@ def test_labels_hold_the_registry_to_the_files_naming_its_labels(
     assert scan(LabelCheck, shipped) == found
 
 
-def test_scripts_hold_each_uv_run_a_toml_task_starts(
-    checkout : Callable[[Mapping[str, str]], None],
-    manifest : str,
-    scan     : Scan
-):
+def test_rows_report_a_checkout_with_no_sweep(scan: Scan, workflow: str):
     """
-    Pins that the script check reports each `uv run` a task declared in TOML
-    starts that opens on anything but `--exact --locked`, on the first line
-    holding one after the task's name, and reads nothing from a step naming
-    another task.
+    Pins that the row check reports a checkout whose tasks hold no
+    `repo:ci`, on `.mise/config.toml`.
     """
-    checkout(
-        {
-            ".mise/config.toml": (
-                '[tasks."py:w"]\nrun = "uv run --exact --locked w"\n\n'
-                '[tasks."py:x"]\n'
-                'run = ["uv run --exact --locked a", "uv run --exact b", '
-                '{ task = "py:y" }]\n'
-            ),
-            "pyproject.toml" : manifest,
-            "uv.lock"        : '[[package]]\nname = "minijinja"\nversion = "2.24.0"\n'
-        }
-    )
-    task = Task(
-        depends = [],
-        name    = "py:x",
-        run     = ["uv run --exact --locked a", "uv run --exact b", {"task": "py:y"}],
-        source  = Path(".mise/config.toml").absolute()
+    findings = scan(
+        Rows,
+        {".github/workflows/ci.yml": workflow},
+        Tasks(issues=[], tasks=[])
     )
 
-    assert scan(ScriptCheck, {}, Tasks(issues=[], tasks=[task])) == [
-        (
-            ".mise/config.toml", 5,
-            "`uv run` in the task `py:x` opens on no `--exact --locked`"
-        )
-    ]
+    assert findings == [(".mise/config.toml", None, "mise lists no `repo:ci` task")]
 
 
 @mark.parametrize(
@@ -1293,79 +1305,80 @@ def test_layout_reports_each_file_that_leaves_the_package_layout(
     assert [message for *_, message in findings] == found
 
 
-def test_scripts_skip_a_task_file_mise_would_not_run(
+def test_scripts_hold_a_pin_to_every_version_the_lockfile_resolves(
     checkout : Callable[[Mapping[str, str]], None],
     manifest : str,
     scan     : Scan
 ):
     """
-    Pins that the script check reads no file under `.mise/tasks/` that
-    lacks the executable bit, since mise runs no such file as a task, as the
-    lockfile written beside a script with metadata of its own does.
+    Pins that the script check matches a declared package to the lockfile's
+    entries as PEP 503 normalizes their names, and reports a pin admitting
+    only one of the versions a marker splits the package into.
     """
     checkout(
         {
+            ".mise/tasks/gha/brief.py": (
+                "#!/usr/bin/env -S uv run --exact --locked --script\n"
+                "# /// script\n"
+                '# dependencies = ["minijinja==2.24.0"]\n'
+                "# ///\n"
+            ),
+
+            "pyproject.toml": manifest,
+
+            "uv.lock": (
+                '[[package]]\nname = "MiniJinja"\nversion = "2.23.0"\n\n'
+                '[[package]]\nname = "minijinja"\nversion = "2.24.0"\n'
+            )
+        }
+    )
+    Path(".mise/tasks/gha/brief.py").chmod(0o755)
+
+    findings = scan(ScriptCheck, {}, Tasks(issues=[], tasks=[]))
+
+    assert [(line, message) for _, line, message in findings] == [
+        (
+            3,
+            "`.mise/tasks/gha/brief.py` declares `minijinja==2.24.0`, whereas "
+            "`uv.lock` resolves 2.23.0, 2.24.0"
+        )
+    ]
+
+
+def test_scripts_hold_each_uv_run_a_toml_task_starts(
+    checkout : Callable[[Mapping[str, str]], None],
+    manifest : str,
+    scan     : Scan
+):
+    """
+    Pins that the script check reports each `uv run` a task declared in TOML
+    starts that opens on anything but `--exact --locked`, on the first line
+    holding one after the task's name, and reads nothing from a step naming
+    another task.
+    """
+    checkout(
+        {
+            ".mise/config.toml": (
+                '[tasks."py:w"]\nrun = "uv run --exact --locked w"\n\n'
+                '[tasks."py:x"]\n'
+                'run = ["uv run --exact --locked a", "uv run --exact b", '
+                '{ task = "py:y" }]\n'
+            ),
             "pyproject.toml" : manifest,
             "uv.lock"        : '[[package]]\nname = "minijinja"\nversion = "2.24.0"\n'
         }
     )
-
-    findings = scan(
-        ScriptCheck,
-        {".mise/tasks/gha/brief.py.lock": "uv run --locked pytest\n"},
-        Tasks(issues=[], tasks=[])
+    task = Task(
+        depends = [],
+        name    = "py:x",
+        run     = ["uv run --exact --locked a", "uv run --exact b", {"task": "py:y"}],
+        source  = Path(".mise/config.toml").absolute()
     )
 
-    assert findings == []
-
-
-def test_subsets_report_each_subset_one_side_lacks(
-    provision : str,
-    scan      : Scan,
-    workflow  : str
-):
-    """
-    Pins that the subset check reports a subset a restoring job installs
-    that no warming job saves and one a warming job saves that no job
-    installs, comparing the tools of a subset in any order and leaving out a
-    job under `cache-mode: none`.
-    """
-    findings = scan(
-        Subsets,
-        {
-            ".github/actions/provision/action.yml" : provision,
-            ".github/workflows/ci.yml"             : workflow,
-            ".github/workflows/warm.yml"           : """
-                cache-mode: write
-
-                jobs:
-                  kit:
-                    strategy:
-                      matrix:
-                        tools: [uv python, node]
-
-                    steps:
-                      - uses : ./.github/actions/provision
-                        with : { tools: "${{ matrix.tools }}" }
-
-                  prune:
-                    cache-mode: none
-
-                    steps:
-                      - uses : ./.github/actions/provision
-                        with : { tools: bun }
-                """
-        }
-    )
-
-    assert findings == [
+    assert scan(ScriptCheck, {}, Tasks(issues=[], tasks=[task])) == [
         (
-            ".github/workflows/ci.yml", 26,
-            "`check` installs the tool subset `zizmor`, which no job saves"
-        ),
-        (
-            ".github/workflows/warm.yml", 11,
-            "`kit` saves the tool subset `node`, which no job restores"
+            ".mise/config.toml", 5,
+            "`uv run` in the task `py:x` opens on no `--exact --locked`"
         )
     ]
 
@@ -1475,6 +1488,98 @@ def test_gates_take_each_check_a_pull_request_gate_reports(
     assert [message for *_, message in findings] == found
 
 
+def test_scripts_skip_a_task_file_mise_would_not_run(
+    checkout : Callable[[Mapping[str, str]], None],
+    manifest : str,
+    scan     : Scan
+):
+    """
+    Pins that the script check reads no file under `.mise/tasks/` that
+    lacks the executable bit, since mise runs no such file as a task, as the
+    lockfile written beside a script with metadata of its own does.
+    """
+    checkout(
+        {
+            "pyproject.toml" : manifest,
+            "uv.lock"        : '[[package]]\nname = "minijinja"\nversion = "2.24.0"\n'
+        }
+    )
+
+    findings = scan(
+        ScriptCheck,
+        {".mise/tasks/gha/brief.py.lock": "uv run --locked pytest\n"},
+        Tasks(issues=[], tasks=[])
+    )
+
+    assert findings == []
+
+
+def test_site_pins_are_unreadable_where_a_pin_is_missing(mise_config: str, scan: Scan):
+    """
+    Pins that a `docs/package.json` leaving out a pin the site's pins check
+    compares fails the read on that file, naming the missing key.
+    """
+    with raises(Unreadable, match="at `devDependencies.@types/node`"):
+        scan(
+            SitePins,
+            {
+                ".mise/config.toml" : mise_config,
+                "docs/package.json" : '{"devDependencies": {"vitest": "5.0.5"}}'
+            }
+        )
+
+
+def test_subsets_report_each_subset_one_side_lacks(
+    provision : str,
+    scan      : Scan,
+    workflow  : str
+):
+    """
+    Pins that the subset check reports a subset a restoring job installs
+    that no warming job saves and one a warming job saves that no job
+    installs, comparing the tools of a subset in any order and leaving out a
+    job under `cache-mode: none`.
+    """
+    findings = scan(
+        Subsets,
+        {
+            ".github/actions/provision/action.yml" : provision,
+            ".github/workflows/ci.yml"             : workflow,
+            ".github/workflows/warm.yml"           : """
+                cache-mode: write
+
+                jobs:
+                  kit:
+                    strategy:
+                      matrix:
+                        tools: [uv python, node]
+
+                    steps:
+                      - uses : ./.github/actions/provision
+                        with : { tools: "${{ matrix.tools }}" }
+
+                  prune:
+                    cache-mode: none
+
+                    steps:
+                      - uses : ./.github/actions/provision
+                        with : { tools: bun }
+                """
+        }
+    )
+
+    assert findings == [
+        (
+            ".github/workflows/ci.yml", 26,
+            "`check` installs the tool subset `zizmor`, which no job saves"
+        ),
+        (
+            ".github/workflows/warm.yml", 11,
+            "`kit` saves the tool subset `node`, which no job restores"
+        )
+    ]
+
+
 def test_summaries_report_each_writer_besides_the_gate(scan: Scan, workflow: str):
     """
     Pins that the summary check reports a step writing the summary in a
@@ -1563,6 +1668,71 @@ def test_task_check_reports_each_defect_mise_finds_at_its_weight(scan: Scan):
     ]
 
 
+@mark.parametrize(
+    ("command", "found"),
+    [
+        param("bun install --frozen-lockfile", [], id="frozen"),
+        param("bun install --cwd docs --lockfile-only", [], id="lockfile-only"),
+        param(
+            "bun install --cwd docs",
+            [
+                "`bun install` in `.mise/tasks/site/install` carries neither "
+                "`--frozen-lockfile` nor `--lockfile-only`"
+            ],
+            id = "unlocked"
+        ),
+        param(
+            "bun i --cwd docs",
+            [
+                "`bun i` in `.mise/tasks/site/install` carries neither "
+                "`--frozen-lockfile` nor `--lockfile-only`"
+            ],
+            id = "unlocked-short"
+        ),
+        param(
+            "bunx vitest run",
+            [
+                "`bunx` in `.mise/tasks/site/install` can run a copy of a tool from "
+                "outside `docs/node_modules`"
+            ],
+            id = "bunx"
+        ),
+        param(
+            "bun x vitest run",
+            [
+                "`bun x` in `.mise/tasks/site/install` can run a copy of a tool from "
+                "outside `docs/node_modules`"
+            ],
+            id = "bun-x"
+        )
+    ]
+)
+def test_installs_hold_each_bun_install_to_the_lockfile(
+    checkout : Callable[[Mapping[str, str]], None],
+    command  : str,
+    found    : list[str],
+    scan     : Scan
+):
+    """
+    Pins that the installs check passes a `bun install` carrying either
+    lockfile flag, and reports one carrying neither and every `bunx`, each
+    under either name Bun gives it, on the line of the task running it.
+    """
+    checkout(
+        {
+            ".mise/tasks/site/install": (
+                "#!/usr/bin/env -S bash -euo pipefail\n"
+                f'#MISE description = "Install"\n\n{command}\n'
+            )
+        }
+    )
+    Path(".mise/tasks/site/install").chmod(0o755)
+
+    findings = scan(Installs, {}, Tasks(issues=[], tasks=[]))
+
+    assert findings == [(".mise/tasks/site/install", 4, message) for message in found]
+
+
 def test_the_audit_reports_each_unreadable_file_once(
     capsys   : CaptureFixture[str],
     checkout : Callable[[Mapping[str, str]], None],
@@ -1582,16 +1752,95 @@ def test_the_audit_reports_each_unreadable_file_once(
 
     audit = Audit.read()
 
-    assert sorted({str(finding.file) for finding in audit.findings}) == [
-        ".github/labels.toml", ".github/release.yml", ".mise/config.toml",
-        "CITATION.cff", "a.py", "b.py",
-        "pyproject.toml", "uv.lock"
-    ]
+    assert {str(finding.file) for finding in audit.findings} == {
+        ".github/labels.toml",
+        ".github/release.yml",
+        ".mise/config.toml",
+        "CITATION.cff",
+        "a.py",
+        "b.py",
+        "docs/package.json",
+        "pyproject.toml",
+        "uv.lock",
+        *(str(output.path) for output in Inventory.read().outputs)
+    }
     assert len(audit.findings) == len(set(audit.findings))
     assert audit.report() == 1
     assert capsys.readouterr().out.splitlines()[0].startswith(
         "::error file=CITATION.cff::"
     )
+
+
+@mark.parametrize(
+    ("rewrite", "found"),
+    [
+        param(("", ""), [], id="clean"),
+        param(
+            ('"@vitest/coverage-v8": "5.0.5"', '"@vitest/coverage-v8": "5.0.3"'),
+            [(7, "`@vitest/coverage-v8` pins 5.0.3, whereas `vitest` pins 5.0.5")],
+            id = "provider"
+        ),
+        param(
+            ('"@tailwindcss/vite": "4.3.3"', '"@tailwindcss/vite": "4.3.2"'),
+            [(5, "`@tailwindcss/vite` pins 4.3.2, whereas `tailwindcss` pins 4.3.3")],
+            id = "plugin"
+        ),
+        param(
+            ('"@zag-js/slider": "1.46.0"', '"@zag-js/slider": "1.45.0"'),
+            [(8, "`@zag-js/slider` pins 1.45.0, whereas `@zag-js/vue` pins 1.46.0")],
+            id = "machine"
+        ),
+        param(('    "@zag-js/slider": "1.46.0",\n', ""), [], id="a-pair-left-out"),
+        param(
+            ('"@types/node": "26.6.5"', '"@types/node": "24.10.0"'),
+            [
+                (
+                    6,
+                    "`@types/node` pins 24.10.0, whereas `.mise/config.toml` pins "
+                    "Node.js 26.12.1"
+                )
+            ],
+            id = "types"
+        )
+    ]
+)
+def test_site_pins_hold_the_pins_that_move_together(
+    found       : list[tuple[int, str]],
+    mise_config : str,
+    rewrite     : tuple[str, str],
+    scan        : Scan
+):
+    """
+    Pins that the site's pins check passes a manifest pinning each package
+    alike with the one it is paired with and the Node.js types at the major
+    mise pins, passes a pair the manifest leaves out, and reports each pin
+    that departs, on the line of `docs/package.json` declaring it.
+    """
+    package = dumps(
+        {
+            "devDependencies": {
+                "@tailwindcss/node"   : "4.3.3",
+                "@tailwindcss/oxide"  : "4.3.3",
+                "@tailwindcss/vite"   : "4.3.3",
+                "@types/node"         : "26.6.5",
+                "@vitest/coverage-v8" : "5.0.5",
+                "@zag-js/slider"      : "1.46.0",
+                "@zag-js/vue"         : "1.46.0",
+                "tailwindcss"         : "4.3.3",
+                "vitest"              : "5.0.5"
+            }
+        },
+        indent = 2
+    )
+    findings = scan(
+        SitePins,
+        {
+            ".mise/config.toml" : mise_config,
+            "docs/package.json" : package.replace(*rewrite)
+        }
+    )
+
+    assert findings == [("docs/package.json", line, message) for line, message in found]
 
 
 def test_warming_reads_no_workflow_that_saves_no_cache(

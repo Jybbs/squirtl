@@ -1,0 +1,10 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE alias       = "proof"
+#MISE depends     = ["site:install"]
+#MISE description = "Fail on any length, time, color, or easing curve the site's CSS sets that no theme variable supplies"
+#MISE dir         = "docs"
+
+node --input-type=module <<'NODE'
+import { prove, siteSheets } from "./.vitepress/lib/proof/sheets.ts"
+process.exitCode = prove(await siteSheets(import.meta.url))
+NODE

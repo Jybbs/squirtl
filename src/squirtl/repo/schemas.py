@@ -5,7 +5,7 @@ so a misspelled key fails the read before anything is sent, whereas a
 record of what GitHub, mise, or a manifest returns ignores the keys it does
 not read:
 
-- `TomlFile` and `YamlFile`, the bases of a record one file holds,
+- `JsonFile`, `TomlFile`, and `YamlFile`, the bases of a record one file holds,
   `StepFile`, the base of a YAML file whose steps run scripts, and
   `Endpoint`, the base of a table sent whole as the body of a `PUT`
 - The registries under `.github/` and `Project`, each registry deriving the
@@ -23,7 +23,7 @@ from enum            import StrEnum, auto
 from fnmatch         import fnmatch
 from functools       import cached_property
 from http            import HTTPMethod
-from itertools       import chain, pairwise, takewhile
+from itertools       import chain, groupby, takewhile
 from json            import load
 from packaging.requirements import Requirement
 from packaging.specifiers   import SpecifierSet
@@ -34,7 +34,7 @@ from pydantic            import (
     AliasPath, BeforeValidator, Field, HttpUrl, InstanceOf, JsonValue,
     StringConstraints, TypeAdapter, ValidationError
 )
-from re         import finditer, fullmatch, search, sub
+from re         import escape, finditer, fullmatch, search, sub
 from shlex      import shlex, split
 from stat       import S_IXUSR
 from subprocess import SubprocessError, check_output, run
@@ -88,19 +88,18 @@ def command_lines(text: str) -> dict[int, tuple[str, ...]]:
     return lines
 
 
-def following(
-    program    : str,
-    subcommand : str,
-    words      : Sequence[str]
-) -> list[tuple[str, ...]]:
+def following(command: tuple[str, ...], words: Sequence[str]) -> list[tuple[str, ...]]:
     """
-    Lists the words after each place `program` runs `subcommand` among
-    `words`, so a line that runs `uv run` twice yields what each run takes.
+    Lists the words after each place the words of `command` stand in order
+    among `words`, so a line that runs `uv run` twice yields what each run
+    takes.
     """
+    size = len(command)
+
     return [
-        tuple(words[index + 2:])
-        for index, pair in enumerate(pairwise(words))
-        if pair == (program, subcommand)
+        tuple(words[index + size:])
+        for index in range(len(words))
+        if tuple(words[index:index + size]) == command
     ]
 
 
@@ -316,6 +315,32 @@ class GithubRuleset(Record, extra="ignore"):
     """
 
 
+class JsonFile(Record):
+    """
+    The base of a record one JSON file holds whole, which `from_path`
+    validates into the record.
+    """
+
+    file: ClassVar[Path]
+
+    @classmethod
+    def from_path(cls, path: Path) -> Self:
+        """
+        Reads the record the JSON file at `path` holds, raising `Unreadable`
+        where the file fails to parse, on the line the parser names, or
+        fails to validate.
+        """
+        with Finding.reading(path), path.open(encoding="utf-8") as file:
+            return cls.model_validate(load(file))
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Reads the record at `file`.
+        """
+        return cls.from_path(cls.file)
+
+
 class Label(Record):
     """
     One row of the label registry.
@@ -464,7 +489,7 @@ class Metadata(Record, extra="ignore"):
         )
 
 
-class Ruleset(Record):
+class Ruleset(JsonFile):
     """
     One ruleset a file under `.github/rulesets/` declares, as the body of
     the request that creates or updates it.
@@ -531,16 +556,6 @@ class Ruleset(Record):
             body   = self.model_dump(),
             method = HTTPMethod.PUT
         )
-
-    @classmethod
-    def from_path(cls, path: Path) -> Self:
-        """
-        Reads the ruleset the JSON file at `path` declares, raising
-        `Unreadable` where the file fails to parse, on the line the parser
-        names, or fails to validate.
-        """
-        with Finding.reading(path), path.open(encoding="utf-8") as file:
-            return cls.model_validate(load(file))
 
 
 class Severity(StrEnum):
@@ -662,16 +677,16 @@ class Task(Record, extra="ignore"):
         """
         return self.source.resolve().relative_to(Path.cwd().resolve(), walk_up=True)
 
-    @property
-    def runs(self) -> list[tuple[str, ...]]:
+    def runs(self, *command: str) -> list[tuple[str, ...]]:
         """
-        Lists the words after each `uv run` the task's TOML scripts start.
+        Lists the words after each place the task's TOML scripts start
+        `command`, given as its words (`"uv", "run"`).
         """
         return [
             options
             for lines in self.run
             for words in lines.values()
-            for options in following("uv", "run", words)
+            for options in following(command, words)
         ]
 
 
@@ -690,6 +705,29 @@ class SecurityAndAnalysis(Record):
     secret_scanning_push_protection: Feature
     """
     Whether GitHub refuses a push carrying such a secret.
+    """
+
+
+class SiteManifest(JsonFile, extra="ignore"):
+    """
+    The pins `file` declares for the docs site, each field taken from the
+    key its alias names.
+    """
+
+    file: ClassVar[Path] = Path("docs/package.json")
+
+    node_types: VersionNumber = Field(
+        validation_alias = AliasPath("devDependencies", "@types/node")
+    )
+    """
+    The version of the Node.js types the site's TypeScript is checked
+    against.
+    """
+
+    pins: dict[str, str] = Field(validation_alias="devDependencies")
+    """
+    The exact version each package the site depends on is pinned to, under
+    the package's name.
     """
 
 
@@ -868,8 +906,8 @@ class Project(Record, extra="ignore"):
 
     urls: dict[str, HttpUrl] = {}
     """
-    The addresses `[project.urls]` names, the `Homepage` among them once the
-    docs site serves.
+    The addresses `[project.urls]` names, the `Homepage` the docs site
+    serves at among them.
     """
 
     @property
@@ -975,18 +1013,6 @@ class Script(Record):
         """
         return ({1: self.shebang} if self.shebang else {}) | self.commands
 
-    @property
-    def runs(self) -> list[tuple[int, tuple[str, ...]]]:
-        """
-        Pairs each `uv run` the script starts with the line it opens on and
-        the words after it.
-        """
-        return [
-            (line, options)
-            for line, words in self.lines.items()
-            for options in following("uv", "run", words)
-        ]
-
     @classmethod
     def from_path(cls, path: Path) -> Self:
         """
@@ -1004,6 +1030,17 @@ class Script(Record):
                 path     = path,
                 shebang  = tuple(split(first[2:])) if first[:2] == "#!" else ()
             )
+
+    def runs(self, *command: str) -> list[tuple[int, tuple[str, ...]]]:
+        """
+        Pairs each place the script starts `command`, given as its words
+        (`"uv", "run"`), with the line it opens on and the words after it.
+        """
+        return [
+            (line, options)
+            for line, words in self.lines.items()
+            for options in following(command, words)
+        ]
 
 
 class TaskIssue(Record, extra="ignore"):
@@ -1040,77 +1077,6 @@ class TaskIssue(Record, extra="ignore"):
         """
         return f"{self.message!r} ({self.details})" if self.details else repr(
             self.message
-        )
-
-
-class WorkflowStep(Block):
-    """
-    One step a job of a workflow or a composite action runs.
-    """
-
-    @property
-    def action(self) -> str | None:
-        """
-        Names the action the step uses, as `uses` writes it, or `None` for a
-        step that runs a script.
-        """
-        return self.get("uses")
-
-    @cached_property
-    def commands(self) -> list[tuple[str, ...]]:
-        """
-        Splits the step's `run` script into the words of each command line.
-        """
-        return list(command_lines(str(self.get("run", default=""))).values())
-
-    @property
-    def local(self) -> Path | None:
-        """
-        Names the directory of the action in this repository the step uses,
-        written after `./` or after the `$/` that names the repository the
-        workflow runs in, or `None` for any other step.
-        """
-        action = self.action or ""
-        return Path(action[2:]) if action[:2] in {"$/", "./"} else None
-
-    @property
-    def pinned(self) -> tuple[str, str] | None:
-        """
-        Splits `uses` into the action and the ref it is pinned to, or `None`
-        for an action of this repository, a step naming no ref, or a step
-        running a script.
-        """
-        action, at, ref = (self.action or "").rpartition("@")
-        return (action, ref) if at and not self.local else None
-
-    @property
-    def tasks(self) -> list[str]:
-        """
-        Names the task each `mise run` in the step's script starts, a
-        `$NAME` it starts read as the value the step's `env` gives `NAME`.
-        """
-        env   = {name: str(block.value) for name, block in self.fields("env").items()}
-        named = (
-            next((word for word in rest if not word.startswith("-")), None)
-            for words in self.commands
-            for rest in following("mise", "run", words)
-        )
-
-        return [
-            env.get(task.strip("${}"), task) if task.startswith("$") else task
-            for task in named
-            if task
-        ]
-
-    @property
-    def writes_summary(self) -> bool:
-        """
-        Tells whether a word of the step's script names
-        `GITHUB_STEP_SUMMARY`, the file a workflow step appends the workflow
-        run's summary to.
-        """
-        return any(
-            "GITHUB_STEP_SUMMARY" in word for words in self.commands for word in words
         )
 
 
@@ -1193,15 +1159,78 @@ class YamlFile(Record):
         return cls.from_path(cls.file)
 
 
-class TaskValidation(Record, extra="ignore"):
+class WorkflowStep(Block):
     """
-    What `mise tasks validate --json` prints, read for each defect.
+    One step a job of a workflow or a composite action runs.
     """
 
-    issues: list[TaskIssue]
-    """
-    Each defect, in the order mise reports them.
-    """
+    @property
+    def action(self) -> str | None:
+        """
+        Names the action the step uses, as `uses` writes it, or `None` for a
+        step that runs a script.
+        """
+        return self.get("uses")
+
+    @cached_property
+    def commands(self) -> list[tuple[str, ...]]:
+        """
+        Splits the step's `run` script into the words of each command line.
+        """
+        return list(command_lines(str(self.get("run", default=""))).values())
+
+    @property
+    def local(self) -> Path | None:
+        """
+        Names the directory of the action in this repository the step uses,
+        written after `./` or after the `$/` that names the repository the
+        workflow runs in, or `None` for any other step.
+        """
+        action = self.action or ""
+        return Path(action[2:]) if action[:2] in {"$/", "./"} else None
+
+    @property
+    def pinned(self) -> tuple[str, str] | None:
+        """
+        Splits `uses` into the action and the ref it is pinned to, or `None`
+        for an action of this repository, a step naming no ref, or a step
+        running a script.
+        """
+        action, at, ref = (self.action or "").rpartition("@")
+        return (action, ref) if at and not self.local else None
+
+    @property
+    def tasks(self) -> list[str]:
+        """
+        Names the task each `mise run` in the step's script starts, every
+        task of a chain it joins with `:::` among them, a `$NAME` it starts
+        read as the value the step's `env` gives `NAME`.
+        """
+        env   = {name: str(block.value) for name, block in self.fields("env").items()}
+        named = (
+            next((word for word in chained if not word.startswith("-")), None)
+            for words in self.commands
+            for rest in following(("mise", "run"), words)
+            for joint, chained in groupby(rest, ":::".__eq__)
+            if not joint
+        )
+
+        return [
+            env.get(task.strip("${}"), task) if task.startswith("$") else task
+            for task in named
+            if task
+        ]
+
+    @property
+    def writes_summary(self) -> bool:
+        """
+        Tells whether a word of the step's script names
+        `GITHUB_STEP_SUMMARY`, the file a workflow step appends the workflow
+        run's summary to.
+        """
+        return any(
+            "GITHUB_STEP_SUMMARY" in word for words in self.commands for word in words
+        )
 
 
 class Citation(YamlFile):
@@ -1288,7 +1317,9 @@ class Finding(Record):
         Builds the finding on the first line of `file` that holds the last
         of `needles`, searching from the line that holds the one before
         it, so a key and the value it names may share a line, or on no line
-        where a needle appears nowhere from there on.
+        where a needle appears nowhere from there on. A needle counts only
+        with no letter, digit, `_`, or `-` against either end, so `bun i`
+        never matches a line running `bun install`.
         """
         numbered = list(
             enumerate(file.read_text(encoding="utf-8").splitlines(), start=1)
@@ -1296,8 +1327,9 @@ class Finding(Record):
         line = 1
 
         for needle in needles:
-            line = line and next(
-                (number for number, text in numbered[line - 1:] if needle in text),
+            whole = rf"(?<![\w-]){escape(needle)}(?![\w-])"
+            line  = line and next(
+                (number for number, text in numbered[line - 1:] if search(whole, text)),
                 None
             )
 
@@ -1555,6 +1587,11 @@ class MiseConfig(TomlFile, extra="ignore"):
 
     file: ClassVar[Path] = Path(".mise/config.toml")
 
+    node: VersionNumber = Field(validation_alias=AliasPath("tools", "node"))
+    """
+    The Node.js release mise installs, which runs the docs site's tools.
+    """
+
     python: VersionNumber = Field(validation_alias=AliasPath("tools", "python"))
     """
     The Python release mise installs.
@@ -1636,6 +1673,17 @@ class Rulesets(Record):
         return cls(
             rulesets = dict(zip(paths, Unreadable.gather(paths, Ruleset.from_path)))
         )
+
+
+class TaskValidation(Record, extra="ignore"):
+    """
+    What `mise tasks validate --json` prints, read for each defect.
+    """
+
+    issues: list[TaskIssue]
+    """
+    Each defect, in the order mise reports them.
+    """
 
 
 class Scripts(Record):
