@@ -1,0 +1,44 @@
+{
+  "cities": {
+    "Boulder": [
+      2,
+      3
+    ],
+    "Cascade": [
+      10,
+      2
+    ],
+    "Earth": [
+      2,
+      8
+    ],
+    "Marsh": [
+      10,
+      5
+    ],
+    "Rainbow": [
+      7,
+      5
+    ],
+    "Soul": [
+      8,
+      13
+    ],
+    "Thunder": [
+      10,
+      9
+    ],
+    "Volcano": [
+      2,
+      15
+    ]
+  },
+  "height": 144,
+  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAACQAgMAAADy24gTAAAADFBMVEXz9PeZmZlTU1MSFyICiT1OAAAFF0lEQVR42u2YP2gjRxTGv5FGRxwR2ELnFMHgIilSxc1VduwVLkVA+WOBz02aFO4O4iJFSJbAQeAakyYpcxCuGHFgyCbNcUgu0uRaBRRCipSxJfAVQhG32knxZnZm9n9IyuwrJEaPXfTb73vfzgL/H//FwUTBDwMAwP1nP/SoGuXnee35ripe3vjSqDOjqjhj43ZXVUUjAgmqqkYvOXdFI5/vUPEqfJ5kkkkmSxqJ8DF+exb2wiqOhiWvbiSWNc7YqMUxYVmn0avDMWHJ60jRk0wyAeAIQ0eFACDBLJ4nxPEy57zu2u7zBgC0+mapOaZPew2YjBoAIMdmaeOeuvTYbqzHEdAcmW+Wlufqr/qp+wMALy7Mwlo12GvAfKcBAAdR9mLumtfmAMAgcKS4aZ8z9Y3IWnq8LLtHUnHMcktxXSqOWW4prou6HANLj2luNtfY1qPLzeW6svV4ELHCK9+0LV8ziMLGs3q+hkx83Xx6hebTq6LG5UT7euOe0WHOsfjnvl6eGx1mj9joce0bHWaP1U5NX9+0M/NxYDla+1riVq9gPpIytT4vOeVMTiMpU+uz1Z+MJiNLj9aNGNv6lONu3flYmDOkTK1P/ZnTSMrU+nxxQTnTKHK09vVB5LW9tvK1my1DCEufDK1ezZzZrZszk1nNnPn3HAvyq7plXlePlNg1zhgiRJi5dM5Qy+e4vPDrcVzs1eQYxPU4xkBQi+NqZ75di+NNm7FSjoOBlABwhjA+eVTKkXxMzMZlHMnHxOxXv4Qj3RJitlfNkZjFZRydnAlKOJKP1dPidgnHg2iYMHNZeub50fj4GCe9sBf27Oee8J3vla8dDRI1O793/9IcHQ0StVO0+o/1yuaV4uhokKjZl+kGmqOjQaLmjEHNMV+DhivXHF0NEjU7vz0ojq4GiZqd3z480uMZwjitPmA4FEIIIfRag9LYzeaUIlVeLyezzuzUyeaUIlVeL4ibnc0pRaq8DhxuQY4iKa/jnGx2FanyeqW42dnsKlLlNaWxm82uIlVHq9/qt/pCSCkEfdcrxp+tfqvf3F9trbZWdzB7/QM5++T31ZaqO8lDPHVwoz8sJ3Iy0/vA07SvLf0t9o+6yT4w42tLf8ke0FVkxtdx8vifOx+N/lY7sxu9CzRkE18b/X3VZg/0LpDJzHzU+mPsTGkxbBzfPb4LAEII0erTquK42B5if7VNHBldd4gjAH8qrtzobzJ7lThuZqdjwnEPQPe24hhkp2PCMU54mZljUzQcA7ON4mUc59vAXHH0clIm4cgY4Eni6OekTKJHUwAgFW7iSMV8dSsan33OJJNsBGB8uNaPS/Jr9TvXnBTDGWn6ccrnCUdiePjL6dupx4BFiqPWoKx+T9EcA2t/OnVno3E96/KIRzzi8Ref8ohH/InzZ5bfRep3nijwgZfo0MzGxOcJx/eA+8rPQgCux22OL/+Ibx9KJtmbPjCASPjJFMdN/T5CTcalcbjLMdDvI/ZS/FIcWcIszvG4xZGbdzuByy/F8Q1/ACG/4RGPNj7EAA8TfimOvnkfwVx+KY5CSElPKml+KY6n2Dxcw2cj+OlTqUIHHXQgxE/vAx00xx3kV7N33b3uXvfwypdLfCxnP5/II/mW+OO6myp7PipFSsvNGY6kwel0eT6dTqd5Wz/F8SNsHq7R5U/Q5VFucTufPWl8nC41H08e3Xq31Q+hp2G2WBG3Ao7V1UjrrqgaEvWq9n6GFXEr4FhdfwOYcOvC1TC7lgAAAABJRU5ErkJggg==",
+  "origin": [
+    2,
+    1
+  ],
+  "tile": 8,
+  "width": 160
+}

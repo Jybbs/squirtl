@@ -1,0 +1,9 @@
+.VPHero > .container { position: relative; }
+
+@media (width < 60rem) {
+  .VPHome .VPHero.has-image .image { margin: 0 0 var(--spacing-5); }
+
+  .VPHome .VPHero.has-image .image-container { height: auto; }
+
+  .VPHome .VPHero.has-image .container .actions { justify-content: flex-start; }
+}

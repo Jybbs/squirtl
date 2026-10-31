@@ -14,14 +14,16 @@ from json            import dumps
 from operator        import methodcaller
 from packaging.specifiers import SpecifierSet
 from packaging.version    import Version
+from pathlib              import Path
 from re     import fullmatch
 from typing import ClassVar, Self
 
+from squirtl.docs.outputs     import Inventory
 from squirtl.emulator.schemas import Record
 from squirtl.repo.schemas import (
     Actions, Citation, Finding, Labels, License, Lockfile, Manifest, MiseConfig,
-    Project, ReleaseNotes, Rulesets, Scripts, Severity, Tasks, Templates, Tree,
-    Unreadable, Workflows
+    Project, ReleaseNotes, Rulesets, Scripts, Severity, SiteManifest, Tasks,
+    Templates, Tree, Unreadable, Workflows
 )
 
 
@@ -396,6 +398,79 @@ class Inputs(Check):
                     )
 
 
+class Installs(Check):
+    """
+    Holds every `bun install` a script or a task declared in TOML runs to
+    the lockfile, so no install resolves a version `docs/bun.lock` does not
+    record, and refuses `bunx`, which can run a copy of a tool from outside
+    `docs/node_modules`.
+    """
+
+    # `bun --help` lists `bun i` as the short form of `bun install` and `bun x`
+    # as the command `bunx` runs.
+    installing: ClassVar[tuple[tuple[str, ...], ...]] = (
+        ("bun", "i"),
+        ("bun", "install")
+    )
+    running: ClassVar[tuple[tuple[str, ...], ...]] = (("bun", "x"), ("bunx",))
+
+    scripts : Scripts
+    tasks   : Tasks
+
+    def fault(self, command: tuple[str, ...], options: tuple[str, ...]) -> str | None:
+        """
+        Names what one run of `command` taking `options` breaks.
+
+        Returns:
+            The clause naming the fault, or `None` where the run breaks
+            nothing.
+        """
+        if command in self.running:
+            return "can run a copy of a tool from outside `docs/node_modules`"
+
+        if {"--frozen-lockfile", "--lockfile-only"}.isdisjoint(options):
+            return "carries neither `--frozen-lockfile` nor `--lockfile-only`"
+
+        return None
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding on each line of a script that runs `bunx` under
+        either of its names or a `bun install` under either of its names
+        carrying neither `--frozen-lockfile` nor `--lockfile-only`, and on
+        the first line after the name of a task declared in TOML that holds
+        such a command.
+        """
+        commands = (*self.installing, *self.running)
+
+        for script in self.scripts.scripts:
+            for command in commands:
+                for line, options in script.runs(*command):
+                    if fault := self.fault(command, options):
+                        yield Finding(
+                            file    = script.path,
+                            line    = line,
+                            message = (
+                                f"`{' '.join(command)}` in `{script.path}` "
+                                f"{fault}"
+                            )
+                        )
+
+        for task in self.tasks.tasks:
+            for command in commands:
+                for options in task.runs(*command):
+                    if fault := self.fault(command, options):
+                        yield Finding.locate(
+                            task.file,
+                            task.name,
+                            " ".join(command),
+                            message = (
+                                f"`{' '.join(command)}` in the task `{task.name}` "
+                                f"{fault}"
+                            )
+                        )
+
+
 class LabelCheck(Check):
     """
     Holds the label registry to the release-notes categories and the issue
@@ -636,6 +711,42 @@ class Pins(Check):
                 )
 
 
+class Rendered(Check):
+    """
+    Holds each file `squirtl write docs` writes to the declaration it is
+    written from, so a hand edit and a declaration changed without `mise
+    write` each fail the audit.
+    """
+
+    identity: ClassVar[Path] = Path("src/squirtl/identity/identity.toml")
+
+    inventory: Inventory
+
+    @classmethod
+    def read(cls, documents: Callable[[type], Record]) -> Self:
+        """
+        Builds the check as `Check.read` does, raising `Unreadable` on
+        `identity` where any part of the inventory fails to read, the
+        identity failing to parse or to validate among them.
+        """
+        with Finding.reading(cls.identity):
+            return super().read(documents)
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding on each file that is missing or holds anything
+        other than what its declaration gives it.
+        """
+        for output in self.inventory.drifted:
+            yield Finding(
+                file    = output.path,
+                message = (
+                    f"`{output.path}` has drifted from the declaration it is "
+                    "written from, which `mise write` writes it from again"
+                )
+            )
+
+
 class Rows(Check):
     """
     Holds the tasks the pull-request rows run to the tasks `sweep` depends
@@ -778,7 +889,7 @@ class ScriptCheck(Check):
                         )
                     )
 
-            for line, options in script.runs:
+            for line, options in script.runs("uv", "run"):
                 if options[:2] != ("--exact", "--locked"):
                     yield Finding(
                         file    = path,
@@ -801,7 +912,7 @@ class ScriptCheck(Check):
                     )
 
         for task in self.tasks.tasks:
-            for options in task.runs:
+            for options in task.runs("uv", "run"):
                 if options[:2] != ("--exact", "--locked"):
                     yield Finding.locate(
                         task.file,
@@ -812,6 +923,61 @@ class ScriptCheck(Check):
                             "`--exact --locked`"
                         )
                     )
+
+
+class SitePins(Check):
+    """
+    Holds the docs site's pins that move together, each package `paired`
+    lists beside the package it is paired with and the Node.js types beside
+    the Node.js release mise installs.
+    """
+
+    # Each partner's own manifest pins the package it is paired with, or a
+    # package both depend on, to an exact version a pair pinned apart cannot
+    # both meet.
+    paired: ClassVar[dict[str, tuple[str, ...]]] = {
+        "@zag-js/vue" : ("@zag-js/slider",),
+        "tailwindcss" : (
+            "@tailwindcss/node", "@tailwindcss/oxide", "@tailwindcss/vite"
+        ),
+        "vitest"      : ("@vitest/coverage-v8",)
+    }
+
+    mise : MiseConfig
+    site : SiteManifest
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding on the line of `docs/package.json` pinning each
+        package `paired` lists where its version differs from the version
+        of the package it is paired with, a pair the manifest leaves out
+        passing, and on the line pinning `@types/node` where its major
+        differs from the major of the `node` mise pins.
+        """
+        node = self.mise.node
+        pins = self.site.pins
+
+        for lead, partners in self.paired.items():
+            for name in partners:
+                if {lead, name} <= pins.keys() and pins[name] != pins[lead]:
+                    yield Finding.locate(
+                        SiteManifest.file,
+                        f'"{name}"',
+                        message = (
+                            f"`{name}` pins {pins[name]}, whereas `{lead}` pins "
+                            f"{pins[lead]}"
+                        )
+                    )
+
+        if self.site.node_types.major != node.major:
+            yield Finding.locate(
+                SiteManifest.file,
+                '"@types/node"',
+                message = (
+                    f"`@types/node` pins {self.site.node_types}, whereas "
+                    f"`{MiseConfig.file}` pins Node.js {node}"
+                )
+            )
 
 
 class Subsets(Check):

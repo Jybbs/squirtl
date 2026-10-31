@@ -1,0 +1,9 @@
+.key-figures { grid-template-columns: minmax(0, 1fr) repeat(2, max-content); }
+
+.vp-doc .key-strip {
+  list-style : none;
+  margin     : 0;
+  padding    : 0;
+}
+
+.vp-doc .key-strip > li + li { margin-top: 0; }

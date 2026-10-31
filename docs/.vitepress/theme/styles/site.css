@@ -1,0 +1,7 @@
+@import 'tailwindcss/utilities.css' source(none);
+@import '../../lib/rendered/theme.css';
+
+@source '../components';
+@source not inline('container');
+
+@utility pixelated { image-rendering: pixelated; }

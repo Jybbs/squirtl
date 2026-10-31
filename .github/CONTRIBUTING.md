@@ -67,11 +67,18 @@ Every pull request runs the checks below in the `🕹️ CI` workflow, each of w
 
 | **Check** | **Local Command** | **Fails When** |
 |---|---|---|
-| `🗺️ Audit` | `mise audit` | A pin, a label, a workflow, or the package's layout departs from a rule `squirtl.repo.checks` holds it to, or a file the audit reads fails to parse, each one an annotation on the file and line it concerns |
-| `💾 Lockfile` | `mise lockfile` | `uv.lock`, a task script's lockfile, or `.mise/mise.lock` drifts from its manifest, or a tool the project pins has no entry in `.mise/mise.lock` to install from |
+| `🗺️ Audit` | `mise audit` | A pin, a label, a workflow, or the package's layout departs from a rule `squirtl.repo.checks` holds it to, a file `mise write` writes into `docs/` drifts from the declaration it is written from, or a file the audit reads fails to parse, each one an annotation on the file and line it concerns |
+| `📦 Lockfile` | `mise lockfile` | `uv.lock`, a task script's lockfile, `.mise/mise.lock`, or `docs/bun.lock` drifts from its manifest, or a tool the project pins has no entry in `.mise/mise.lock` to install from |
 | `🪻 Prose` | `mise lint` | The formatter reports a rewrite it would make or a lint finding, each one an annotation on the pull request |
 | `🏟️ Suite` | `mise coverage` | A test fails, or the suite's coverage of `src/squirtl/` falls below the **95%** that `fail_under` sets in `pyproject.toml` |
 | `🗝️ Workflows` | `mise run gha:lint` | zizmor reports a finding in a workflow or the composite action under `.github/`, each one an annotation on the line it concerns, or cannot parse a file there |
+| `☂️ Coverage` | `mise run site:coverage` | A site test fails, or the site's coverage falls below the **95%** that `fail_under` sets on statements, branches, functions, or lines |
+| `🍂 Cruft` | `mise cruft` | knip reports an unused file, export, or dependency in the docs site, or an import cycle |
+| `⛓️ Links` | `mise links` | A link, an asset, or a heading fragment in the built site, the README, or this guide names nothing the checkout holds, checked with no network |
+| `🧶 Lint` | `mise run site:lint` | Oxlint reports a finding in the site's TypeScript, each one an annotation on the line it concerns |
+| `💾 Press` | `mise press` | VitePress fails to build a page, or a link between pages leads nowhere |
+| `🎨 Proof` | `mise proof` | The site's CSS sets a length, a color, or an easing curve no theme variable supplies |
+| `🚩 Types` | `mise typecheck` | `tsc` reports a type error in the site's TypeScript, or a `.vue` file appears beside the `.tsx` modules every component is written as |
 | `🎒 Brief` | `mise ci` | Any row above fails |
 
 The `main` ruleset requires `🎒 Brief` alone, on a branch up to date with `main`, and `mise ci` runs every row above it in one sweep before a push.

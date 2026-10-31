@@ -1,0 +1,5 @@
+.focus-ring:focus-visible,
+.focus-ring-within:has(:focus-visible) {
+  outline        : var(--border-width-bar) solid var(--color-link);
+  outline-offset : var(--spacing-1);
+}

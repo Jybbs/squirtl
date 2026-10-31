@@ -1,0 +1,1 @@
+.clock-chip { fill: color-mix(in oklch, var(--color-ink) 8%, var(--color-ground)); }

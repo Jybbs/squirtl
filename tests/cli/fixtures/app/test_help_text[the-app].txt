@@ -19,6 +19,7 @@ PyTorch.
 │              recorded, from the reset at the timer_div the run recorded for  │
 │              it to the return the run recorded, at the sixty steps a second  │
 │              the window paces.                                               │
+│ write        Writes files the package declares into the checkout.            │
 │ --help (-h)  Display this message and exit.                                  │
 │ --version    Display application version.                                    │
 ╰──────────────────────────────────────────────────────────────────────────────╯

@@ -1,0 +1,6 @@
+{% include "base.md.j2" %}
+{% set deploy = needs.deploy.outputs %}
+{% if deploy.url is defined and deploy.url %}
+
+Published [the deployment]({{ deploy.url }}) to Cloudflare Pages.
+{% endif %}

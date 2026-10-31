@@ -1,0 +1,5 @@
+.reward-chips { grid-template-columns: minmax(max-content, 1fr); }
+
+@container (width >= 60rem) {
+  .reward-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+}

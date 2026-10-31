@@ -1,0 +1,18 @@
+[
+  {
+    "name": "EVENT_FOLLOWED_OAK_INTO_LAB",
+    "term": "milestone"
+  },
+  {
+    "name": "EVENT_GOT_STARTER",
+    "term": "starter"
+  },
+  {
+    "name": "EVENT_OAK_APPEARED_IN_PALLET",
+    "term": "milestone"
+  },
+  {
+    "name": "EVENT_OAK_ASKED_TO_CHOOSE_MON",
+    "term": "milestone"
+  }
+]

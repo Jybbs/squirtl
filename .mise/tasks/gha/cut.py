@@ -2,7 +2,7 @@
 # MISE description = "Create or refresh the draft release for `[project].version`"
 """
 Keeps the draft release for the version `pyproject.toml` carries current,
-as the `gha:cut` task the `🛳️ Draft` job of `🕹️ Draft` runs on the runner's
+as the `gha:cut` task the `🕹️ Draft` job of `🕹️ Draft` runs on the runner's
 own interpreter and the `gh` it carries. `Draft` reads every release the
 repository holds as a `Release`, creates a draft where none carries the
 version, refreshes the generated notes of the draft that does, and fails

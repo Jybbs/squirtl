@@ -6,7 +6,7 @@ With the support of deep Q-learning networks (**DQN**), SquiRtL demonstrates how
 
 ## Installation
 
-[mise](https://mise.jdx.dev) reads `.mise/config.toml` and installs the Python interpreter, the `uv`, and the [zizmor](https://docs.zizmor.sh/) that file pins, so one `mise install` provisions every tool the development loop runs. After installing mise and [activating it in your shell](https://mise.jdx.dev/installing-mise.html):
+[mise](https://mise.jdx.dev) reads `.mise/config.toml` and installs the Python interpreter, the `uv`, and the [zizmor](https://docs.zizmor.sh/) that file pins, beside the [Bun](https://bun.com/), [Node.js](https://nodejs.org/), and [lychee](https://lychee.cli.rs/) the docs site's tasks run, so one `mise install` provisions every tool the development loop runs. After installing mise and [activating it in your shell](https://mise.jdx.dev/installing-mise.html):
 
 ```bash
 git clone https://github.com/Jybbs/squirtl.git
@@ -29,14 +29,17 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise coverage` | *Runs the suite under coverage, fails when the total falls below **95%**, and writes the HTML report under `.cache/coverage/html/`* |
 | `mise lint` | *Reports every rewrite the formatter would make and every lint finding* |
 | `mise format` | *Rewrites the Python source to the house style* |
-| `mise lockfile` | *Verifies `uv.lock`, each task script's lockfile, and `.mise/mise.lock` against their manifests, and that every pinned tool installs from `.mise/mise.lock`* |
-| `mise relock` | *Re-resolves every lockfile after a change to `pyproject.toml`, `.mise/config.toml`, or a task script's inline metadata* |
+| `mise serve` | *Serves the docs site under `docs/` and reloads a page as it is edited* |
+| `mise write` | *Writes each file the package declares into `docs/`, the identity's JSON and the theme's sheet among them, which `mise audit` holds to its declaration* |
+| `mise draw` | *Redraws the logo, the favicon, and the navigation bar's mark from the drawings that set them in the identity* |
+| `mise lockfile` | *Verifies `uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` against their manifests, and that every pinned tool installs from `.mise/mise.lock`* |
+| `mise relock` | *Re-resolves every lockfile after a change to `pyproject.toml`, `.mise/config.toml`, `docs/package.json`, or a task script's inline metadata* |
 | `mise run gha:lint` | *Audits the workflows and the composite action under `.github/` through zizmor* |
 | `mise audit` | *Fails on each pin, label, workflow, and layout rule a file departs from, printing each finding as an annotation on the file and line it concerns* |
 | `mise labels` | *Writes each label `.github/labels.toml` declares that GitHub lacks or carries under another color or description once you confirm it, and lists each live label the registry leaves out* |
 | `mise rulesets` | *Applies the rulesets under `.github/rulesets/`, then the repository settings `.github/settings.toml` declares, once you confirm them* |
 | `mise bump` | *Moves the version to the next minor release, or to the next patch release under `mise bump patch`, in `pyproject.toml`, `uv.lock`, and `CITATION.cff`* |
-| `mise ci` | *Runs the lockfile check, the workflow audit, the repository audit, the formatter's check, and the suite under coverage in one sweep* |
+| `mise ci` | *Runs the lockfile check, the workflow audit, the repository audit, the formatter's check, the suite under coverage, and every check of the docs site in one sweep* |
 
 ## Training
 
@@ -188,10 +191,12 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 | **Subpackage** | **What It Holds** |
 |---|---|
 | `squirtl.agent` | *The deep Q-network agent, meaning the Q-network reading each entry of an observation through an encoder of its own, replay memory holding each element of each entry once with each binary entry packed eight cells to a byte, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from, replay memory included* |
-| `squirtl.cli` | *The `squirtl` command and its `evaluate`, `stop`, `train`, and `watch` subcommands* |
+| `squirtl.cli` | *The `squirtl` command and its `evaluate`, `stop`, `train`, `watch`, and `write docs` subcommands* |
+| `squirtl.docs` | *The inventory of every file `squirtl write docs` writes into the docs site from a declaration in the package, meaning the identity, the theme's sheet, the event flags, and the default of each setting a run reads* |
 | `squirtl.emulator` | *The cartridge a run reads, refused unless its SHA-1 is the one pret/pokered lists for the English Pokémon Blue, and `GameBoy` running it headless through PyBoy with no save beside it, beside the buttons a step presses and the addresses in the game's memory the package reads* |
 | `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Blue's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, the time limit truncating an episode, the outcome each episode's last step reports, and the recording of each episode's `timer_div` and presses* |
 | `squirtl.evaluation` | *The evaluation of an agent, meaning the episodes it plays across worker processes from a seed per episode number, the random baseline under the same seeds, the measures a reader judges a policy by, and the interquartile mean, the percentile bootstrap interval, and the probability of improvement compared across runs* |
+| `squirtl.identity` | *The docs site's visual identity as `identity.toml` declares it, meaning its faces, palette, lengths, and timing, beside the marks drawn from the display face's dots and from the pixels of Pokémon Blue* |
 | `squirtl.repo` | *The records read from the label, ruleset, and settings registries under `.github/`, the `gh` commands `mise labels` and `mise rulesets` send once you confirm them, and the checks `mise audit` runs* |
 | `squirtl.reward` | *The reward each step earns, meaning a novelty for each map position an episode reaches for the first time, a milestone for each event flag on the way to the starter, and the starter, which ends the episode, with every step's reward held within 1 and each term's share reported beside it* |
 | `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, the training loop driving the environment and the agent, and the directory under `data/runs/` recording each run's settings, its commit, the digest of `uv.lock`, its episodes, its evaluations, and its checkpoint* |
@@ -201,7 +206,7 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 ![Training Metrics Over 10 Episodes](https://i.ibb.co/hR0hrYk/plot-episode-10.png)
 *Figure 1: Performance metrics for the first 10 training episodes of the SquiRtL agent*
 
-To gain initial insights into our reinforcement learning agent's behavior, we conducted a preliminary experiment consisting of 10 training episodes. These episodes were run using the default parameter set as defined in the repository, without any adjustments between runs. It's important to note that this represents only a brief interaction with the environment—approximately an hour of simulated gameplay—whereas reinforcement learning frameworks typically achieve optimal performance after much longer training periods, often equivalent to years of gameplay.
+To gain initial insights into our reinforcement learning agent's behavior, we conducted a preliminary experiment consisting of 10 training episodes. These episodes were run using the default parameter set as defined in the repository, without any adjustments between runs. It's important to note that this represents only a brief interaction with the environment, approximately an hour of simulated gameplay, whereas reinforcement learning frameworks typically achieve optimal performance after much longer training periods, often equivalent to years of gameplay.
 
 Therefore, the following analysis should be interpreted as an early snapshot of the agent's learning process, rather than a representation of its full potential. These initial results provide valuable insights into the agent's early learning trends and potential areas for improvement in the algorithm or reward structure.
 

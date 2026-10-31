@@ -1,6 +1,6 @@
 #!/usr/bin/env -S bash -euo pipefail
 #MISE alias       = "lockfile"
-#MISE description = "Verify `uv.lock`, each task script's lockfile, and `.mise/mise.lock` against their manifests, and that every tool the project pins installs from `.mise/mise.lock`"
+#MISE description = "Verify `uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` against their manifests, and that every tool the project pins installs from `.mise/mise.lock`"
 
 source "$MISE_PROJECT_ROOT/.mise/lib/lock.sh"
 
@@ -20,3 +20,4 @@ report=$(MISE_LOG_LEVEL=warn MISE_QUIET=0 mise lock 2>&1) \
   || { echo "$report" >&2; exit 1; }
 diff -u "$snapshot" .mise/mise.lock >&2
 mise install --dry-run --force
+bun install --cwd docs --dry-run --frozen-lockfile

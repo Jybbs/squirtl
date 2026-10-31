@@ -1,0 +1,6 @@
+Usage: squirtl write docs
+
+Writes each file the site reads from a declaration in the package into docs/    
+where it differs from that declaration, the identity's JSON among them, and     
+prints the path of each file it wrote.
+

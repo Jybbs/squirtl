@@ -1,0 +1,1 @@
+.chip-none { background-color: color-mix(in oklch, var(--color-ink) 6%, var(--color-ground)); }

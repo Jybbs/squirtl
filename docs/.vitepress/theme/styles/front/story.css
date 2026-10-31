@@ -1,0 +1,70 @@
+.VPHome .vp-doc { counter-reset: story; }
+
+.vp-doc .story {
+  --story-rule          : color-mix(in oklch, var(--color-rule) 85%, transparent);
+  background            : color-mix(in oklch, var(--color-lift) 28%, transparent);
+  border-radius         : var(--radius-2);
+  box-shadow            : 0 0 0 var(--border-width-hairline) var(--story-rule);
+  counter-increment     : story;
+  display               : grid;
+  gap                   : var(--spacing-4) var(--spacing-5);
+  grid-template-columns : var(--spacing-story-number) minmax(0, 1fr);
+  margin-block          : var(--spacing-story-between);
+  padding               : var(--spacing-6) var(--spacing-story-side) var(--spacing-story-foot);
+}
+
+.vp-doc .story::before {
+  color       : var(--color-link);
+  content     : counter(story);
+  font-family : var(--font-display);
+  font-size   : var(--text-hero);
+  grid-row    : span 2;
+  line-height : var(--leading-none);
+}
+
+.vp-doc .story > * { grid-column: 2; }
+
+.vp-doc .story h2 {
+  border-top  : 0;
+  font-family : var(--font-display);
+  font-size   : var(--text-title);
+  font-weight : var(--font-weight-medium);
+  line-height : var(--leading-tight);
+  margin      : 0;
+  padding-top : 0;
+}
+
+.vp-doc .story > p { margin: 0; }
+
+.vp-doc .story > :last-child {
+  grid-column : 1 / -1;
+  margin-top  : calc(var(--spacing-story-widget) - var(--spacing-4));
+}
+
+/* Each negative margin cancels the padding VitePress's `.VPHomeContent` sets at that width, 1.5rem below 40rem and 3rem below 60rem. */
+@media (width < 60rem) {
+  .vp-doc .story {
+    align-items           : baseline;
+    border-radius         : 0;
+    box-shadow            : 0 var(--border-width-hairline) 0 0 var(--story-rule),
+                            0 calc(-1 * var(--border-width-hairline)) 0 0 var(--story-rule);
+    column-gap            : var(--spacing-3);
+    grid-template-columns : auto minmax(0, 1fr);
+    margin-inline         : calc(-1 * var(--spacing-7));
+    padding               : var(--spacing-6) var(--spacing-7) var(--spacing-story-foot);
+  }
+
+  .vp-doc .story::before {
+    font-size : var(--text-title);
+    grid-row  : auto;
+  }
+
+  .vp-doc .story > p { grid-column: 1 / -1; }
+}
+
+@media (width < 40rem) {
+  .vp-doc .story {
+    margin  : var(--spacing-7) calc(-1 * var(--spacing-5));
+    padding : var(--spacing-5) var(--spacing-5) var(--spacing-6);
+  }
+}
