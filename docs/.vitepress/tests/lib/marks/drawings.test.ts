@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import * as drawings from '../../../lib/marks/drawings.ts'
-import { markOf }    from '../../../lib/marks/logo.ts'
+import { spriteMarkup }            from '../../../lib/drawing/sprites.ts'
+import { IDENTITY, spriteShades } from '../../../lib/identity/identity.ts'
+import * as drawings              from '../../../lib/marks/drawings.ts'
+import { markOf }                 from '../../../lib/marks/logo.ts'
 
 describe('drawings', () => {
   it.each(['dark', 'light'] as const)('draws the %s icon as the R and the L with crisp edges', scheme => {
@@ -37,5 +39,18 @@ describe('drawings', () => {
     expect(svg).toContain(drawings.drawIcon('light')
       .replace(/^<svg[^>]*>/u, '')
       .replace(/<\/svg>$/u, ''))
+  })
+
+  it('draws Blue standing in his block, in the theme’s block color with the logo’s corners', () => {
+    const svg  = drawings.drawBlock()
+    const pose = spriteMarkup(IDENTITY.sprites.player.frames[0]!, {
+      fills : spriteShades,
+      size  : 11.5,
+      x     : 18,
+      y     : 18
+    })
+    expect(svg).toContain('viewBox="0 0 220 220"')
+    expect(svg).toContain('<rect width="220" height="220" rx="60" fill="var(--color-block)"/>')
+    expect(svg).toContain(pose)
   })
 })

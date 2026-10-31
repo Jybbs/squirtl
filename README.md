@@ -6,7 +6,7 @@ With the support of deep Q-learning networks (**DQN**), SquiRtL demonstrates how
 
 ## Installation
 
-[mise](https://mise.jdx.dev) reads `.mise/config.toml` and installs the Python interpreter, the `uv`, and the [zizmor](https://docs.zizmor.sh/) that file pins, so one `mise install` provisions every tool the development loop runs. After installing mise and [activating it in your shell](https://mise.jdx.dev/installing-mise.html):
+[mise](https://mise.jdx.dev) reads `.mise/config.toml` and installs the Python interpreter, the `uv`, and the [zizmor](https://docs.zizmor.sh/) that file pins, beside the [Bun](https://bun.com/), [Node.js](https://nodejs.org/), and [lychee](https://lychee.cli.rs/) the docs site's tasks run, so one `mise install` provisions every tool the development loop runs. After installing mise and [activating it in your shell](https://mise.jdx.dev/installing-mise.html):
 
 ```bash
 git clone https://github.com/Jybbs/squirtl.git

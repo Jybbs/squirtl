@@ -25,10 +25,10 @@ const meta = (name: string, content: string | number): HeadConfig =>
   ['meta', { [name.startsWith('og:') ? 'property' : 'name']: name, content: String(content) }]
 
 /**
- * Writes the entries a page's head carries for a shared link, meaning its Open
- * Graph and Twitter card tags, its canonical address, and its JSON-LD in the
- * site's language, the front page described as the website and every other
- * page as an article on it.
+ * Writes the entries a page's head carries for a shared link, meaning its
+ * description, its Open Graph and Twitter card tags, its canonical address, and
+ * its JSON-LD in the site's language, the front page described as the website
+ * and every other page as an article on it.
  */
 export function pageHead(
   context : Pick<TransformContext, 'description' | 'pageData'> & { siteData: Pick<SiteData, 'lang'> },
@@ -61,6 +61,7 @@ export function pageHead(
 
   return [
     ['link', { href: url, rel: 'canonical' }],
+    meta('description', description),
     meta('og:title', title),
     meta('og:description', description),
     meta('og:type', front ? 'website' : 'article'),

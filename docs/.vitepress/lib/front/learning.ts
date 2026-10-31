@@ -1,8 +1,9 @@
-import { Learner }           from '../game/learner.ts'
-import { pickIndex, seeded } from '../game/random.ts'
-import * as rooms            from '../game/rooms.ts'
-import * as town             from '../game/town.ts'
-import { counted, listed }   from '../widgets/numbers.ts'
+import { type Stance, stancesOf } from '../game/gait.ts'
+import { Learner }                from '../game/learner.ts'
+import { pickIndex, seeded }      from '../game/random.ts'
+import * as rooms                 from '../game/rooms.ts'
+import * as town                  from '../game/town.ts'
+import { counted, listed }        from '../widgets/numbers.ts'
 
 /**
  * Blue's place after one press of a walk, the square he stands on, the way he
@@ -17,12 +18,14 @@ export interface Footing {
 /**
  * One walk from Blue's door with the table as it stood after `episodes`
  * episodes of training, the presses it took, whether it reached the north edge,
- * and his place after each press from his door on.
+ * his place after each press from his door on, and the stances his gait runs
+ * through on each frame of each press.
  */
 export interface Moment {
   episodes : number
   presses  : number
   reached  : boolean
+  stances  : readonly (readonly Stance[])[]
   steps    : readonly Footing[]
 }
 
@@ -86,7 +89,7 @@ function walkFrom(cap: number, coin: number, episodes: number, q: Float32Array):
     facing : walk.facings[press]!,
     sure   : favored(q, state) !== undefined
   }))
-  return { episodes, presses: walk.steps, reached: walk.reached, steps }
+  return { episodes, presses: walk.steps, reached: walk.reached, stances: stancesOf(steps), steps }
 }
 
 /**

@@ -64,10 +64,12 @@ describe('Episode.press', () => {
   })
 
   it('turns Blue in place on a new direction, and steps him on a second press of it', () => {
-    const game = new episode.Episode()
+    const game  = new episode.Episode()
+    const turns = [game.press('left'), game.at, game.pressed, game.turned]
+    const walks = [game.press('left'), game.at, game.pressed, game.turned]
 
-    expect([game.press('left'), game.at, game.press('left'), game.at, game.steps]).toStrictEqual([
-      [], [3, 6], [NEW], [2, 6], 2
+    expect([turns, walks, game.steps]).toStrictEqual([
+      [[], [3, 6], 'left', true], [[NEW], [2, 6], 'left', false], 2
     ])
   })
 

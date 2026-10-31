@@ -13,6 +13,7 @@ import './styles/front/reward.css'
 import './styles/front/sees.css'
 import './styles/section/ribbon.css'
 
+import { titleNotFound } from '../lib/missing/page.ts'
 import { StoryLearning } from './components/front/learning.tsx'
 import { StoryRace }     from './components/front/race.tsx'
 import { StoryReward }   from './components/front/reward.tsx'
@@ -23,9 +24,10 @@ export default {
   Layout  : Layout,
   extends : DefaultTheme,
 
-  enhanceApp: ({ app }) => {
+  enhanceApp: ({ app, router, siteData }) => {
     for (const widget of [StoryLearning, StoryRace, StoryReward, StorySees]) {
       app.component(widget.name!, widget)
     }
+    titleNotFound(router, () => siteData.value.description)
   }
 } satisfies Theme

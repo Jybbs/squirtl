@@ -49,6 +49,26 @@ export function ballOf(mark: logo.Mark): string {
 }
 
 /**
+ * Draws Blue standing facing down in his block as each letter of the logo holds
+ * him, the block in the theme's block color, so it follows the site's scheme.
+ */
+export function drawBlock(): string {
+  const { block, sprite } = identity.IDENTITY.logo
+  const frame             = identity.IDENTITY.sprites.player.frames[0]!
+  const inset             = (block.size - sprite) / 2
+  const tile              = `<rect width="${block.size}" height="${block.size}" rx="${block.radius}" `
+                          + 'fill="var(--color-block)"/>'
+  const pose = spriteMarkup(frame, {
+    fills : identity.spriteShades,
+    size  : sprite / frame.length,
+    x     : inset,
+    y     : inset
+  })
+  const view = { height: block.size, width: block.size, x: 0, y: 0 }
+  return svgOf(tile + pose, view, ' shape-rendering="crispEdges"')
+}
+
+/**
  * Draws the favicon, the R and the L in the light ground's colors on an Athens
  * Gray tile with rounded corners.
  */

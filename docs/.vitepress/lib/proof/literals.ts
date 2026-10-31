@@ -44,21 +44,35 @@ const SHAPES = [
 ]
 
 /**
+ * The properties that name a face, the `font` shorthand, `font-family`, and a
+ * custom property holding one, such as VitePress's `--vp-font-family-base`.
+ */
+const FAMILY = /^font$|(?:^|-)font-family(?:$|-)/u
+
+/**
+ * The keywords a property naming a face may take in place of a family, each
+ * deferring to a value set elsewhere.
+ */
+const KEYWORDS = /^(?:inherit|initial|revert|revert-layer|unset)$/u
+
+/**
  * The one literal length a theme variable cannot supply and Tailwind writes for
  * a fully rounded corner, which stands for no particular size.
  */
 const UNBOUNDED = /calc\(infinity \* 1px\)/gu
 
 /**
- * Lists the declarations of `css` that set a length, a time, a color, or an
- * easing curve no theme variable supplies, reading only the declarations inside
- * rule blocks, so a custom property's own value, the initial value an
- * `@property` rule registers, a media or container query's width, and a
- * selector pass, and dropping every `var()` before it looks, so a value that
- * reads a variable passes whatever its fallback. Each declaration is written as
- * its property and its value, `name: value`.
+ * Lists the declarations of `css` that set a length, a time, a color, an easing
+ * curve, or a face no theme variable supplies, reading only the declarations
+ * inside rule blocks, so the initial value an `@property` rule registers, a
+ * media or container query's width, and a selector pass, and dropping every
+ * `var()` before it looks, so a value that reads a variable passes whatever its
+ * fallback. A custom property's own value passes unless `handwritten` is set,
+ * as it is for every sheet but the utilities, whose `@theme` block declares
+ * each variable from the identity. Each declaration is written as its property
+ * and its value, `name: value`.
  */
-export function literals(css: string): string[] {
+export function literals(css: string, handwritten = false): string[] {
   const found: string[]  = []
   const text             = css.replaceAll(/\/\*[\s\S]*?\*\//gu, '')
   const blocks: string[] = []
@@ -67,13 +81,15 @@ export function literals(css: string): string[] {
     if (char === '{') {
       blocks.push(text.slice(start, index).trim())
     } else {
-      const body  = text.slice(start, index).trim()
-      const colon = body.indexOf(':')
-      const name  = body.slice(0, colon).trim()
-      const value = body.slice(colon + 1).trim()
-      const bare  = value.replaceAll(/var\([^()]*(?:\([^()]*\)[^()]*)*\)/gu, '').replaceAll(UNBOUNDED, '')
-      const ruled = blocks.length > 0 && !blocks.at(-1)!.startsWith('@property')
-      if (ruled && colon > 0 && !name.startsWith('--') && SHAPES.some(shape => shape.test(bare))) {
+      const body   = text.slice(start, index).trim()
+      const colon  = body.indexOf(':')
+      const name   = body.slice(0, colon).trim()
+      const value  = body.slice(colon + 1).trim()
+      const bare   = value.replaceAll(/var\([^()]*(?:\([^()]*\)[^()]*)*\)/gu, '').replaceAll(UNBOUNDED, '')
+      const ruled  = blocks.length > 0 && !blocks.at(-1)!.startsWith('@property')
+      const face   = FAMILY.test(name) && bare.trim() !== '' && !KEYWORDS.test(bare.trim())
+      const listed = handwritten || !name.startsWith('--')
+      if (ruled && colon > 0 && listed && (face || SHAPES.some(shape => shape.test(bare)))) {
         found.push(`${name}: ${value}`)
       }
       if (char === '}') blocks.pop()

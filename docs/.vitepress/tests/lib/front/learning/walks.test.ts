@@ -5,6 +5,7 @@ import { fillsOf }                                from '../../../../lib/front/le
 import { type Town, battlePhases, circleTilesOf } from '../../../../lib/front/learning/transition.ts'
 import { PLAY, Walks }                            from '../../../../lib/front/learning/walks.ts'
 import { frameFor }                               from '../../../../lib/game/actors.ts'
+import { stanceAt }                               from '../../../../lib/game/gait.ts'
 import { runsFor }                                from '../../../../lib/game/screen.ts'
 import { spriteShades }                           from '../../../../lib/identity/identity.ts'
 import { Recorder }                               from '../../../common/canvas.ts'
@@ -73,7 +74,7 @@ describe('Walks setting a press', () => {
     expect(walks.oak).toBe(oak)
   })
 
-  it('turns a Blue on his square in his walking frame for a press that only turns him', () => {
+  it('turns a Blue on his square in the stance his gait reaches through the press that only turns him', () => {
     const fifty = moments.at(-1)!
     const turn  = fifty.steps.slice(1).findIndex((step, n) => step.facing !== fifty.steps[n]!.facing) + 1
     const walks = new Walks([fifty])
@@ -83,8 +84,9 @@ describe('Walks setting a press', () => {
     walks.advance(PLAY.press / 2)
     const walker = walks.blues[0]!
 
-    expect([walker.x, walker.y, walker.facing, walker.stepping])
-      .toStrictEqual([...fifty.steps[turn - 1]!.at, fifty.steps[turn]!.facing, true])
+    expect([walker.x, walker.y, walker.facing, walker.stance]).toStrictEqual([
+      ...fifty.steps[turn - 1]!.at, fifty.steps[turn]!.facing, stanceAt(fifty.stances[turn - 1]!, 0.5)
+    ])
   })
 })
 
@@ -154,9 +156,9 @@ describe('Walks encountering a wild battle', () => {
     const walks   = new Walks(moments)
     const covered = vi.fn<() => void>()
     walks.encounter(covered)
-    const { black, circle, end, flash } = battlePhases
-    const times                         = [100, flash + 260, circle + 1, black + 150, end + 1]
-    let elapsed                         = 0
+    const { black, circle, end, flash, flashStep } = battlePhases
+    const times                                    = [3 * flashStep + 1, flash + 260, circle + 1, black + 150, end + 1]
+    let elapsed                                    = 0
 
     const phases = times.map(t => {
       walks.advance(t - elapsed)

@@ -1,17 +1,18 @@
 import { type Grid, spriteMarkup } from '../drawing/sprites.ts'
 import * as identity               from '../identity/identity.ts'
 import type { Episode, Term }      from './episode.ts'
+import type { Stance }             from './gait.ts'
 import * as rooms                  from './rooms.ts'
 
 /**
  * Someone standing in a room, or a Poké Ball on Oak's table, beside the way it
- * faces and whether it shows its walking frame.
+ * faces and the stance of its walk it shows.
  */
 export interface Actor {
-  at       : rooms.Square
-  facing   : rooms.Direction
-  name     : Sprite
-  stepping : boolean
+  at     : rooms.Square
+  facing : rooms.Direction
+  name   : Sprite
+  stance : Stance
 }
 
 /**
@@ -30,7 +31,9 @@ export type Sprite = keyof identity.Identity['sprites']
 
 /**
  * The frame each facing shows standing and walking, as indexes into a sprite's
- * frames, the right-facing frames being the left-facing ones mirrored.
+ * frames, the right-facing frames being the left-facing ones mirrored, as
+ * pret/pokered's `SpriteFacingAndAnimationTable` draws them in
+ * `data/sprites/facings.asm` lines 3 to 18.
  */
 const FACING: Readonly<Record<rooms.Direction, readonly [standing: number, walking: number]>> = {
   down  : [0, 3],
@@ -44,9 +47,9 @@ const FACING: Readonly<Record<rooms.Direction, readonly [standing: number, walki
  * places them, each facing the way the game first draws them.
  */
 const PEOPLE = {
-  mom   : { at: [5, 4], facing: 'left', name: 'mom', stepping: false },
-  oak   : { at: [5, 2], facing: 'down', name: 'oak', stepping: false },
-  rival : { at: [4, 3], facing: 'down', name: 'rival', stepping: false }
+  mom   : { at: [5, 4], facing: 'left', name: 'mom', stance: 'standing' },
+  oak   : { at: [5, 2], facing: 'down', name: 'oak', stance: 'standing' },
+  rival : { at: [4, 3], facing: 'down', name: 'rival', stance: 'standing' }
 } as const satisfies Record<string, Actor>
 
 /**
@@ -68,35 +71,41 @@ const TERM_SPRITES = {
  * The Poké Balls on Oak's table.
  */
 const balls: readonly Actor[] = rooms.RULES.lab.balls
-  .map(at => ({ at, facing: 'down', name: 'ball', stepping: false }))
+  .map(at => ({ at, facing: 'down', name: 'ball', stance: 'standing' }))
 
 /**
- * Every pose of every sprite, standing and then walking in each direction,
+ * Every pose of every sprite in each stance of its walk in each direction,
  * built once as the module loads.
  */
 const poses = Object.fromEntries(Object.entries(identity.IDENTITY.sprites).map(([name, { frames }]) => [
   name,
   Object.fromEntries(rooms.DIRECTIONS.map(facing => [facing, posesOf(frames, facing)]))
-])) as Readonly<Record<Sprite, Readonly<Record<rooms.Direction, readonly [Pose, Pose]>>>>
+])) as Readonly<Record<Sprite, Readonly<Record<rooms.Direction, Readonly<Record<Stance, Pose>>>>>>
 
 /**
- * Chooses the frames of `frames` a sprite shows facing `facing`, standing and
- * then walking, a sprite of three frames standing for both and a sprite of one
- * showing it whichever way it faces.
+ * Chooses the frames of `frames` a sprite shows facing `facing` in each stance
+ * of its walk, a sprite of three frames standing in all of them and a sprite of
+ * one showing it whichever way it faces. Walking on the other foot mirrors the
+ * walking frame facing down or up, as `.FlippedOAM` does, and keeps it as it is
+ * facing left or right, the right-facing frames being mirrored already.
  */
-function posesOf(frames: readonly Grid[], facing: rooms.Direction): readonly [Pose, Pose] {
+function posesOf(frames: readonly Grid[], facing: rooms.Direction): Readonly<Record<Stance, Pose>> {
   const standing = frames[FACING[facing][0]] ?? frames[0]!
-  const walking  = frames[FACING[facing][1]] ?? standing
+  const walking  = frames[FACING[facing][1]]
   const mirrored = facing === 'right'
-  return [{ grid: standing, mirrored }, { grid: walking, mirrored }]
+  return {
+    mirrored : walking ? { grid: walking, mirrored: facing !== 'left' } : { grid: standing, mirrored },
+    standing : { grid: standing, mirrored },
+    walking  : { grid: walking ?? standing, mirrored }
+  }
 }
 
 /**
  * Lists who stands in the room `episode` stands in, in the order they draw: Mom
  * in the house, Oak at his table in the lab, the rival, the Poké Balls still on
- * the table, and Oak at `leaderAt` while he leads Blue there.
+ * the table, and Oak at `leaderAt` in `stance` while he leads Blue there.
  */
-export function actorsOf(episode: Episode, leaderAt?: rooms.Square, stepping = false): Actor[] {
+export function actorsOf(episode: Episode, leaderAt?: rooms.Square, stance: Stance = 'standing'): Actor[] {
   const leader          = episode.leader?.place === episode.place ? episode.leader : null
   const actors: Actor[] = []
   if (episode.place === 'house') actors.push(PEOPLE.mom)
@@ -105,16 +114,16 @@ export function actorsOf(episode: Episode, leaderAt?: rooms.Square, stepping = f
     if (!leader) actors.push(PEOPLE.oak)
     actors.push(PEOPLE.rival, ...table)
   }
-  if (leader) actors.push({ at: leaderAt ?? leader.at, facing: leader.facing, name: 'oak', stepping })
+  if (leader) actors.push({ at: leaderAt ?? leader.at, facing: leader.facing, name: 'oak', stance })
   return actors
 }
 
 /**
- * Reads the frame `name` shows facing `facing`, its walking frame where
- * `stepping` is set and the sprite carries one.
+ * Reads the frame `name` shows facing `facing` in `stance`, standing unless
+ * given another.
  */
-export function frameFor(name: Sprite, facing: rooms.Direction, stepping = false): Pose {
-  return poses[name][facing][Number(stepping)]!
+export function frameFor(name: Sprite, facing: rooms.Direction, stance: Stance = 'standing'): Pose {
+  return poses[name][facing][stance]
 }
 
 /**

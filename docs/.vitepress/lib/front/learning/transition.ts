@@ -1,6 +1,6 @@
-import WORLD                          from '../../art/world.json' with { type: 'json' }
-import { LIFT, type Painter, SQUARE } from '../../game/screen.ts'
-import { spriteShades }               from '../../identity/identity.ts'
+import WORLD                                 from '../../art/world.json' with { type: 'json' }
+import { PLAIN, colorOf, recolor, shadesOf } from '../../game/palettes.ts'
+import { FRAME, LIFT, type Painter, SQUARE } from '../../game/screen.ts'
 
 /**
  * When each part of the transition into a wild battle starts and ends, in
@@ -93,36 +93,35 @@ const FLASH = [
 ] as const
 
 /**
- * The background palette with every color of the town keeping its own shade.
- */
-export const PLAIN = '3210'
-
-/**
  * The pixels on each side of one of the Game Boy's background tiles, the unit
  * the double circle blacks the screen in.
  */
 const TILE = 8
 
 /**
- * The transition's timing as pret/pokered's
- * `engine/battle/battle_transitions.asm` runs it, the Game Boy drawing sixty
- * frames a second.
+ * The transition's timing as pret/pokered runs it, in frames of the length the
+ * Game Boy draws one. `BattleTransition_FlashScreen` holds each palette 2
+ * frames over 3 runs and `BattleTransition_DoubleCircle` takes 10 steps 3
+ * frames apart, both in `engine/battle/battle_transitions.asm`, which holds the
+ * screen black 10 frames after `BattleTransition_BlackScreen` at the end of its
+ * shrinking and splitting transitions, and `GBFadeInFromBlack` in
+ * `home/fade.asm` holds each palette of the fade back in 8 frames.
  */
 export const TRANSITION: Transition = {
   blackFrames  : 10,
   circleFrames : 3,
   circleSteps  : 10,
-  fadeFrames   : 6,
+  fadeFrames   : 8,
   flashFrames  : 2,
   flashRuns    : 3,
-  frame        : 1000 / 60
+  frame        : FRAME
 }
 
 /**
  * The town's north half, every square the walks reach from the west edge to the
  * east, from just above the north edge down past Blue's door.
  */
-export const VIEW: TownView = { height: 152, lift: LIFT.person, width: 320, x: 0, y: -0.25 }
+export const VIEW: TownView = { height: 152, lift: LIFT, width: 320, x: 0, y: -0.25 }
 
 /**
  * When each part of the transition starts and ends, in milliseconds.
@@ -133,29 +132,6 @@ export const battlePhases = phasesOf()
  * Every background palette the transition shows, each named once.
  */
 const townPalettes = [...new Set<string>([PLAIN, BLACK, ...FLASH, ...FADE_IN])]
-
-/**
- * Writes the color `packed` holds as red, green, and blue bytes as a hex.
- */
-function colorOf(packed: number): string {
-  return `#${packed.toString(16).padStart(6, '0')}`
-}
-
-/**
- * Reads how light the color `packed` holds is, the sum of its red, green, and
- * blue bytes.
- */
-function lightness(packed: number): number {
-  return (packed >> 16) + ((packed >> 8) & 255) + (packed & 255)
-}
-
-/**
- * Reads the red, green, and blue bytes of the pixel at byte `at` of `pixels` as
- * one number.
- */
-function packedAt(pixels: Uint8ClampedArray, at: number): number {
-  return (pixels[at]! << 16) | (pixels[at + 1]! << 8) | pixels[at + 2]!
-}
 
 /**
  * Orders every tile of `view` by the step of `steps` at which the double circle
@@ -215,41 +191,6 @@ export function phasesOf(transition: Transition = TRANSITION): Phases {
     flash      : flash,
     flashStep  : flashFrames * frame
   }
-}
-
-/**
- * Rewrites every pixel of `source` into `target` in `palette`, each color of
- * the town found by its place in `shades`, light to dark, and set to the shade
- * the palette gives that color.
- */
-export function recolor(
-  palette : string,
-  shades  : readonly number[],
-  source  : Uint8ClampedArray,
-  target  : Uint8ClampedArray
-): void {
-  const last = shades.length - 1
-  const to   = shades.map((_, color) => shades[Math.min(last, Number(palette[last - color]))]!)
-  for (let at = 0; at < source.length; at += 4) {
-    const next     = to[Math.max(0, shades.indexOf(packedAt(source, at)))]!
-    target[at]     = next >> 16
-    target[at + 1] = (next >> 8) & 255
-    target[at + 2] = next & 255
-    target[at + 3] = 255
-  }
-}
-
-/**
- * Finds the colors `pixels` holds, at most as many as the Game Boy's shades,
- * from the lightest to the darkest.
- *
- * Returns:
- *   Each color's red, green, and blue bytes as one number.
- */
-export function shadesOf(pixels: Uint8ClampedArray): number[] {
-  const colors = new Set<number>()
-  for (let at = 0; at < pixels.length; at += 4) colors.add(packedAt(pixels, at))
-  return [...colors].toSorted((a, b) => lightness(b) - lightness(a)).slice(0, spriteShades.length)
 }
 
 /**

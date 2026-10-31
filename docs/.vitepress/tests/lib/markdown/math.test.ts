@@ -23,6 +23,10 @@ describe('githubMath', () => {
     expect(html).not.toContain('<code')
   })
 
+  it('renders the inline form as the plugin renders the same math between bare dollars', async () => {
+    expect(await rendered('Decays by $`\\gamma`$.')).toBe(await rendered('Decays by $\\gamma$.'))
+  })
+
   it('leaves a code span with no dollar beside it as code', async () => {
     expect(await rendered('The `gamma` key.')).toContain('<code>gamma</code>')
   })

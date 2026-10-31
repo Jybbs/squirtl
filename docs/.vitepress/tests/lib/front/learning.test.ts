@@ -17,6 +17,7 @@ const STOPPED: learning.Moment = {
   episodes : 2,
   presses  : 3,
   reached  : false,
+  stances  : [],
   steps    : [
     { at: [5, 6], facing: 'down', sure: false },
     { at: [4, 6], facing: 'left', sure: true },

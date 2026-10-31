@@ -1,7 +1,7 @@
 #!/usr/bin/env -S bash -euo pipefail
 #MISE alias       = "proof"
 #MISE depends     = ["site:install"]
-#MISE description = "Fail on any length, time, color, or easing curve the site's CSS sets that no theme variable supplies"
+#MISE description = "Fail on any length, time, color, easing curve, or face the site's CSS sets that no theme variable supplies"
 #MISE dir         = "docs"
 
 node --input-type=module <<'NODE'

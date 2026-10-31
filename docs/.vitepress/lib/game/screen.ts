@@ -3,6 +3,7 @@ import * as sprites           from '../drawing/sprites.ts'
 import * as identity          from '../identity/identity.ts'
 import * as actors            from './actors.ts'
 import type { Episode }       from './episode.ts'
+import * as gait              from './gait.ts'
 import type { RoomImages }    from './images.ts'
 import type { Place, Square } from './rooms.ts'
 
@@ -12,12 +13,10 @@ import type { Place, Square } from './rooms.ts'
 type FrameRuns = readonly [readonly sprites.Run[], readonly sprites.Run[]]
 
 /**
- * How the screen moves, the milliseconds a change of room fades in over and
- * the share of a step's glide over which Blue shows his walking frame.
+ * How the screen moves, the milliseconds a change of room fades in over.
  */
 export interface Glide {
-  fade   : number
-  stride : Stride
+  fade: number
 }
 
 /**
@@ -35,12 +34,6 @@ export type ScreenPainter = Pick<
 >
 
 /**
- * The shares of a step's glide over which Blue shows his walking frame, from
- * its start to its end.
- */
-export type Stride = readonly [start: number, end: number]
-
-/**
  * The square the screen centers on and its room, which a glide moves through
  * the fractions between two squares.
  */
@@ -53,13 +46,22 @@ export interface View {
  * The squares from the screen's left and top edges to Blue's, who stands at
  * column 4 and row 4 of the ten columns and nine rows it shows.
  */
-const CENTER = 4
+export const CENTER = 4
 
 /**
- * The pixels a sprite stands above its square, a Poké Ball's and everyone
- * else's.
+ * The milliseconds one of the Game Boy's frames lasts, 70,224 of the dots its
+ * 4,194,304 Hz clock counts, as the Rendering page of Pan Docs sets them out.
  */
-export const LIFT = { ball: 2, person: 4 }
+export const FRAME = 1000 * 70224 / 4194304
+
+/**
+ * The pixels every sprite stands above its square, a Poké Ball's as much as a
+ * person's, as pret/pokered's `InitializeSpriteScreenPosition` subtracts 4 from
+ * each sprite's screen Y in `engine/overworld/movement.asm` line 463 and
+ * `ResetPlayerSpriteData` sets Blue's at 60 in `home/reset_player_sprite.asm`
+ * line 10.
+ */
+export const LIFT = 4
 
 /**
  * The Game Boy's screen in pixels.
@@ -72,15 +74,9 @@ export const SCREEN = { height: 144, width: 160 }
 export const SQUARE = 16
 
 /**
- * The share of a step's glide over which Blue shows his walking frame, from its
- * start to its end.
- */
-export const STRIDE: Stride = [0.2, 0.8]
-
-/**
  * The glide every screen keeps unless given another.
  */
-export const GLIDE: Glide = { fade: 320, stride: STRIDE }
+export const GLIDE: Glide = { fade: 320 }
 
 /**
  * The fill around a room's image and of the fade between rooms.
@@ -108,23 +104,25 @@ const middle = CENTER * SQUARE
  *
  * `follow` starts a glide of the view from where it stands to Blue's square,
  * `advance` moves it on as time passes, and `snap` sets it on Blue's square at
- * once. A step to a neighboring square glides with Blue showing his walking
- * frame mid-step, a farther move jumps, and a change of room fades in from the
- * backdrop.
+ * once. A step to a neighboring square glides with Blue in the stances his gait
+ * runs through on each of the step's frames, a farther move jumps, and a change
+ * of room fades in from the backdrop.
  */
 export class GameScreen {
   leaderAt : Square | undefined
-  stepping = false
+  stance   : gait.Stance = 'standing'
   veil     = 0
 
   readonly episode : Episode
   readonly view    : View
 
   readonly #from       : [number, number] = [0, 0]
+  readonly #gait       : gait.Gait
   readonly #glide      : Glide
   readonly #images     : RoomImages
   readonly #leader     : [number, number] = [0, 0]
   readonly #leaderFrom : [number, number] = [0, 0]
+  readonly #stances    : gait.Stance[]
   #leadFrom            : Square | undefined
   #leadTo              : Square | undefined
   #near                = false
@@ -136,22 +134,33 @@ export class GameScreen {
     this.episode  = episode
     this.leaderAt = episode.leader?.at
     this.view     = { at: [...episode.at], place: episode.place }
+    this.#gait    = new gait.Gait(episode.facing)
     this.#glide   = glide
     this.#images  = images
+    this.#stances = Array.from({ length: gait.STEP.frames }, (): gait.Stance => 'standing')
     this.#to      = episode.at
   }
 
   /**
-   * Sets the view and Oak `t` of the way through the glide, Blue walking
-   * mid-step where the glide covers one square.
+   * Sets the view, Oak, and Blue's stance `t` of the way through the glide.
    */
   #place(t: number): void {
-    this.#t       = t
-    this.stepping = this.#near && t > this.#glide.stride[0] && t < this.#glide.stride[1]
+    this.#t     = t
+    this.stance = gait.stanceAt(this.#stances, t)
     lerpInto(this.view.at, this.#near ? this.#from : this.#to, this.#to, t)
     this.leaderAt = t < 1 && this.#leadFrom && this.#leadTo
                   ? lerpInto(this.#leader, this.#leadFrom, this.#leadTo, t)
                   : this.#leadTo
+  }
+
+  /**
+   * Stands Blue still, his gait's counters cleared, after a jump or a change of
+   * room.
+   */
+  #rest(): void {
+    this.#gait.reset(this.episode.facing)
+    this.#stances.fill('standing')
+    this.stance = 'standing'
   }
 
   /**
@@ -179,14 +188,14 @@ export class GameScreen {
     context.fillStyle             = backdrop
     context.fillRect(0, 0, width, height)
     context.drawImage(this.#images.image(place), left, top, width, height, 0, 0, width, height)
-    for (const actor of actors.actorsOf(this.episode, this.leaderAt, this.stepping)) {
-      const pose = actors.frameFor(actor.name, actor.facing, actor.stepping)
+    for (const actor of actors.actorsOf(this.episode, this.leaderAt, this.stance)) {
+      const pose = actors.frameFor(actor.name, actor.facing, actor.stance)
       const x    = Math.round((actor.at[0] - at[0] + CENTER) * SQUARE)
       const y    = Math.round((actor.at[1] - at[1] + CENTER) * SQUARE)
-      paintSprite(context, pose, x, y - (actor.name === 'ball' ? LIFT.ball : LIFT.person))
+      paintSprite(context, pose, x, y - LIFT)
     }
-    const blue = actors.frameFor('player', this.episode.facing, this.stepping)
-    paintSprite(context, blue, middle, middle - LIFT.person)
+    const blue = actors.frameFor('player', this.episode.facing, this.stance)
+    paintSprite(context, blue, middle, middle - LIFT)
     if (this.veil <= 0) return
     context.globalAlpha = this.veil
     context.fillStyle   = backdrop
@@ -197,15 +206,22 @@ export class GameScreen {
   /**
    * Starts a glide of the view from where it stands to Blue's square over
    * `span` milliseconds, Oak gliding beside him, or a fade where Blue has
-   * changed rooms.
+   * changed rooms. A glide over a press that leaves Blue within a square of
+   * where he stood runs his gait through the press, and a jump stands him still.
    */
   follow(span: number): void {
-    const { at, leader, place } = this.episode
+    const { at, facing, leader, place, pressed, steps, turned } = this.episode
     if (place !== this.view.place) {
       this.snap(true)
       return
     }
-    this.#near     = Math.abs(this.view.at[0] - at[0]) + Math.abs(this.view.at[1] - at[1]) === 1
+    const moved = Math.abs(this.view.at[0] - at[0]) + Math.abs(this.view.at[1] - at[1])
+    this.#near  = moved === 1
+    if (span > 0 && moved <= 1) {
+      this.#gait.step(steps - 1, this.#near ? facing : pressed, !this.#near, turned, this.#stances)
+    } else {
+      this.#rest()
+    }
     this.#leadFrom = this.leaderAt && Object.assign(this.#leaderFrom, this.leaderAt)
     this.#leadTo   = leader?.at
     this.#span     = span
@@ -223,9 +239,9 @@ export class GameScreen {
     Object.assign(this.view.at, at)
     this.view.place = place
     this.leaderAt   = leader?.at
-    this.stepping   = false
     this.veil       = fade ? 1 : 0
     this.#t         = 1
+    this.#rest()
   }
 }
 

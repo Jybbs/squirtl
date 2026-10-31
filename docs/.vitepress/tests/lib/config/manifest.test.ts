@@ -26,6 +26,13 @@ describe('projectFacts', () => {
     expect(projectFacts(checkout({ 'pyproject.toml': MANIFEST }).metaUrl)).toStrictEqual(FACTS)
   })
 
+  test('serves under the path and at the host a homepage below the root of its host names', ({ checkout }) => {
+    const manifest = MANIFEST.replace('"https://squirtl.fyi/"', '"https://example.org/squirtl/"')
+
+    expect(projectFacts(checkout({ 'pyproject.toml': manifest }).metaUrl))
+      .toMatchObject({ base: '/squirtl/', homepage: 'https://example.org/squirtl/', host: 'example.org' })
+  })
+
   test.for([
     ['Homepage   = "https://squirtl.fyi/"', '', 'pyproject.toml declares no project.urls.Homepage'],
     [

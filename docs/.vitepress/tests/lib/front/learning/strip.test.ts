@@ -17,7 +17,7 @@ function pointing(clientY: number, pointerType: string): PointerEvent {
  * Makes a walk `presses` presses long that reached the north edge.
  */
 function walkOf(presses: number): Moment {
-  return { episodes: 1, presses, reached: true, steps: [] }
+  return { episodes: 1, presses, reached: true, stances: [], steps: [] }
 }
 
 describe('stripRows', () => {

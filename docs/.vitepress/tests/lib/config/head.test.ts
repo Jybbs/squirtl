@@ -45,6 +45,8 @@ describe('pageHead', () => {
 
     expect(meta).toMatchObject({
       'link canonical'         : 'https://squirtl.fyi/',
+      'meta description'       : 'Plays.',
+      'meta og:description'    : 'Plays.',
       'meta og:image'          : 'https://squirtl.fyi/cards/site.png',
       'meta og:image:alt'      : `${IDENTITY.name}, a deep Q-network that learns the walk to Oak’s lab.`,
       'meta og:image:height'   : String(CARD.height),
@@ -96,5 +98,9 @@ describe('siteHead', () => {
       + '&display=swap'
     )
     expect([meta['link icon'], meta['meta og:site_name']]).toStrictEqual(['/favicon.svg', IDENTITY.name])
+  })
+
+  it('names the favicon under the path the site serves at', () => {
+    expect(tags(head.siteHead({ ...FACTS, base: '/squirtl/' }))['link icon']).toBe('/squirtl/favicon.svg')
   })
 })

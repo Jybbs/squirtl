@@ -2,9 +2,9 @@ import * as drawings from '../marks/drawings.ts'
 
 /**
  * Each mark the site carries, under its file's path relative to `docs/`, beside
- * the drawing written to that file, the logo the README and the pages embed
- * under `assets/` and the icon and the favicon VitePress serves from the root
- * of the deployment under `public/`.
+ * the drawing written to that file, the logo under `assets/`, drawn for a light
+ * and a dark ground, and the icon and the favicon VitePress serves from the
+ * root of the deployment under `public/`.
  */
 export const MARKS: Readonly<Record<string, () => string>> = {
   'assets/logo-dark.svg'  : () => drawings.drawLogo('dark'),

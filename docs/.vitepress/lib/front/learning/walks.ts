@@ -1,4 +1,5 @@
 import { frameFor }               from '../../game/actors.ts'
+import { PLAIN }                  from '../../game/palettes.ts'
 import { OAK_LEADS }              from '../../game/rooms.ts'
 import * as screen                from '../../game/screen.ts'
 import { townStart }              from '../../game/town.ts'
@@ -9,17 +10,15 @@ import * as transition            from './transition.ts'
 import { Walker }                 from './walker.ts'
 
 /**
- * How the walks play: the milliseconds one press takes, the share of a press
- * over which Blue shows his walking frame, the milliseconds one cycle of a
- * stack's crossfade takes and the colors it steps through, and the opacity of
- * every other Blue while one is picked out.
+ * How the walks play: the milliseconds one press takes, the milliseconds one
+ * cycle of a stack's crossfade takes and the colors it steps through, and the
+ * opacity of every other Blue while one is picked out.
  */
 export interface Play {
   blend      : number
   blendSteps : number
   dim        : number
   press      : number
-  stride     : screen.Stride
 }
 
 /**
@@ -33,7 +32,7 @@ export type TownPainter = Pick<
 /**
  * How the walks play unless given otherwise.
  */
-export const PLAY: Play = { blend: 1600, blendSteps: 24, dim: 0.16, press: 60, stride: screen.STRIDE }
+export const PLAY: Play = { blend: 1600, blendSteps: 24, dim: 0.16, press: 60 }
 
 /**
  * The square Oak stops Blue from, the first one he leads him through.
@@ -60,7 +59,7 @@ export class Walks {
   focus   : number | null = null
   grouped = false
   oak     = false
-  palette : string        = transition.PLAIN
+  palette : string        = PLAIN
   sprites = true
   tiles   = -1
 
@@ -86,7 +85,7 @@ export class Walks {
     phases  : transition.Phases   = transition.battlePhases,
     view    : transition.TownView = transition.VIEW
   ) {
-    this.blues   = moments.map(() => new Walker(townStart, play.stride))
+    this.blues   = moments.map(() => new Walker(townStart))
     this.hues    = tints.walkHuesOf(moments.length)
     this.longest = longestOf(moments)
     this.moments = moments
@@ -202,7 +201,7 @@ export class Walks {
   calm(): void {
     this.#covered = undefined
     this.#elapsed = -1
-    this.palette  = transition.PLAIN
+    this.palette  = PLAIN
     this.sprites  = true
     this.tiles    = -1
   }
@@ -241,7 +240,8 @@ export class Walks {
       const moment = this.moments[n]!
       if (span > 0 && press > moment.presses) continue
       const footing = moment.steps[Math.min(press, moment.presses)]!
-      this.blues[n]!.place(footing, moment.reached && press >= moment.presses, span)
+      const arrived = moment.reached && press >= moment.presses
+      this.blues[n]!.place(footing, arrived, span, moment.stances[press - 1] ?? null)
     }
     this.oak = press >= this.longest
   }

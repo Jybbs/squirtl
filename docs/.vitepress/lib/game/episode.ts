@@ -115,6 +115,8 @@ const pays = Object.fromEntries(eventFlags.map(each => [each.flag, each.term])) 
  *
  * Blue stands `at` a square of `place` facing `facing`, and `lastStop` holds
  * the direction he last stopped in, none until his first direction press.
+ * `pressed` holds the latest button pressed, and `turned` whether that press
+ * only turned him.
  * `reached` holds the key of every square he has stood on, and `shares` what
  * each term has paid. Once Oak stops him, `script` holds the squares he walks
  * behind Oak, and every press walks him to the next while `leader` holds where
@@ -128,11 +130,13 @@ export class Episode {
   lastStop!   : rooms.Direction | null
   leader!     : Leader | null
   place!      : rooms.Place
+  pressed!    : rooms.Button | null
   reached!    : Set<string>
   script!     : (readonly [rooms.Place, rooms.Square])[]
   shares!     : Record<Term, number>
   steps!      : number
   terminated! : boolean
+  turned!     : boolean
 
   readonly settings: EpisodeSettings
 
@@ -222,6 +226,8 @@ export class Episode {
   press(button: rooms.Button): Paid[] {
     if (this.done) return []
     this.steps++
+    this.pressed = button
+    this.turned  = false
     if (this.script.length > 0) return this.#advance()
     if (button === 'a') {
       const ball = rooms.ballAhead(this, this.facing)
@@ -233,6 +239,7 @@ export class Episode {
     this.facing = button
     if (button !== this.lastStop) {
       this.lastStop = button
+      this.turned   = true
       return []
     }
     const to   = rooms.neighbor(this.at, button)
@@ -257,10 +264,12 @@ export class Episode {
     this.lastStop   = null
     this.leader     = null
     this.place      = START.place
+    this.pressed    = null
     this.script     = []
     this.shares     = { milestone: 0, novelty: 0, starter: 0 }
     this.steps      = 0
     this.terminated = false
+    this.turned     = false
     this.reached    = new Set([this.key()])
   }
 }

@@ -19,8 +19,11 @@ vi.mock('vitepress', () => ({
   useData: () => ({
     frontmatter : { value: { hero: { name: 'SquiRtL', tagline: 'Plays.', text: 'Learns.' } } },
     isDark      : ref(false),
-    page        : { value: { isNotFound: false, relativePath: 'index.md' } }
-  })
+    page        : { value: { isNotFound: false, relativePath: 'index.md' } },
+    theme       : { value: { edition: { host: 'squirtl.fyi', version: '0.1.0' } } }
+  }),
+  useRoute : () => ({ path: '/methods/agnet/' }),
+  withBase : (path: string) => path
 }))
 
 const { Layout } = await import('../../theme/layout.ts')
@@ -28,10 +31,11 @@ const { Layout } = await import('../../theme/layout.ts')
 enableAutoUnmount(afterEach)
 
 describe('Layout', () => {
-  it('fills the hero and the space before it on the front page, and the space above a page’s title', () => {
+  it('fills the hero and the space before it, the space above a page’s title, and a missing address', () => {
     const slots = mount(Layout).findAll('[data-slot]').map(slot => slot.attributes('data-slot'))
 
-    expect(slots).toStrictEqual(['doc-before', 'home-hero-before', 'home-hero-image', 'home-hero-info'])
+    expect(slots)
+      .toStrictEqual(['doc-before', 'home-hero-before', 'home-hero-image', 'home-hero-info', 'not-found'])
   })
 
   it('shares the stage the name’s copy registers on with the mark that flies onto it', () => {

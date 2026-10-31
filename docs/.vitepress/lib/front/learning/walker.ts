@@ -1,5 +1,6 @@
 import * as sprites               from '../../drawing/sprites.ts'
 import { frameFor }               from '../../game/actors.ts'
+import { type Stance, stanceAt }  from '../../game/gait.ts'
 import type { Direction, Square } from '../../game/rooms.ts'
 import * as screen                from '../../game/screen.ts'
 import type { Footing }           from '../learning.ts'
@@ -11,8 +12,9 @@ import type { Footing }           from '../learning.ts'
 export type Emote = keyof typeof EMOTES
 
 /**
- * The game's question and shock bubbles from pret/pokered's `gfx/emotes`, which
- * the town's script shows over Blue when Oak calls him.
+ * The game's question and shock bubbles from pret/pokered's `gfx/emotes`, the
+ * shock bubble being the one the town's script shows over Blue when Oak calls
+ * him.
  */
 const EMOTES = {
   question: [
@@ -45,24 +47,23 @@ export class Walker {
   bubble : Emote | null = 'question'
   facing : Direction    = 'down'
 
-  readonly #from   : [number, number]
-  readonly #stride : screen.Stride
-  readonly #to     : [number, number]
-  #span            = 0
-  #t               = 1
+  readonly #from : [number, number]
+  readonly #to   : [number, number]
+  #span          = 0
+  #stances       : readonly Stance[] | null = null
+  #t             = 1
 
-  constructor(at: Square, stride: screen.Stride) {
-    this.#from   = [...at]
-    this.#stride = stride
-    this.#to     = [...at]
+  constructor(at: Square) {
+    this.#from = [...at]
+    this.#to   = [...at]
   }
 
   /**
-   * Reports whether Blue shows his walking frame, which he does through the
-   * middle of a glide.
+   * Reads the stance Blue shows, the one his gait reaches on the frame of the
+   * press his glide has reached, or standing after a jump and at the north edge.
    */
-  get stepping(): boolean {
-    return this.#t > this.#stride[0] && this.#t < this.#stride[1]
+  get stance(): Stance {
+    return this.#stances ? stanceAt(this.#stances, this.#t) : 'standing'
   }
 
   /**
@@ -90,29 +91,31 @@ export class Walker {
   }
 
   /**
-   * Paints Blue in `fills` with his top left at `x` and `y`, his walking frame
-   * mid-glide, and his bubble a square above him.
+   * Paints Blue in `fills` with his top left at `x` and `y` in his stance, and
+   * his bubble a square above him.
    */
   paint(context: screen.Painter, fills: readonly string[], x: number, y: number): void {
-    screen.paintSprite(context, frameFor('player', this.facing, this.stepping), x, y, fills)
+    screen.paintSprite(context, frameFor('player', this.facing, this.stance), x, y, fills)
     if (this.bubble) screen.paintRuns(context, emoteRuns[this.bubble], x, y - screen.SQUARE, fills)
   }
 
   /**
    * Starts a glide from where Blue stands to the square `footing` names over
-   * `span` milliseconds, or sets him there at once where `span` is zero.
+   * `span` milliseconds, in the stances `stances` holds for the press that took
+   * him there, or sets him there at once and standing where `span` is zero.
    *
-   * He faces down under the shock bubble where `arrived` is set, and otherwise
-   * faces the way he pressed, under the question bubble where the coin chooses
-   * his next press.
+   * He faces down under the shock bubble and standing where `arrived` is set,
+   * and otherwise faces the way he pressed, under the question bubble where the
+   * coin chooses his next press.
    */
-  place(footing: Footing, arrived: boolean, span: number): void {
+  place(footing: Footing, arrived: boolean, span: number, stances: readonly Stance[] | null = null): void {
     this.#from[0] = this.x
     this.#from[1] = this.y
     Object.assign(this.#to, footing.at)
-    this.#span  = span
-    this.#t     = span > 0 ? 0 : 1
-    this.facing = arrived ? 'down' : footing.facing
-    this.bubble = arrived ? 'shock' : footing.sure ? null : 'question'
+    this.#span    = span
+    this.#stances = span > 0 && !arrived ? stances : null
+    this.#t       = span > 0 ? 0 : 1
+    this.facing   = arrived ? 'down' : footing.facing
+    this.bubble   = arrived ? 'shock' : footing.sure ? null : 'question'
   }
 }

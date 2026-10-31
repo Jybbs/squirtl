@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import * as transition from '../../../../lib/front/learning/transition.ts'
+import { FRAME }       from '../../../../lib/game/screen.ts'
 import { hexOf }       from '../../../../lib/identity/identity.ts'
 import { Recorder }    from '../../../common/canvas.ts'
 
@@ -8,13 +9,6 @@ import { Recorder }    from '../../../common/canvas.ts'
  * The transition's timing, read once for every case.
  */
 const PHASES = transition.phasesOf()
-
-/**
- * The red, green, and blue bytes of each color the town's light image holds,
- * from the lightest to the darkest.
- */
-const SHADES = (['ground', 'pale', 'mid', 'deep'] as const)
-  .map(token => Number.parseInt(hexOf(token).slice(1), 16))
 
 /**
  * Four pixels of the town in the order a case reads them back: white, the
@@ -33,9 +27,9 @@ const hexesOf = (pixels: Uint8ClampedArray): string[] => Array.from({ length: pi
 })
 
 describe('phasesOf', () => {
-  it('times the flash, the circle, the black, and the fade in the Game Boy’s sixty frames a second', () => {
-    expect([PHASES.flash, PHASES.circle, PHASES.black, PHASES.end].map(ms => Math.round(ms / (1000 / 60))))
-      .toStrictEqual([72, 102, 112, 136])
+  it('times the flash, the circle, the black, and the fade in the Game Boy’s own frames', () => {
+    expect([PHASES.flash, PHASES.circle, PHASES.black, PHASES.end].map(ms => Math.round(ms / FRAME)))
+      .toStrictEqual([72, 102, 112, 144])
   })
 })
 
@@ -89,29 +83,6 @@ describe('paintCircle', () => {
     const fills = new Set(recorder.marks.map(mark => `${mark.fill} ${mark.width}`))
 
     expect(fills).toStrictEqual(new Set(['#294e95 8']))
-  })
-})
-
-describe('shadesOf and recolor', () => {
-  it('ranks the town’s colors from the lightest to the darkest', () => {
-    expect(transition.shadesOf(PIXELS)).toStrictEqual(SHADES)
-  })
-
-  it('keeps no more colors than the Game Boy has shades', () => {
-    expect(transition.shadesOf(Uint8ClampedArray.from([...PIXELS, 1, 2, 3, 255]))).toHaveLength(4)
-  })
-
-  it.each([
-    ['3210', ['ground', 'deep', 'pale', 'mid']],
-    ['3333', ['deep', 'deep', 'deep', 'deep']],
-    ['0000', ['ground', 'ground', 'ground', 'ground']],
-    ['3321', ['pale', 'deep', 'mid', 'deep']]
-  ] as const)('sets each color to the shade the palette %s gives it', (palette, tokens) => {
-    const target = new Uint8ClampedArray(PIXELS.length)
-
-    transition.recolor(palette, SHADES, PIXELS, target)
-
-    expect(hexesOf(target)).toStrictEqual(tokens.map(token => hexOf(token)))
   })
 })
 

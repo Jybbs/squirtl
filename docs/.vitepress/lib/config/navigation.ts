@@ -3,7 +3,17 @@ import path from 'node:path'
 
 import type { DefaultTheme } from 'vitepress'
 
+import type { Edition }                   from '../cards/cards.ts'
 import { SECTIONS, type Section, placed } from './sections.ts'
+
+/**
+ * The theme's configuration as the site sets it, the default theme's beside the
+ * version and the host a card's edition plate names, which a component drawing
+ * a card in a page reads.
+ */
+export interface SiteTheme extends DefaultTheme.Config {
+  edition: Edition
+}
 
 /**
  * Reads the first level-1 heading of the Markdown file at `file`, which names

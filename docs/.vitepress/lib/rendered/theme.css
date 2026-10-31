@@ -172,6 +172,8 @@
   --spacing-key-mark: 1.125rem;
   --spacing-mark: 1.375rem;
   --spacing-mark-art: 0.875rem;
+  --spacing-missing-page: 64rem;
+  --spacing-missing-screen: 30rem;
   --spacing-race-plot: 14.125rem;
   --spacing-reward-climb: 18rem;
   --spacing-ribbon: 3.375rem;

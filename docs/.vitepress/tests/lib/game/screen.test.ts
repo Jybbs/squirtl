@@ -118,10 +118,10 @@ describe('GameScreen.draw', () => {
     expect(drawn().marks.slice(1, 1 + marks.length)).toStrictEqual(marks)
   })
 
-  it('draws a Poké Ball two pixels above its square', () => {
+  it('draws a Poké Ball four pixels above its square, as every sprite stands', () => {
     const { drawn } = shown('lab', [7, 4])
 
-    expect(drawn().marks).toStrictEqual(expect.arrayContaining(painted(BALL_POSE, 48, 46)))
+    expect(drawn().marks).toStrictEqual(expect.arrayContaining(painted(BALL_POSE, 48, 44)))
   })
 })
 
@@ -130,17 +130,44 @@ describe('GameScreen.follow', () => {
     const { game, view } = shown('bedroom', [3, 6], 'left')
     game.press('left')
     view.follow(100)
-    const states = [20, 30, 50].map(dt => [view.advance(dt), view.view.at[0], view.stepping])
+    const states = [20, 30, 50].map(dt => [view.advance(dt), view.view.at[0], view.stance])
 
-    expect(states).toStrictEqual([[true, 2.8, false], [true, 2.5, true], [false, 2, false]])
+    expect(states).toStrictEqual([[true, 2.8, 'standing'], [true, 2.5, 'walking'], [false, 2, 'standing']])
   })
 
+  it('walks Blue on the other foot through the step after one, his gait’s counters carrying across', () => {
+    const { game, view } = shown('pallet', [10, 7], 'up')
+    const halfway        = () => {
+      game.press('up')
+      view.follow(100)
+      view.advance(50)
+      const { stance }         = view
+      const { grid, mirrored } = frameFor('player', 'up', stance)
+      view.advance(50)
+      return [stance, grid, mirrored]
+    }
+    const walking = frameFor('player', 'up', 'walking').grid
+
+    expect([halfway(), halfway()]).toStrictEqual([['walking', walking, false], ['mirrored', walking, true]])
+  })
+
+  it('runs Blue’s gait through a press that leaves him on his square, and stands him once it ends', () => {
+    const { game, view } = shown('bedroom', [3, 6], 'left')
+    game.press('up')
+    view.follow(100)
+    view.advance(100)
+
+    expect([game.turned, view.view.at, view.stance]).toStrictEqual([true, [3, 6], 'standing'])
+  })
+})
+
+describe('GameScreen.follow without a glide', () => {
   it('sets a step at once where its glide spans no time', () => {
     const { game, view } = shown('bedroom', [3, 6], 'left')
     game.press('left')
     view.follow(0)
 
-    expect([view.advance(16), view.view.at, view.stepping]).toStrictEqual([false, [2, 6], false])
+    expect([view.advance(16), view.view.at, view.stance]).toStrictEqual([false, [2, 6], 'standing'])
   })
 
   it('jumps the view a move of more than one square, Blue standing still', () => {
@@ -150,7 +177,7 @@ describe('GameScreen.follow', () => {
     view.follow(100)
     view.advance(10)
 
-    expect([view.view.at, view.stepping]).toStrictEqual([[1, 6], false])
+    expect([view.view.at, view.stance]).toStrictEqual([[1, 6], 'standing'])
   })
 })
 
@@ -178,7 +205,7 @@ describe('GameScreen.advance and snap', () => {
     view.follow(100)
     view.advance(50)
     const halfway = [...view.leaderAt!]
-    const oak     = frameFor('oak', 'down', true)
+    const oak     = frameFor('oak', 'down', 'walking')
     const marks   = painted(oak, 64, 76)
 
     expect([halfway, drawn().marks]).toStrictEqual([[10, 2.5], expect.arrayContaining(marks)])
@@ -191,7 +218,7 @@ describe('GameScreen.advance and snap', () => {
     view.follow(100)
     view.snap()
 
-    expect([view.view.at, view.stepping, view.veil, view.advance(16)])
-      .toStrictEqual([[2, 6], false, 0, false])
+    expect([view.view.at, view.stance, view.veil, view.advance(16)])
+      .toStrictEqual([[2, 6], 'standing', 0, false])
   })
 })
