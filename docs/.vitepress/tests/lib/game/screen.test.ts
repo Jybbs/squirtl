@@ -56,6 +56,12 @@ function shown(place: Place = 'bedroom', at: Square = [3, 6], facing?: Direction
   return { drawn, game, view }
 }
 
+describe('FRAME', () => {
+  it('lasts the 70,224 dots of the Game Boy’s 4,194,304 Hz clock, near 59.73 frames a second', () => {
+    expect(1000 / screen.FRAME).toBeCloseTo(59.7275, 4)
+  })
+})
+
 describe('SCREEN and SQUARE', () => {
   it('shows ten squares across and nine down, the Game Boy’s 160 by 144 pixels', () => {
     expect([screen.SCREEN.width / screen.SQUARE, screen.SCREEN.height / screen.SQUARE]).toStrictEqual([10, 9])

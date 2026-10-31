@@ -59,6 +59,13 @@ describe('NotFound', () => {
       .toStrictEqual([NOT_FOUND.title, NOT_FOUND.lead, 'squirtl.fyi/methods/agnet/'])
   })
 
+  it('publishes its title, its line, its cards, and its drawing’s label in the project’s prose', async () => {
+    const wrapper = await mounted()
+    const label   = wrapper.get('canvas').attributes('aria-label')!
+
+    for (const text of [wrapper.text(), label]) expect(text).toBePublishedProse()
+  })
+
   it('leads back to the front page and to each section through its card, in its hue', async () => {
     const cards = (await mounted()).findAll('li')
     const ways  = cards.map(card => [
@@ -75,7 +82,6 @@ describe('NotFound', () => {
     expect(cards[0]!.get('a > span').html()).toContain('viewBox="0 0 1200 630"')
     expect(cards[1]!.get('.rounded-full').classes()).toContain('bg-indigo-1')
   })
-
 })
 
 describe('NotFound drawing', () => {
@@ -88,16 +94,21 @@ describe('NotFound drawing', () => {
       .toStrictEqual([true, standing()])
   })
 
-  it('sets the warp back to Blue standing once motion stops', async () => {
-    const recorder = new Recorder()
-    await mounted(recorder)
-    const views = recorder.views.length
+  it('sets the warp back to Blue standing once motion stops partway through a spin', async () => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'performance'] })
+    const recorder = drawInto(new Recorder())
+    const sight    = browser.stubSight()
+    mount(NotFound, { attachTo: document.body })
+    await flushPromises()
 
+    sight.show(true)
+    vi.advanceTimersByTime(2800)
+    const spinning           = recorder.marks.slice(-standing().length)
     browser.preference.value = 'reduce'
     await nextTick()
 
-    expect([recorder.views.length, recorder.marks.slice(-standing().length)])
-      .toStrictEqual([views + 1, standing()])
+    expect([spinning, recorder.marks.slice(-standing().length)])
+      .toStrictEqual([expect.not.arrayContaining(standing()), standing()])
   })
 
   it('keeps the page whole where the document gives its canvas no context', async () => {

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { frameFor }                               from '../../../lib/game/actors.ts'
-import { FRAME, paintSprite }                     from '../../../lib/game/screen.ts'
-import type { Origin }                            from '../../../lib/missing/city.ts'
-import { type CityReader, GlitchScreen, UNKNOWN } from '../../../lib/missing/screen.ts'
-import * as warp                                  from '../../../lib/missing/warp.ts'
-import { Recorder }                               from '../../common/canvas.ts'
+import { frameFor }                      from '../../../lib/game/actors.ts'
+import { FRAME, paintSprite }            from '../../../lib/game/screen.ts'
+import { paintBox, paintText }           from '../../../lib/game/text.ts'
+import { rgbOf, spriteShades }           from '../../../lib/identity/identity.ts'
+import type { Origin }                   from '../../../lib/missing/city.ts'
+import { type CityReader, GlitchScreen } from '../../../lib/missing/screen.ts'
+import * as warp                         from '../../../lib/missing/warp.ts'
+import { Recorder }                      from '../../common/canvas.ts'
 
 /**
  * A warp of three frames: Blue facing left on his square, Blue off the screen's
@@ -18,10 +20,24 @@ const FRAMES: warp.WarpFrame[] = [
 ]
 
 /**
- * Makes a screen playing `FRAMES` with its city read from a blank image.
+ * A recorder reading every view back with its first pixels in the Game Boy's
+ * shades from the lightest to the darkest, as a city cut from Pallet Town's
+ * image holds them.
+ */
+class ShadedRecorder extends Recorder {
+  override getImageData(left: number, top: number, width: number, height: number): ImageData {
+    const view = super.getImageData(left, top, width, height)
+    for (const [at, hex] of spriteShades.entries()) view.data.set([...rgbOf(hex), 255], at * 4)
+    return view
+  }
+}
+
+/**
+ * Makes a screen playing `FRAMES` with its city read from an image in the four
+ * shades.
  */
 function readScreen(): { reader: Recorder, screen: GlitchScreen } {
-  const reader = new Recorder()
+  const reader = new ShadedRecorder()
   const screen = new GlitchScreen(FRAMES)
   const blocks: Origin[] = [[96, 96], [128, 96]]
   screen.read(reader as unknown as CityReader, {} as CanvasImageSource, blocks, 'squirtl.fyi/missing/')
@@ -41,9 +57,14 @@ function blueAt(facing: warp.WarpFrame['facing'], y: number): Recorder['marks'] 
 describe('GlitchScreen.read', () => {
   it('lays the city’s blocks across the screen and sets the AREA UNKNOWN box over its foot', () => {
     const { reader } = readScreen()
+    const unknown    = new Recorder()
+    paintBox(unknown, { column: 1, columns: 17, row: 13, rows: 4 }, spriteShades)
+    paintText(unknown, ' AREA UNKNOWN', 16, 120, spriteShades)
 
-    expect(reader.images).toHaveLength(25)
-    expect(reader.marks[0]).toMatchObject({ height: 32, width: 136, x: UNKNOWN.box.column * 8, y: 104 })
+    expect([reader.images.map(image => image.slice(-4)), reader.marks]).toStrictEqual([
+      Array.from({ length: 25 }, (_, at) => [(at % 5) * 32, Math.floor(at / 5) * 32, 32, 32]),
+      unknown.marks
+    ])
   })
 })
 
