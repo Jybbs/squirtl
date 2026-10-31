@@ -31,7 +31,7 @@ export type WarpPainter = Pick<CanvasRenderingContext2D, 'fillRect' | 'fillStyle
  * (`engine/items/town_map.asm` lines 403 to 409 and 421 to 422), set six rows
  * lower than the area screen sets it so it clears Blue at the screen's middle.
  */
-export const UNKNOWN = {
+const UNKNOWN = {
   box  : { column: 1, columns: 17, row: 13, rows: 4 },
   text : ' AREA UNKNOWN',
   x    : 16,
