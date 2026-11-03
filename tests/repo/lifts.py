@@ -1479,7 +1479,7 @@ def test_an_attempt_says_what_it_found_and_where_its_log_sits(
 @mark.parametrize(
     ("passed", "status", "verdict"),
     [
-        param([True], 0, "Every pin lifts with mise ci passing", id="whole-passes"),
+        param([True], 0, "Every lift not held passes mise ci", id="whole-passes"),
         param(
             [False, False, True],
             1,
@@ -1634,7 +1634,7 @@ def test_an_attempt_runs_ci_in_a_clone_it_removes_and_keeps_its_log(
         fp.register(command)
 
     fp.register(
-        ["mise", "run", "repo:ci"],
+        ["mise", "run", "--continue-on-error", "repo:ci"],
         returncode = returncode,
         stdout     = "the suite printed\n"
     )

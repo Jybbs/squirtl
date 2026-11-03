@@ -1223,7 +1223,7 @@ class Trial(Record):
         whole, *held = self.attempts
 
         if whole.passed:
-            return "Every pin lifts with mise ci passing"
+            return "Every lift not held passes mise ci"
 
         breaking = [
             f"{attempt.held.name} {attempt.held.newest}"
@@ -1300,9 +1300,12 @@ class Lifts(Record):
         `held` where it names a lift, then removes the clone.
 
         Inside the clone, the lift is written and `mise ci` runs, each
-        printing into a log under `logs` named for what the attempt holds
-        back, which outlives the clone. A step that fails ends the attempt
-        as failed, its error written into the log.
+        printing into a log under `logs` named for what the attempt
+        holds back, which outlives the clone. `mise ci` runs under
+        `--continue-on-error`, because `mise run` otherwise exits at the
+        first failing row while another row's processes still write into
+        the clone as it is removed. A step that fails ends the attempt as
+        failed, its error written into the log.
         """
         lifts = self if held is None else self.holding({held.name})
         label = "whole" if held is None else f"without-{held.name.replace('/', '-')}"
@@ -1318,7 +1321,7 @@ class Lifts(Record):
 
             try:
                 lifts.write(clone)
-                clone.run("mise", "run", "repo:ci")
+                clone.run("mise", "run", "--continue-on-error", "repo:ci")
             except (CalledProcessError, ValueError) as error:
                 print(error, file=output)
                 passed = False
