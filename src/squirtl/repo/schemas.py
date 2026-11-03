@@ -1567,6 +1567,18 @@ class Manifest(TomlFile, extra="ignore"):
             )
         )
 
+    @staticmethod
+    def exact_pin(requirement: Requirement) -> str | None:
+        """
+        Reads the one version `requirement` pins, or returns `None` where it
+        holds anything but a single `==` specifier naming a whole version.
+        """
+        match list(requirement.specifier):
+            case [pin] if pin.operator == "==" and "*" not in pin.version:
+                return pin.version
+
+        return None
+
     def mirrors(self, test: Path) -> list[Path]:
         """
         Names the module of each package that the test module at `test`
@@ -1586,6 +1598,12 @@ class MiseConfig(TomlFile, extra="ignore"):
     """
 
     file: ClassVar[Path] = Path(".mise/config.toml")
+
+    min_version: VersionNumber
+    """
+    The oldest mise release the config runs on, which the provisioning
+    action installs on every row.
+    """
 
     node: VersionNumber = Field(validation_alias=AliasPath("tools", "node"))
     """

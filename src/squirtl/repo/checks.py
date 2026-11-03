@@ -699,16 +699,13 @@ class Pins(Check):
             ("build-constraint-dependencies", self.manifest.build_constraints)
         ):
             for requirement in requirements:
-                match list(requirement.specifier):
-                    case [pin] if pin.operator == "==" and "*" not in pin.version:
-                        continue
-
-                yield Finding.locate(
-                    file,
-                    key,
-                    requirement.name,
-                    message = f"`{requirement}` under `{key}` pins no exact version"
-                )
+                if Manifest.exact_pin(requirement) is None:
+                    yield Finding.locate(
+                        file,
+                        key,
+                        requirement.name,
+                        message = f"`{requirement}` under `{key}` pins no exact version"
+                    )
 
 
 class Rendered(Check):
