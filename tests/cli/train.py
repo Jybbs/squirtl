@@ -17,8 +17,8 @@ from os              import truncate
 from pathlib         import Path
 from pytest          import mark, param
 
-from squirtl.agent.schemas import Checkpoint
-from squirtl.runs.schemas  import Run
+from squirtl.agent.checkpoint import Checkpoint
+from squirtl.runs.schemas     import Run
 
 
 def cut_checkpoint(run: Run):

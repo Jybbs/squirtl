@@ -1,9 +1,11 @@
 """
 Pins what the `squirtl` command itself defines, covering:
 
-- The help text each command renders, beside the version the package
-  metadata carries
+- The help text each command renders, each drawn from its function's
+  docstring, beside the version the package metadata carries
 - The script `[project.scripts]` points at the app
+- The modules `squirtl --help` and `squirtl stop` import, which leave out
+  `torch`, SciPy, and `pyboy`
 - How a command reads its settings:
 
    - Each setting comes from its flag, then the `[tool.squirtl]` table of
@@ -17,17 +19,22 @@ Pins what the `squirtl` command itself defines, covering:
 from collections.abc    import Callable, Mapping
 from common.cli         import Invoker
 from cyclopts           import App, Parameter, UnknownOptionError, UnusedCliTokensError, ValidationError
+from datetime           import UTC, datetime
 from importlib.metadata import EntryPoint, entry_points, version
+from inspect            import getdoc
 from pathlib            import Path
 from pytest             import MonkeyPatch, fixture, mark, param, raises
+from re                 import MULTILINE, findall
+from subprocess         import run
 from syrupy.assertion   import SnapshotAssertion
+from sys                import executable
 from typing             import Annotated
 
 from squirtl.agent.schemas    import AgentSettings
 from squirtl.cli              import app
 from squirtl.emulator.schemas import EmulatorSettings
 from squirtl.reward.schemas   import RewardSettings
-from squirtl.runs.schemas     import RunSettings
+from squirtl.runs.schemas     import Run, RunSettings
 
 type Reader = Callable[[list[str], str | None], RunSettings]
 
@@ -240,6 +247,7 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
         param(["stop"],     id="stop"),
         param(["train"],    id="train"),
         param(["watch"],    id="watch"),
+        param(["write"],    id="write"),
         param(["write", "docs"], id="write-docs")
     ]
 )
@@ -257,12 +265,68 @@ def test_help_text(
     and an evaluation to four environments here, whatever accelerator and
     CPUs the machine running the suite reports.
     """
-    monkeypatch.setattr("squirtl.agent.schemas.current_accelerator", lambda **_: None)
+    monkeypatch.setattr("torch.accelerator.current_accelerator", lambda **_: None)
     monkeypatch.setattr("squirtl.evaluation.schemas.process_cpu_count", lambda: 4)
     invocation = invoke([*command, "--help"])
 
     assert invocation.code == 0
     assert invocation.output == snapshot
+
+
+def test_each_commands_help_is_the_docstring_of_the_function_it_runs():
+    """
+    Asserts that the help each command registers is the docstring of the
+    function it runs, so the summary `squirtl --help` prints for it and its
+    own `--help` read that one source.
+    """
+    commands = {
+        name: command
+        for group in (app, app["write"])
+        for name in group
+        if not name.startswith("-") and (command := group[name]).default_command
+    }
+
+    assert {name: command.help for name, command in commands.items()} == {
+        name: getdoc(command.default_command) for name, command in commands.items()
+    }
+
+
+@mark.parametrize(
+    "command",
+    [
+        param(lambda _: ["--help"], id="help"),
+        param(lambda started: ["stop", str(started.directory)], id="stop")
+    ]
+)
+@mark.usefixtures("clone")
+def test_help_and_stop_import_neither_torch_nor_scipy_nor_pyboy(
+    command  : Callable[[Run], list[str]],
+    snapshot : SnapshotAssertion
+):
+    """
+    Asserts that `squirtl --help` and `squirtl stop` on a run's directory,
+    each started in an interpreter of its own whose `-v` flag logs every
+    module it imports, exit zero with none of `torch`, SciPy, or `pyboy`
+    among those modules and only the modules of the package their fixture
+    file holds.
+    """
+    finished = run(
+        [
+            executable, "-v", "-c", "from squirtl.cli import app; app()",
+            *command(Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC)))
+        ],
+        capture_output = True,
+        check          = True,
+        text           = True
+    )
+    modules = findall(r"^import '(.+?)'", finished.stderr, MULTILINE)
+
+    assert {module.partition(".")[0] for module in modules}.isdisjoint(
+        {"pyboy", "scipy", "torch"}
+    )
+    assert "\n".join(
+        sorted(module for module in modules if module.startswith("squirtl"))
+    ) == snapshot
 
 
 def test_reading_the_settings_writes_nothing(read: Reader, tmp_path: Path):

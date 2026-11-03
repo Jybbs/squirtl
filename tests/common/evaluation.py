@@ -10,7 +10,7 @@ Defines what the tests of an evaluation build from:
 from collections.abc import Iterable
 from contextlib      import AbstractContextManager
 
-from squirtl.agent.schemas       import Weights
+from squirtl.agent.checkpoint    import Weights
 from squirtl.environment.schemas import Outcome
 from squirtl.evaluation.schemas  import Evaluation
 from squirtl.reward.schemas      import Term
@@ -31,7 +31,8 @@ class EvaluatorStandIn(AbstractContextManager):
 
     def __init__(self, *arguments: object):
         """
-        Records the arguments `Run.evaluate` builds an `Evaluator` with.
+        Records the arguments `Benchmark.from_run` builds an `Evaluator`
+        with.
         """
         self.arguments = arguments
         self.asked     = []

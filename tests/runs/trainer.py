@@ -26,7 +26,8 @@ from pytest            import MonkeyPatch, approx, mark, param, raises
 from signal            import SIGINT, SIGTERM, getsignal, raise_signal
 from torch.testing     import assert_close
 
-from squirtl.agent.schemas      import AgentSettings, Checkpoint, Update
+from squirtl.agent.checkpoint   import Checkpoint
+from squirtl.agent.schemas      import AgentSettings, Update
 from squirtl.evaluation.schemas import Evaluation, EvaluationSettings
 from squirtl.reward.schemas     import Event, Position, RewardSettings, Term
 from squirtl.runs.schemas       import Run

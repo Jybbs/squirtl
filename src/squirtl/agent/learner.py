@@ -16,9 +16,10 @@ from torch.nn.utils      import clip_grad_norm_
 from torch.optim         import Adam
 from torch.random        import fork_rng
 
-from squirtl.agent.networks import QNetwork
-from squirtl.agent.replay   import Replay
-from squirtl.agent.schemas  import AgentSettings, Checkpoint, Update, Weights
+from squirtl.agent.checkpoint import Checkpoint, Weights
+from squirtl.agent.networks   import QNetwork
+from squirtl.agent.replay     import Replay
+from squirtl.agent.schemas    import AgentSettings, Update
 
 
 class Agent:
