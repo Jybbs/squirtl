@@ -18,8 +18,9 @@ Pins the training loop of one run on the CPU, covering:
   leaves the training as it was and logs what each policy reached, and the
   evaluations and the baseline a resume copies up to its checkpoint
 - PQN's and PPO's run across environments, meaning the environments its
-  settings name, the reset each starts from, the workers an interrupt leaves
-  stepping, a run of one environment, the rollout a run's last step falls
+  settings name, the reset each starts from, the workers a first interrupt
+  leaves stepping and a second terminates partway through a step, a run of
+  one environment, the rollout a run's last step falls
   within, the line each episode writes as its step returns, its measures
   averaged over the updates taken while it played, the value of each
   truncated episode's final observation, the stop, the checkpoint, and the
@@ -37,8 +38,8 @@ from gymnasium.vector  import AutoresetMode
 from itertools         import count
 from numpy             import array, full, ndarray, uint8
 from os                import kill
-from pytest            import MonkeyPatch, approx, mark, param, raises
-from signal            import SIGINT, SIGTERM, getsignal, raise_signal
+from pytest            import MonkeyPatch, approx, fail, mark, param, raises
+from signal            import ITIMER_REAL, SIGALRM, SIGINT, SIGTERM, getsignal, raise_signal, setitimer, signal
 from torch.testing     import assert_close
 from types             import SimpleNamespace
 
@@ -299,23 +300,18 @@ def test_a_resumed_run_writes_its_checkpoints_where_a_run_that_never_stopped_doe
     assert steps == [[12, 20], [12], [20]]
 
 
-def test_a_rollout_run_makes_the_environments_its_settings_name(
+def test_a_rollout_run_ending_unraised_lets_each_worker_close_its_environment(
     rolling: Callable[..., Trainer]
 ):
     """
-    Asserts that a run of PQN or PPO makes as many environments as
-    its settings count, at most `max_concurrency` of them stepping at
-    once, each reporting an episode's final observation on its last
-    step, and normalizes rewards at the run's discount rather than at
-    `NormalizeReward`'s own.
+    Asserts that a run ending with nothing raised closes the environments
+    through their workers, each of which exits 0 rather than being
+    terminated.
     """
-    with rolling(Algorithm.PPO, agent={"discount": 0.9, "max_concurrency": 1}) as run:
-        vector = run.env.unwrapped
+    with rolling(Algorithm.PQN, steps=8) as trainer:
+        list(trainer)
 
-        assert (
-            run.env.gamma, vector.autoreset_mode,
-            vector.max_concurrency, vector.num_envs
-        ) == (0.9, AutoresetMode.SAME_STEP, 1, 2)
+    assert {process.exitcode for process in trainer.env.unwrapped.processes} == {0}
 
 
 @mark.parametrize(
@@ -336,6 +332,25 @@ def test_each_finished_episode_writes_a_line_and_the_cut_one_none(
         (episode.length, episode.terminated, len(episode.recording.presses))
         for episode in finish(trainer(steps=steps)).recorded
     ] == [(6, False, 6)] * 3
+
+
+def test_a_rollout_run_makes_the_environments_its_settings_name(
+    rolling: Callable[..., Trainer]
+):
+    """
+    Asserts that a run of PQN or PPO makes as many environments as
+    its settings count, at most `max_concurrency` of them stepping at
+    once, each reporting an episode's final observation on its last
+    step, and normalizes rewards at the run's discount rather than at
+    `NormalizeReward`'s own.
+    """
+    with rolling(Algorithm.PPO, agent={"discount": 0.9, "max_concurrency": 1}) as run:
+        vector = run.env.unwrapped
+
+        assert (
+            run.env.gamma, vector.autoreset_mode,
+            vector.max_concurrency, vector.num_envs
+        ) == (0.9, AutoresetMode.SAME_STEP, 1, 2)
 
 
 def test_a_rollout_run_of_one_environment_writes_a_line_for_each_episode(
@@ -375,36 +390,6 @@ def test_a_rollout_run_resuming_a_checkpoint_of_another_agent_is_refused(
                 update = {"settings": stopped.settings.model_copy(update={"steps": 32})}
             )
         )
-
-
-def test_a_run_remembers_the_value_of_a_final_observation_at_the_step_truncating_it(
-    monkeypatch : MonkeyPatch,
-    rolling     : Callable[..., Trainer]
-):
-    """
-    Asserts that a run hands the agent 0 on every step but the sixth, which
-    truncates both environments' episodes and carries the value of each
-    one's final observation.
-    """
-    trainer  = rolling(Algorithm.PQN, steps=16)
-    remember = trainer.agent.remember
-    seen     = []
-    monkeypatch.setattr(
-        trainer.agent,
-        "remember",
-        lambda bootstraps, *outcome: seen.append(bootstraps.tolist()) or remember(
-            bootstraps,
-            *outcome
-        )
-    )
-    monkeypatch.setattr(
-        trainer.agent,
-        "value",
-        lambda observations: full(len(observations["frames"]), 7.0)
-    )
-    finish(trainer)
-
-    assert seen == [[0.0, 0.0]] * 5 + [[7.0, 7.0]] + [[0.0, 0.0]] * 2
 
 
 @mark.parametrize(
@@ -449,6 +434,36 @@ def test_an_evaluation_logs_how_often_each_policy_reached_the_starter(
         "for a mean return of 0.0120, and the random baseline in 0% for 0.1250",
         "Evaluating the agent at step 12"
     } <= set(logged)
+
+
+def test_a_run_remembers_the_value_of_a_final_observation_at_the_step_truncating_it(
+    monkeypatch : MonkeyPatch,
+    rolling     : Callable[..., Trainer]
+):
+    """
+    Asserts that a run hands the agent 0 on every step but the sixth, which
+    truncates both environments' episodes and carries the value of each
+    one's final observation.
+    """
+    trainer  = rolling(Algorithm.PQN, steps=16)
+    remember = trainer.agent.remember
+    seen     = []
+    monkeypatch.setattr(
+        trainer.agent,
+        "remember",
+        lambda bootstraps, *outcome: seen.append(bootstraps.tolist()) or remember(
+            bootstraps,
+            *outcome
+        )
+    )
+    monkeypatch.setattr(
+        trainer.agent,
+        "value",
+        lambda observations: full(len(observations["frames"]), 7.0)
+    )
+    finish(trainer)
+
+    assert seen == [[0.0, 0.0]] * 5 + [[7.0, 7.0]] + [[0.0, 0.0]] * 2
 
 
 def test_a_run_stopped_halfway_and_resumed_ends_as_a_run_that_never_stopped(
@@ -500,41 +515,31 @@ def test_a_second_interrupt_ends_the_run_at_once(trainer: Callable[..., Trainer]
     assert (built.agent.step, built.run.checkpoint.exists()) == (2, False)
 
 
-def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
-    logged  : list[str],
-    trainer : Callable[..., Trainer]
+@mark.filterwarnings("ignore:.*pending call to .step")
+def test_a_second_interrupt_partway_through_a_step_ends_each_worker(
+    rolling: Callable[..., Trainer]
 ):
     """
-    Asserts that a `stop` file written on step 8 ends the run at the end of
-    its episode on step 12, with that episode's line and a checkpoint there,
-    and logs the file it found.
+    Asserts that an interrupt raised once a step has read some of the
+    workers' pipes ends the run and terminates each worker, the alarm
+    failing the case where closing the environments blocks on a pipe already
+    read.
     """
-    run = finish(trainer(), stop_at_eight)
+    handler = signal(SIGALRM, lambda *_: fail("Closing blocked on a pipe already read"))
 
-    assert (
-        len(list(run.recorded)),
-        ReplayCheckpoint.from_path(run.checkpoint).step
-    ) == (2, 12)
-    assert f"Stopping at step 12 after 2 episodes on finding {run.stop}" in logged
+    with raises(KeyboardInterrupt), rolling(Algorithm.PQN) as trainer:
+        vector = trainer.env.unwrapped
 
+        raise_signal(SIGINT)
+        vector.step_async(vector.action_space.sample())
+        vector.parent_pipes[0].recv()
+        setitimer(ITIMER_REAL, 60)
+        raise_signal(SIGINT)
 
-def test_a_tally_averages_each_environments_updates_until_its_episode_ends():
-    """
-    Asserts that a tally reads the mean of each measure of the updates added
-    since the environment's last episode ended, and `None` where none was,
-    each environment on its own count.
-    """
-    tally = Tally(2, Update)
-    tally.add(Update(loss=1.0, value=2.0))
-    tally.add(Update(loss=3.0, value=4.0))
+    setitimer(ITIMER_REAL, 0)
+    signal(SIGALRM, handler)
 
-    assert tally.take(0) == Update(loss=2.0, value=3.0)
-    assert tally.take(0) is None
-
-    tally.add(Update(loss=8.0, value=9.0))
-
-    assert tally.take(0) == Update(loss=8.0, value=9.0)
-    assert tally.take(1) == Update(loss=4.0, value=5.0)
+    assert {process.exitcode for process in vector.processes} == {-SIGTERM}
 
 
 @mark.parametrize(
@@ -562,31 +567,22 @@ def test_the_settings_start_the_training_loop_of_the_agent_they_name(
     assert type(Trainer.start(cartridge, settings, datetime.now(UTC))) is kind
 
 
-def test_an_episode_reaching_the_starter_writes_a_terminated_line(
-    trainer: Callable[..., Trainer]
+def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
+    logged  : list[str],
+    trainer : Callable[..., Trainer]
 ):
     """
-    Asserts that an episode whose step sets the starter's flag ends there,
-    its line recording its three steps, its termination, and the starter's
-    pay, and that the next episode starts afresh from the state the reset
-    loads.
+    Asserts that a `stop` file written on step 8 ends the run at the end of
+    its episode on step 12, with that episode's line and a checkpoint there,
+    and logs the file it found.
     """
-    run = finish(
-        trainer = trainer(),
-        stop    = lambda step, trainer: step == 2
-        and set_event(
-            Event.EVENT_GOT_STARTER,
-            trainer.env.unwrapped.game_boy.emulator.memory
-        )
-    )
-    recorded = list(run.recorded)
+    run = finish(trainer(), stop_at_eight)
 
-    assert [(episode.length, episode.terminated) for episode in recorded] == [
-        (3, True),
-        (6, False),
-        (6, False)
-    ]
-    assert recorded[0].shares[Term.STARTER] == RewardSettings().starter
+    assert (
+        len(list(run.recorded)),
+        ReplayCheckpoint.from_path(run.checkpoint).step
+    ) == (2, 12)
+    assert f"Stopping at step 12 after 2 episodes on finding {run.stop}" in logged
 
 
 @each_agent
@@ -641,18 +637,23 @@ def test_an_episodes_line_averages_the_updates_taken_while_it_played(
     assert [line.update and line.update.loss for line in lines[::2]] == means
 
 
-def test_an_episodes_line_averages_the_updates_its_steps_took(
-    trainer: Callable[..., Trainer]
-):
+def test_a_tally_averages_each_environments_updates_until_its_episode_ends():
     """
-    Asserts that the first episode's line holds no loss or value, since its
-    six steps fall short of the warm-up of eight, whereas each line after it
-    holds both, the second from its updates at steps 8 and 12 and the third
-    from its update at step 16.
+    Asserts that a tally reads the mean of each measure of the updates added
+    since the environment's last episode ended, and `None` where none was,
+    each environment on its own count.
     """
-    assert [
-        episode.update is None for episode in finish(trainer()).recorded
-    ] == [True, False, False]
+    tally = Tally(2, Update)
+    tally.add(Update(loss=1.0, value=2.0))
+    tally.add(Update(loss=3.0, value=4.0))
+
+    assert tally.take(0) == Update(loss=2.0, value=3.0)
+    assert tally.take(0) is None
+
+    tally.add(Update(loss=8.0, value=9.0))
+
+    assert tally.take(0) == Update(loss=8.0, value=9.0)
+    assert tally.take(1) == Update(loss=4.0, value=5.0)
 
 
 @mark.parametrize(
@@ -699,72 +700,31 @@ def test_a_step_values_the_final_observation_of_each_episode_it_truncated(
     ).tolist() == values
 
 
-def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
-    logged      : list[str],
-    monkeypatch : MonkeyPatch,
-    trainer     : Callable[..., Trainer]
+def test_an_episode_reaching_the_starter_writes_a_terminated_line(
+    trainer: Callable[..., Trainer]
 ):
     """
-    Asserts that each line holds the return its steps earned, the positions
-    it reached, the chance of a random action at its last step, and the
-    mean loss and value of the updates its steps took, which the line
-    each episode logs repeats as label and value pairs, the first episode
-    stepping onto a new square on its second step and reaching the starter
-    on its third. The chance falls by 0.05 a step and the novelty pays
-    0.0625, leaving each value the line logs clear of a tie at the places it
-    rounds to.
+    Asserts that an episode whose step sets the starter's flag ends there,
+    its line recording its three steps, its termination, and the starter's
+    pay, and that the next episode starts afresh from the state the reset
+    loads.
     """
-    reward = RewardSettings(novelty=0.0625)
-    built  = trainer(
-        agent = AgentSettings(
-            batch_size           = 8,
-            capacity             = 64,
-            device               = "cpu",
-            epsilon_end          = 0.0,
-            exploration_fraction = 1.0
-        ),
-        reward = reward
+    run = finish(
+        trainer = trainer(),
+        stop    = lambda step, trainer: step == 2
+        and set_event(
+            Event.EVENT_GOT_STARTER,
+            trainer.env.unwrapped.game_boy.emulator.memory
+        )
     )
-    monkeypatch.setattr(
-        built.agent,
-        "update",
-        lambda: Update(loss=built.agent.step, value=-built.agent.step)
-    )
+    recorded = list(run.recorded)
 
-    def move_then_choose(step: int, trainer: Trainer):
-        """
-        Stands the player on a new square after the first step and sets the
-        starter's flag after the second.
-        """
-        memory = trainer.env.unwrapped.game_boy.emulator.memory
-
-        if step == 1:
-            stand(memory, Position(map=1, x=1, y=1))
-
-        if step == 2:
-            set_event(Event.EVENT_GOT_STARTER, memory)
-
-    assert [
-        (episode.reward, episode.positions, episode.epsilon, episode.update)
-        for episode in finish(built, move_then_choose).recorded
-    ] == [
-        (
-            approx(reward.novelty + reward.starter),
-            2,
-            approx(0.85),
-            Update(loss=2.0, value=-2.0)
-        ),
-        (0.0, 1, approx(0.55), Update(loss=6.5, value=-6.5)),
-        (0.0, 1, approx(0.25), Update(loss=12.5, value=-12.5))
+    assert [(episode.length, episode.terminated) for episode in recorded] == [
+        (3, True),
+        (6, False),
+        (6, False)
     ]
-    assert [
-        message.partition(": ")[2]
-        for message in logged if message.startswith("Episode ")
-    ] == [
-        "return 0.6625, positions 2, epsilon 0.850, loss 2, value -2",
-        "return 0.0000, positions 1, epsilon 0.550, loss 6.5, value -6.5",
-        "return 0.0000, positions 1, epsilon 0.250, loss 12.5, value -12.5"
-    ]
+    assert recorded[0].shares[Term.STARTER] == RewardSettings().starter
 
 
 @mark.parametrize(
@@ -810,47 +770,18 @@ def test_a_stop_within_a_rollout_ends_the_run_once_its_update_ends(
     assert any(line.startswith(message) for line in logged)
 
 
-def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
+def test_an_episodes_line_averages_the_updates_its_steps_took(
     trainer: Callable[..., Trainer]
 ):
     """
-    Asserts that a run evaluating at steps 12 and 20 over two episodes in
-    two worker processes writes the agent's evaluations and the baseline's,
-    and ends with the networks, Adam's state, replay memory, generators, and
-    episodes of the same run evaluating nothing.
+    Asserts that the first episode's line holds no loss or value, since its
+    six steps fall short of the warm-up of eight, whereas each line after it
+    holds both, the second from its updates at steps 8 and 12 and the third
+    from its update at step 16.
     """
-    evaluated = finish(
-        trainer = trainer(
-            evaluation       = EvaluationSettings(environments=2, episodes=2),
-            evaluation_steps = 10
-        )
-    )
-    plain         = finish(trainer())
-    first, second = (ReplayCheckpoint.from_path(run.checkpoint) for run in (
-        evaluated, plain
-    ))
-    evaluated_lines, plain_lines = (
-        [episode.model_dump(exclude={"seconds"}) for episode in run.recorded]
-        for run in (evaluated, plain)
-    )
-
-    assert_close(
-        [first.online, first.target, first.optimizer, first.replay],
-        [second.online, second.target, second.optimizer, second.replay],
-        atol = 0,
-        rtol = 0
-    )
-    assert (first.exploration, first.sampling) == (second.exploration, second.sampling)
-    assert evaluated_lines == plain_lines
     assert [
-        (
-            evaluation.step,
-            len(evaluation.outcomes)
-        ) for evaluation in evaluated.evaluated
-    ] == [(12, 2), (20, 2)]
-    assert Evaluation.model_validate_json(
-        evaluated.baseline.read_text(encoding="utf-8")
-    ).step is None
+        episode.update is None for episode in finish(trainer()).recorded
+    ] == [True, False, False]
 
 
 @each_agent
@@ -944,6 +875,117 @@ def test_a_rollout_run_stopped_before_its_first_step_resumes_as_one_never_stoppe
         resumed  = finish(rewarding(rolling(algorithm, resumes=stopped))),
         unbroken = finish(rewarding(rolling(algorithm)))
     )
+
+
+def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
+    logged      : list[str],
+    monkeypatch : MonkeyPatch,
+    trainer     : Callable[..., Trainer]
+):
+    """
+    Asserts that each line holds the return its steps earned, the positions
+    it reached, the chance of a random action at its last step, and the
+    mean loss and value of the updates its steps took, which the line
+    each episode logs repeats as label and value pairs, the first episode
+    stepping onto a new square on its second step and reaching the starter
+    on its third. The chance falls by 0.05 a step and the novelty pays
+    0.0625, leaving each value the line logs clear of a tie at the places it
+    rounds to.
+    """
+    reward = RewardSettings(novelty=0.0625)
+    built  = trainer(
+        agent = AgentSettings(
+            batch_size           = 8,
+            capacity             = 64,
+            device               = "cpu",
+            epsilon_end          = 0.0,
+            exploration_fraction = 1.0
+        ),
+        reward = reward
+    )
+    monkeypatch.setattr(
+        built.agent,
+        "update",
+        lambda: Update(loss=built.agent.step, value=-built.agent.step)
+    )
+
+    def move_then_choose(step: int, trainer: Trainer):
+        """
+        Stands the player on a new square after the first step and sets the
+        starter's flag after the second.
+        """
+        memory = trainer.env.unwrapped.game_boy.emulator.memory
+
+        if step == 1:
+            stand(memory, Position(map=1, x=1, y=1))
+
+        if step == 2:
+            set_event(Event.EVENT_GOT_STARTER, memory)
+
+    assert [
+        (episode.reward, episode.positions, episode.epsilon, episode.update)
+        for episode in finish(built, move_then_choose).recorded
+    ] == [
+        (
+            approx(reward.novelty + reward.starter),
+            2,
+            approx(0.85),
+            Update(loss=2.0, value=-2.0)
+        ),
+        (0.0, 1, approx(0.55), Update(loss=6.5, value=-6.5)),
+        (0.0, 1, approx(0.25), Update(loss=12.5, value=-12.5))
+    ]
+    assert [
+        message.partition(": ")[2]
+        for message in logged if message.startswith("Episode ")
+    ] == [
+        "return 0.6625, positions 2, epsilon 0.850, loss 2, value -2",
+        "return 0.0000, positions 1, epsilon 0.550, loss 6.5, value -6.5",
+        "return 0.0000, positions 1, epsilon 0.250, loss 12.5, value -12.5"
+    ]
+
+
+def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
+    trainer: Callable[..., Trainer]
+):
+    """
+    Asserts that a run evaluating at steps 12 and 20 over two episodes in
+    two worker processes writes the agent's evaluations and the baseline's,
+    and ends with the networks, Adam's state, replay memory, generators, and
+    episodes of the same run evaluating nothing.
+    """
+    evaluated = finish(
+        trainer = trainer(
+            evaluation       = EvaluationSettings(environments=2, episodes=2),
+            evaluation_steps = 10
+        )
+    )
+    plain         = finish(trainer())
+    first, second = (ReplayCheckpoint.from_path(run.checkpoint) for run in (
+        evaluated, plain
+    ))
+    evaluated_lines, plain_lines = (
+        [episode.model_dump(exclude={"seconds"}) for episode in run.recorded]
+        for run in (evaluated, plain)
+    )
+
+    assert_close(
+        [first.online, first.target, first.optimizer, first.replay],
+        [second.online, second.target, second.optimizer, second.replay],
+        atol = 0,
+        rtol = 0
+    )
+    assert (first.exploration, first.sampling) == (second.exploration, second.sampling)
+    assert evaluated_lines == plain_lines
+    assert [
+        (
+            evaluation.step,
+            len(evaluation.outcomes)
+        ) for evaluation in evaluated.evaluated
+    ] == [(12, 2), (20, 2)]
+    assert Evaluation.model_validate_json(
+        evaluated.baseline.read_text(encoding="utf-8")
+    ).step is None
 
 
 def test_an_interrupt_reaching_each_worker_leaves_the_rollout_stepping(

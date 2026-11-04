@@ -471,6 +471,19 @@ class RolloutTrainer(Trainer):
 
     pause = "rollout's update"
 
+    def __exit__(self, *raised: object):
+        """
+        Terminates the workers where the `with` block raised, then ends as
+        `Trainer` does. `AsyncVectorEnv.close` otherwise calls `step_wait`
+        again to finish a pending step, and an interrupt raised inside
+        `step_wait` leaves some of the workers' pipes already read, so that
+        call blocks forever on a pipe no worker writes to again.
+        """
+        if any(raised):
+            self.env.close(terminate=True)
+
+        super().__exit__(*raised)
+
     def __init__(
         self,
         cartridge : Cartridge,

@@ -35,10 +35,12 @@ def evaluate(
     ] = None
 ):
     """
-    Evaluates the agent of each run at its last checkpoint, at the epsilon
-    and over the episodes the run's settings record, beside the random
-    baseline under the same seeds, and writes each evaluation into its run's
-    directory, reading in place of playing any the run already holds.
+    Evaluates the agent of each run at its last checkpoint, over the
+    episodes the run's settings record, beside the random baseline under the
+    same seeds, and writes each evaluation into its run's directory, reading
+    in place of playing any the run already holds. The deep Q-network and
+    PQN play at the epsilon those settings record, and PPO takes its most
+    likely action at every step.
 
     Prints as Markdown each run's measures, then each measure's
     interquartile mean across the runs with its 95% percentile bootstrap

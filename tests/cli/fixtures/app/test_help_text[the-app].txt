@@ -1,14 +1,15 @@
 Usage: squirtl COMMAND
 
-Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and 
-PyTorch.
+Trains an agent to play Pokémon Blue from the screen, through PyBoy and PyTorch.
 
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ evaluate     Evaluates the agent of each run at its last checkpoint, at the  │
-│              epsilon and over the episodes the run's settings record, beside │
-│              the random baseline under the same seeds, and writes each       │
-│              evaluation into its run's directory, reading in place of        │
-│              playing any the run already holds.                              │
+│ evaluate     Evaluates the agent of each run at its last checkpoint, over    │
+│              the episodes the run's settings record, beside the random       │
+│              baseline under the same seeds, and writes each evaluation into  │
+│              its run's directory, reading in place of playing any the run    │
+│              already holds. The deep Q-network and PQN play at the epsilon   │
+│              those settings record, and PPO takes its most likely action at  │
+│              every step.                                                     │
 │ stop         Writes the stop file into a training run's directory from any   │
 │              shell, ending the run with a checkpoint and exit status 0, as a │
 │              first interrupt does, at the end of its episode for the deep    │

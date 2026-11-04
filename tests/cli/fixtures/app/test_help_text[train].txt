@@ -220,8 +220,10 @@ Each of these exits 1 before any directory is made:
 │                               agent and of the random baseline, whose        │
 │                               default follows Mnih et al. [default: 30]      │
 │ --evaluation.epsilon FLOAT    The chance of a random action at each step of  │
-│                               the agent's evaluation episodes, whose default │
-│                               follows Mnih et al. [default: 0.05]            │
+│                               an evaluation episode of the deep Q-network or │
+│                               of PQN, whose default follows Mnih et al. PPO  │
+│                               takes its most likely action at every step.    │
+│                               [default: 0.05]                                │
 │ --evaluation-steps INT        The environment steps between the evaluations  │
 │                               a run plays, each where an episode end, the    │
 │                               end of a rollout's update for PQN and PPO, or  │

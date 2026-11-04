@@ -258,7 +258,7 @@
         "epsilon": {
           "$ref": "#/$defs/UnitInterval",
           "default": 0.05,
-          "description": "The chance of a random action at each step of the agent's evaluation\nepisodes, whose default follows Mnih et al."
+          "description": "The chance of a random action at each step of an evaluation episode of\nthe deep Q-network or of PQN, whose default follows Mnih et al. PPO takes\nits most likely action at every step."
         }
       },
       "title": "EvaluationSettings",

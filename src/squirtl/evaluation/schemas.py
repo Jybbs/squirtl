@@ -199,6 +199,7 @@ class EvaluationSettings(Record):
 
     epsilon: UnitInterval = 0.05
     """
-    The chance of a random action at each step of the agent's evaluation
-    episodes, whose default follows Mnih et al.
+    The chance of a random action at each step of an evaluation episode of
+    the deep Q-network or of PQN, whose default follows Mnih et al. PPO takes
+    its most likely action at every step.
     """
