@@ -18,8 +18,8 @@ from squirtl.agent.schemas       import AgentSettings, Algorithm
 from squirtl.emulator.schemas    import Cartridge
 from squirtl.environment.schemas import EnvironmentSettings, Recording
 from squirtl.reward.schemas      import Term
-from squirtl.runs.schemas        import Episode, Handover, Revision, Run, RunSettings
-from squirtl.runs.trainer        import Trainer
+from squirtl.runs.schemas        import Episode, Revision, Run, RunSettings
+from squirtl.runs.trainer        import Handover, Trainer
 
 
 @fixture

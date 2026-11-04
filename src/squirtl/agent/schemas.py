@@ -3,57 +3,34 @@ Defines the records the agents read and write:
 
 - `Algorithm`, the agents a run trains
 - `AgentSettings`, `PPOSettings`, and `PQNSettings`, every setting they read
-- `Batch`, the transitions one update of the deep Q-network draws
-- `Checkpoint`, `ReplayCheckpoint`, and `RolloutCheckpoint`, the file a resumed
-  run continues training from, and `flush`, which writes it through the drive's
-  cache
 - `Update` and `PolicyUpdate`, the measures one update reads
-- `Weights`, the part of a checkpoint an evaluation reads
+
+It also defines `accelerator`, which draws the default device, and `flush`,
+which writes a file through the drive's cache.
 """
 
 import fcntl
 
-from collections.abc   import Iterable
-from compression.zstd  import ZstdError
-from enum              import StrEnum, auto
-from gymnasium.spaces  import Dict
-from io                import BytesIO
-from numpy             import load as load_npz, ndarray, save as save_npy
-from numpy.lib.npyio   import NpzFile
-from os                import O_RDONLY, close, fsync, open as os_open
-from pathlib           import Path
-from pydantic          import Field, InstanceOf, PositiveFloat, PositiveInt, ValidatorFunctionWrapHandler, WrapValidator
-from pydantic          import model_validator
-from torch             import Tensor, default_generator, load, no_grad, save, set_num_threads
-from torch.accelerator import current_accelerator
-from torch.backends    import nnpack
-from torch.nn          import Module
-from torch.random      import fork_rng
-from torch.serialization import safe_globals
-from typing              import Annotated, Self
-from zipfile             import BadZipFile, ZIP_ZSTANDARD, ZipFile
+from collections.abc import Iterable
+from enum            import StrEnum, auto
+from os              import fsync
+from pydantic        import Field, PositiveFloat, PositiveInt, model_validator
+from typing          import Annotated, Self
 
-from squirtl.agent.networks   import ActorCritic, QNetwork
 from squirtl.emulator.schemas import Record, UnitInterval
 
-type Fraction  = Annotated[float, Field(gt=0, le=1)]
-type StateDict = Annotated[
-    dict[str, InstanceOf[Tensor]], WrapValidator(validate_in_place)
-]
+type Fraction = Annotated[float, Field(gt=0, le=1)]
 
 
-def validate_in_place(  # prose: ignore[unsorted-positionals]
-    state   : object,
-    handler : ValidatorFunctionWrapHandler
-) -> object:
+def accelerator() -> str:
     """
-    Validates each entry of `state` as a tensor through `handler`, then
-    returns `state` itself, since the dict `handler` rebuilds drops the
-    `_metadata` holding each module's version.
+    Names the accelerator torch reports as available, or the CPU where it
+    reports none. It imports torch only on this call, and reading a run's
+    record draws no default, since the record holds its device.
     """
-    handler(state)
+    from torch.accelerator import current_accelerator
 
-    return state
+    return str(current_accelerator(check_available=True) or "cpu")
 
 
 class Algorithm(StrEnum):
@@ -80,89 +57,6 @@ class Algorithm(StrEnum):
         does, where the deep Q-network and PQN choose epsilon-greedily.
         """
         return self is Algorithm.PPO
-
-    def network(self, actions: int, space: Dict) -> Module:
-        """
-        Builds the network the agent acts through for `actions` actions
-        over `space`, a `QNetwork` for the deep Q-network, one whose encoder
-        normalizes each layer for PQN, and an `ActorCritic` for PPO.
-        """
-        match self:
-            case Algorithm.DQN : return QNetwork(actions, space)
-            case Algorithm.PPO : return ActorCritic(actions, space)
-            case Algorithm.PQN : return QNetwork(actions, space, normalized=True)
-
-
-class Batch(Record):
-    """
-    The transitions one update draws from replay memory, each field on the
-    device the settings name.
-    """
-
-    actions: InstanceOf[Tensor]
-    """
-    The action each draw took, a `(batch,)` tensor of `int64`.
-    """
-
-    rewards: InstanceOf[Tensor]
-    """
-    The reward each draw earned, a `(batch,)` tensor of `float32`.
-    """
-
-    terminated: InstanceOf[Tensor]
-    """
-    Whether each draw ended its episode, a `(batch,)` tensor of `bool`.
-    """
-
-    windows: dict[str, InstanceOf[Tensor]]
-    """
-    One `(batch, depth + 1, *element)` tensor per entry, its first `depth`
-    elements the observation acted on and its last `depth` the one reached.
-    """
-
-    @property
-    def next_observations(self) -> dict[str, Tensor]:
-        """
-        Slices the observation each draw reached out of `windows`.
-        """
-        return {key: window[:, 1:] for key, window in self.windows.items()}
-
-    @property
-    def observations(self) -> dict[str, Tensor]:
-        """
-        Slices the observation each draw acted on out of `windows`.
-        """
-        return {key: window[:, :-1] for key, window in self.windows.items()}
-
-    @no_grad()
-    def targets(self, chooser: QNetwork, discount: float, network: QNetwork) -> Tensor:
-        """
-        Values each draw at its reward plus `discount` times the value
-        `network` gives the observation reached under the action `chooser`
-        values highest there, or the reward alone where it terminated,
-        recording no autograd graph. Where `chooser` is the online network
-        and `network` the target network, the target is van Hasselt et al.'s
-        Double DQN target, and where both are the target network, it is the
-        highest value the target network gives, as Mnih et al.'s is, read
-        from one pass of `network`.
-        """
-        reached = self.next_observations
-        valued  = network(reached)
-        chosen  = valued if chooser is network else chooser(reached)
-
-        return (
-            self.rewards
-            + discount
-                * valued.gather(1, chosen.argmax(1, keepdim=True))[:, 0]
-                * ~self.terminated
-        )
-
-    def values(self, network: QNetwork) -> Tensor:
-        """
-        Reads the value `network` gives each draw's action on the
-        observation it acted on.
-        """
-        return network(self.observations).gather(1, self.actions[:, None])[:, 0]
 
 
 class Measures(Record):
@@ -321,61 +215,6 @@ class PQNSettings(Record):
     """
 
 
-class Weights(Record, extra="ignore"):
-    """
-    The weights of the network an agent acts through and the step
-    a checkpoint holds them at, which an evaluation reads from the
-    checkpoint's `agent.pt` member alone.
-    """
-
-    online: StateDict
-    """
-    The `state_dict` of the network the agent acts through, the online
-    network for the deep Q-network.
-    """
-
-    step: int
-    """
-    The environment steps the agent has taken.
-    """
-
-    @classmethod
-    def from_path(cls, path: Path) -> Self:
-        """
-        Reads the checkpoint `save` wrote at `path` through `members`, then
-        validates each field the record declares.
-
-        Raises:
-            ValidationError : Where a field is missing or a network entry is
-                              no tensor.
-            ValueError      : Where the file at `path` is cut short or
-                              damaged, in its zip directory, a zip header, a
-                              zstd frame, or a member, naming `path`.
-        """
-        try:
-            # `numpy.load` leaves a file it opened itself open where `ZipFile` refuses
-            # it, so the file is opened here and closed by this block.
-            with path.open("rb") as file, load_npz(file) as archive:
-                return cls.model_validate(cls.members(archive))
-        except (
-            BadZipFile, EOFError, KeyError, NotImplementedError, ZstdError
-        ) as error:
-            raise ValueError(f"{path} holds no whole checkpoint: {error}") from error
-
-    @classmethod
-    def members(cls, archive: NpzFile) -> dict[str, object]:
-        """
-        Reads the `agent.pt` member of `archive` onto the CPU, leaving
-        every other member unread. `torch.load` reads it under its default
-        `weights_only=True`, which unpickles tensors and plain values alone,
-        with the `bytes` global allowed for the recording of an episode no
-        step has played, since `torch.save` pickles an empty `bytes` through
-        that global.
-        """
-        with safe_globals([bytes]):
-            return load(BytesIO(archive["agent.pt"]), map_location="cpu")
-
-
 class AgentSettings(Record):
     """
     The settings the agents read, each a field of `RunSettings.agent` and
@@ -403,11 +242,7 @@ class AgentSettings(Record):
     grid and the flags packed eight cells to a byte.
     """
 
-    device: str = Field(
-        default_factory = lambda: str(
-            current_accelerator(check_available=True) or "cpu"
-        )
-    )
+    device: str = Field(default_factory=accelerator)
     """
     The device every network and batch sit on, which defaults to the
     accelerator torch reports and to the CPU where it reports none.
@@ -521,24 +356,6 @@ class AgentSettings(Record):
         """
         return {Algorithm.PPO: self.ppo, Algorithm.PQN: self.pqn}.get(self.algorithm)
 
-    def network(self, actions: int, seed: int, space: Dict) -> Module:
-        """
-        Builds the network `algorithm` names on `device`, under a fork of
-        PyTorch's global generator seeded from `seed`. It first turns NNPACK
-        off for the whole process, which runs these networks' convolutions
-        on the CPU slower than PyTorch's own, and sets the process's thread
-        count to `threads`, where it names one.
-        """
-        nnpack.set_flags(False)
-
-        if self.threads:
-            set_num_threads(self.threads)
-
-        with fork_rng(devices=[]):
-            default_generator.manual_seed(seed)
-
-            return self.algorithm.network(actions, space).to(self.device)
-
     @model_validator(mode="after")
     def verify(self) -> Self:
         """
@@ -568,77 +385,6 @@ class AgentSettings(Record):
                 )
 
         return self
-
-
-class Checkpoint(Weights, extra="forbid"):
-    """
-    Everything a resumed run continues training from, the `Weights` an
-    evaluation reads among it, which `save` writes as one `.npz` holding an
-    `agent.pt` member beside an `.npy` member for each of its `arrays`.
-    """
-
-    optimizer: dict[str, object]
-    """
-    The optimizer's `state_dict`.
-    """
-
-    @property
-    def arrays(self) -> dict[str, ndarray]:
-        """
-        Lists each array `save` writes as an `.npy` member of its own, none
-        beyond what `agent.pt` holds.
-        """
-        return {}
-
-    @property
-    def contents(self) -> dict[str, object]:
-        """
-        Gathers what the `agent.pt` member holds, every field as it is, so
-        each `state_dict` keeps its `_metadata`.
-        """
-        return dict(self)
-
-    def save(self, path: Path):
-        """
-        Writes the checkpoint to `path` as an `.npz` whose members `zipfile`
-        compresses with zstd, an `agent.pt` member that `torch.save` writes
-        from `contents` beside an `.npy` member for each of `arrays`.
-
-        The archive is written to the `.partial` file beside `path` and
-        flushed through the drive's own cache, then takes the name `path`,
-        whose directory is flushed in turn. An interrupt therefore leaves
-        the checkpoint at `path` as it was, and the `.partial` file goes
-        whether or not the write raised.
-        """
-        partial = path.with_name(f"{path.name}.partial")
-
-        try:
-            with partial.open("wb") as file:
-                with ZipFile(file, "w", ZIP_ZSTANDARD) as archive:
-                    with archive.open("agent.pt", "w") as member:
-                        save(self.contents, member)
-
-                    for name, array in self.arrays.items():
-                        # ZIP64 lets the frames of a large replay memory pass 2 GiB.
-                        with archive.open(
-                            f"{name}.npy",
-                            "w",
-                            force_zip64 = True
-                        ) as member:
-                            save_npy(member, array)
-
-                flush(file.fileno())
-
-            partial.replace(path)
-        finally:
-            partial.unlink(missing_ok=True)
-
-        directory = os_open(path.parent, O_RDONLY)
-
-        try:
-            fsync(directory)
-        finally:
-            close(directory)
 
 
 class PolicyUpdate(Measures):
@@ -675,60 +421,6 @@ class PolicyUpdate(Measures):
     """
 
 
-class ReplayCheckpoint(Checkpoint):
-    """
-    Everything a resumed run of the deep Q-network continues training from,
-    replay memory's arrays written as members of their own.
-    """
-
-    exploration: dict[str, object]
-    """
-    The state of the generator choosing each random action.
-    """
-
-    replay: dict[str, InstanceOf[ndarray]]
-    """
-    Each array replay memory holds, named as `Replay.arrays` names it.
-    """
-
-    sampling: dict[str, object]
-    """
-    The state of the generator drawing each batch from replay memory.
-    """
-
-    target: StateDict
-    """
-    The target network's `state_dict`.
-    """
-
-    @property
-    def arrays(self) -> dict[str, ndarray]:
-        """
-        Lists replay memory's arrays.
-        """
-        return self.replay
-
-    @property
-    def contents(self) -> dict[str, object]:
-        """
-        Gathers every field but `replay`, as `Checkpoint.contents` does.
-        """
-        return {
-            key: value for key, value in super().contents.items() if key != "replay"
-        }
-
-    @classmethod
-    def members(cls, archive: NpzFile) -> dict[str, object]:
-        """
-        Reads `agent.pt` as `Weights.members` does and every other member of
-        `archive` as an array of `replay`.
-        """
-        return super().members(archive) | {
-            "replay":
-                {name: archive[name] for name in archive.files if name != "agent.pt"}
-        }
-
-
 class Update(Measures):
     """
     The loss and the mean value one update of the deep Q-network or PQN
@@ -744,18 +436,6 @@ class Update(Measures):
     value: float
     """
     The mean value the network gives each sampled action.
-    """
-
-
-class RolloutCheckpoint(Checkpoint):
-    """
-    Everything a resumed run of PQN or PPO continues training from on the
-    agent's side.
-    """
-
-    generator: dict[str, object]
-    """
-    The state of the generator every random draw of the agent comes from.
     """
 
 

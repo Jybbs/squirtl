@@ -1772,6 +1772,29 @@ def test_the_audit_reports_each_unreadable_file_once(
 
 
 @mark.parametrize(
+    ("name", "group"),
+    [
+        param("vitest", {"@vitest/coverage-v8", "vitest"}, id="a-lead"),
+        param(
+            "@tailwindcss/vite",
+            {
+                "@tailwindcss/node", "@tailwindcss/oxide",
+                "@tailwindcss/vite", "tailwindcss"
+            },
+            id = "a-partner"
+        ),
+        param("knip", {"knip"}, id="an-unpaired-pin")
+    ]
+)
+def test_a_pin_moves_with_the_group_holding_it_or_alone(group: set[str], name: str):
+    """
+    Pins that a pin the site's pins check pairs reads as its whole group
+    from either side of the pair, and any other pin as itself alone.
+    """
+    assert SitePins.moving_with(name) == group
+
+
+@mark.parametrize(
     ("rewrite", "found"),
     [
         param(("", ""), [], id="clean"),

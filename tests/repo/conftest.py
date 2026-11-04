@@ -54,8 +54,17 @@ def manifest() -> str:
 @fixture
 def mise_config() -> str:
     """
-    Builds the text of a `.mise/config.toml` pinning Node.js 26.12.1, Python
-    3.14.6, and uv 0.12.13, the pins `manifest` and the site's manifest a
-    case writes each repeat.
+    Builds the text of a `.mise/config.toml` setting mise 2026.9.18 as its
+    floor and pinning Node.js 26.12.1, Python 3.14.6, and uv 0.12.13, the
+    pins `manifest` and the site's manifest a case writes each repeat.
     """
-    return '[tools]\nnode = "26.12.1"\npython = "3.14.6"\nuv = "0.12.13"\n'
+    return dedent(
+        """
+        min_version = "2026.9.18"
+
+        [tools]
+        node   = "26.12.1"
+        python = "3.14.6"
+        uv     = "0.12.13"
+        """
+    )

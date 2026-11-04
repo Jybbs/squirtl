@@ -7,36 +7,29 @@ Defines the records one run reads and writes:
   evaluation, and the checkpoint
 - `Episode`, one episode as a line of the run's `episodes`
 - `Stream`, the streams of random draws the run makes
-- `Moments`, `Slot`, and `VectorCheckpoint`, everything a resumed run of PQN
-  or PPO continues from
-- `Handover`, what a resumed run takes over from the run it continues
 """
 
 from collections     import deque
 from collections.abc import Iterator
 from datetime        import UTC, datetime
 from enum            import StrEnum, auto
-from gymnasium.envs.registration import EnvSpec
-from hashlib      import sha256
-from itertools    import islice, takewhile
-from json         import loads
-from loguru       import logger
-from numpy        import uint64
-from numpy.random import SeedSequence
-from os           import SEEK_END, pread
-from pathlib      import Path
-from pydantic     import AwareDatetime, Field, NonNegativeInt, PositiveInt, PrivateAttr, StringConstraints
-from subprocess   import check_output
-from typing       import Annotated, Self
+from hashlib         import sha256
+from itertools       import islice, takewhile
+from json            import loads
+from loguru          import logger
+from numpy           import uint64
+from numpy.random    import SeedSequence
+from os              import SEEK_END, pread
+from pathlib         import Path
+from pydantic        import AwareDatetime, Field, NonNegativeInt, PositiveInt, PrivateAttr, StringConstraints
+from subprocess      import check_output
+from typing          import Annotated, Self
 
-from squirtl.agent.schemas         import AgentSettings, Algorithm, PolicyUpdate, ReplayCheckpoint, RolloutCheckpoint
-from squirtl.agent.schemas         import Update, Weights, flush
-from squirtl.emulator.schemas      import Cartridge, EmulatorSettings, Record
-from squirtl.environment.overworld import Overworld
-from squirtl.environment.schemas   import EnvironmentSettings, Outcome, Recording
-from squirtl.evaluation.evaluator  import Evaluator
-from squirtl.evaluation.schemas    import Evaluation, EvaluationSettings
-from squirtl.reward.schemas        import RewardSettings
+from squirtl.agent.schemas       import AgentSettings, PolicyUpdate, Update, flush
+from squirtl.emulator.schemas    import EmulatorSettings, Record
+from squirtl.environment.schemas import EnvironmentSettings, Outcome, Recording
+from squirtl.evaluation.schemas  import Evaluation, EvaluationSettings
+from squirtl.reward.schemas      import RewardSettings
 
 type Hexadecimal = Annotated[
     str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
@@ -183,18 +176,6 @@ class RunSettings(Record):
             stream: child.generate_state(1, uint64).item()
             for stream, child in zip(Stream, SeedSequence(self.seed).spawn(len(Stream)))
         }
-
-    def specification(self, cartridge: Cartridge) -> EnvSpec:
-        """
-        Specifies the environment the run plays on `cartridge` under its
-        emulator, environment, and reward settings.
-        """
-        return Overworld.specification(
-            cartridge,
-            self.emulator,
-            self.environment,
-            self.reward
-        )
 
 
 class Run(Record):
@@ -397,56 +378,6 @@ class Run(Record):
 
         raise IndexError(f"{self.episodes} holds no episode {number or 'at all'}")
 
-    def evaluate(
-        self,
-        cartridge : Cartridge,
-        weights   : Weights
-    ) -> tuple[Evaluation, Evaluation]:
-        """
-        Reads the agent's evaluation at the step of `weights` and the random
-        baseline's from the run, playing whichever of the two it lacks under
-        the evaluation settings and the evaluation stream it recorded and
-        writing it there. The agent plays from the online network `weights`
-        holds, and the baseline under the same seeds.
-
-        Returns:
-            The agent's evaluation and the baseline's.
-        """
-        held = next(
-            (
-                evaluation
-                for evaluation in self.evaluated
-                if evaluation.step == weights.step
-            ),
-            None
-        )
-        baseline = Evaluation.model_validate_json(
-            self.baseline.read_text(encoding="utf-8")
-        ) if self.baseline.exists() else None
-
-        if held is None or baseline is None:
-            settings = self.settings
-
-            with Evaluator(
-                settings.agent.algorithm,
-                settings.agent.device,
-                settings.seeds[Stream.EVALUATION],
-                settings.evaluation,
-                settings.specification(cartridge)
-            ) as evaluator:
-                if held is None:
-                    held = evaluator.evaluate(weights)
-                    self.append(self.evaluations, held)
-
-                if baseline is None:
-                    baseline = evaluator.baseline()
-                    self.baseline.write_text(
-                        baseline.model_dump_json(),
-                        encoding = "utf-8"
-                    )
-
-        return held, baseline
-
     def evaluated_by(self, step: int) -> Iterator[Evaluation]:
         """
         Reads each evaluation `evaluations` holds of the agent at `step` of
@@ -470,20 +401,6 @@ class Run(Record):
             )
 
         return lines
-
-    def inherit(self, handover: Handover):
-        """
-        Writes into the run what `handover` carries over from the run
-        it continues, each episode's line as that run wrote it, each
-        evaluation, and the random baseline's where it played one.
-        """
-        with self.episodes.open("a", encoding="utf-8") as lines:
-            lines.writelines(handover.episodes)
-
-        self.append(self.evaluations, *handover.evaluations)
-
-        if handover.baseline is not None:
-            self.baseline.write_text(handover.baseline, encoding="utf-8")
 
     def lines(self, path: Path) -> Iterator[str]:
         """
@@ -594,171 +511,3 @@ class Episode(Outcome):
     episode played, the loss and the value for the deep Q-network and PQN
     and PPO's own for PPO, or `None` where none ran.
     """
-
-
-class Moments(Record):
-    """
-    The statistics `NormalizeReward` keeps of the discounted returns, by the
-    square root of whose variance it divides each reward.
-    """
-
-    count: float
-    """
-    The count of returns, which starts from a small positive value.
-    """
-
-    mean: float
-    """
-    The returns' running mean.
-    """
-
-    var: float
-    """
-    The returns' running variance.
-    """
-
-
-class Slot(Record):
-    """
-    One environment of a run of PQN or PPO as a checkpoint leaves it, in the
-    middle of an episode.
-    """
-
-    count: int
-    """
-    The updates taken while the episode played.
-    """
-
-    generator: dict[str, object]
-    """
-    The state of the generator the environment's next reset draws its
-    `timer_div` from.
-    """
-
-    recording: Recording
-    """
-    The episode the environment is playing, unfinished, which a resumed run
-    plays back through the environment's wrappers.
-    """
-
-    returned: float
-    """
-    The discounted return `NormalizeReward` keeps for the episode.
-    """
-
-    totals: list[float]
-    """
-    The sum of each measure of the updates taken while the episode played.
-    """
-
-
-class VectorCheckpoint(RolloutCheckpoint):
-    """
-    Everything a resumed run of PQN or PPO continues training from, the
-    environments' side beside the agent's.
-    """
-
-    episodes: NonNegativeInt
-    """
-    The count of episodes the run had written to its `episodes`.
-    """
-
-    moments: Moments
-    """
-    The statistics `NormalizeReward` scales each reward by.
-    """
-
-    slots: list[Slot]
-    """
-    Each environment, in the order the run steps them.
-    """
-
-    @property
-    def contents(self) -> dict[str, object]:
-        """
-        Gathers every field as `Checkpoint.contents` does, the moments
-        and each slot as plain values, which `torch.load` reads under
-        `weights_only=True`.
-        """
-        return super().contents | self.model_dump(include={"moments", "slots"})
-
-
-class Handover(Record):
-    """
-    What a resumed run takes over from the stopped run it continues, read
-    whole before the new run writes anything, so a resume refused for any of
-    it leaves no directory behind.
-    """
-
-    baseline: str | None
-    """
-    The random baseline's evaluation as the stopped run's `baseline` holds
-    it, or `None` where it played none.
-    """
-
-    checkpoint: ReplayCheckpoint | VectorCheckpoint
-    """
-    The stopped run's last checkpoint, which the run restores.
-    """
-
-    episodes: list[str]
-    """
-    The line of each episode written before the checkpoint, as the stopped
-    run's `episodes` holds it.
-    """
-
-    evaluations: list[Evaluation]
-    """
-    Each evaluation of the agent at the checkpoint's step or before it.
-    """
-
-    name: str
-    """
-    The stopped run's name, which the new run records under `resumes`.
-    """
-
-    @property
-    def evaluated(self) -> int:
-        """
-        Reads the step of the last evaluation carried over, or 0 where none
-        is.
-        """
-        return self.evaluations[-1].step if self.evaluations else 0
-
-    @classmethod
-    def from_run(cls, previous: Run) -> Self:
-        """
-        Reads what `previous` recorded up to its last checkpoint, the
-        episodes ending by its step for the deep Q-network, whose checkpoint
-        lands at an episode's end, and the count of episodes it names for
-        PQN and PPO.
-
-        Raises:
-            FileNotFoundError : Where `previous` holds no checkpoint.
-            ValueError        : Where the checkpoint is damaged or already
-                                holds the run's `steps`, or the episodes
-                                `previous` recorded end short of it, as
-                                `Run.ended_by` and `Run.first` raise.
-        """
-        dqn        = previous.settings.agent.algorithm is Algorithm.DQN
-        checkpoint = (ReplayCheckpoint if dqn else VectorCheckpoint).from_path(
-            previous.checkpoint
-        )
-
-        if checkpoint.step >= previous.settings.steps:
-            raise ValueError(
-                f"{previous.checkpoint} already holds the run's "
-                f"{previous.settings.steps:,} steps"
-            )
-
-        return cls(
-            baseline = previous.baseline.read_text(
-                encoding = "utf-8"
-            ) if previous.baseline.exists() else None,
-            checkpoint = checkpoint,
-            episodes   = previous.ended_by(
-                checkpoint.step
-            ) if dqn else previous.first(checkpoint.episodes),
-            evaluations = list(previous.evaluated_by(checkpoint.step)),
-            name        = previous.name
-        )

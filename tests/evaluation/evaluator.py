@@ -24,8 +24,9 @@ from torch             import Tensor, arange, equal, get_rng_state, no_grad, ten
 from torch.testing     import assert_close
 from typing            import Any
 
-from squirtl.agent.networks        import ActorCritic
-from squirtl.agent.schemas         import Algorithm, Weights
+from squirtl.agent.checkpoint      import Weights
+from squirtl.agent.networks        import ActorCritic, acting_network
+from squirtl.agent.schemas         import Algorithm
 from squirtl.emulator.schemas      import Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Outcome
@@ -210,8 +211,9 @@ def test_each_agent_plays_its_network_at_its_epsilon(
     )
 
     with evaluator(algorithm, environments=1, episodes=1) as started:
-        built = algorithm.network(
+        built = acting_network(
             started.envs.single_action_space.n,
+            algorithm,
             started.envs.single_observation_space
         )
         started.evaluate(Weights(online=built.state_dict(), step=9))
@@ -296,8 +298,9 @@ def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
     read and leaving PyTorch's global generator as it found it.
     """
     with evaluator(algorithm, environments=2, episodes=3) as started:
-        online = algorithm.network(
+        online = acting_network(
             started.envs.single_action_space.n,
+            algorithm,
             started.envs.single_observation_space
         ).state_dict()
         state  = get_rng_state()

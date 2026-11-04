@@ -18,9 +18,9 @@ from os              import truncate
 from pathlib         import Path
 from pytest          import MonkeyPatch, mark, param
 
-from squirtl.agent.schemas import ReplayCheckpoint
-from squirtl.runs.schemas  import Run, VectorCheckpoint
-from squirtl.runs.trainer  import Trainer
+from squirtl.agent.checkpoint import ReplayCheckpoint
+from squirtl.runs.schemas     import Run
+from squirtl.runs.trainer     import Trainer, VectorCheckpoint
 
 
 def cut_checkpoint(run: Run):

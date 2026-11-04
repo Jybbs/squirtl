@@ -1,16 +1,21 @@
 """
-Defines the networks the agents train, `QNetwork`, which values each action
-for the deep Q-network and PQN, and `ActorCritic`, which PPO trains, beside
-`Encoder`, which both read each observation through, `ChannelNorm`, and
-`tensors`, which moves a batch of observations onto a device.
+Defines the networks the agents train, `QNetwork`, which values each
+action for the deep Q-network and PQN, and `ActorCritic`, which PPO trains,
+beside `Encoder`, which both read each observation through, `ChannelNorm`,
+`acting_network` and `seeded_network`, which build the one an agent acts
+through, and `tensors`, which moves a batch of observations onto a device.
 """
 
 from collections.abc  import Mapping
 from gymnasium.spaces import Dict, flatten_space
 from numpy            import ndarray
-from torch            import Tensor, as_tensor, cat, uint8, zeros
+from torch            import Tensor, as_tensor, cat, default_generator, set_num_threads, uint8, zeros
+from torch.backends   import nnpack
 from torch.nn         import Conv2d, Flatten, Identity, LayerNorm, LazyConv2d, LazyLinear, Linear, Module, ModuleDict
 from torch.nn         import ReLU, Sequential
+from torch.random     import fork_rng
+
+from squirtl.agent.schemas import AgentSettings, Algorithm
 
 
 class ActorCritic(Module):
@@ -198,6 +203,42 @@ class QNetwork(Module):
         Values each action for each observation.
         """
         return self.head(self.encoder(observations))
+
+
+def acting_network(actions: int, algorithm: Algorithm, space: Dict) -> Module:
+    """
+    Builds the network `algorithm` acts through for `actions` actions
+    over `space`, a `QNetwork` for the deep Q-network, one whose encoder
+    normalizes each layer for PQN, and an `ActorCritic` for PPO.
+    """
+    match algorithm:
+        case Algorithm.DQN : return QNetwork(actions, space)
+        case Algorithm.PPO : return ActorCritic(actions, space)
+        case Algorithm.PQN : return QNetwork(actions, space, normalized=True)
+
+
+def seeded_network(
+    actions  : int,
+    seed     : int,
+    settings : AgentSettings,
+    space    : Dict
+) -> Module:
+    """
+    Builds the network `settings` names on its device, under a fork of
+    PyTorch's global generator seeded from `seed`. It first turns NNPACK off
+    for the whole process, which runs these networks' convolutions on the
+    CPU slower than PyTorch's own, and sets the process's thread count to
+    `threads`, where the settings name one.
+    """
+    nnpack.set_flags(False)
+
+    if settings.threads:
+        set_num_threads(settings.threads)
+
+    with fork_rng(devices=[]):
+        default_generator.manual_seed(seed)
+
+        return acting_network(actions, settings.algorithm, space).to(settings.device)
 
 
 def tensors(device: str, observations: Mapping[str, ndarray]) -> dict[str, Tensor]:

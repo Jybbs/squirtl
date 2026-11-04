@@ -17,8 +17,9 @@ from numpy.random import SeedSequence
 from torch        import Tensor, inference_mode
 from torch.random import fork_rng
 
-from squirtl.agent.networks      import tensors
-from squirtl.agent.schemas       import Algorithm, Weights
+from squirtl.agent.checkpoint    import Weights
+from squirtl.agent.networks      import acting_network, tensors
+from squirtl.agent.schemas       import Algorithm
 from squirtl.emulator.schemas    import Record, UnitInterval
 from squirtl.environment.schemas import Outcome
 from squirtl.environment.workers import ignore_interrupts
@@ -145,8 +146,9 @@ class Evaluator(AbstractContextManager):
         the agent and that generator as they were.
         """
         with fork_rng(devices=[]):
-            network = self.algorithm.network(
+            network = acting_network(
                 self.envs.single_action_space.n,
+                self.algorithm,
                 self.envs.single_observation_space
             )
 

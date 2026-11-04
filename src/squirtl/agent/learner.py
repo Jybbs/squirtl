@@ -22,11 +22,11 @@ from torch.nn.utils      import clip_grad_norm_
 from torch.optim         import Adam, AdamW, Optimizer, RAdam
 from typing              import ClassVar
 
-from squirtl.agent.networks import tensors
-from squirtl.agent.replay   import Replay
-from squirtl.agent.rollout  import Rollout
-from squirtl.agent.schemas  import AgentSettings, Algorithm, Measures, PQNSettings, ReplayCheckpoint, RolloutCheckpoint
-from squirtl.agent.schemas  import Update, Weights
+from squirtl.agent.checkpoint import ReplayCheckpoint, RolloutCheckpoint, Weights
+from squirtl.agent.networks   import seeded_network, tensors
+from squirtl.agent.replay     import Replay
+from squirtl.agent.rollout    import Rollout
+from squirtl.agent.schemas    import AgentSettings, Algorithm, Measures, PQNSettings, Update
 
 
 class DQN:
@@ -58,7 +58,7 @@ class DQN:
         self.exploration, sampling = default_rng(seed).spawn(2)
 
         self.actions   = actions
-        self.online    = settings.network(actions, seed, space)
+        self.online    = seeded_network(actions, seed, settings, space)
         self.optimizer = Adam(self.online.parameters(), lr=settings.learning_rate)
         self.replay    = Replay(settings.capacity, sampling, space)
         self.settings  = settings
@@ -255,7 +255,7 @@ class RolloutAgent(ABC):
         """
         self.actions   = actions
         self.generator = default_rng(seed)
-        self.network   = settings.network(actions, seed, space)
+        self.network   = seeded_network(actions, seed, settings, space)
         self.rollout   = Rollout(
             environments,
             space,

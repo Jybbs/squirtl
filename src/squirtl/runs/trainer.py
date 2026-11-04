@@ -2,30 +2,97 @@
 Defines `Trainer`, the training loop of one run, which `squirtl train`
 drives through each step of the run, as `EpisodeTrainer` plays it for the
 deep Q-network and `RolloutTrainer` for PQN and PPO, beside `Tally`, the
-sums of the measures each environment's episode averages.
+sums of the measures each environment's episode averages, and the records a
+resumed run reads:
+
+- `Handover`, what it takes over from the stopped run it continues
+- `Moments`, `Slot`, and `VectorCheckpoint`, everything it continues from
+  where the run trains PQN or PPO
 """
 
-from abc              import ABC, abstractmethod
-from collections.abc  import Iterator, Mapping
-from contextlib       import AbstractContextManager
-from datetime         import datetime
-from gymnasium        import Env, make_vec
-from gymnasium.vector import AutoresetMode, VectorEnv
-from gymnasium.vector.utils    import concatenate, create_empty_array
-from gymnasium.wrappers.vector import NormalizeReward
+from abc             import ABC, abstractmethod
+from collections.abc import Iterator, Mapping
+from contextlib      import AbstractContextManager
+from datetime        import datetime
+from gymnasium       import Env, make_vec
+from gymnasium.envs.registration import EnvSpec
+from gymnasium.vector            import AutoresetMode, VectorEnv
+from gymnasium.vector.utils      import concatenate, create_empty_array
+from gymnasium.wrappers.vector   import NormalizeReward
 from loguru       import logger
 from numpy        import flatnonzero, float32, float64, int64, ndarray, uint64, zeros
 from numpy.random import Generator, SeedSequence, default_rng
+from pydantic     import NonNegativeInt
 from signal       import SIGINT, SIGTERM, signal
 from types        import FrameType
 from typing       import ClassVar, Self
 
-from squirtl.agent.learner       import DQN, RolloutAgent
-from squirtl.agent.schemas       import Measures, ReplayCheckpoint, Update
-from squirtl.emulator.schemas    import Cartridge
-from squirtl.environment.schemas import Outcome, Recording
-from squirtl.environment.workers import ignore_interrupts
-from squirtl.runs.schemas        import Episode, Handover, Moments, Run, RunSettings, Slot, Stream, VectorCheckpoint
+from squirtl.agent.checkpoint      import ReplayCheckpoint, RolloutCheckpoint
+from squirtl.agent.learner         import DQN, RolloutAgent
+from squirtl.agent.schemas         import Algorithm, Measures, Update
+from squirtl.emulator.schemas      import Cartridge, Record
+from squirtl.environment.overworld import Overworld
+from squirtl.environment.schemas   import Outcome, Recording
+from squirtl.environment.workers   import ignore_interrupts
+from squirtl.evaluation.schemas    import Evaluation
+from squirtl.runs.benchmark        import Benchmark
+from squirtl.runs.schemas          import Episode, Run, RunSettings, Stream
+
+
+class Moments(Record):
+    """
+    The statistics `NormalizeReward` keeps of the discounted returns, by the
+    square root of whose variance it divides each reward.
+    """
+
+    count: float
+    """
+    The count of returns, which starts from a small positive value.
+    """
+
+    mean: float
+    """
+    The returns' running mean.
+    """
+
+    var: float
+    """
+    The returns' running variance.
+    """
+
+
+class Slot(Record):
+    """
+    One environment of a run of PQN or PPO as a checkpoint leaves it, in the
+    middle of an episode.
+    """
+
+    count: int
+    """
+    The updates taken while the episode played.
+    """
+
+    generator: dict[str, object]
+    """
+    The state of the generator the environment's next reset draws its
+    `timer_div` from.
+    """
+
+    recording: Recording
+    """
+    The episode the environment is playing, unfinished, which a resumed run
+    plays back through the environment's wrappers.
+    """
+
+    returned: float
+    """
+    The discounted return `NormalizeReward` keeps for the episode.
+    """
+
+    totals: list[float]
+    """
+    The sum of each measure of the updates taken while the episode played.
+    """
 
 
 class Tally:
@@ -64,6 +131,132 @@ class Tally:
         self.totals[slot] = 0
 
         return self.measures.averaged(count, totals) if count else None
+
+
+class VectorCheckpoint(RolloutCheckpoint):
+    """
+    Everything a resumed run of PQN or PPO continues training from, the
+    environments' side beside the agent's.
+    """
+
+    episodes: NonNegativeInt
+    """
+    The count of episodes the run had written to its `episodes`.
+    """
+
+    moments: Moments
+    """
+    The statistics `NormalizeReward` scales each reward by.
+    """
+
+    slots: list[Slot]
+    """
+    Each environment, in the order the run steps them.
+    """
+
+    @property
+    def contents(self) -> dict[str, object]:
+        """
+        Gathers every field as `Checkpoint.contents` does, the moments
+        and each slot as plain values, which `torch.load` reads under
+        `weights_only=True`.
+        """
+        return super().contents | self.model_dump(include={"moments", "slots"})
+
+
+class Handover(Record):
+    """
+    What a resumed run takes over from the stopped run it continues, read
+    whole before the new run writes anything, so a resume refused for any of
+    it leaves no directory behind.
+    """
+
+    baseline: str | None
+    """
+    The random baseline's evaluation as the stopped run's `baseline` holds
+    it, or `None` where it played none.
+    """
+
+    checkpoint: ReplayCheckpoint | VectorCheckpoint
+    """
+    The stopped run's last checkpoint, which the run restores.
+    """
+
+    episodes: list[str]
+    """
+    The line of each episode written before the checkpoint, as the stopped
+    run's `episodes` holds it.
+    """
+
+    evaluations: list[Evaluation]
+    """
+    Each evaluation of the agent at the checkpoint's step or before it.
+    """
+
+    name: str
+    """
+    The stopped run's name, which the new run records under `resumes`.
+    """
+
+    @property
+    def evaluated(self) -> int:
+        """
+        Reads the step of the last evaluation carried over, or 0 where none
+        is.
+        """
+        return self.evaluations[-1].step if self.evaluations else 0
+
+    @classmethod
+    def from_run(cls, previous: Run) -> Self:
+        """
+        Reads what `previous` recorded up to its last checkpoint, the
+        episodes ending by its step for the deep Q-network, whose checkpoint
+        lands at an episode's end, and the count of episodes it names for
+        PQN and PPO.
+
+        Raises:
+            FileNotFoundError : Where `previous` holds no checkpoint.
+            ValueError        : Where the checkpoint is damaged or already
+                                holds the run's `steps`, or the episodes
+                                `previous` recorded end short of it, as
+                                `Run.ended_by` and `Run.first` raise.
+        """
+        dqn        = previous.settings.agent.algorithm is Algorithm.DQN
+        checkpoint = (ReplayCheckpoint if dqn else VectorCheckpoint).from_path(
+            previous.checkpoint
+        )
+
+        if checkpoint.step >= previous.settings.steps:
+            raise ValueError(
+                f"{previous.checkpoint} already holds the run's "
+                f"{previous.settings.steps:,} steps"
+            )
+
+        return cls(
+            baseline = previous.baseline.read_text(
+                encoding = "utf-8"
+            ) if previous.baseline.exists() else None,
+            checkpoint = checkpoint,
+            episodes   = previous.ended_by(
+                checkpoint.step
+            ) if dqn else previous.first(checkpoint.episodes),
+            evaluations = list(previous.evaluated_by(checkpoint.step)),
+            name        = previous.name
+        )
+
+    def write(self, run: Run):
+        """
+        Writes into `run` what the handover carries over, each episode's
+        line as the stopped run wrote it, each evaluation, and the random
+        baseline's where it played one.
+        """
+        with run.episodes.open("a", encoding="utf-8") as lines:
+            lines.writelines(self.episodes)
+
+        run.append(run.evaluations, *self.evaluations)
+
+        if self.baseline is not None:
+            run.baseline.write_text(self.baseline, encoding="utf-8")
 
 
 class Trainer(AbstractContextManager, ABC):
@@ -194,6 +387,18 @@ class Trainer(AbstractContextManager, ABC):
         """
 
     @property
+    def specification(self) -> EnvSpec:
+        """
+        Reads the specification of the environment the run plays.
+        """
+        return Overworld.specification(
+            self.cartridge,
+            self.settings.emulator,
+            self.settings.environment,
+            self.settings.reward
+        )
+
+    @property
     def stopping(self) -> bool:
         """
         Reads whether the run stops where `play` next returns, which a
@@ -231,35 +436,36 @@ class Trainer(AbstractContextManager, ABC):
 
     def evaluate(self):
         """
-        Evaluates the agent at its step through `Run.evaluate`, recording
-        the step it landed at, and logs how often the agent and the random
-        baseline reached the starter and the returns each averaged.
+        Evaluates the agent at its step through `Benchmark.from_run`,
+        recording the step it landed at, and logs how often the agent
+        and the random baseline reached the starter and the returns each
+        averaged.
         """
         logger.info("Evaluating the agent at step {:,}", self.agent.step)
 
-        evaluation, baseline = self.run.evaluate(self.cartridge, self.agent.weights)
-        self.evaluated       = self.agent.step
+        benchmark = Benchmark.from_run(self.cartridge, self.run, self.agent.weights)
+        self.evaluated = self.agent.step
 
         logger.info(
             "At step {:,}, the agent reached the starter in {:.0%} of its "
             "evaluation episodes for a mean return of {:.4f}, and the random "
             "baseline in {:.0%} for {:.4f}",
             self.evaluated,
-            evaluation.reached,
-            evaluation.reward,
-            baseline.reached,
-            baseline.reward
+            benchmark.agent.reached,
+            benchmark.agent.reward,
+            benchmark.baseline.reached,
+            benchmark.baseline.reward
         )
 
     def inherit(self, handover: Handover):
         """
         Writes into the run what `handover` carries over, through
-        `Run.inherit`, counting its episodes among those `finished` and the
-        next checkpoint and evaluation on from the steps the last of each
-        landed at, so the run goes on as though the run it continues had
-        never stopped.
+        `Handover.write`, counting its episodes among those `finished` and
+        the next checkpoint and evaluation on from the steps the last of
+        each landed at, so the run goes on as though the run it continues
+        had never stopped.
         """
-        self.run.inherit(handover)
+        handover.write(self.run)
         self.evaluated = handover.evaluated
         self.finished  = len(handover.episodes)
         self.saved     = handover.checkpoint.step
@@ -420,7 +626,7 @@ class EpisodeTrainer(Trainer):
         """
         Makes one environment through `gymnasium.make`.
         """
-        return self.settings.specification(self.cartridge).make()
+        return self.specification.make()
 
     def play(self) -> Iterator[int]:
         """
@@ -612,7 +818,7 @@ class RolloutTrainer(Trainer):
 
         return NormalizeReward(
             make_vec(
-                self.settings.specification(self.cartridge),
+                self.specification,
                 num_envs      = agent.environments,
                 vector_kwargs = {
                     "autoreset_mode"  : AutoresetMode.SAME_STEP,

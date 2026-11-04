@@ -699,16 +699,13 @@ class Pins(Check):
             ("build-constraint-dependencies", self.manifest.build_constraints)
         ):
             for requirement in requirements:
-                match list(requirement.specifier):
-                    case [pin] if pin.operator == "==" and "*" not in pin.version:
-                        continue
-
-                yield Finding.locate(
-                    file,
-                    key,
-                    requirement.name,
-                    message = f"`{requirement}` under `{key}` pins no exact version"
-                )
+                if Manifest.exact_pin(requirement) is None:
+                    yield Finding.locate(
+                        file,
+                        key,
+                        requirement.name,
+                        message = f"`{requirement}` under `{key}` pins no exact version"
+                    )
 
 
 class Rendered(Check):
@@ -945,6 +942,16 @@ class SitePins(Check):
 
     mise : MiseConfig
     site : SiteManifest
+
+    @classmethod
+    def moving_with(cls, name: str) -> frozenset[str]:
+        """
+        Reads the pins that move together with the pin `name`, itself among
+        them, meaning the group `paired` holds it in, or `name` alone.
+        """
+        groups = (frozenset({lead, *partners}) for lead, partners in cls.paired.items())
+
+        return next((group for group in groups if name in group), frozenset({name}))
 
     def scan(self) -> Iterator[Finding]:
         """

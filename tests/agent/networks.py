@@ -7,6 +7,7 @@ Pins the networks the agents train, covering:
   `ChannelNorm` normalizes over
 - The logits and the values PPO's network reads from one pass of its encoder
 - `tensors` moving each entry onto the device it names
+- The network each agent builds, PQN's alone normalized
 """
 
 from collections.abc        import Callable
@@ -17,10 +18,11 @@ from pytest           import mark, param, raises
 from re               import escape
 from syrupy.assertion import SnapshotAssertion
 from torch            import Tensor, arange, as_tensor, cat, equal, manual_seed, zeros
-from torch.nn         import Module
+from torch.nn         import LayerNorm, Module
 from torch.testing    import assert_close
 
-from squirtl.agent.networks      import ActorCritic, ChannelNorm, QNetwork, tensors
+from squirtl.agent.networks      import ActorCritic, ChannelNorm, QNetwork, acting_network, tensors
+from squirtl.agent.schemas       import Algorithm
 from squirtl.environment.schemas import Entry
 
 
@@ -218,3 +220,26 @@ def test_the_network_refuses_an_entry_neither_images_nor_vectors(
     """
     with raises(ValueError, match=escape(f"shape {shape} ")):
         QNetwork(7, Dict(entry=Box(0, 1, shape)))
+
+
+@mark.parametrize(
+    ("algorithm", "network", "normalized"),
+    [
+        param(Algorithm.DQN, QNetwork,    False, id="the-deep-q-network"),
+        param(Algorithm.PPO, ActorCritic, False, id="ppo"),
+        param(Algorithm.PQN, QNetwork,    True,  id="pqn")
+    ]
+)
+def test_each_agent_builds_the_network_it_acts_through(
+    algorithm  : Algorithm,
+    network    : type[Module],
+    normalized : bool
+):
+    """
+    Asserts that each agent builds its own network over seven actions, PQN's
+    alone normalized.
+    """
+    built = acting_network(7, algorithm, Dict(frames=Box(0, 255, (4, 72, 80))))
+
+    assert type(built) is network
+    assert any(isinstance(layer, LayerNorm) for layer in built.modules()) is normalized

@@ -20,8 +20,9 @@ from numpy.random import default_rng
 from pathlib      import Path
 from pytest       import fixture
 
+from squirtl.agent.checkpoint    import ReplayCheckpoint
 from squirtl.agent.learner       import DQN, RolloutAgent
-from squirtl.agent.schemas       import AgentSettings, Algorithm, ReplayCheckpoint
+from squirtl.agent.schemas       import AgentSettings, Algorithm
 from squirtl.environment.schemas import Entry
 
 type Observations = list[dict[str, ndarray]]

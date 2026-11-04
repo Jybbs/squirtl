@@ -420,12 +420,18 @@ class License(Record):
 
 class LockedPackage(Record, extra="ignore"):
     """
-    One package `uv.lock` resolves, read for its name and its version.
+    One package `uv.lock` resolves, read for its name, its version, and the
+    packages it depends on.
     """
 
     name: str
     """
     The package's name as the lockfile writes it.
+    """
+
+    dependencies: list[LockedPackage] = []
+    """
+    The row of each package it depends on, which names that package.
     """
 
     version: VersionNumber | None = None
@@ -740,13 +746,15 @@ class TomlFile(Record):
     file: ClassVar[Path]
 
     @classmethod
-    def read(cls) -> Self:
+    def read(cls, root: Path = Path(".")) -> Self:
         """
-        Reads the record at `file`, raising `Unreadable` where the file
-        fails to parse or to validate.
+        Reads the record at `file` under `root`, raising `Unreadable` where
+        the file fails to parse or to validate.
         """
         with Finding.reading(cls.file):
-            return cls.model_validate(loads(cls.file.read_text(encoding="utf-8")))
+            return cls.model_validate(
+                loads((root / cls.file).read_text(encoding="utf-8"))
+            )
 
 
 class Tree(Record):
@@ -1458,6 +1466,17 @@ class Lockfile(TomlFile, extra="ignore"):
     Every package the lockfile resolves, in its order.
     """
 
+    def dependents(self, name: str) -> set[str]:
+        """
+        Collects the name of each package whose row depends on the package
+        `name` names.
+        """
+        return {
+            package.name
+            for package in self.packages
+            if name in {dependency.name for dependency in package.dependencies}
+        }
+
     def resolved(self, name: str) -> list[Version]:
         """
         Lists each version the lockfile resolves for the package `name`
@@ -1567,6 +1586,18 @@ class Manifest(TomlFile, extra="ignore"):
             )
         )
 
+    @staticmethod
+    def exact_pin(requirement: Requirement) -> str | None:
+        """
+        Reads the one version `requirement` pins, or returns `None` where it
+        holds anything but a single `==` specifier naming a whole version.
+        """
+        match list(requirement.specifier):
+            case [pin] if pin.operator == "==" and "*" not in pin.version:
+                return pin.version
+
+        return None
+
     def mirrors(self, test: Path) -> list[Path]:
         """
         Names the module of each package that the test module at `test`
@@ -1586,6 +1617,12 @@ class MiseConfig(TomlFile, extra="ignore"):
     """
 
     file: ClassVar[Path] = Path(".mise/config.toml")
+
+    min_version: VersionNumber
+    """
+    The oldest mise release the config runs on, which the provisioning
+    action installs on every row.
+    """
 
     node: VersionNumber = Field(validation_alias=AliasPath("tools", "node"))
     """

@@ -9,10 +9,11 @@ from numpy.random    import default_rng
 from pathlib         import Path
 from typing          import Annotated
 
-from squirtl.agent.schemas     import Weights
+from squirtl.agent.checkpoint  import Weights
 from squirtl.cli.logs          import listen, refusing
 from squirtl.emulator.schemas  import Cartridge
 from squirtl.evaluation.report import Pairs, Report
+from squirtl.runs.benchmark    import Benchmark
 from squirtl.runs.schemas      import Run
 
 
@@ -85,6 +86,7 @@ def evaluated(runs: Iterable[Run]) -> Pairs:
             weights   = Weights.from_path(run.checkpoint)
             cartridge = Cartridge.read(run.settings.emulator.cartridge)
 
-        pairs[run.name] = run.evaluate(cartridge, weights)
+        benchmark       = Benchmark.from_run(cartridge, run, weights)
+        pairs[run.name] = benchmark.agent, benchmark.baseline
 
     return pairs

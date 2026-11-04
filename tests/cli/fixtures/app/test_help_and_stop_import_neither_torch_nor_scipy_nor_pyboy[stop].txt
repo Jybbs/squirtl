@@ -1,0 +1,16 @@
+squirtl
+squirtl.agent
+squirtl.agent.schemas
+squirtl.cli
+squirtl.cli.logs
+squirtl.cli.stop
+squirtl.emulator
+squirtl.emulator.schemas
+squirtl.environment
+squirtl.environment.schemas
+squirtl.evaluation
+squirtl.evaluation.schemas
+squirtl.reward
+squirtl.reward.schemas
+squirtl.runs
+squirtl.runs.schemas

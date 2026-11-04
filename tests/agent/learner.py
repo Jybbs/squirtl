@@ -45,10 +45,11 @@ from torch.nn.utils      import clip_grad_norm_, parameters_to_vector
 from torch.optim         import AdamW, Optimizer, RAdam
 from torch.testing       import assert_close
 
+from squirtl.agent.checkpoint    import RolloutCheckpoint
 from squirtl.agent.learner       import DQN, RolloutAgent
 from squirtl.agent.networks      import ActorCritic, QNetwork
 from squirtl.agent.rollout       import Rollout
-from squirtl.agent.schemas       import Algorithm, Measures, PolicyUpdate, RolloutCheckpoint, Update
+from squirtl.agent.schemas       import Algorithm, Measures, PolicyUpdate, Update
 from squirtl.environment.schemas import Entry
 
 

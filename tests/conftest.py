@@ -192,7 +192,7 @@ def evaluators(monkeypatch: MonkeyPatch) -> list[EvaluatorStandIn]:
 
         return stand_in
 
-    monkeypatch.setattr("squirtl.runs.schemas.Evaluator", build)
+    monkeypatch.setattr("squirtl.runs.benchmark.Evaluator", build)
 
     return built
 
