@@ -20,14 +20,14 @@ from collections.abc   import Callable, Mapping
 from datetime          import UTC, datetime, timedelta
 from io                import StringIO
 from json              import dumps
-from os                import pathsep
+from os                import defpath, pathsep
 from packaging.version import Version
 from pathlib           import Path
 from pytest            import (
     CaptureFixture, Config, MonkeyPatch, fixture, mark, param, raises
 )
 from pytest_subprocess import FakeProcess
-from subprocess        import CalledProcessError
+from subprocess        import CalledProcessError, check_call
 from syrupy.assertion  import SnapshotAssertion
 from sysconfig         import get_path
 from textwrap          import dedent
@@ -264,6 +264,33 @@ def test_version_of_parses_a_version_and_returns_none_for_anything_else(
     assert version_of(text) == version
 
 
+def test_a_checkout_runs_each_command_at_its_root_under_its_variables_into_its_log(
+    monkeypatch : MonkeyPatch,
+    tmp_path    : Path
+):
+    """
+    Pins that a command starts at the checkout's root, under the variables
+    the checkout names alone, with both of its streams in the log, which
+    keeps a trial's `mise ci` in the scratch clone and free of the calling
+    `uv run`.
+    """
+    log = tmp_path / "log"
+
+    monkeypatch.setenv("UNSEEN", "set")
+
+    with log.open("w", encoding="utf-8") as output:
+        Checkout(
+            env  = {"PATH": defpath, "SEEN": "seen"},
+            log  = output,
+            root = tmp_path
+        ).run("sh", "-c", 'pwd -P; echo "$SEEN ${UNSEEN-absent}"; echo failed >&2')
+
+    assert log.read_text(encoding="utf-8").splitlines() == [
+        str(tmp_path.resolve()),
+        "seen absent", "failed"
+    ]
+
+
 def test_a_clean_clone_applies_no_change(clone: Path):
     """
     Pins that a checkout with nothing uncommitted clones as it was
@@ -467,9 +494,10 @@ def test_a_clone_holds_the_tree_as_it_stands_without_any_ignored_file(
     clone    : Path
 ):
     """
-    Pins that a scratch clone carries a modified tracked file, an untracked
-    file in a new folder, and an untracked link kept as a link, and leaves
-    out a file `.gitignore` excludes, with the checkout left as it stood.
+    Pins that a scratch clone carries a modified tracked file, a staged
+    binary file, an untracked file in a new folder, and an untracked link
+    kept as a link, and leaves out a file `.gitignore` excludes, with the
+    checkout left as it stood.
     """
     checkout(
         {
@@ -479,12 +507,15 @@ def test_a_clone_holds_the_tree_as_it_stands_without_any_ignored_file(
         }
     )
     (clone / "link").symlink_to("uv.lock")
+    (clone / "staged.bin").write_bytes(b"\0\1")
+    check_call(["git", "add", "staged.bin"])
 
     copied = Checkout(root=clone).cloned(clone / "data/scratch", StringIO()).root
 
     assert (copied / "uv.lock").read_text(encoding="utf-8") == "version = 2\n"
     assert (copied / "new/untracked.txt").read_text(encoding="utf-8") == "untracked\n"
     assert (copied / "link").readlink() == Path("uv.lock")
+    assert (copied / "staged.bin").read_bytes() == b"\0\1"
     assert not (copied / "data").exists()
 
 
@@ -497,7 +528,9 @@ def test_a_clone_runs_its_commands_free_of_the_calling_uv_run(
     environment's scripts, stay out of the clone's commands, whereas mise
     trusts the clone and the rest of the task's variables pass through.
     """
-    for name in Checkout.uv_run:
+    variables = ("UV", "UV_RUN_RECURSION_DEPTH", "VIRTUAL_ENV")
+
+    for name in variables:
         monkeypatch.setenv(name, "set")
 
     monkeypatch.setenv("KEPT", "kept")
@@ -506,7 +539,7 @@ def test_a_clone_runs_its_commands_free_of_the_calling_uv_run(
     destination = clone / "data/scratch"
     environment = Checkout(root=clone).cloned(destination, StringIO()).env
 
-    assert Checkout.uv_run.isdisjoint(environment)
+    assert environment.keys().isdisjoint(variables)
     assert get_path("scripts") not in environment["PATH"].split(pathsep)
     assert environment["KEPT"] == "kept"
     assert environment["MISE_TRUSTED_CONFIG_PATHS"] == str(destination)
@@ -565,6 +598,87 @@ def test_a_held_pin_stays_out_of_the_trial_and_the_write_while_the_table_lists_i
         "Leaving a at 1.0.0, because the reason",
         "Leaving b at 1.0.0, because `--hold` names it for this run"
     ]
+
+
+@mark.parametrize(
+    ("held", "holds", "leaving"),
+    [
+        param(
+            ("vitest",),
+            {},
+            [
+                "Leaving vitest at 5.0.5, because `--hold` names it for this run",
+                "Leaving @vitest/coverage-v8 at 5.0.5, because it moves with vitest"
+            ],
+            id = "the-lead-through-a-run-hold"
+        ),
+        param(
+            ("@vitest/coverage-v8",),
+            {},
+            [
+                "Leaving vitest at 5.0.5, because it moves with @vitest/coverage-v8",
+                (
+                    "Leaving @vitest/coverage-v8 at 5.0.5, because `--hold` names it "
+                    "for this run"
+                )
+            ],
+            id = "a-partner-through-a-run-hold"
+        ),
+        param(
+            (),
+            {"vitest": "the reason"},
+            [
+                "Leaving vitest at 5.0.5, because the reason",
+                "Leaving @vitest/coverage-v8 at 5.0.5, because it moves with vitest"
+            ],
+            id = "the-lead-through-the-tracked-file"
+        )
+    ]
+)
+def test_a_hold_on_a_paired_pin_holds_every_pin_moving_with_it(
+    capsys      : CaptureFixture[str],
+    held        : tuple[str, ...],
+    holds       : dict[str, str],
+    leaving     : list[str],
+    monkeypatch : MonkeyPatch
+):
+    """
+    Pins that a hold along either route leaves the pins paired with the held
+    pin out of the write, each beside a line naming why, since a partner
+    left moving fails `repo:audit`.
+    """
+    written = []
+
+    monkeypatch.setattr(
+        Lifts,
+        "write",
+        lambda self, checkout: written.extend(lift.name for lift in self.lifts)
+    )
+
+    lifts = lifts_of(
+        lift_of("vitest 5.0.5 6.0.0"),
+        lift_of("@vitest/coverage-v8 5.0.5 6.0.0"),
+        lift_of("b 1.0.0 2.0.0"),
+        holds = holds
+    )
+
+    assert lifts.lift(held=held, trying=False, writing=True) == 0
+    assert written == ["b"]
+    assert [
+        line for line in capsys.readouterr().out.splitlines()
+        if line.startswith("Leaving")
+    ] == leaving
+
+
+@mark.usefixtures("refused")
+def test_a_hold_on_a_paired_pin_whose_partner_the_table_does_not_list_passes():
+    """
+    Pins that a partner standing at its newest release counts as no unlisted
+    hold, so the run passes rather than exiting 2.
+    """
+    lifts = lifts_of(lift_of("vitest 5.0.5 6.0.0"))
+
+    assert lifts.lift(held=("vitest",), trying=True, writing=True) == 0
 
 
 def test_a_hold_names_each_row_of_its_pin_at_the_version_that_row_holds(
@@ -702,6 +816,39 @@ def test_a_manager_names_every_alert_each_lift_clears():
     ).clearing([Alert.model_validate(alert_of())])
 
     assert [lift.clears for lift in cleared.lifts] == [("GHSA-xmj3-9gf7-h52w",), ()]
+
+
+@mark.parametrize(
+    ("ecosystem", "manager"),
+    [
+        param("actions", ActionLifts, id="actions"),
+        param("npm", SiteLifts, id="site"),
+        param("pip", PackageLifts, id="locked-packages"),
+        param("pip", RequirementLifts, id="exact-pins")
+    ]
+)
+def test_each_manager_clears_the_alerts_of_the_ecosystem_dependabot_names(
+    ecosystem : str,
+    manager   : type[Manager]
+):
+    """
+    Pins the name Dependabot's alerts give each manager's packages, since an
+    ecosystem no alert carries leaves the row's `Clears` cell empty.
+    """
+    lift = ActionLift(
+        current = "84.0.0",
+        home    = Path(".github"),
+        name    = "setuptools",
+        newest  = "84.2.1",
+        pinned  = PINNED,
+        target  = TARGET
+    )
+
+    cleared = manager(lifts=(lift,)).clearing(
+        [Alert.model_validate(alert_of(ecosystem=ecosystem))]
+    )
+
+    assert cleared.lifts[0].clears == ("GHSA-xmj3-9gf7-h52w",)
 
 
 @mark.parametrize(
@@ -1213,6 +1360,15 @@ def test_holding_leaves_out_only_the_lifts_it_names():
     assert [lift.name for lift in lifts.lifts] == ["a", "b"]
 
 
+def test_only_the_lift_of_mise_itself_reads_the_running_mise(fp: FakeProcess):
+    """
+    Pins that a lift of any other pin is refused nothing, however far its
+    newest release sits past the running mise, and runs no `mise --version`,
+    which `fp` would raise on.
+    """
+    assert lifts_of(lift_of("uv 0.12.13 9999.0.0")).refused() == {}
+
+
 def test_the_exact_pins_lag_the_resolution_of_each_group(
     checkout : Callable[[Mapping[str, str]], None],
     fp       : FakeProcess,
@@ -1295,21 +1451,6 @@ def test_the_locked_packages_read_each_update_the_dry_run_names(fp: FakeProcess)
     assert lifts[0].released == datetime(2026, 10, 1, tzinfo=UTC)
 
 
-def test_the_shipped_holds_keep_python_on_its_minor_for_the_cp315_wheels(
-    monkeypatch  : MonkeyPatch,
-    pytestconfig : Config
-):
-    """
-    Pins that the repository holds `python` from the start, with a reason
-    naming the `cp315` wheels of `torch` the move waits on.
-    """
-    monkeypatch.chdir(pytestconfig.rootpath)
-
-    reason = Holds.read().reasons["python"]
-
-    assert "cp315" in reason and "torch" in reason
-
-
 @mark.parametrize(
     ("lift", "lines"),
     [
@@ -1382,6 +1523,150 @@ def test_a_tool_write_reaches_every_home_audit_holds_the_pin_to(
         assert (tmp_path / script).read_text(encoding="utf-8") == written
 
 
+def test_the_shipped_holds_keep_python_on_its_minor_for_the_cp315_wheels(
+    monkeypatch  : MonkeyPatch,
+    pytestconfig : Config
+):
+    """
+    Pins that the repository holds `python` from the start, with a reason
+    naming the `cp315` wheels of `torch` the move waits on.
+    """
+    monkeypatch.chdir(pytestconfig.rootpath)
+
+    reason = Holds.read().reasons["python"]
+
+    assert "cp315" in reason and "torch" in reason
+
+
+@mark.parametrize(
+    ("attempt", "sentence"),
+    [
+        param(
+            Attempt(held=(), log=Path("whole.log"), passed=True),
+            "The whole lift passes mise ci, as whole.log records",
+            id = "whole-passing"
+        ),
+        param(
+            Attempt(
+                held   = (lift_of("uv 0.12.13 0.13.0"),),
+                log    = Path("without-uv.log"),
+                passed = False
+            ),
+            "The lift holding uv at 0.12.13 fails mise ci, as without-uv.log records",
+            id = "holding-one-back-failing"
+        ),
+        param(
+            Attempt(
+                held = (
+                    lift_of("vitest 5.0.5 6.0.0"),
+                    lift_of("@vitest/coverage-v8 5.0.5 6.0.0")
+                ),
+                log    = Path("group.log"),
+                passed = True
+            ),
+            "The lift holding vitest at 5.0.5 and @vitest/coverage-v8 at 5.0.5 passes "
+            "mise ci, as group.log records",
+            id = "holding-a-paired-group-back-passing"
+        )
+    ]
+)
+def test_an_attempt_says_what_it_found_and_where_its_log_sits(
+    attempt  : Attempt,
+    sentence : str
+):
+    """
+    Pins the sentence a trial prints as each attempt ends.
+    """
+    assert attempt.sentence == sentence
+
+
+@mark.parametrize(
+    ("passed", "status", "verdict"),
+    [
+        param([True], 0, "Every lift not held passes mise ci", id="whole-passes"),
+        param(
+            [False, False, True],
+            1,
+            "The lift breaking the tree is b 2.0.0",
+            id = "one-major-lift-breaks-it"
+        ),
+        param(
+            [False, True, True],
+            1,
+            "The lift breaking the tree is a 2.0.0, b 2.0.0",
+            id = "either-major-lift-breaks-it"
+        ),
+        param(
+            [False, False, False],
+            1,
+            "No one pin held back lets mise ci pass",
+            id = "no-one-pin-breaks-it"
+        )
+    ]
+)
+def test_a_trial_names_the_lift_breaking_the_tree(
+    passed  : list[bool],
+    status  : int,
+    verdict : str
+):
+    """
+    Pins the verdict and the exit status for each result the attempts reach,
+    a lift being named where holding it back alone lets `mise ci` pass.
+    """
+    held  = [(), (lift_of("a 1.0.0 2.0.0"),), (lift_of("b 1.0.0 2.0.0"),)]
+    trial = Trial(
+        attempts = tuple(
+            Attempt(held=lift, log=Path("log"), passed=result)
+            for lift, result in zip(held, passed, strict=False)
+        )
+    )
+
+    assert (trial.status, trial.verdict) == (status, verdict)
+
+
+@mark.parametrize(
+    ("lift", "rebuilt"),
+    [
+        param(lift_of("uv 0.12.13 0.13.0"), [], id="no-rebuild"),
+        param(
+            lift_of("python 3.14.6 3.15.1"),
+            [
+                ["mise", "x", "--", "uv", "venv", "--clear"],
+                ["mise", "x", "--", "uv", "sync"]
+            ],
+            id = "rebuild-on-the-interpreter-the-lift-pins"
+        ),
+        param(
+            lift_of("python 3.14.6 3.14.10"),
+            [
+                ["mise", "x", "--", "uv", "venv", "--clear"],
+                ["mise", "x", "--", "uv", "sync"]
+            ],
+            id = "rebuild-within-the-minor"
+        )
+    ]
+)
+def test_a_write_locks_installs_and_syncs_after_every_manager_writes(
+    fp       : FakeProcess,
+    lift     : Lift,
+    rebuilt  : list[list[str]],
+    tmp_path : Path
+):
+    """
+    Pins the order of the commands once the managers write, and the two that
+    build `.venv` again where `python` moves.
+    """
+    commands = [["mise", "lock"], ["mise", "install"], ["mise", "run", "lock:sync"]]
+
+    for command in [*commands, *rebuilt]:
+        fp.register(command)
+
+    lifts_of(lift).write(Checkout(root=tmp_path))
+
+    assert (tmp_path / "lifted.txt").read_text(encoding="utf-8") == lift.name
+    assert [list(call) for call in fp.calls] == [*commands, *rebuilt]
+
+
 def test_the_site_lags_the_latest_release_bun_draws_for_each_pin(
     checkout : Callable[[Mapping[str, str]], None],
     fp       : FakeProcess
@@ -1448,169 +1733,30 @@ def test_the_site_lags_the_latest_release_bun_draws_for_each_pin(
 
 
 @mark.parametrize(
-    ("attempt", "sentence"),
-    [
-        param(
-            Attempt(held=None, log=Path("whole.log"), passed=True),
-            "The whole lift passes mise ci, as whole.log records",
-            id = "whole-passing"
-        ),
-        param(
-            Attempt(
-                held   = lift_of("uv 0.12.13 0.13.0"),
-                log    = Path("without-uv.log"),
-                passed = False
-            ),
-            "The lift holding uv at 0.12.13 fails mise ci, as without-uv.log records",
-            id = "holding-one-back-failing"
-        )
-    ]
-)
-def test_an_attempt_says_what_it_found_and_where_its_log_sits(
-    attempt  : Attempt,
-    sentence : str
-):
-    """
-    Pins the sentence a trial prints as each attempt ends.
-    """
-    assert attempt.sentence == sentence
-
-
-@mark.parametrize(
-    ("passed", "status", "verdict"),
-    [
-        param([True], 0, "Every lift not held passes mise ci", id="whole-passes"),
-        param(
-            [False, False, True],
-            1,
-            "The lift breaking the tree is b 2.0.0",
-            id = "one-major-lift-breaks-it"
-        ),
-        param(
-            [False, True, True],
-            1,
-            "The lift breaking the tree is a 2.0.0, b 2.0.0",
-            id = "either-major-lift-breaks-it"
-        ),
-        param(
-            [False, False, False],
-            1,
-            "No major lift held back alone lets mise ci pass",
-            id = "no-one-major-lift-breaks-it"
-        ),
-        param(
-            [False],
-            1,
-            "No major lift held back alone lets mise ci pass",
-            id = "no-major-lift-to-hold-back"
-        )
-    ]
-)
-def test_a_trial_names_the_lift_breaking_the_tree(
-    passed  : list[bool],
-    status  : int,
-    verdict : str
-):
-    """
-    Pins the verdict and the exit status for each result the attempts reach,
-    a lift being named where holding it back alone lets `mise ci` pass.
-    """
-    held  = [None, lift_of("a 1.0.0 2.0.0"), lift_of("b 1.0.0 2.0.0")]
-    trial = Trial(
-        attempts = tuple(
-            Attempt(held=lift, log=Path("log"), passed=result)
-            for lift, result in zip(held, passed, strict=False)
-        )
-    )
-
-    assert (trial.status, trial.verdict) == (status, verdict)
-
-
-@mark.parametrize(
-    ("lift", "rebuilt"),
-    [
-        param(lift_of("uv 0.12.13 0.13.0"), [], id="no-rebuild"),
-        param(
-            lift_of("python 3.14.6 3.15.1"),
-            [
-                ["mise", "x", "--", "uv", "venv", "--clear"],
-                ["mise", "x", "--", "uv", "sync"]
-            ],
-            id = "rebuild-on-the-interpreter-the-lift-pins"
-        ),
-        param(
-            lift_of("python 3.14.6 3.14.10"),
-            [
-                ["mise", "x", "--", "uv", "venv", "--clear"],
-                ["mise", "x", "--", "uv", "sync"]
-            ],
-            id = "rebuild-within-the-minor"
-        )
-    ]
-)
-def test_a_write_locks_installs_and_syncs_after_every_manager_writes(
-    fp       : FakeProcess,
-    lift     : Lift,
-    rebuilt  : list[list[str]],
-    tmp_path : Path
-):
-    """
-    Pins the order of the commands once the managers write, and the two that
-    build `.venv` again where `python` moves.
-    """
-    commands = [["mise", "lock"], ["mise", "install"], ["mise", "run", "lock:sync"]]
-
-    for command in [*commands, *rebuilt]:
-        fp.register(command)
-
-    lifts_of(lift).write(Checkout(root=tmp_path))
-
-    assert (tmp_path / "lifted.txt").read_text(encoding="utf-8") == lift.name
-    assert [list(call) for call in fp.calls] == [*commands, *rebuilt]
-
-
-def test_the_table_prints_one_markdown_row_per_lift(snapshot: SnapshotAssertion):
-    """
-    Pins the columns a row gives, an empty cell for a release no manager
-    dates, and the shape that pastes into a pull request as it prints.
-    """
-    now = datetime.now(UTC)
-
-    table = lifts_of(
-        lift_of(
-            clears   = ("GHSA-xmj3-9gf7-h52w", "GHSA-other"),
-            pin      = "setuptools 84.0.0 84.2.1",
-            released = now - timedelta(days=12, hours=1)
-        ),
-        lift_of("python 3.14.6 3.15.1", home=Path(".mise/config.toml")),
-        lift_of(
-            pin      = f"actions/checkout {PINNED} v5.0.0",
-            home     = Path(".github"),
-            released = now - timedelta(hours=1)
-        )
-    ).table
-
-    assert table_text(table) == snapshot
-
-
-@mark.parametrize(
     ("held", "log", "returncode", "passed"),
     [
-        param(None, "whole.log", 0, True, id="whole-passing"),
-        param(None, "whole.log", 1, False, id="whole-failing"),
+        param((), "whole.log", 0, True, id="whole-passing"),
+        param((), "whole.log", 1, False, id="whole-failing"),
         param(
-            lift_of("actions/checkout v4 v5", home=Path(".github")),
+            (lift_of("actions/checkout v4 v5", home=Path(".github")),),
             "without-actions-checkout.log",
             0,
             True,
             id = "holding-back-a-repository"
+        ),
+        param(
+            (lift_of("vitest 5.0.5 6.0.0"), lift_of("@vitest/coverage-v8 5.0.5 6.0.0")),
+            "without-vitest-@vitest-coverage-v8.log",
+            0,
+            True,
+            id = "holding-back-a-paired-group"
         )
     ]
 )
 def test_an_attempt_runs_ci_in_a_clone_it_removes_and_keeps_its_log(
     clone       : Path,
     fp          : FakeProcess,
-    held        : Lift | None,
+    held        : tuple[Lift, ...],
     log         : str,
     monkeypatch : MonkeyPatch,
     passed      : bool,
@@ -1639,10 +1785,7 @@ def test_an_attempt_runs_ci_in_a_clone_it_removes_and_keeps_its_log(
         stdout     = "the suite printed\n"
     )
 
-    attempt = lifts_of(lift_of("uv 0.12.13 0.13.0")).attempt(
-        held,
-        clone / "data/lift"
-    )
+    attempt = lifts_of(lift_of("uv 0.12.13 0.13.0")).attempt(held, clone / "data/lift")
 
     assert attempt.passed is passed
     assert attempt.held == held
@@ -1650,6 +1793,52 @@ def test_an_attempt_runs_ci_in_a_clone_it_removes_and_keeps_its_log(
     assert "the suite printed" in attempt.log.read_text(encoding="utf-8")
     assert not (clone / "lifted.txt").exists()
     assert not list(scratch.iterdir())
+
+
+@mark.parametrize(
+    ("held", "written"),
+    [
+        param([], ["a", "b", "vitest", "@vitest/coverage-v8"], id="nothing"),
+        param(["a"], ["b", "vitest", "@vitest/coverage-v8"], id="one-pin"),
+        param(["vitest", "@vitest/coverage-v8"], ["a", "b"], id="a-paired-group")
+    ]
+)
+def test_an_attempt_holding_a_lift_back_writes_every_other_lift(
+    clone       : Path,
+    fp          : FakeProcess,
+    held        : list[str],
+    monkeypatch : MonkeyPatch,
+    written     : list[str]
+):
+    """
+    Pins that the attempt naming a lift leaves that lift's pin out of what
+    it writes into the clone, which is what lets a passing attempt name
+    it, and that an attempt holding a paired group leaves out every pin of
+    the group.
+    """
+    lifted = []
+
+    monkeypatch.setattr(
+        Lifts,
+        "write",
+        lambda self, checkout: lifted.extend(lift.name for lift in self.lifts)
+    )
+    fp.pass_command(["git", fp.any()], occurrences=4)
+    fp.register(["mise", "run", "--continue-on-error", "repo:ci"])
+
+    lifts = lifts_of(
+        lift_of("a 1.0.0 2.0.0"),
+        lift_of("b 1.0.0 2.0.0"),
+        lift_of("vitest 5.0.5 6.0.0"),
+        lift_of("@vitest/coverage-v8 5.0.5 6.0.0")
+    )
+
+    lifts.attempt(
+        tuple(lift for lift in lifts.lifts if lift.name in held),
+        clone / "data/lift"
+    )
+
+    assert lifted == written
 
 
 @mark.parametrize(
@@ -1683,7 +1872,7 @@ def test_an_attempt_whose_write_fails_records_the_error_as_failing(
     fp.pass_command(["git", fp.any()], occurrences=4)
     fp.register(["mise", "lock"], returncode=mise_lock)
 
-    attempt = lifts_of(lift).attempt(None, clone / "data/lift")
+    attempt = lifts_of(lift).attempt((), clone / "data/lift")
 
     assert attempt.passed is False
     assert printed in attempt.log.read_text(encoding="utf-8")
@@ -1692,19 +1881,19 @@ def test_an_attempt_whose_write_fails_records_the_error_as_failing(
 @mark.parametrize(
     ("passes", "attempted"),
     [
-        param({None: True}, [None], id="a-passing-lift-holds-nothing-back"),
+        param({(): True}, [()], id="a-passing-lift-holds-nothing-back"),
         param(
-            {"a": True, None: False},
-            [None, "a"],
+            {("a",): True, (): False},
+            [(), ("a",)],
             id = "a-failing-lift-holds-back-each-major-lift-in-turn"
         )
     ]
 )
 def test_a_trial_holds_back_each_major_lift_only_after_the_whole_lift_fails(
-    attempted   : list[str | None],
+    attempted   : list[tuple[str, ...]],
     capsys      : CaptureFixture[str],
     monkeypatch : MonkeyPatch,
-    passes      : dict[str | None, bool]
+    passes      : dict[tuple[str, ...], bool]
 ):
     """
     Pins the attempts a trial runs, in order, holding back only a major lift
@@ -1713,14 +1902,14 @@ def test_a_trial_holds_back_each_major_lift_only_after_the_whole_lift_fails(
     """
     ran = []
 
-    def attempt(_: Lifts, held: Lift | None, logs: Path) -> Attempt:
+    def attempt(_: Lifts, held: tuple[Lift, ...], logs: Path) -> Attempt:
         """
-        Records the lift held back and reads its result from `passes`.
+        Records the lifts held back and reads the result from `passes`.
         """
-        name = held.name if held else None
-        ran.append(name)
+        names = tuple(lift.name for lift in held)
+        ran.append(names)
 
-        return Attempt(held=held, log=logs / "log", passed=passes[name])
+        return Attempt(held=held, log=logs / "log", passed=passes[names])
 
     monkeypatch.setattr(Lifts, "attempt", attempt)
 
@@ -1733,11 +1922,228 @@ def test_a_trial_holds_back_each_major_lift_only_after_the_whole_lift_fails(
 
     assert ran == attempted
     assert [attempt.held for attempt in trial.attempts] == [
-        lifts.lifts[1] if name else None for name in attempted
+        (lifts.lifts[1],) if names else () for names in attempted
     ]
     assert capsys.readouterr().out.splitlines() == [
         attempt.sentence for attempt in trial.attempts
     ]
+
+
+@mark.parametrize(
+    ("rows", "attempted", "verdict"),
+    [
+        param(
+            (lift_of("b 1.0.0 1.1.0"), lift_of("a 1.0.0 2.0.0")),
+            [((), False), (("a",), True)],
+            "The lift breaking the tree is a 2.0.0",
+            id = "a-passing-major-hold-ends-the-trial"
+        ),
+        param(
+            (
+                lift_of("a 1.0.0 2.0.0"),
+                lift_of("b 1.0.0 1.1.0"),
+                lift_of("c 1.0.0 1.1.0")
+            ),
+            [((), False), (("a",), False), (("b",), True), (("c",), False)],
+            "The lift breaking the tree is b 1.1.0",
+            id = "a-non-major-pin-named-once-no-major-hold-passes"
+        ),
+        param(
+            (
+                lift_of("a 1.0.0 2.0.0"),
+                lift_of("b 1.0.0 1.1.0"),
+                lift_of("c 1.0.0 1.1.0")
+            ),
+            [((), False), (("a",), False), (("b",), False), (("c",), False)],
+            "No one pin held back lets mise ci pass",
+            id = "no-one-pin-held-back-passing"
+        ),
+        param(
+            (
+                lift_of("b 1.0.0 1.1.0"),
+                lift_of("vitest 5.0.5 6.0.0"),
+                lift_of("@vitest/coverage-v8 5.0.5 6.0.0")
+            ),
+            [((), False), (("vitest", "@vitest/coverage-v8"), True)],
+            "The lift breaking the tree is vitest 6.0.0 and @vitest/coverage-v8 6.0.0",
+            id = "a-paired-major-group-held-and-named-together"
+        ),
+        param(
+            (
+                lift_of("b 1.0.0 1.1.0"),
+                lift_of("@zag-js/vue 1.0.0 1.1.0"),
+                lift_of("@zag-js/slider 1.0.0 2.0.0")
+            ),
+            [((), False), (("@zag-js/vue", "@zag-js/slider"), True)],
+            "The lift breaking the tree is @zag-js/vue 1.1.0 and @zag-js/slider 2.0.0",
+            id = "a-group-with-one-major-member-counts-as-major"
+        ),
+        param(
+            (
+                lift_of("a 1.0.0 2.0.0"),
+                lift_of("vitest 5.0.5 5.0.6"),
+                lift_of("@vitest/coverage-v8 5.0.5 5.0.6")
+            ),
+            [((), False), (("a",), False), (("vitest", "@vitest/coverage-v8"), True)],
+            "The lift breaking the tree is vitest 5.0.6 and @vitest/coverage-v8 5.0.6",
+            id = "a-paired-non-major-group-held-and-named-together"
+        ),
+        param(
+            (
+                lift_of("a 1.0.0 2.0.0"),
+                lift_of("a 1.5.0 1.6.0", home=Path("pyproject.toml")),
+                lift_of("b 1.0.0 1.1.0")
+            ),
+            [((), False), (("a",), True)],
+            "The lift breaking the tree is a 2.0.0",
+            id = "a-pin-with-one-major-row-counts-as-major"
+        )
+    ]
+)
+def test_a_trial_holds_back_each_other_pin_once_no_major_hold_passes(
+    attempted   : list[tuple[tuple[str, ...], bool]],
+    capsys      : CaptureFixture[str],
+    monkeypatch : MonkeyPatch,
+    rows        : tuple[Lift, ...],
+    verdict     : str
+):
+    """
+    Pins the attempts a failing trial runs, in order, meaning each major
+    lift, then each other pin only where no major hold passes, every pin of
+    a paired group held back and named as one, and the verdict each result
+    reaches.
+    """
+    passes = dict(attempted)
+    ran    = []
+
+    def attempt(_: Lifts, held: tuple[Lift, ...], logs: Path) -> Attempt:
+        """
+        Records the lifts held back and reads the result from `passes`.
+        """
+        names = tuple(lift.name for lift in held)
+        ran.append(names)
+
+        return Attempt(held=held, log=logs / "log", passed=passes[names])
+
+    monkeypatch.setattr(Lifts, "attempt", attempt)
+
+    trial = lifts_of(*rows).tried(Path("logs"))
+
+    assert ran == list(passes)
+    assert (trial.status, trial.verdict) == (1, verdict)
+    assert capsys.readouterr().out.splitlines() == [
+        attempt.sentence for attempt in trial.attempts
+    ]
+
+
+@mark.parametrize(
+    ("trying", "writing"),
+    [param(True, False, id="a-trial"), param(False, True, id="a-write")]
+)
+@mark.parametrize(
+    ("running", "taken", "leaving"),
+    [
+        param(
+            "2026.11.0",
+            ["uv"],
+            [
+                "Leaving mise at 2026.9.18, because the running mise 2026.11.0 refuses "
+                "a `min_version` of 2026.11.1 until `mise self-update` moves it"
+            ],
+            id = "a-running-mise-older-than-the-newest-release"
+        ),
+        param(
+            "2026.11.1",
+            ["mise", "uv"],
+            [],
+            id = "a-running-mise-at-the-newest-release"
+        )
+    ]
+)
+def test_a_lift_leaves_its_floor_while_the_running_mise_lags_the_newest_release(
+    capsys      : CaptureFixture[str],
+    fp          : FakeProcess,
+    leaving     : list[str],
+    monkeypatch : MonkeyPatch,
+    running     : str,
+    taken       : list[str],
+    tmp_path    : Path,
+    trying      : bool,
+    writing     : bool
+):
+    """
+    Pins that a running mise older than the newest release leaves the lift
+    of `min_version` out of a trial and of a write, each taking every other
+    lift, beside a line naming `mise self-update`, whereas a running mise at
+    the newest release takes it.
+    """
+    lifted = []
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        Lifts,
+        "tried",
+        lambda self, logs: lifted.extend(lift.name for lift in self.lifts) or Trial(
+            attempts = (Attempt(held=(), log=logs / "whole.log", passed=True),)
+        )
+    )
+    monkeypatch.setattr(
+        Lifts,
+        "write",
+        lambda self, checkout: lifted.extend(lift.name for lift in self.lifts)
+    )
+    fp.register(["mise", "--version"], stdout=f"{running} macos-arm64 (2026-10-31)\n")
+
+    lifts = lifts_of(lift_of("mise 2026.9.18 2026.11.1"), lift_of("uv 0.12.13 0.13.0"))
+
+    assert lifts.lift(held=(), trying=trying, writing=writing) == 0
+    assert lifted == taken
+    assert [
+        line for line in capsys.readouterr().out.splitlines()
+        if line.startswith("Leaving")
+    ] == leaving
+
+
+@mark.usefixtures("refused")
+def test_a_lift_with_only_a_floor_past_the_running_mise_neither_tries_nor_writes(
+    capsys : CaptureFixture[str],
+    fp     : FakeProcess
+):
+    """
+    Pins that no scratch clone and no lockfile run starts where the floor
+    the running mise refuses is the one lift, whose line still names `mise
+    self-update`.
+    """
+    fp.register(["mise", "--version"], stdout="2026.10.25 macos-arm64 (2026-10-31)\n")
+
+    lifts = lifts_of(lift_of("mise 2026.9.18 2026.11.1"))
+
+    assert lifts.lift(held=(), trying=True, writing=True) == 0
+    assert "`mise self-update`" in capsys.readouterr().out
+
+
+def test_the_table_prints_one_markdown_row_per_lift(snapshot: SnapshotAssertion):
+    """
+    Pins the columns a row gives, an empty cell for a release no manager
+    dates, and the shape that pastes into a pull request as it prints.
+    """
+    now = datetime.now(UTC)
+
+    table = lifts_of(
+        lift_of(
+            clears   = ("GHSA-xmj3-9gf7-h52w", "GHSA-other"),
+            pin      = "setuptools 84.0.0 84.2.1",
+            released = now - timedelta(days=12, hours=1)
+        ),
+        lift_of("python 3.14.6 3.15.1", home=Path(".mise/config.toml")),
+        lift_of(
+            pin      = f"actions/checkout {PINNED} v5.0.0",
+            home     = Path(".github"),
+            released = now - timedelta(hours=1)
+        )
+    ).table
+
+    assert table_text(table) == snapshot
 
 
 @mark.parametrize(
@@ -1772,7 +2178,7 @@ def test_a_lift_tries_and_writes_as_its_flags_ask(
         Lifts,
         "tried",
         lambda self, logs: calls.append(("tried", logs)) or Trial(
-            attempts = (Attempt(held=None, log=logs / "whole.log", passed=passing),)
+            attempts = (Attempt(held=(), log=logs / "whole.log", passed=passing),)
         )
     )
     monkeypatch.setattr(

@@ -943,6 +943,16 @@ class SitePins(Check):
     mise : MiseConfig
     site : SiteManifest
 
+    @classmethod
+    def moving_with(cls, name: str) -> frozenset[str]:
+        """
+        Reads the pins that move together with the pin `name`, itself among
+        them, meaning the group `paired` holds it in, or `name` alone.
+        """
+        groups = (frozenset({lead, *partners}) for lead, partners in cls.paired.items())
+
+        return next((group for group in groups if name in group), frozenset({name}))
+
     def scan(self) -> Iterator[Finding]:
         """
         Yields a finding on the line of `docs/package.json` pinning each

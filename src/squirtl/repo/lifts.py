@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime           import UTC, datetime
 from io                 import TextIOBase
 from itertools          import chain
-from operator           import methodcaller
+from operator           import attrgetter, methodcaller
 from os                 import environ, pathsep
 from packaging.requirements import Requirement
 from packaging.utils        import canonicalize_name
@@ -32,6 +32,7 @@ from tomllib      import loads
 from typing       import ClassVar, Self
 
 from squirtl.emulator.schemas import Record
+from squirtl.repo.checks      import SitePins
 from squirtl.repo.github      import Command
 from squirtl.repo.schemas     import (
     Actions, LockedPackage, Lockfile, Manifest, MiseConfig, Scripts, SiteManifest, TomlFile,
@@ -193,8 +194,9 @@ class Checkout(Record):
 def version_of(text: str) -> Version | None:
     """
     Parses `text` as a version, a leading `v` and an npm prerelease suffix
-    included, or returns `None` where it names no version, as a commit or a
-    tag such as `latest` does.
+    PEP 440 can read, such as `-alpha.21`, included, or returns `None` where
+    it names no version, as a commit, a tag such as `latest`, or a suffix
+    such as `-next.3` does.
     """
     try:
         return Version(text)
@@ -385,6 +387,14 @@ class Lift(Record):
             "" if self.age is None else str(self.age),
             ", ".join(self.clears)
         )
+
+    @property
+    def floor(self) -> bool:
+        """
+        Tells whether the pin names the release of mise that `min_version`
+        sets.
+        """
+        return self.name == "mise"
 
     @property
     def interpreter(self) -> bool:
@@ -1111,6 +1121,14 @@ class ToolLifts(Manager):
             )
         )
 
+    @staticmethod
+    def running() -> Version:
+        """
+        Reads the version of the mise on the path, the first word `mise
+        --version` prints.
+        """
+        return Version(check_output(["mise", "--version"], text=True).split()[0])
+
     def write(self, checkout: Checkout):
         """
         Writes each newest release into `.mise/config.toml`, the newest
@@ -1124,7 +1142,7 @@ class ToolLifts(Manager):
                 MiseConfig.file,
                 checkout.assigned(
                     lift.current,
-                    "min_version" if lift.name == "mise" else lift.name
+                    "min_version" if lift.floor else lift.name
                 ),
                 lift.newest
             )
@@ -1157,14 +1175,14 @@ class ToolLifts(Manager):
 
 class Attempt(Record):
     """
-    One lift tried in a scratch clone, beside the lift it held back, if
-    any, whether `mise ci` passed there, and the log holding what every
-    step printed.
+    One lift tried in a scratch clone, beside the lifts it held back,
+    whether `mise ci` passed there, and the log holding what every step
+    printed.
     """
 
-    held: Lift | None
+    held: tuple[Lift, ...]
     """
-    The lift held back, or `None` for the whole lift.
+    The lifts held back as one, none for the whole lift.
     """
 
     log: Path
@@ -1182,11 +1200,8 @@ class Attempt(Record):
         """
         Writes what the attempt found, in a sentence naming its log.
         """
-        lift = (
-            "The whole lift"
-            if self.held is None
-            else f"The lift holding {self.held.name} at {self.held.current}"
-        )
+        held = " and ".join(f"{lift.name} at {lift.current}" for lift in self.held)
+        lift = f"The lift holding {held}" if held else "The whole lift"
 
         return (
             f"{lift} {'passes' if self.passed else 'fails'} mise ci, "
@@ -1197,7 +1212,8 @@ class Attempt(Record):
 class Trial(Record):
     """
     Every attempt one `--try` runs, the whole lift first and then, where it
-    fails, the lift holding back each major lift in turn.
+    fails, the lift holding back each major lift in turn and, where none of
+    those passes, each remaining pin in turn.
     """
 
     attempts: tuple[Attempt, ...]
@@ -1216,9 +1232,9 @@ class Trial(Record):
     @property
     def verdict(self) -> str:
         """
-        Names each major lift that breaks the tree, meaning `mise ci` fails
-        on the whole lift and passes once that lift alone is held back, or
-        says that no one of them does.
+        Names each lift that breaks the tree, meaning `mise ci` fails on the
+        whole lift and passes once that lift alone is held back, a paired
+        group counting as one lift, or says that no one pin does.
         """
         whole, *held = self.attempts
 
@@ -1226,13 +1242,13 @@ class Trial(Record):
             return "Every lift not held passes mise ci"
 
         breaking = [
-            f"{attempt.held.name} {attempt.held.newest}"
+            " and ".join(f"{lift.name} {lift.newest}" for lift in attempt.held)
             for attempt in held
             if attempt.passed
         ]
 
         if not breaking:
-            return "No major lift held back alone lets mise ci pass"
+            return "No one pin held back lets mise ci pass"
 
         return f"The lift breaking the tree is {', '.join(breaking)}"
 
@@ -1262,6 +1278,21 @@ class Lifts(Record):
     """
     The reason each held pin stays where it stands, under the pin's name.
     """
+
+    @property
+    def groups(self) -> list[tuple[Lift, ...]]:
+        """
+        Splits the lifts into what a trial holds back as one, which is each
+        pin alone but for the pins `SitePins.moving_with` groups. A pin
+        named on several rows takes one of them, a major one where it has
+        any.
+        """
+        rows = {lift.name: lift for lift in sorted(self.lifts, key=attrgetter("major"))}
+
+        return [
+            tuple(lift for lift in rows.values() if lift.name in group)
+            for group in dict.fromkeys(map(SitePins.moving_with, rows))
+        ]
 
     @property
     def lifts(self) -> list[Lift]:
@@ -1294,10 +1325,10 @@ class Lifts(Record):
 
         return table
 
-    def attempt(self, held: Lift | None, logs: Path) -> Attempt:
+    def attempt(self, held: tuple[Lift, ...], logs: Path) -> Attempt:
         """
-        Tries the lift in a scratch clone of the checkout, holding back
-        `held` where it names a lift, then removes the clone.
+        Tries the lift in a scratch clone of the checkout, holding back each
+        lift of `held`, then removes the clone.
 
         Inside the clone, the lift is written and `mise ci` runs, each
         printing into a log under `logs` named for what the attempt
@@ -1307,9 +1338,9 @@ class Lifts(Record):
         the clone as it is removed. A step that fails ends the attempt as
         failed, its error written into the log.
         """
-        lifts = self if held is None else self.holding({held.name})
-        label = "whole" if held is None else f"without-{held.name.replace('/', '-')}"
-        log   = logs / f"{label}.log"
+        lifts = self.holding({lift.name for lift in held})
+        names = "-".join(lift.name for lift in held).replace("/", "-")
+        log   = logs / (f"without-{names}.log" if held else "whole.log")
 
         logs.mkdir(exist_ok=True, parents=True)
 
@@ -1346,12 +1377,26 @@ class Lifts(Record):
         held pin stays where it stands, and the write runs only after a
         passing trial where both are asked for.
 
+        A pin is held where `held` or `Holds` names it, where `refused`
+        names it, or where it moves with a held pin, since a partner left
+        moving fails `repo:audit`.
+
         Returns:
             The exit status, which is 2 where a hold names a pin the table
             does not list, before any trial or write, 1 where the trial
             fails, and 0 otherwise.
         """
-        holds = dict.fromkeys(held, "`--hold` names it for this run") | self.holds
+        named = (
+            self.refused()
+            | dict.fromkeys(held, "`--hold` names it for this run")
+            | self.holds
+        )
+        holds = {
+            lift.name: f"it moves with {name}"
+            for name in named
+            for lift in self.lifts
+            if lift.name in SitePins.moving_with(name)
+        } | named
 
         if self.lifts:
             print(table_text(self.table))
@@ -1406,21 +1451,41 @@ class Lifts(Record):
             holds = Holds.read().reasons
         )
 
+    def refused(self) -> dict[str, str]:
+        """
+        Reads the reason the lift of mise itself stays out of this run,
+        where the mise on the path is older than the newest release, since
+        mise exits on a `min_version` above its own version, which would
+        fail every command of a trial and a write.
+        """
+        return {
+            lift.name: (
+                f"the running mise {running} refuses a `min_version` of "
+                f"{lift.newest} until `mise self-update` moves it"
+            )
+            for lift in self.lifts
+            if lift.floor and (running := ToolLifts.running()) < Version(lift.newest)
+        }
+
     def tried(self, logs: Path) -> Trial:
         """
         Tries the whole lift in a scratch clone and, where `mise ci` fails
-        there, tries it again holding back the pin of each major lift in
-        turn, printing each attempt's sentence as it ends, since each runs
-        for minutes.
+        there, tries it again holding back each major lift in turn and,
+        where none of those passes, each remaining pin in turn, printing
+        each attempt's sentence as it ends, since each runs for minutes.
+        Each of `groups` is held back as one, and it counts as major where
+        any of its lifts is.
         """
         attempts = []
-        majors   = {lift.name: lift for lift in self.lifts if lift.major}
+        groups   = self.groups
+        majors   = [group for group in groups if any(lift.major for lift in group)]
 
-        for held in [None, *majors.values()]:
-            attempts.append(self.attempt(held, logs))
-            print(attempts[-1].sentence, flush=True)
+        for stage in ([()], majors, [group for group in groups if group not in majors]):
+            for held in stage:
+                attempts.append(self.attempt(held, logs))
+                print(attempts[-1].sentence, flush=True)
 
-            if attempts[0].passed:
+            if any(attempt.passed for attempt in attempts):
                 break
 
         return Trial(attempts=tuple(attempts))
@@ -1430,8 +1495,9 @@ class Lifts(Record):
         Writes every lift into `checkout` in the managers' order, then locks
         and installs the tools the lift pins and re-resolves every lockfile
         through `lock:sync`, building `.venv` again on the interpreter the
-        lift pins where `python` moves, since `uv sync` alone never moves
-        `.venv` off the interpreter it was built on.
+        lift pins where `python` moves, since `uv sync` alone keeps `.venv`
+        on the interpreter it was built on while that interpreter satisfies
+        `requires-python`, as a move within the minor leaves it.
         """
         for manager in self.found:
             manager.write(checkout)

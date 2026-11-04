@@ -18,7 +18,8 @@ GitHub. Each `repo:bump` case runs the task through the real `mise` from a
 placeholder checkout under `tmp_path`, where the stand-in under `fixtures/`
 answers for `uv`. The `repo:audit` case hands the task the findings it
 prints in place of the audit's own read, and each `repo:lift` case hands the
-task a lift that records what it receives.
+task a lift that records what it receives, but for the one running the task
+through the real `mise`, whose stand-in `uv` prints the variables mise sets.
 """
 
 from collections.abc   import Callable
@@ -211,6 +212,34 @@ def test_audit_exits_with_the_verdict_its_findings_carry(
 
     assert task("audit") == status
     assert capsys.readouterr().out == f"{finding.annotation}\n"
+
+
+def test_lift_parses_its_flags_under_its_alias_through_the_real_mise(
+    checkout          : Callable[..., None],
+    confine_mise      : Callable[[Path, Path], None],
+    install_stand_ins : Callable[..., Path],
+    pytestconfig      : Config,
+    tmp_path          : Path
+):
+    """
+    Pins the `#USAGE` block mise parses for the `lift` alias, a repeated
+    `--hold` arriving as one spaced value, by reading the variables mise
+    hands the stand-in answering for `uv`.
+    """
+    checkout({".mise/config.toml": ""})
+    (tmp_path / ".mise/tasks/repo").mkdir(parents=True)
+    (tmp_path / ".mise/tasks/repo/lift.py").symlink_to(
+        pytestconfig.rootpath / ".mise/tasks/repo/lift.py"
+    )
+    confine_mise(tmp_path, install_stand_ins("variables.sh", "uv"))
+
+    assert run(
+        ["mise", "run", "lift", "--hold", "python", "--hold", "uv", "--try", "--write"],
+        capture_output = True,
+        text           = True
+    ).stdout.splitlines() == [
+        "usage_hold=python uv", "usage_try=true", "usage_write=true"
+    ]
 
 
 @mark.parametrize(
