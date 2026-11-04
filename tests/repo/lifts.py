@@ -25,7 +25,7 @@ from os                import defpath, pathsep
 from packaging.version import Version
 from pathlib           import Path
 from pytest            import (
-    CaptureFixture, Config, MonkeyPatch, fixture, mark, param, raises
+    CaptureFixture, MonkeyPatch, fixture, mark, param, raises
 )
 from pytest_subprocess import FakeProcess
 from subprocess        import CalledProcessError, check_call
@@ -1525,6 +1525,31 @@ def test_an_annotated_tag_names_the_commit_it_peels_to(tagged: Callable[[str], N
     assert (lift.current, lift.target) == ("v4.2.2", TARGET)
 
 
+def test_an_empty_holds_table_reads_as_no_hold_and_leaves_every_lift_to_run(
+    capsys      : CaptureFixture[str],
+    checkout    : Callable[[Mapping[str, str]], None],
+    fp          : FakeProcess,
+    monkeypatch : MonkeyPatch
+):
+    """
+    Pins that the `[holds]` table holding no entry reads as no pin held,
+    so the table lists the lift, no line leaves it where it stands, and no
+    name exits 2.
+    """
+    checkout({".mise/holds.toml": "[holds]\n"})
+    fp.register(ALERTS, stdout=dumps([[]]))
+    monkeypatch.setattr(Lifts, "managers", (Reporting,))
+
+    lifts = Lifts.read()
+
+    assert lifts.holds == {}
+    assert lifts.lift(held=(), trying=False, writing=False) == 0
+
+    printed = capsys.readouterr().out
+
+    assert "setuptools" in printed and "Leaving" not in printed
+
+
 def test_an_exact_pin_lift_writes_only_the_pin_it_names(
     checkout : Callable[[Mapping[str, str]], None],
     tmp_path : Path
@@ -1550,52 +1575,6 @@ def test_concurrently_returns_each_result_in_the_order_of_its_items():
     threads finish in.
     """
     assert concurrently([3, 1, 2], str) == ["3", "1", "2"]
-
-
-def test_each_action_repository_reads_once_across_every_workflow_and_manifest(
-    checkout : Callable[[Mapping[str, str]], None],
-    tagged   : Callable[[str, str], None]
-):
-    """
-    Pins that a step in a workflow, a step in the composite action, and a
-    sub-action under one repository read as one lift of that repository, in
-    the order of its name, and that a local action names none.
-    """
-    checkout(
-        {
-            ".github/actions/provision/action.yml": dedent(
-                f"""\
-                name: Provision
-                description: Provisions.
-                runs:
-                  using: composite
-                  steps:
-                    - uses: actions/checkout@{PINNED}
-                    - uses: github/codeql-action/upload-sarif@{PINNED}
-                """
-            ),
-
-            ".github/workflows/ci.yml": dedent(
-                f"""\
-                name: CI
-                on: push
-                jobs:
-                  check:
-                    runs-on: ubuntu-latest
-                    steps:
-                      - uses: actions/checkout@{PINNED}
-                      - uses: ./.github/actions/provision
-                """
-            )
-        }
-    )
-
-    for repository in ("actions/checkout", "github/codeql-action"):
-        tagged(f"{TARGET}\trefs/tags/v5.0.0\n", repository)
-
-    assert [lift.name for lift in ActionLifts.read().lifts] == [
-        "actions/checkout", "github/codeql-action"
-    ]
 
 
 @mark.parametrize(
@@ -1670,14 +1649,50 @@ def test_a_tool_write_reaches_every_home_audit_holds_the_pin_to(
         assert (tmp_path / script).read_text(encoding="utf-8") == written
 
 
-def test_holding_leaves_out_only_the_lifts_it_names():
+def test_each_action_repository_reads_once_across_every_workflow_and_manifest(
+    checkout : Callable[[Mapping[str, str]], None],
+    tagged   : Callable[[str, str], None]
+):
     """
-    Pins that a held pin's lift drops out, on a manager and on the whole.
+    Pins that a step in a workflow, a step in the composite action, and a
+    sub-action under one repository read as one lift of that repository, in
+    the order of its name, and that a local action names none.
     """
-    lifts = lifts_of(lift_of("a 1.0.0 2.0.0"), lift_of("b 1.0.0 2.0.0"))
+    checkout(
+        {
+            ".github/actions/provision/action.yml": dedent(
+                f"""\
+                name: Provision
+                description: Provisions.
+                runs:
+                  using: composite
+                  steps:
+                    - uses: actions/checkout@{PINNED}
+                    - uses: github/codeql-action/upload-sarif@{PINNED}
+                """
+            ),
 
-    assert [lift.name for lift in lifts.holding({"a"}).lifts] == ["b"]
-    assert [lift.name for lift in lifts.lifts] == ["a", "b"]
+            ".github/workflows/ci.yml": dedent(
+                f"""\
+                name: CI
+                on: push
+                jobs:
+                  check:
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: actions/checkout@{PINNED}
+                      - uses: ./.github/actions/provision
+                """
+            )
+        }
+    )
+
+    for repository in ("actions/checkout", "github/codeql-action"):
+        tagged(f"{TARGET}\trefs/tags/v5.0.0\n", repository)
+
+    assert [lift.name for lift in ActionLifts.read().lifts] == [
+        "actions/checkout", "github/codeql-action"
+    ]
 
 
 @mark.parametrize(
@@ -1809,13 +1824,14 @@ def test_a_write_locks_installs_and_syncs_after_every_manager_writes(
     assert [list(call) for call in fp.calls] == [*commands, *rebuilt]
 
 
-def test_only_the_lift_of_mise_itself_reads_the_running_mise(fp: FakeProcess):
+def test_holding_leaves_out_only_the_lifts_it_names():
     """
-    Pins that a lift of any other pin is refused nothing, however far its
-    newest release sits past the running mise, and runs no `mise --version`,
-    which `fp` would raise on.
+    Pins that a held pin's lift drops out, on a manager and on the whole.
     """
-    assert lifts_of(lift_of("uv 0.12.13 9999.0.0")).refused() == {}
+    lifts = lifts_of(lift_of("a 1.0.0 2.0.0"), lift_of("b 1.0.0 2.0.0"))
+
+    assert [lift.name for lift in lifts.holding({"a"}).lifts] == ["b"]
+    assert [lift.name for lift in lifts.lifts] == ["a", "b"]
 
 
 @mark.parametrize(
@@ -2236,6 +2252,15 @@ def test_a_lock_write_keeps_the_new_lock_where_every_held_package_stays(
     assert file.read_text(encoding="utf-8") == locked
 
 
+def test_only_the_lift_of_mise_itself_reads_the_running_mise(fp: FakeProcess):
+    """
+    Pins that a lift of any other pin is refused nothing, however far its
+    newest release sits past the running mise, and runs no `mise --version`,
+    which `fp` would raise on.
+    """
+    assert lifts_of(lift_of("uv 0.12.13 9999.0.0")).refused() == {}
+
+
 def test_the_exact_pins_lag_the_resolution_of_each_group(
     checkout : Callable[[Mapping[str, str]], None],
     fp       : FakeProcess,
@@ -2324,21 +2349,6 @@ def test_the_packages_write_before_every_other_manager():
     stops the write before any other manager moves a pin.
     """
     assert Lifts.managers[0] is PackageLifts
-
-
-def test_the_shipped_holds_keep_python_on_its_minor_for_the_cp315_wheels(
-    monkeypatch  : MonkeyPatch,
-    pytestconfig : Config
-):
-    """
-    Pins that the repository holds `python` from the start, with a reason
-    naming the `cp315` wheels of `torch` the move waits on.
-    """
-    monkeypatch.chdir(pytestconfig.rootpath)
-
-    reason = Holds.read().reasons["python"]
-
-    assert "cp315" in reason and "torch" in reason
 
 
 @mark.parametrize(

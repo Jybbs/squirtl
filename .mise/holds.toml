@@ -1,2 +1,1 @@
 [holds]
-python = "the move to Python 3.15 needs the `cp315` wheels of `torch` 2.15.0 or later, and `pyboy` 2.9.0 and `pyyaml` 6.0.3 ship no `cp315` wheel"
