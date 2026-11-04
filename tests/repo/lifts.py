@@ -1658,7 +1658,7 @@ def test_an_attempt_runs_ci_in_a_clone_it_removes_and_keeps_its_log(
         param(
             lift_of("uv 0.12.13 0.13.0"),
             1,
-            "Command '('mise', 'lock')' returned non-zero exit status 1.",
+            str(CalledProcessError(1, ("mise", "lock"))),
             id = "a-command-failing"
         ),
         param(
