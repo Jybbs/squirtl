@@ -7,6 +7,8 @@ Defines the records one run reads and writes:
   evaluation, and the checkpoint
 - `Episode`, one episode as a line of the run's `episodes`
 - `Stream`, the streams of random draws the run makes
+- `Moments`, `Slot`, and `VectorCheckpoint`, everything a resumed run of PQN
+  or PPO continues from
 - `Handover`, what a resumed run takes over from the run it continues
 """
 
@@ -27,7 +29,8 @@ from pydantic     import AwareDatetime, Field, NonNegativeInt, PositiveInt, Priv
 from subprocess   import check_output
 from typing       import Annotated, Self
 
-from squirtl.agent.schemas         import AgentSettings, Checkpoint, Weights, flush
+from squirtl.agent.schemas         import AgentSettings, Algorithm, PolicyUpdate, ReplayCheckpoint, RolloutCheckpoint
+from squirtl.agent.schemas         import Update, Weights, flush
 from squirtl.emulator.schemas      import Cartridge, EmulatorSettings, Record
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Outcome, Recording
@@ -119,8 +122,9 @@ class RunSettings(Record):
     checkpoint_steps: PositiveInt = 250_000
     """
     The environment steps between checkpoints, each written at the first
-    episode end reaching a multiple of them, whose default is the 250,000
-    steps of each iteration Dopamine's DQN checkpoints after.
+    episode end, or the end of a rollout's update for PQN and PPO, reaching
+    a multiple of them, whose default is the 250,000 steps of each iteration
+    Dopamine's DQN checkpoints after.
     """
 
     emulator: EmulatorSettings = Field(default_factory=EmulatorSettings)
@@ -141,9 +145,9 @@ class RunSettings(Record):
     evaluation_steps: PositiveInt = 250_000
     """
     The environment steps between the evaluations a run plays, each where
-    an episode end or the run's last step first reaches a multiple of them,
-    whose default is the 250,000 steps of each iteration Dopamine's DQN
-    evaluates after.
+    an episode end, the end of a rollout's update for PQN and PPO, or the
+    run's last step first reaches a multiple of them, whose default is the
+    250,000 steps of each iteration Dopamine's DQN evaluates after.
     """
 
     reward: RewardSettings = Field(default_factory=RewardSettings)
@@ -311,8 +315,10 @@ class Run(Record):
     @property
     def stop(self) -> Path:
         """
-        Locates the file whose presence stops the run at the end of the
-        episode it is playing, which `squirtl stop` writes.
+        Locates the file whose presence stops the run where its training
+        loop next pauses, the end of an episode for the deep Q-network and
+        the end of a rollout's update for PQN and PPO, which `squirtl stop`
+        writes.
         """
         return self.directory / "stop"
 
@@ -421,6 +427,7 @@ class Run(Record):
             settings = self.settings
 
             with Evaluator(
+                settings.agent.algorithm,
                 settings.agent.device,
                 settings.seeds[Stream.EVALUATION],
                 settings.evaluation,
@@ -445,6 +452,23 @@ class Run(Record):
         the run or before it, in the order the run played them.
         """
         return takewhile(lambda evaluation: evaluation.step <= step, self.evaluated)
+
+    def first(self, count: int) -> list[str]:
+        """
+        Reads the line of each of the first `count` episodes `episodes`
+        holds, validating no line.
+
+        Raises:
+            ValueError: Where `episodes` holds fewer, as where a crash lost
+                        the log's last lines.
+        """
+        if len(lines := list(islice(self.lines(self.episodes), count))) < count:
+            raise ValueError(
+                f"{self.episodes} holds {len(lines):,} episodes, short of the "
+                f"{count:,} the checkpoint follows"
+            )
+
+        return lines
 
     def inherit(self, handover: Handover):
         """
@@ -547,18 +571,14 @@ class Run(Record):
 class Episode(Outcome):
     """
     One episode as a run records it on a line of its `episodes`, from what
-    the episode reached to the `Recording` that `squirtl watch` plays back.
+    the episode reached to the `Recording` that `squirtl watch` plays back,
+    beside the measures of the agent that played it.
     """
 
-    epsilon: float
+    epsilon: float | None
     """
-    The chance of a random action at the episode's last step.
-    """
-
-    loss: float | None
-    """
-    The mean Huber loss over the updates the episode's steps took, or `None`
-    where none of its steps took one.
+    The chance of a random action at the episode's last step, or `None` for
+    PPO, which samples each action from its policy.
     """
 
     recording: Recording
@@ -567,11 +587,99 @@ class Episode(Outcome):
     from.
     """
 
-    value: float | None
+    update: PolicyUpdate | Update | None
     """
-    The mean value the online network gave the actions of each update's
-    batch, or `None` where no update ran.
+    Each measure of the agent's updates averaged over those taken while the
+    episode played, the loss and the value for the deep Q-network and PQN
+    and PPO's own for PPO, or `None` where none ran.
     """
+
+
+class Moments(Record):
+    """
+    The statistics `NormalizeReward` keeps of the discounted returns, by the
+    square root of whose variance it divides each reward.
+    """
+
+    count: float
+    """
+    The count of returns, which starts from a small positive value.
+    """
+
+    mean: float
+    """
+    The returns' running mean.
+    """
+
+    var: float
+    """
+    The returns' running variance.
+    """
+
+
+class Slot(Record):
+    """
+    One environment of a run of PQN or PPO as a checkpoint leaves it, in the
+    middle of an episode.
+    """
+
+    count: int
+    """
+    The updates taken while the episode played.
+    """
+
+    generator: dict[str, object]
+    """
+    The state of the generator the environment's next reset draws its
+    `timer_div` from.
+    """
+
+    recording: Recording
+    """
+    The episode the environment is playing, unfinished, which a resumed run
+    plays back through the environment's wrappers.
+    """
+
+    returned: float
+    """
+    The discounted return `NormalizeReward` keeps for the episode.
+    """
+
+    totals: list[float]
+    """
+    The sum of each measure of the updates taken while the episode played.
+    """
+
+
+class VectorCheckpoint(RolloutCheckpoint):
+    """
+    Everything a resumed run of PQN or PPO continues training from, the
+    environments' side beside the agent's.
+    """
+
+    episodes: NonNegativeInt
+    """
+    The count of episodes the run had written to its `episodes`.
+    """
+
+    moments: Moments
+    """
+    The statistics `NormalizeReward` scales each reward by.
+    """
+
+    slots: list[Slot]
+    """
+    Each environment, in the order the run steps them.
+    """
+
+    @property
+    def contents(self) -> dict[str, object]:
+        """
+        Gathers every field as `Checkpoint.contents` does, the moments
+        and each slot as plain values, which `torch.load` reads under
+        `weights_only=True`.
+        """
+        return super().contents | self.model_dump(include={"moments", "slots"})
 
 
 class Handover(Record):
@@ -587,15 +695,15 @@ class Handover(Record):
     it, or `None` where it played none.
     """
 
-    checkpoint: Checkpoint
+    checkpoint: ReplayCheckpoint | VectorCheckpoint
     """
-    The stopped run's last checkpoint, which the agent restores.
+    The stopped run's last checkpoint, which the run restores.
     """
 
     episodes: list[str]
     """
-    The line of each episode that ended by the checkpoint's step, as the
-    stopped run's `episodes` holds it.
+    The line of each episode written before the checkpoint, as the stopped
+    run's `episodes` holds it.
     """
 
     evaluations: list[Evaluation]
@@ -619,16 +727,22 @@ class Handover(Record):
     @classmethod
     def from_run(cls, previous: Run) -> Self:
         """
-        Reads what `previous` recorded up to its last checkpoint.
+        Reads what `previous` recorded up to its last checkpoint, the
+        episodes ending by its step for the deep Q-network, whose checkpoint
+        lands at an episode's end, and the count of episodes it names for
+        PQN and PPO.
 
         Raises:
             FileNotFoundError : Where `previous` holds no checkpoint.
             ValueError        : Where the checkpoint is damaged or already
                                 holds the run's `steps`, or the episodes
                                 `previous` recorded end short of it, as
-                                `Run.ended_by` raises.
+                                `Run.ended_by` and `Run.first` raise.
         """
-        checkpoint = Checkpoint.from_path(previous.checkpoint)
+        dqn        = previous.settings.agent.algorithm is Algorithm.DQN
+        checkpoint = (ReplayCheckpoint if dqn else VectorCheckpoint).from_path(
+            previous.checkpoint
+        )
 
         if checkpoint.step >= previous.settings.steps:
             raise ValueError(
@@ -640,8 +754,10 @@ class Handover(Record):
             baseline = previous.baseline.read_text(
                 encoding = "utf-8"
             ) if previous.baseline.exists() else None,
-            checkpoint  = checkpoint,
-            episodes    = previous.ended_by(checkpoint.step),
+            checkpoint = checkpoint,
+            episodes   = previous.ended_by(
+                checkpoint.step
+            ) if dqn else previous.first(checkpoint.episodes),
             evaluations = list(previous.evaluated_by(checkpoint.step)),
             name        = previous.name
         )

@@ -1,6 +1,6 @@
 """
 Defines `stop`, the command that writes the stop file ending a training run
-at the end of the episode it is playing.
+at the end of the episode it is playing or the rollout it is collecting.
 """
 
 from loguru  import logger
@@ -13,8 +13,9 @@ from squirtl.runs.schemas import Run
 def stop(directory: Path):
     """
     Writes the stop file into a training run's directory from any shell,
-    ending the run at the end of the episode it is playing with a checkpoint
-    and exit status 0, as a first interrupt does.
+    ending the run with a checkpoint and exit status 0, as a first interrupt
+    does, at the end of its episode for the deep Q-network and once a
+    rollout's update ends for PQN and PPO.
 
     A directory holding no run exits 1.
 
@@ -29,6 +30,6 @@ def stop(directory: Path):
 
     run.stop.touch()
     logger.info(
-        "Wrote the stop file ending the run in {} at its episode's end",
+        "Wrote the stop file ending the run in {}",
         run.directory
     )

@@ -1,7 +1,8 @@
 """
-Defines the wrappers `Overworld.specification` names beside Gymnasium's own,
-`ProgressObservation` and `ShrinkObservation`, which shape the observation,
-and `RecordOutcome`, which reports what each episode reached.
+Defines the wrappers `Overworld.specification` names beside Gymnasium's
+own, `ProgressObservation` and `ShrinkObservation`, which shape the
+observation, `RecordOutcome`, which reports what each episode reached, and
+`ReplayRecording`, which plays an unfinished episode back at a reset.
 """
 
 from gymnasium        import Env, ObservationWrapper, Wrapper
@@ -10,7 +11,7 @@ from gymnasium.utils  import RecordConstructorArgs
 from numpy            import full, ndarray, ndindex, uint32, uint8
 from typing           import Any
 
-from squirtl.environment.schemas import Entry, Outcome
+from squirtl.environment.schemas import Entry, Outcome, Recording
 from squirtl.reward.schemas      import Event
 
 
@@ -61,7 +62,8 @@ class RecordOutcome(Wrapper, RecordConstructorArgs):
     of its last step under `outcome`, reading the return, the length, and
     the time from the statistics `RecordEpisodeStatistics` adds beneath
     it, and the positions and the shares from the unwrapped environment's
-    `Progress`.
+    `Progress`, beside the episode's `Recording` under `recording`, which
+    the step's info holds before an automatic reset clears it.
     """
 
     def __init__(self, env: Env):
@@ -73,8 +75,9 @@ class RecordOutcome(Wrapper, RecordConstructorArgs):
 
     def step(self, action: int) -> tuple[Any, float, bool, bool, dict[str, Any]]:
         """
-        Steps the wrapped environment and adds the episode's `Outcome` to
-        the info dict once the step terminates or truncates it.
+        Steps the wrapped environment and adds the episode's `Outcome` and
+        `Recording` to the info dict once the step terminates or truncates
+        it.
         """
         observation, reward, terminated, truncated, info = self.env.step(action)
 
@@ -89,8 +92,54 @@ class RecordOutcome(Wrapper, RecordConstructorArgs):
                 shares     = progress.shares,
                 terminated = terminated
             )
+            info["recording"] = self.get_wrapper_attr("recording")
 
         return observation, reward, terminated, truncated, info
+
+
+class ReplayRecording(Wrapper, RecordConstructorArgs):
+    """
+    Plays the `Recording` that `resumed` holds back through every wrapper
+    beneath it at the next reset, so the frames, the step count, and the
+    statistics each wrapper keeps hold what they held at the recording's
+    last step, as a resumed run sets each environment back to the episode
+    its checkpoint left unfinished.
+    """
+
+    def __init__(self, env: Env):
+        """
+        Wraps `env`, which `RecordOutcome` wraps, holding no recording.
+        """
+        RecordConstructorArgs.__init__(self)
+        Wrapper.__init__(self, env)
+
+        self.resumed: Recording | None = None
+
+    def reset(
+        self,
+        *,
+        options : dict[str, Any] | None = None,
+        seed    : int | None            = None
+    ) -> tuple[Any, dict[str, Any]]:
+        """
+        Resets the wrapped environment, or where `resumed` holds a
+        recording, resets it to that recording's start and steps through
+        each action the recording holds, then clears `resumed`.
+
+        Returns:
+            The observation the reset or the recording's last step ended
+            on, beside an empty info dict where it played a recording back.
+        """
+        if (recording := self.resumed) is None:
+            return self.env.reset(options=options, seed=seed)
+
+        self.resumed   = None
+        observation, _ = self.env.reset(options={"recording": recording})
+
+        for action in recording.presses:
+            observation, *_ = self.env.step(action)
+
+        return observation, {}
 
 
 class ShrinkObservation(ObservationWrapper, RecordConstructorArgs):

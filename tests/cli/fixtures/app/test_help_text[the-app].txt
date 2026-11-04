@@ -10,11 +10,12 @@ PyTorch.
 │              evaluation into its run's directory, reading in place of        │
 │              playing any the run already holds.                              │
 │ stop         Writes the stop file into a training run's directory from any   │
-│              shell, ending the run at the end of the episode it is playing   │
-│              with a checkpoint and exit status 0, as a first interrupt does. │
-│ train        Trains the agent for the run's --steps environment steps,       │
-│              headless unless --emulator.open-window is set, logging a line   │
-│              per episode above a progress bar.                               │
+│              shell, ending the run with a checkpoint and exit status 0, as a │
+│              first interrupt does, at the end of its episode for the deep    │
+│              Q-network and once a rollout's update ends for PQN and PPO.     │
+│ train        Trains the agent --agent.algorithm names for the run's --steps  │
+│              environment steps, headless unless --emulator.open-window is    │
+│              set, logging a line per episode above a progress bar.           │
 │ watch        Opens the emulator's window and plays back one episode the run  │
 │              recorded, from the reset at the timer_div the run recorded for  │
 │              it to the return the run recorded, at the sixty steps a second  │

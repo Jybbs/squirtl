@@ -7,6 +7,7 @@ Pins what `squirtl watch` does, covering:
 - The playback reaching another return, a console whose intro leaves
   another state than the run recorded, an episode the run never recorded,
   and a directory holding no run, each exiting 1
+- An episode of a run of PQN or PPO played back to its unscaled return
 """
 
 from common.cli import Invoker
@@ -150,3 +151,19 @@ def test_a_playback_with_nothing_to_play_exits_1_before_the_window_opens(
 
     assert (invocation.code, windows) == (1, [])
     assert ("holds no episode 3" in invocation.log) is bool(argv)
+
+
+def test_an_episode_of_pqn_or_ppo_plays_back_to_the_return_the_run_recorded(
+    invoke  : Invoker,
+    rolled  : Path,
+    windows : list[str]
+):
+    """
+    Asserts that playing back the last episode of a run of either agent,
+    which `NormalizeReward` leaves unscaled on its line, exits zero on
+    reaching the return the run recorded.
+    """
+    invocation = invoke(["watch", str(rolled)])
+
+    assert invocation.code == 0
+    assert "the run recorded" in invocation.log

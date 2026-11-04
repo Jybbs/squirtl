@@ -16,31 +16,41 @@ Pins the records the agent reads and writes, covering:
   which it refuses naming it, the flush that writes it through the drive's
   cache, and the archive a save flushes whole before the directory
 - The weights read from a checkpoint's `agent.pt` member alone
+- The agents a run trains, the network and the record of measures each
+  reads, the settings each alone reads, and a rollout each refuses as too
+  small for its minibatches
+- The sums, the averages, and the logged form of an update's measures, and
+  a checkpoint of PQN or PPO reading back as written with no member beyond
+  `agent.pt`
 """
 
-from collections.abc import Callable, Mapping
-from numpy           import load as load_npz, zeros
-from numpy.testing   import assert_array_equal
-from os              import fstat, truncate
-from pathlib         import Path
-from pickle          import UnpicklingError
-from pydantic        import ValidationError
-from pytest          import MonkeyPatch, mark, param, raises
-from stat            import S_ISDIR
-from torch           import Tensor, arange, device, equal, save, tensor, uint8
-from torch.nn        import Linear
-from zipfile         import ZIP_ZSTANDARD, ZipFile
+from collections.abc  import Callable, Mapping
+from common.agents    import each_agent
+from gymnasium.spaces import Box, Dict
+from numpy            import load as load_npz, zeros
+from numpy.testing    import assert_array_equal
+from os               import fstat, truncate
+from pathlib          import Path
+from pickle           import UnpicklingError
+from pydantic         import ValidationError
+from pytest           import MonkeyPatch, mark, param, raises
+from stat             import S_ISDIR
+from torch            import Tensor, arange, device, equal, save, tensor, uint8
+from torch.nn         import LayerNorm, Linear
+from zipfile          import ZIP_ZSTANDARD, ZipFile
 
-from squirtl.agent.schemas       import AgentSettings, Batch, Checkpoint, Weights, flush
+from squirtl.agent.networks      import ActorCritic, QNetwork
+from squirtl.agent.schemas       import AgentSettings, Algorithm, Batch, Measures, PolicyUpdate, ReplayCheckpoint
+from squirtl.agent.schemas       import RolloutCheckpoint, Update, Weights, flush
 from squirtl.environment.schemas import Entry
 
 
-def blank(**fields: object) -> Checkpoint:
+def blank(**fields: object) -> ReplayCheckpoint:
     """
     Builds a checkpoint holding nothing at step 0, any keyword setting a
     field in its place.
     """
-    return Checkpoint(
+    return ReplayCheckpoint(
         **{
             "step"        : 0,
             "exploration" : {},
@@ -197,7 +207,7 @@ def misname_agent(path: Path):
 def pack(agent: dict[str, object], path: Path, **members: bytes):
     """
     Writes an `.npz` holding `agent` as its `agent.pt` member, the way
-    `Checkpoint.save` writes every field but `replay`, beside each of
+    `ReplayCheckpoint.save` writes every field but `replay`, beside each of
     `members` under its name.
     """
     with ZipFile(path, "w") as archive:
@@ -305,7 +315,7 @@ def test_a_checkpoint_refuses_a_network_entry_that_is_no_tensor(
     )
 
     with raises(ValidationError, match=rf"{network}\.weight"):
-        Checkpoint.from_path(tmp_path / "checkpoint.npz")
+        ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz")
 
 
 @mark.parametrize(
@@ -349,7 +359,7 @@ def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path)
     online, target = Linear(2, 1).state_dict(), Linear(2, 1).state_dict()
     written        = blank(online=online, target=target)
     written.save(tmp_path / "checkpoint.npz")
-    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
+    read = ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz")
 
     assert written.online is online and written.target is target
     assert (read.online._metadata, read.target._metadata) == (
@@ -388,7 +398,7 @@ def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
         target      = {"weight": tensor([0.5, 2.0])}
     )
     written.save(tmp_path / "checkpoint.npz")
-    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
+    read = ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz")
 
     assert equal(read.online["weight"], written.online["weight"])
     assert equal(read.target["weight"], written.target["weight"])
@@ -407,7 +417,72 @@ def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path)
     pack({"online": Path("online.pt")}, tmp_path / "checkpoint.npz")
 
     with raises(UnpicklingError, match="Weights only load failed"):
-        Checkpoint.from_path(tmp_path / "checkpoint.npz")
+        ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz")
+
+
+def test_a_rollout_checkpoint_reads_back_as_written_with_no_member_beyond_the_agents(
+    tmp_path: Path
+):
+    """
+    Asserts that a checkpoint of PQN or PPO reads back with each field the
+    one written, in an archive of its `agent.pt` member alone, since it
+    holds no replay memory.
+    """
+    written = RolloutCheckpoint(
+        generator = {"bit_generator": "PCG64", "state": {"inc": 1, "state": 2**100}},
+        online    = {"weight": tensor([1.0, 2.0])},
+        optimizer = {"param_groups": [{"lr": 1e-4, "params": [0]}], "state": {}},
+        step      = 16
+    )
+    written.save(tmp_path / "checkpoint.npz")
+    read = RolloutCheckpoint.from_path(tmp_path / "checkpoint.npz")
+
+    assert equal(read.online["weight"], written.online["weight"])
+    assert (read.generator, read.optimizer, read.step) == (
+        written.generator, written.optimizer, written.step
+    )
+
+    with ZipFile(tmp_path / "checkpoint.npz") as archive:
+        assert archive.namelist() == ["agent.pt"]
+
+
+def test_a_run_trains_the_deep_q_network_unless_it_names_another_agent():
+    """
+    Asserts that the settings default to the deep Q-network, whose own
+    settings sit on the record itself.
+    """
+    settings = AgentSettings()
+
+    assert (settings.algorithm, settings.hyperparameters) == (Algorithm.DQN, None)
+
+
+@mark.parametrize(
+    "damage",
+    [
+        param(cut_to_nothing,   id="an-empty-file"),
+        param(cut_in_half,      id="its-first-half"),
+        param(flip_agent_frame, id="a-damaged-zstd-frame"),
+        param(misname_agent,          id="a-damaged-member-name"),
+        param(mark_an_unknown_method, id="a-damaged-compression-method")
+    ]
+)
+def test_a_damaged_checkpoint_is_refused_naming_its_file(
+    damage   : Callable[[Path], None],
+    tmp_path : Path
+):
+    """
+    Asserts that reading a checkpoint whose file holds nothing, its
+    first half alone, a damaged zstd frame, or a zip header damaged in a
+    member's name or its compression method, which raise `KeyError` and
+    `NotImplementedError`, raises `ValueError` naming the file, the error
+    the commands refuse.
+    """
+    path = tmp_path / "checkpoint.npz"
+    blank(replay={"actions": zeros(64, "int64")}, step=3).save(path)
+    damage(path)
+
+    with raises(ValueError, match=f"{path} holds no whole checkpoint"):
+        ReplayCheckpoint.from_path(path)
 
 
 def test_a_save_flushes_the_whole_archive_then_the_directory_it_lands_in(
@@ -453,32 +528,40 @@ def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
 
 
 @mark.parametrize(
-    "damage",
+    ("full", "call"),
     [
-        param(cut_to_nothing,   id="an-empty-file"),
-        param(cut_in_half,      id="its-first-half"),
-        param(flip_agent_frame, id="a-damaged-zstd-frame"),
-        param(misname_agent,          id="a-damaged-member-name"),
-        param(mark_an_unknown_method, id="a-damaged-compression-method")
+        param(True,  "fcntl", id="where-fcntl-has-f-fullfsync"),
+        param(False, "fsync", id="elsewhere")
     ]
 )
-def test_a_damaged_checkpoint_is_refused_naming_its_file(
-    damage   : Callable[[Path], None],
-    tmp_path : Path
+def test_a_flush_takes_f_fullfsync_where_fcntl_has_it_and_fsync_elsewhere(
+    call        : str,
+    full        : bool,
+    monkeypatch : MonkeyPatch
 ):
     """
-    Asserts that reading a checkpoint whose file holds nothing, its
-    first half alone, a damaged zstd frame, or a zip header damaged in a
-    member's name or its compression method, which raise `KeyError` and
-    `NotImplementedError`, raises `ValueError` naming the file, the error
-    the commands refuse.
+    Asserts that a flush asks `fcntl` for `F_FULLFSYNC` where the module has
+    it, as on macOS, and calls `fsync` where it does not, as on Linux, each
+    platform's module stood in for on the other.
     """
-    path = tmp_path / "checkpoint.npz"
-    blank(replay={"actions": zeros(64, "int64")}, step=3).save(path)
-    damage(path)
+    calls = []
 
-    with raises(ValueError, match=f"{path} holds no whole checkpoint"):
-        Checkpoint.from_path(path)
+    if full:
+        monkeypatch.setattr("fcntl.F_FULLFSYNC", 51, raising=False)
+    else:
+        monkeypatch.delattr("fcntl.F_FULLFSYNC", raising=False)
+
+    monkeypatch.setattr(
+        "fcntl.fcntl",
+        lambda descriptor, command: calls.append("fcntl")
+    )
+    monkeypatch.setattr(
+        "squirtl.agent.schemas.fsync",
+        lambda descriptor: calls.append("fsync")
+    )
+    flush(7)
+
+    assert calls == [call]
 
 
 def test_a_warmup_as_long_as_the_batch_size_is_accepted():
@@ -520,40 +603,131 @@ def test_a_write_interrupted_partway_leaves_the_last_checkpoint_as_it_was(
 
 
 @mark.parametrize(
-    ("full", "call"),
+    ("algorithm", "network", "normalized", "record", "sampled"),
     [
-        param(True,  "fcntl", id="where-fcntl-has-f-fullfsync"),
-        param(False, "fsync", id="elsewhere")
+        param(
+            Algorithm.DQN,
+            QNetwork,
+            False,
+            Update,
+            False,
+            id = "the-deep-q-network"
+        ),
+        param(Algorithm.PPO, ActorCritic, False, PolicyUpdate, True,  id="ppo"),
+        param(Algorithm.PQN, QNetwork,    True,  Update,       False, id="pqn")
     ]
 )
-def test_a_flush_takes_f_fullfsync_where_fcntl_has_it_and_fsync_elsewhere(
-    call        : str,
-    full        : bool,
-    monkeypatch : MonkeyPatch
+def test_each_agent_names_its_network_its_measures_and_how_it_chooses(
+    algorithm  : Algorithm,
+    network    : type,
+    normalized : bool,
+    record     : type[Measures],
+    sampled    : bool
 ):
     """
-    Asserts that a flush asks `fcntl` for `F_FULLFSYNC` where the module has
-    it, as on macOS, and calls `fsync` where it does not, as on Linux, each
-    platform's module stood in for on the other.
+    Asserts that each agent builds its network over seven actions, PQN's
+    alone normalized, reads its own record of measures, and samples from a
+    policy or chooses epsilon-greedily.
     """
-    calls = []
+    built = algorithm.network(7, Dict(frames=Box(0, 255, (4, 72, 80))))
 
-    if full:
-        monkeypatch.setattr("fcntl.F_FULLFSYNC", 51, raising=False)
-    else:
-        monkeypatch.delattr("fcntl.F_FULLFSYNC", raising=False)
+    assert type(built) is network
+    assert any(isinstance(layer, LayerNorm) for layer in built.modules()) is normalized
+    assert (algorithm.measures, algorithm.sampled) == (record, sampled)
 
-    monkeypatch.setattr(
-        "fcntl.fcntl",
-        lambda descriptor, command: calls.append("fcntl")
-    )
-    monkeypatch.setattr(
-        "squirtl.agent.schemas.fsync",
-        lambda descriptor: calls.append("fsync")
-    )
-    flush(7)
 
-    assert calls == [call]
+@mark.parametrize(
+    ("algorithm", "read"),
+    [
+        param(Algorithm.PPO, lambda settings: settings.ppo, id="ppo"),
+        param(Algorithm.PQN, lambda settings: settings.pqn, id="pqn")
+    ]
+)
+def test_each_rollout_agent_reads_the_settings_of_its_own(
+    algorithm : Algorithm,
+    read      : Callable[[AgentSettings], object]
+):
+    """
+    Asserts that `hyperparameters` reads the record of the agent the
+    settings name.
+    """
+    settings = AgentSettings(algorithm=algorithm)
+
+    assert settings.hyperparameters is read(settings)
+
+
+@each_agent
+def test_a_rollout_of_two_samples_per_minibatch_is_the_least_each_agent_accepts(
+    algorithm: Algorithm
+):
+    """
+    Asserts that each agent reads its own count of minibatches, three of
+    them accepting a rollout of six samples and refusing one of five.
+    """
+    hyperparameters = {algorithm.value: {"minibatches": 3}}
+
+    assert AgentSettings(
+        **hyperparameters,
+        algorithm     = algorithm,
+        environments  = 3,
+        rollout_steps = 2
+    ).rollout_steps == 2
+
+    with raises(ValidationError, match="a rollout of 5 samples gives some of its 3"):
+        AgentSettings(
+            **hyperparameters,
+            algorithm     = algorithm,
+            environments  = 5,
+            rollout_steps = 1
+        )
+
+
+def test_measures_log_each_name_beside_its_value_at_four_significant_digits():
+    """
+    Asserts that a record of measures reads as each name beside its value at
+    four significant digits, the form an episode's line logs.
+    """
+    assert str(Update(loss=2.0, value=-6.54321)) == "loss 2, value -6.543"
+
+
+@mark.parametrize(
+    ("record", "fields"),
+    [
+        param(Update, {"loss": 1.0, "value": 2.0}, id="the-loss-and-the-value"),
+        param(
+            PolicyUpdate,
+            {
+                "clipped"     : 0.25,
+                "entropy"     : 1.5,
+                "kl"          : 0.01,
+                "policy_loss" : -0.5,
+                "value_loss"  : 3.0
+            },
+            id = "ppos-measures"
+        )
+    ]
+)
+def test_measures_list_their_totals_and_average_over_a_count(
+    fields : dict[str, float],
+    record : type[Measures]
+):
+    """
+    Asserts that `totals` lists each measure in the order the record
+    declares them, and that `averaged` divides each of them by the count
+    back into the record holding the mean of each.
+    """
+    measures = record(**fields)
+
+    assert measures.totals == tuple(fields.values())
+    assert record.averaged(4, [4 * total for total in measures.totals]) == measures
+
+
+def test_the_deep_q_network_reads_no_minibatches():
+    """
+    Asserts that a rollout too small for PQN's and PPO's minibatches is
+    accepted for the deep Q-network, which collects no rollout.
+    """
+    assert AgentSettings(environments=1, rollout_steps=1).algorithm is Algorithm.DQN
 
 
 def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
@@ -562,8 +736,8 @@ def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
     """
     Asserts that `Weights` reads the online network and the step from a
     checkpoint's `agent.pt` member alone, even where a member of replay
-    memory holds an array header cut short, which `Checkpoint` refuses to
-    read.
+    memory holds an array header cut short, which `ReplayCheckpoint` refuses
+    to read.
     """
     agent = {
         "step"        : 12,
@@ -581,4 +755,4 @@ def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
     assert (weights.online["weight"].tolist(), weights.step) == ([1.0, 2.0], 12)
 
     with raises(ValueError):
-        Checkpoint.from_path(tmp_path / "checkpoint.npz")
+        ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz")

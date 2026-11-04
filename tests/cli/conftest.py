@@ -6,14 +6,17 @@ Defines the fixtures the tests of `squirtl.cli` request:
 - `quick`, the flags of a short run on the CPU evaluating two episodes,
   `trained`, a run `squirtl train` takes through under them, and
   `stopped`, one it stops at the end of an episode short of its steps
+- `rolling`, a factory of the flags of a short run of PQN or PPO, and `rolled`,
+  a run of either that `squirtl train` takes through under them
 - `windows`, under which PyBoy draws no window whichever one a boot names,
   recording the one each boot named
 """
 
-from common.cli import Invocation, Invoker
-from pathlib    import Path
-from pyboy      import PyBoy
-from pytest     import CaptureFixture, MonkeyPatch, fixture, raises
+from collections.abc import Callable
+from common.cli      import Invocation, Invoker
+from pathlib         import Path
+from pyboy           import PyBoy
+from pytest          import CaptureFixture, FixtureRequest, MonkeyPatch, fixture, raises
 
 from squirtl.cli              import app
 from squirtl.emulator         import console
@@ -115,6 +118,42 @@ def trained(
         The run's directory, which the command prints.
     """
     return Path(invoke(["train", *quick]).output.strip())
+
+
+@fixture
+def rolling() -> Callable[[str], list[str]]:
+    """
+    Builds a factory of the flags of a 16-step run of the agent it is handed
+    on the CPU across 2 environments, its rollouts of 4 steps splitting into
+    2 minibatches, its episodes truncated after 3 steps, a checkpoint every
+    8 steps, and each evaluation playing 2 episodes in 2 environments.
+    """
+    return lambda algorithm: [
+        "--agent.algorithm", algorithm, "--agent.device", "cpu", "--agent.environments",
+        "2", "--agent.ppo.minibatches", "2", "--agent.pqn.minibatches", "2",
+        "--agent.rollout-steps", "4", "--checkpoint-steps", "8",
+        "--environment.max-episode-steps", "3", "--evaluation.environments", "2",
+        "--evaluation.episodes", "2", "--steps", "16"
+    ]
+
+
+@fixture(params=["ppo", "pqn"])
+def rolled(
+    accepted : None,
+    clone    : Path,
+    invoke   : Invoker,
+    request  : FixtureRequest,
+    rolling  : Callable[[str], list[str]],
+    rom      : Path
+) -> Path:
+    """
+    Takes a run of PPO and a run of PQN through `squirtl train` in `clone`
+    on the cartridge `rom` writes, which `accepted` lets past its digest.
+
+    Returns:
+        The run's directory, which the command prints.
+    """
+    return Path(invoke(["train", *rolling(request.param)]).output.strip())
 
 
 @fixture

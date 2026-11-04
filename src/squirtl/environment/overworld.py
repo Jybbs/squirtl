@@ -16,7 +16,7 @@ from typing   import Any
 from squirtl.emulator.console     import GameBoy
 from squirtl.emulator.schemas     import Button, Cartridge, EmulatorSettings
 from squirtl.environment.schemas  import EnvironmentSettings, Recording
-from squirtl.environment.wrappers import ProgressObservation, RecordOutcome, ShrinkObservation
+from squirtl.environment.wrappers import ProgressObservation, RecordOutcome, ReplayRecording, ShrinkObservation
 from squirtl.reward.progress      import Progress
 from squirtl.reward.schemas       import RewardSettings, Term
 
@@ -153,6 +153,7 @@ class Overworld(Env):
         - `RecordEpisodeStatistics`, recording each episode's return, length,
           and time
         - `RecordOutcome`, reporting what each episode reached
+        - `ReplayRecording`, playing an unfinished episode back at a reset
         """
         return EnvSpec(
             "squirtl/Overworld-v0",
@@ -161,7 +162,8 @@ class Overworld(Env):
                 FrameStackObservation.wrapper_spec(stack_size=environment.frame_stack),
                 ProgressObservation.wrapper_spec(size=environment.grid_size),
                 RecordEpisodeStatistics.wrapper_spec(),
-                RecordOutcome.wrapper_spec()
+                RecordOutcome.wrapper_spec(),
+                ReplayRecording.wrapper_spec()
             ),
             entry_point = cls,
             kwargs      = {

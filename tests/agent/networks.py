@@ -1,18 +1,26 @@
 """
-Pins the Q-network's layers, the values it maps observations to, the scaling
-of each entry, its sameness across batches and modes, and the entry it
-refuses.
+Pins the networks the agents train, covering:
+
+- The Q-network's layers, the values it maps observations to, the scaling of
+  each entry, its sameness across batches and modes, and the entry it refuses
+- The layers PQN's Q-network normalizes and PPO's network adds, and what
+  `ChannelNorm` normalizes over
+- The logits and the values PPO's network reads from one pass of its encoder
+- `tensors` moving each entry onto the device it names
 """
 
+from collections.abc        import Callable
 from gymnasium.spaces       import Box, Dict
 from gymnasium.vector.utils import batch_space
-from pytest                 import mark, param, raises
+from numpy            import ones, uint8
+from pytest           import mark, param, raises
 from re               import escape
 from syrupy.assertion import SnapshotAssertion
-from torch            import Tensor, as_tensor, cat, equal, manual_seed
+from torch            import Tensor, arange, as_tensor, cat, equal, manual_seed, zeros
+from torch.nn         import Module
 from torch.testing    import assert_close
 
-from squirtl.agent.networks      import QNetwork
+from squirtl.agent.networks      import ActorCritic, ChannelNorm, QNetwork, tensors
 from squirtl.environment.schemas import Entry
 
 
@@ -50,6 +58,93 @@ def test_the_network_maps_each_observation_to_one_value_per_action(
     assert QNetwork(7, resized)(draw(3, resized)).shape == (3, 7)
 
 
+def test_a_channel_norm_normalizes_each_position_over_its_channels():
+    """
+    Asserts that `ChannelNorm` keeps the shape of a batch of images and
+    leaves each position's channels at a mean of 0 and a variance of 1,
+    whatever the scale of the channels at any other position, which a norm
+    over the image would not.
+    """
+    images = cat(
+        [
+            arange(1.0, 13.0).reshape(1, 3, 2, 2),
+            1000 * arange(1.0, 13.0).reshape(1, 3, 2, 2)
+        ],
+        3
+    )
+    normed = ChannelNorm(3)(images)
+
+    assert normed.shape == images.shape
+    assert_close(normed.mean(1), zeros(1, 2, 4), atol=1e-5, rtol=0)
+    assert_close(normed.var(1, unbiased=False), zeros(1, 2, 4) + 1, atol=1e-3, rtol=0)
+
+
+@mark.parametrize(
+    "network",
+    [
+        param(lambda space: QNetwork(7, space, normalized=True), id="pqn"),
+        param(lambda space: ActorCritic(7, space),               id="ppo")
+    ]
+)
+def test_each_agents_network_carries_the_layers_its_source_sets(
+    network  : Callable[[Dict], Module],
+    snapshot : SnapshotAssertion,
+    space    : Dict
+):
+    """
+    Asserts that PQN's network normalizes each position's channels after
+    every convolution and each fully connected layer before its activation,
+    as Gallici et al.'s Atari network does, and that PPO's normalizes
+    nothing and projects the encodings before a body of 512 units and its
+    two heads, as Pleines et al. describe.
+    """
+    assert str(network(space)) == snapshot
+
+
+def test_a_normalized_network_values_an_observation_alike_alone_or_batched(space: Dict):
+    """
+    Asserts that layer normalization leaves PQN's network valuing an
+    observation alike alone and in a batch, since it reads no other
+    observation of the batch.
+    """
+    manual_seed(0)
+    network      = QNetwork(7, space, normalized=True)
+    observations = draw(5, space)
+
+    assert_close(
+        network({key: entry[:1] for key, entry in observations.items()}),
+        network(observations)[:1]
+    )
+
+
+def test_ppos_network_reads_its_logits_and_its_values_from_one_pass(space: Dict):
+    """
+    Asserts that PPO's network reads a `(batch, actions)` tensor of logits
+    and a `(batch,)` tensor of values for a batch of three, its forward pass
+    returning the same logits, with both heads reading one encoder.
+    """
+    manual_seed(0)
+    network        = ActorCritic(7, space)
+    observations   = draw(3, space)
+    logits, values = network.heads(observations)
+
+    assert (logits.shape, values.shape) == ((3, 7), (3,))
+    assert equal(network(observations), logits)
+    assert equal(values, network.critic(network.encoder(observations))[:, 0])
+
+
+def test_tensors_moves_each_entry_onto_the_device_it_names():
+    """
+    Asserts that `tensors` moves each entry onto the device it names,
+    keeping its shape, which the `meta` device pins on a machine with no
+    accelerator.
+    """
+    moved = tensors("meta", {"flags": ones(4, uint8), "frames": ones((2, 3), uint8)})
+
+    assert {entry.device.type for entry in moved.values()} == {"meta"}
+    assert moved["frames"].shape == (2, 3)
+
+
 def test_the_network_carries_the_layers_mnih_et_al_set(
     snapshot : SnapshotAssertion,
     space    : Dict
@@ -71,16 +166,20 @@ def test_the_network_scales_each_entry_into_the_unit_interval(space: Dict):
     network      = QNetwork(7, space)
     observations = draw(2, space)
 
+    encoders = network.encoder.encoders
+
     assert equal(
         network(observations),
         network.head(
-            cat(
-                [
-                    network.encoders[Entry.FLAGS](observations[Entry.FLAGS].float()),
-                    network.encoders[Entry.FRAMES](observations[Entry.FRAMES] / 255),
-                    network.encoders[Entry.GRID](observations[Entry.GRID].float())
-                ],
-                1
+            network.encoder.layers(
+                cat(
+                    [
+                        encoders[Entry.FLAGS](observations[Entry.FLAGS].float()),
+                        encoders[Entry.FRAMES](observations[Entry.FRAMES] / 255),
+                        encoders[Entry.GRID](observations[Entry.GRID].float())
+                    ],
+                    1
+                )
             )
         )
     )
