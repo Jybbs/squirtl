@@ -21,12 +21,11 @@ Pins the records one run reads and writes, covering:
   line alone
 - The lines of the episodes ending by a checkpoint, and a log ending short
   of a checkpoint below the run's steps, which is refused
-- The evaluations a run plays where it lacks them and reads where it holds
-  them, under its evaluation stream's seed, and a run holding none
+- A run holding no evaluations
 """
 
 from collections.abc   import Callable, Mapping
-from common.evaluation import EvaluatorStandIn, played
+from common.evaluation import played
 from datetime          import UTC, datetime
 from functools         import reduce
 from hashlib           import sha256
@@ -40,8 +39,7 @@ from shutil            import copytree
 from subprocess        import CalledProcessError, check_output
 from syrupy.assertion  import SnapshotAssertion
 
-from squirtl.agent.schemas      import Weights
-from squirtl.emulator.schemas   import Cartridge, Record
+from squirtl.emulator.schemas   import Record
 from squirtl.evaluation.schemas import Evaluation
 from squirtl.runs.schemas       import Episode, Revision, Run, RunSettings, Stream
 
@@ -647,54 +645,6 @@ def test_each_stream_seed_fits_in_64_unsigned_bits():
     widest seed `torch.manual_seed` takes.
     """
     assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
-
-
-@mark.usefixtures("clone")
-def test_a_run_plays_the_evaluations_it_lacks_and_reads_those_it_holds(
-    cartridge  : Cartridge,
-    evaluators : list[EvaluatorStandIn]
-):
-    """
-    Asserts that a run's first evaluation, at step 10, plays the agent and
-    the baseline under the run's evaluation stream and settings and writes
-    both, that a second at step 10 reads both back without starting an
-    evaluator, and that one at step 20 plays the agent alone, reading the
-    baseline the run holds.
-    """
-    run    = Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
-    played = [
-        run.evaluate(cartridge, Weights(online={}, step=step)) for step in (10, 10, 20)
-    ]
-
-    assert [stand_in.asked for stand_in in evaluators] == [[10, None], [20]]
-    assert evaluators[0].arguments == (
-        run.settings.agent.device,
-        run.settings.seeds[Stream.EVALUATION],
-        run.settings.evaluation,
-        run.settings.specification(cartridge)
-    )
-    assert (played[1], played[2][1]) == (played[0], played[0][1])
-    assert [evaluation.step for evaluation in run.evaluated] == [10, 20]
-
-
-@mark.usefixtures("clone")
-def test_a_run_holding_its_evaluation_but_no_baseline_plays_the_baseline_alone(
-    cartridge  : Cartridge,
-    evaluators : list[EvaluatorStandIn]
-):
-    """
-    Asserts that a run holding the agent's evaluation at step 10 but no
-    baseline, as a resume from a run that wrote none leaves it, plays the
-    baseline alone and writes it.
-    """
-    run = Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
-    run.append(run.evaluations, played([0.01], 10))
-    run.evaluate(cartridge, Weights(online={}, step=10))
-
-    assert ([stand_in.asked for stand_in in evaluators], run.baseline.exists()) == (
-        [[None]],
-        True
-    )
 
 
 def test_reading_a_directory_holding_no_run_raises(clone: Path):

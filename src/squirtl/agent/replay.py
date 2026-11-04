@@ -1,7 +1,7 @@
 """
-Defines `Replay`, the replay memory the agent stores each transition in
-and samples each batch from, and `Column`, one entry's elements across its
-slots.
+Defines `Replay`, the replay memory the agent stores each transition in and
+samples each batch from, `Batch`, the transitions one update draws from it,
+and `Column`, one entry's elements across its slots.
 """
 
 from collections.abc  import Mapping
@@ -9,9 +9,83 @@ from gymnasium.spaces import Box, Dict, MultiBinary
 from numpy            import arange, asarray, flatnonzero, float32, int64, ndarray, packbits, uint8, unpackbits, zeros
 from numpy.random     import Generator
 from operator         import itemgetter
-from torch            import as_tensor
+from pydantic         import InstanceOf
+from torch            import Tensor, as_tensor, no_grad
 
-from squirtl.agent.schemas import Batch
+from squirtl.agent.networks   import QNetwork
+from squirtl.emulator.schemas import Record
+
+
+class Batch(Record):
+    """
+    The transitions one update draws from replay memory, each field on the
+    device the settings name.
+    """
+
+    actions: InstanceOf[Tensor]
+    """
+    The action each draw took, a `(batch,)` tensor of `int64`.
+    """
+
+    rewards: InstanceOf[Tensor]
+    """
+    The reward each draw earned, a `(batch,)` tensor of `float32`.
+    """
+
+    terminated: InstanceOf[Tensor]
+    """
+    Whether each draw ended its episode, a `(batch,)` tensor of `bool`.
+    """
+
+    windows: dict[str, InstanceOf[Tensor]]
+    """
+    One `(batch, depth + 1, *element)` tensor per entry, its first `depth`
+    elements the observation acted on and its last `depth` the one reached.
+    """
+
+    @property
+    def next_observations(self) -> dict[str, Tensor]:
+        """
+        Slices the observation each draw reached out of `windows`.
+        """
+        return {key: window[:, 1:] for key, window in self.windows.items()}
+
+    @property
+    def observations(self) -> dict[str, Tensor]:
+        """
+        Slices the observation each draw acted on out of `windows`.
+        """
+        return {key: window[:, :-1] for key, window in self.windows.items()}
+
+    @no_grad()
+    def targets(self, chooser: QNetwork, discount: float, network: QNetwork) -> Tensor:
+        """
+        Values each draw at its reward plus `discount` times the value
+        `network` gives the observation reached under the action `chooser`
+        values highest there, or the reward alone where it terminated,
+        recording no autograd graph. Where `chooser` is the online network
+        and `network` the target network, the target is van Hasselt et al.'s
+        Double DQN target, and where both are the target network, it is the
+        highest value the target network gives, as Mnih et al.'s is, read
+        from one pass of `network`.
+        """
+        reached = self.next_observations
+        valued  = network(reached)
+        chosen  = valued if chooser is network else chooser(reached)
+
+        return (
+            self.rewards
+            + discount
+                * valued.gather(1, chosen.argmax(1, keepdim=True))[:, 0]
+                * ~self.terminated
+        )
+
+    def values(self, network: QNetwork) -> Tensor:
+        """
+        Reads the value `network` gives each draw's action on the
+        observation it acted on.
+        """
+        return network(self.observations).gather(1, self.actions[:, None])[:, 0]
 
 
 class Column:

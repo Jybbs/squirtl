@@ -17,8 +17,8 @@ from numpy.random import SeedSequence
 from torch        import Tensor, as_tensor, inference_mode
 from torch.random import fork_rng
 
+from squirtl.agent.checkpoint    import Weights
 from squirtl.agent.networks      import QNetwork
-from squirtl.agent.schemas       import Weights
 from squirtl.emulator.schemas    import Record, UnitInterval
 from squirtl.environment.schemas import Outcome
 from squirtl.evaluation.schemas  import Evaluation, EvaluationSettings

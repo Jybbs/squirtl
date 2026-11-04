@@ -13,10 +13,12 @@ from collections.abc import Mapping
 from enum            import IntEnum, StrEnum, auto
 from math            import fsum
 from pydantic        import model_validator
-from typing          import Self
+from typing          import Self, TYPE_CHECKING
 
-from squirtl.emulator.console import GameBoy
 from squirtl.emulator.schemas import Record, Symbol, UnitInterval
+
+if TYPE_CHECKING:
+    from squirtl.emulator.console import GameBoy
 
 
 class Position(Record):

@@ -137,6 +137,22 @@ def test_an_evaluation_reads_the_agent_member_of_the_checkpoint_alone(
     assert invoke(["evaluate", str(trained)]).code == 0
 
 
+@mark.usefixtures("evaluators")
+def test_an_evaluation_reports_the_agent_apart_from_its_baseline(
+    invoke  : Invoker,
+    trained : Path
+):
+    """
+    Asserts that the stand-in agent's return of 0.01 at step 10, below its
+    baseline's 0.125, prints a probability of 0 that the agent beats its
+    baseline, rather than the 1 the two swapped would print.
+    """
+    assert (
+        "The agent beats its baseline with a probability of 0 over 1 and 1 runs"
+        in invoke(["evaluate", str(trained)]).output
+    )
+
+
 def test_an_evaluation_writes_its_episodes_and_prints_the_report(
     invoke  : Invoker,
     trained : Path

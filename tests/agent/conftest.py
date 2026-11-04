@@ -17,8 +17,9 @@ from numpy.random     import default_rng
 from pathlib          import Path
 from pytest           import fixture
 
+from squirtl.agent.checkpoint    import Checkpoint
 from squirtl.agent.learner       import Agent
-from squirtl.agent.schemas       import AgentSettings, Checkpoint
+from squirtl.agent.schemas       import AgentSettings
 from squirtl.environment.schemas import Entry
 
 type Observations = list[dict[str, ndarray]]
