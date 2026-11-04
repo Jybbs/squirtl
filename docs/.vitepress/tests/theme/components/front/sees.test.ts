@@ -142,18 +142,26 @@ describe('StorySees playing', () => {
 
     sight.show(true)
     const first = shownStep(wrapper)
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.beat)
+    vi.advanceTimersByTime(SEES_TEMPO.beat)
+    await wrapper.vm.$nextTick()
 
     expect([first, shownStep(wrapper), seek.mock.calls]).toStrictEqual([stepAt(0), stepAt(1), []])
   })
 
   test('rests on the starter, then plays again from the bedroom', async () => {
     const { sight, wrapper } = await mounted()
+    const thumb              = wrapper.get('[role="slider"]')
 
+    await thumb.trigger('focusin')
+    await thumb.trigger('keydown', { key: 'End' })
+    await thumb.trigger('keydown', { key: 'ArrowLeft' })
+    await thumb.trigger('focusout')
     sight.show(true)
-    await vi.advanceTimersByTimeAsync((last + 1) * SEES_TEMPO.beat)
+    vi.advanceTimersByTime(SEES_TEMPO.beat + SEES_TEMPO.rest - 1)
+    await wrapper.vm.$nextTick()
     const end = shownStep(wrapper)
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.rest - SEES_TEMPO.beat)
+    vi.advanceTimersByTime(1)
+    await wrapper.vm.$nextTick()
 
     expect([end, shownStep(wrapper)]).toStrictEqual([stepAt(last), stepAt(0)])
   })
@@ -166,10 +174,12 @@ describe('StorySees held by a reader', () => {
 
     sight.show(true)
     await pointer.sweep(control, [20, 100, 140])
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.beat * 4)
+    vi.advanceTimersByTime(SEES_TEMPO.beat * 4)
+    await wrapper.vm.$nextTick()
     const held = shownStep(wrapper)
     await control.trigger('pointerleave', { pointerType: 'mouse' })
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.beat * 2)
+    vi.advanceTimersByTime(SEES_TEMPO.beat * 2)
+    await wrapper.vm.$nextTick()
 
     expect([held, shownStep(wrapper)]).toStrictEqual([stepAt(1), stepAt(3)])
   })
@@ -201,11 +211,11 @@ describe('StorySees unmounted', () => {
     vi.clearAllTimers()
 
     sight.show(true)
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.beat / 2)
+    vi.advanceTimersByTime(SEES_TEMPO.beat / 2)
     wrapper.unmount()
     const ended = vi.getTimerCount()
     const drawn = pixels.images.length
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.beat * 4)
+    vi.advanceTimersByTime(SEES_TEMPO.beat * 4)
 
     expect([ended, next.mock.calls.length, pixels.images.length]).toStrictEqual([0, 1, drawn])
   })

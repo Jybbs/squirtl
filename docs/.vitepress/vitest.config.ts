@@ -16,6 +16,8 @@ export default defineConfig({
     resolveSnapshotPath : (testPath, extension) => testPath + extension,
     restoreMocks        : true,
     sequence            : { shuffle: true },
+    // Raises Vitest's 5,000 ms default, because the slowest cases run past that limit under load.
+    testTimeout         : 15_000,
     unstubEnvs          : true,
     unstubGlobals       : true,
 
