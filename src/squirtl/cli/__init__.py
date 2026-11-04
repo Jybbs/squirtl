@@ -1,12 +1,14 @@
 """
 Exposes the `squirtl` command, whose help prints the summary the package
 metadata carries beneath its usage line and whose `--version` flag prints
-the version that metadata names. Each command's module loads only once that
-command runs, its help read from the module's source. `squirtl train` takes
-each setting from the flag passed for it, then from the `[tool.squirtl]`
-table of the `pyproject.toml` in the working directory, and otherwise from
-the default its field declares, whereas a command reading a run takes the
-settings that run recorded, and no other command reads that table.
+the version that metadata names. Each command's module loads only where
+the command line names that command or an unknown command's error lists
+them all, and `squirtl --help` reads each summary from the module's source.
+`squirtl train` takes each setting from the flag passed for it, then from
+the `[tool.squirtl]` table of the `pyproject.toml` in the working directory,
+and otherwise from the default its field declares, whereas a command reading
+a run takes the settings that run recorded, and no other command reads that
+table.
 """
 
 from ast                import FunctionDef, get_docstring, parse
@@ -20,9 +22,9 @@ from pathlib            import Path
 def register(group: App, target: str, **options: object):
     """
     Registers the function `target` names, as `module:function`, as a
-    command of `group` whose module cyclopts imports only once the command
-    runs, taking its help from the function's docstring in the module's
-    source.
+    command of `group`, taking its help from the function's docstring in the
+    module's source. The module loads only where the command line names the
+    command or an unknown command's error lists them all.
     """
     module, name = target.split(":")
     function     = next(

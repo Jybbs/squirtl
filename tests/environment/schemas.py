@@ -93,6 +93,25 @@ def test_the_settings_read_the_screen_and_the_clock_pyboy_declares():
 
 
 @mark.parametrize(
+    "frame_shape",
+    [
+        param((ROWS * 2, COLS), id="twice-the-height"),
+        param((ROWS, COLS * 2), id="twice-the-width")
+    ]
+)
+def test_the_settings_refuse_a_frame_shape_past_the_screen_pyboy_declares(
+    frame_shape: tuple[int, int]
+):
+    """
+    Asserts that the settings refuse a frame shape twice the height or the
+    width of PyBoy's screen, which a literal holding a multiple of that side
+    would keep.
+    """
+    with raises(ValidationError, match=f"{ROWS} by {COLS} screen"):
+        EnvironmentSettings(frame_shape=frame_shape)
+
+
+@mark.parametrize(
     "timer_div",
     [param(-1, id="below-the-register"), param(256, id="past-its-eight-bits")]
 )

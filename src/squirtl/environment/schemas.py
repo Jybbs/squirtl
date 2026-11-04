@@ -90,7 +90,7 @@ class EnvironmentSettings(Record):
         Divides the frames a Game Boy draws a second at its own speed by
         `frames_per_step`.
         """
-        # Pan Docs gives the clock as 4,194,304 Hz and a frame as 70,224 of its cycles.
+        # Pan Docs gives a 4,194,304 Hz clock and a frame of 70,224 dots, one tick each.
         return 4_194_304 / 70_224 / self.frames_per_step
 
     @model_validator(mode="after")

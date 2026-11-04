@@ -70,7 +70,8 @@ class Weights(Record, extra="ignore"):
                               zstd frame, or a member, naming `path`.
         """
         try:
-            # `numpy.load` leaves a file it opened open where `ZipFile` refuses it.
+            # `numpy.load` leaves a file it opened itself open where `ZipFile` refuses
+            # it, so the file is opened here and closed by this block.
             with path.open("rb") as file, load_npz(file) as archive:
                 return cls.model_validate(cls.members(archive))
         except (

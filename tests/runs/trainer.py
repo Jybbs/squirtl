@@ -423,14 +423,15 @@ def test_an_evaluation_logs_how_often_each_policy_reached_the_starter(
 ):
     """
     Asserts that an evaluation at step 12 logs its start, then the share
-    of episodes in which the agent and the random baseline each reached the
-    starter beside each one's mean return, from the stand-in's returns of
-    0.012 and 0.125.
+    of episodes in which the agent and the random baseline each reached
+    the starter beside each one's mean return, from the stand-in's agent
+    reaching the starter for a return of 0.012 and its baseline reaching it
+    in no episode for 0.125.
     """
     finish(trainer(evaluation_steps=10))
 
     assert {
-        "At step 12, the agent reached the starter in 0% of its evaluation episodes "
+        "At step 12, the agent reached the starter in 100% of its evaluation episodes "
         "for a mean return of 0.0120, and the random baseline in 0% for 0.1250",
         "Evaluating the agent at step 12"
     } <= set(logged)

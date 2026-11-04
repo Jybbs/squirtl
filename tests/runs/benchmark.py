@@ -6,11 +6,16 @@ and settings.
 
 from common.evaluation import EvaluatorStandIn, played
 from datetime          import UTC, datetime
+from pathlib           import Path
 from pytest            import mark
 
 from squirtl.agent.checkpoint      import Weights
-from squirtl.emulator.schemas      import Cartridge
+from squirtl.agent.schemas         import AgentSettings
+from squirtl.emulator.schemas      import Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
+from squirtl.environment.schemas   import EnvironmentSettings
+from squirtl.evaluation.schemas    import EvaluationSettings
+from squirtl.reward.schemas        import RewardSettings
 from squirtl.runs.benchmark        import Benchmark
 from squirtl.runs.schemas          import Run, RunSettings, Stream
 
@@ -25,9 +30,21 @@ def test_a_benchmark_plays_the_evaluations_its_run_lacks_and_reads_those_it_hold
     the baseline under the run's evaluation stream and settings and writes
     both into the run, that a second at step 10 reads both back without
     starting an evaluator, and that one at step 20 plays the agent alone,
-    reading the baseline the run holds.
+    reading the baseline the run holds. The run's settings differ from each
+    default, so the evaluator's arguments can only be the ones it recorded.
     """
-    run = Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
+    run = Run.start(
+        "0",
+        RunSettings(
+            agent       = AgentSettings(device="meta"),
+            emulator    = EmulatorSettings(cartridge=Path("rom.gb")),
+            environment = EnvironmentSettings(max_episode_steps=6),
+            evaluation  = EvaluationSettings(episodes=2),
+            reward      = RewardSettings(milestone=0.05, starter=0.7),
+            seed        = 7
+        ),
+        datetime(2026, 10, 4, tzinfo=UTC)
+    )
     first, second, later = (
         Benchmark.from_run(cartridge, run, Weights(online={}, step=step))
         for step in (10, 10, 20)
