@@ -154,9 +154,10 @@ describe('StorySees playing', () => {
 
     await thumb.trigger('focusin')
     await thumb.trigger('keydown', { key: 'End' })
+    await thumb.trigger('keydown', { key: 'ArrowLeft' })
     await thumb.trigger('focusout')
     sight.show(true)
-    vi.advanceTimersByTime(SEES_TEMPO.rest - 1)
+    vi.advanceTimersByTime(SEES_TEMPO.beat + SEES_TEMPO.rest - 1)
     await wrapper.vm.$nextTick()
     const end = shownStep(wrapper)
     vi.advanceTimersByTime(1)
