@@ -420,12 +420,18 @@ class License(Record):
 
 class LockedPackage(Record, extra="ignore"):
     """
-    One package `uv.lock` resolves, read for its name and its version.
+    One package `uv.lock` resolves, read for its name, its version, and the
+    packages it depends on.
     """
 
     name: str
     """
     The package's name as the lockfile writes it.
+    """
+
+    dependencies: list[LockedPackage] = []
+    """
+    The row of each package it depends on, which names that package.
     """
 
     version: VersionNumber | None = None
@@ -740,13 +746,15 @@ class TomlFile(Record):
     file: ClassVar[Path]
 
     @classmethod
-    def read(cls) -> Self:
+    def read(cls, root: Path = Path(".")) -> Self:
         """
-        Reads the record at `file`, raising `Unreadable` where the file
-        fails to parse or to validate.
+        Reads the record at `file` under `root`, raising `Unreadable` where
+        the file fails to parse or to validate.
         """
         with Finding.reading(cls.file):
-            return cls.model_validate(loads(cls.file.read_text(encoding="utf-8")))
+            return cls.model_validate(
+                loads((root / cls.file).read_text(encoding="utf-8"))
+            )
 
 
 class Tree(Record):
@@ -1457,6 +1465,17 @@ class Lockfile(TomlFile, extra="ignore"):
     """
     Every package the lockfile resolves, in its order.
     """
+
+    def dependents(self, name: str) -> set[str]:
+        """
+        Collects the name of each package whose row depends on the package
+        `name` names.
+        """
+        return {
+            package.name
+            for package in self.packages
+            if name in {dependency.name for dependency in package.dependencies}
+        }
 
     def resolved(self, name: str) -> list[Version]:
         """

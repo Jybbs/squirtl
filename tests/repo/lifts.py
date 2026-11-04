@@ -18,7 +18,8 @@ or GitHub.
 
 from collections.abc   import Callable, Mapping
 from datetime          import UTC, datetime, timedelta
-from io                import StringIO
+from io                import BytesIO, StringIO, TextIOWrapper
+from itertools         import chain
 from json              import dumps
 from os                import defpath, pathsep
 from packaging.version import Version
@@ -34,7 +35,7 @@ from textwrap          import dedent
 from typing            import ClassVar, Self
 
 from squirtl.repo.lifts import (
-    ActionLift, ActionLifts, Alert, Attempt, Checkout, Holds, Lift, Lifts, Manager, PackageLifts,
+    ActionLift, ActionLifts, Alert, Attempt, Checkout, HeldPackageMoved, Holds, Lift, Lifts, Manager, PackageLifts,
     Pylock, PylockPackage, RequirementLifts, SiteLifts, ToolLifts, Trial,
     concurrently, table_text, version_of
 )
@@ -166,6 +167,34 @@ def refused(monkeypatch: MonkeyPatch):
     monkeypatch.setattr(Lifts, "write", refuse)
 
 
+@fixture
+def relocked(fp: FakeProcess) -> Callable[..., None]:
+    """
+    Builds a stand-in for the `uv lock` upgrading each package a case names,
+    which writes the text the case gives as `uv.lock` in the folder it
+    runs in. No other `uv lock` is registered, so `fp` refuses one naming
+    anything else.
+    """
+
+    def register(text: str, *upgrades: str):
+        """
+        Registers the command, naming each of `upgrades`, to write `text`.
+        """
+        fp.register(
+            [
+                "uv", "lock", "--no-locked",
+                *chain.from_iterable(
+                    ("--upgrade-package", name) for name in upgrades
+                )
+            ],
+            callback = lambda process: (
+                Path(process.kwargs["cwd"]) / "uv.lock"
+            ).write_text(text, encoding="utf-8")
+        )
+
+    return register
+
+
 def alert_of(
     ecosystem : str        = "pip",
     package   : str        = "setuptools",
@@ -213,6 +242,19 @@ def lifts_of(*lifts: Lift, **fields: object) -> Lifts:
     Gathers `lifts` under one manager.
     """
     return Lifts(found=(Reporting(lifts=lifts),), **fields)
+
+
+def lock_of(*rows: str) -> str:
+    """
+    Writes the `uv.lock` holding each of `rows`, which spells a package's
+    name, its version, and the name of each package it depends on.
+    """
+    return "".join(
+        f'[[package]]\nname = "{name}"\nversion = "{version}"\ndependencies = ['
+        + ", ".join(f'{{ name = "{dependency}" }}' for dependency in dependencies)
+        + "]\n"
+        for name, version, *dependencies in map(str.split, rows)
+    )
 
 
 def pylock_of(*packages: tuple[str, str]) -> str:
@@ -564,40 +606,28 @@ def test_a_compile_resolves_its_requirements_through_standard_input(fp: FakeProc
     assert named["pyyaml"].version == Version("6.0.3")
 
 
-def test_a_held_pin_stays_out_of_the_trial_and_the_write_while_the_table_lists_it(
-    capsys      : CaptureFixture[str],
-    monkeypatch : MonkeyPatch
+def test_a_held_package_moving_stops_the_write_before_any_other_manager(
+    relocked : Callable[..., None],
+    tmp_path : Path
 ):
     """
-    Pins that the table still lists a held pin beside the line saying why it
-    stays, whether the tracked file or `--hold` names it, and that the write
-    takes every other lift alone.
+    Pins that the failure leaves every other manager unwritten and runs no
+    `mise lock`, which `fp` refuses since no case registers it.
     """
-    written = []
+    (tmp_path / "uv.lock").write_text(lock_of("a 1.0.0", "b 1.0.0"), encoding="utf-8")
+    relocked(lock_of("a 2.0.0 b", "b 2.0.0"), "a")
 
-    monkeypatch.setattr(
-        Lifts,
-        "write",
-        lambda self, checkout: written.extend(lift.name for lift in self.lifts)
-    )
+    with raises(HeldPackageMoved):
+        Lifts(
+            found = (
+                PackageLifts(
+                    lifts = (lift_of("a 1.0.0 2.0.0"), lift_of("b 1.0.0 2.0.0"))
+                ).holding({"b"}),
+                Reporting(lifts=(lift_of("c 1.0.0 2.0.0"),))
+            )
+        ).write(Checkout(root=tmp_path))
 
-    lifts = lifts_of(
-        lift_of("a 1.0.0 2.0.0"),
-        lift_of("b 1.0.0 2.0.0"),
-        lift_of("c 1.0.0 2.0.0"),
-        holds = {"a": "the reason"}
-    )
-
-    assert lifts.lift(held=("b",), trying=False, writing=True) == 0
-
-    printed = capsys.readouterr().out.splitlines()
-
-    assert written == ["c"]
-    assert [line.split()[0] for line in printed[2:-2]] == ["a", "b", "c"]
-    assert printed[-2:] == [
-        "Leaving a at 1.0.0, because the reason",
-        "Leaving b at 1.0.0, because `--hold` names it for this run"
-    ]
+    assert not (tmp_path / "lifted.txt").exists()
 
 
 @mark.parametrize(
@@ -681,6 +711,59 @@ def test_a_hold_on_a_paired_pin_whose_partner_the_table_does_not_list_passes():
     assert lifts.lift(held=("vitest",), trying=True, writing=True) == 0
 
 
+def test_a_held_package_stays_held_through_a_second_hold():
+    """
+    Pins that `holding` adds to the lifts it already holds, since a trial's
+    attempt holds its own lifts on top of the holds the run read.
+    """
+    manager = PackageLifts(
+        lifts = (
+            lift_of("a 1.0.0 2.0.0"),
+            lift_of("b 1.0.0 2.0.0"),
+            lift_of("c 1.0.0 2.0.0")
+        )
+    ).holding({"a"}).holding({"b"})
+
+    assert [lift.name for lift in manager.held] == ["a", "b"]
+    assert [lift.name for lift in manager.lifts] == ["c"]
+
+
+def test_a_held_pin_stays_out_of_the_trial_and_the_write_while_the_table_lists_it(
+    capsys      : CaptureFixture[str],
+    monkeypatch : MonkeyPatch
+):
+    """
+    Pins that the table still lists a held pin beside the line saying why it
+    stays, whether the tracked file or `--hold` names it, and that the write
+    takes every other lift alone.
+    """
+    written = []
+
+    monkeypatch.setattr(
+        Lifts,
+        "write",
+        lambda self, checkout: written.extend(lift.name for lift in self.lifts)
+    )
+
+    lifts = lifts_of(
+        lift_of("a 1.0.0 2.0.0"),
+        lift_of("b 1.0.0 2.0.0"),
+        lift_of("c 1.0.0 2.0.0"),
+        holds = {"a": "the reason"}
+    )
+
+    assert lifts.lift(held=("b",), trying=False, writing=True) == 0
+
+    printed = capsys.readouterr().out.splitlines()
+
+    assert written == ["c"]
+    assert [line.split()[0] for line in printed[2:-2]] == ["a", "b", "c"]
+    assert printed[-2:] == [
+        "Leaving a at 1.0.0, because the reason",
+        "Leaving b at 1.0.0, because `--hold` names it for this run"
+    ]
+
+
 def test_a_hold_names_each_row_of_its_pin_at_the_version_that_row_holds(
     capsys: CaptureFixture[str]
 ):
@@ -700,44 +783,6 @@ def test_a_hold_names_each_row_of_its_pin_at_the_version_that_row_holds(
         "Leaving a at 1.0.0, because the reason",
         "Leaving a at 1.5.0, because the reason"
     ]
-
-
-def test_a_lock_with_nothing_to_update_compiles_nothing(fp: FakeProcess):
-    """
-    Pins that no `Update` line reads as no lift, with no `uv pip compile`,
-    which `fp` refuses since no case registers it.
-    """
-    fp.register(
-        ["uv", "lock", "--color", "never", "--dry-run", "--no-locked", "--upgrade"],
-        stderr = "Resolved 143 packages in 12ms\n"
-    )
-
-    assert PackageLifts.read().lifts == ()
-
-
-def test_a_lock_write_upgrades_each_lifted_package_alone(
-    fp       : FakeProcess,
-    tmp_path : Path
-):
-    """
-    Pins that the write names each lift through `--upgrade-package`, so a
-    package a hold leaves out stays where it stands.
-    """
-    fp.register(
-        [
-            "uv", "lock", "--no-locked", "--upgrade-package",
-            "setuptools", "--upgrade-package", "torch"
-        ]
-    )
-
-    PackageLifts(
-        lifts = (
-            lift_of("setuptools 84.0.0 84.2.1"),
-            lift_of("torch 2.14.1 2.15.0")
-        )
-    ).write(Checkout(root=tmp_path))
-
-    assert fp.call_count(["uv", "lock", fp.any()]) == 1
 
 
 @mark.parametrize(
@@ -793,29 +838,46 @@ def test_a_lift_counts_the_whole_days_since_its_newest_release(
     assert lift.age == age
 
 
-def test_a_lock_write_with_no_lift_runs_nothing(fp: FakeProcess, tmp_path: Path):
+def test_a_lock_with_nothing_to_update_compiles_nothing(fp: FakeProcess):
     """
-    Pins that an empty manager starts no `uv lock`, which would upgrade
-    nothing and could still rewrite the lockfile.
+    Pins that no `Update` line reads as no lift, with no `uv pip compile`,
+    which `fp` refuses since no case registers it.
     """
-    PackageLifts(lifts=()).write(Checkout(root=tmp_path))
+    fp.register(
+        ["uv", "lock", "--color", "never", "--dry-run", "--no-locked", "--upgrade"],
+        stderr = "Resolved 143 packages in 12ms\n"
+    )
 
-    assert not list(fp.calls)
+    assert PackageLifts.read().lifts == ()
 
 
-def test_a_manager_names_every_alert_each_lift_clears():
+def test_a_lock_write_upgrades_each_lifted_package_alone(
+    fp       : FakeProcess,
+    tmp_path : Path
+):
     """
-    Pins that `clearing` marks a lift with the advisories it clears, in the
-    manager's own ecosystem, and leaves any other lift naming none.
+    Pins that the write names each lift through `--upgrade-package` and no
+    other package.
     """
-    cleared = Reporting(
+    fp.register(
+        [
+            "uv", "lock", "--no-locked", "--upgrade-package",
+            "setuptools", "--upgrade-package", "torch"
+        ]
+    )
+    (tmp_path / "uv.lock").write_text(
+        lock_of("setuptools 84.2.1", "torch 2.15.0"),
+        encoding = "utf-8"
+    )
+
+    PackageLifts(
         lifts = (
             lift_of("setuptools 84.0.0 84.2.1"),
-            lift_of("hatchling 1.0.0 1.1.0")
+            lift_of("torch 2.14.1 2.15.0")
         )
-    ).clearing([Alert.model_validate(alert_of())])
+    ).write(Checkout(root=tmp_path))
 
-    assert [lift.clears for lift in cleared.lifts] == [("GHSA-xmj3-9gf7-h52w",), ()]
+    assert fp.call_count(["uv", "lock", fp.any()]) == 1
 
 
 @mark.parametrize(
@@ -883,6 +945,65 @@ def test_a_locked_package_is_dated_by_its_first_upload(
     assert package.released == released
 
 
+def test_a_lock_write_with_no_lift_runs_nothing(fp: FakeProcess, tmp_path: Path):
+    """
+    Pins that an empty manager starts no `uv lock`, which would upgrade
+    nothing and could still rewrite the lockfile.
+    """
+    PackageLifts(lifts=()).write(Checkout(root=tmp_path))
+
+    assert not list(fp.calls)
+
+
+def test_a_manager_names_every_alert_each_lift_clears():
+    """
+    Pins that `clearing` marks a lift with the advisories it clears, in the
+    manager's own ecosystem, and leaves any other lift naming none.
+    """
+    cleared = Reporting(
+        lifts = (
+            lift_of("setuptools 84.0.0 84.2.1"),
+            lift_of("hatchling 1.0.0 1.1.0")
+        )
+    ).clearing([Alert.model_validate(alert_of())])
+
+    assert [lift.clears for lift in cleared.lifts] == [("GHSA-xmj3-9gf7-h52w",), ()]
+
+
+@mark.parametrize(
+    "requirement",
+    [
+        param("a==2.0.0", id="at-the-newest-release"),
+        param("a==3.0.0", id="past-the-resolution"),
+        param("a==2.*", id="a-wildcard"),
+        param("a>=1", id="a-range"),
+        param("a>=1,<3", id="two-specifiers"),
+        param("a", id="no-specifier"),
+        param("b==1.0.0", id="a-package-the-resolution-leaves-out")
+    ]
+)
+def test_only_an_exact_pin_behind_the_resolution_reads_as_a_lift(
+    checkout    : Callable[[Mapping[str, str]], None],
+    fp          : FakeProcess,
+    manifest    : str,
+    requirement : str
+):
+    """
+    Pins each pin the read names no lift for.
+    """
+    checkout(
+        {
+            "pyproject.toml": manifest.replace(
+                '"packaging==26.3"',
+                f'"{requirement}"'
+            ).replace('"hatchling==1.32.4"', f'"{requirement}"')
+        }
+    )
+    fp.register([*COMPILE, "-"], stdout=pylock_of(("a", "2.0.0")))
+
+    assert RequirementLifts.read().lifts == ()
+
+
 def test_a_read_gathers_every_report_beside_the_alerts_and_the_holds(
     checkout    : Callable[[Mapping[str, str]], None],
     fp          : FakeProcess,
@@ -938,40 +1059,6 @@ def test_a_repository_pinned_at_two_commits_reads_as_one_lift_per_commit(
     assert {lift.target for lift in lifts} == {TARGET}
 
 
-@mark.parametrize(
-    "requirement",
-    [
-        param("a==2.0.0", id="at-the-newest-release"),
-        param("a==3.0.0", id="past-the-resolution"),
-        param("a==2.*", id="a-wildcard"),
-        param("a>=1", id="a-range"),
-        param("a>=1,<3", id="two-specifiers"),
-        param("a", id="no-specifier"),
-        param("b==1.0.0", id="a-package-the-resolution-leaves-out")
-    ]
-)
-def test_only_an_exact_pin_behind_the_resolution_reads_as_a_lift(
-    checkout    : Callable[[Mapping[str, str]], None],
-    fp          : FakeProcess,
-    manifest    : str,
-    requirement : str
-):
-    """
-    Pins each pin the read names no lift for.
-    """
-    checkout(
-        {
-            "pyproject.toml": manifest.replace(
-                '"packaging==26.3"',
-                f'"{requirement}"'
-            ).replace('"hatchling==1.32.4"', f'"{requirement}"')
-        }
-    )
-    fp.register([*COMPILE, "-"], stdout=pylock_of(("a", "2.0.0")))
-
-    assert RequirementLifts.read().lifts == ()
-
-
 def test_a_site_lift_with_no_listed_time_stays_undated(fp: FakeProcess):
     """
     Pins that a release `bun info` lists no time for reads an empty age.
@@ -982,6 +1069,49 @@ def test_a_site_lift_with_no_listed_time_stays_undated(fp: FakeProcess):
     )
 
     assert SiteLifts.dated(lift_of("oxlint 1.0.0 1.2.0")).released is None
+
+
+@mark.parametrize(
+    ("tags", "followed"),
+    [
+        param(
+            {"latest": "1.6.4", "next": "2.0.0-alpha.21"},
+            "2.0.0-alpha.21",
+            id = "the-next-tag-past-the-pin"
+        ),
+        param(
+            {"latest": "2.0.0", "next": "2.0.0-rc.1"},
+            "2.0.0",
+            id = "the-stable-release-once-it-passes-the-next-tag"
+        ),
+        param({"latest": "1.6.4"}, "2.0.0-alpha.20", id="no-tag-past-the-pin"),
+        param(
+            {"latest": "1.6.4", "next": "2.0.0-alpha.20"},
+            "2.0.0-alpha.20",
+            id = "the-pin-itself"
+        ),
+        param(
+            {"canary": "not-a-version", "latest": "1.6.4"},
+            "2.0.0-alpha.20",
+            id = "a-tag-naming-no-version"
+        )
+    ]
+)
+def test_a_prerelease_pin_follows_the_highest_dist_tag_at_or_above_it(
+    followed : str,
+    fp       : FakeProcess,
+    tags     : dict[str, str]
+):
+    """
+    Pins the version a prerelease pin moves to, given every dist-tag the
+    package carries.
+    """
+    fp.register(
+        ["bun", "info", "vitepress", "dist-tags", "--json"],
+        stdout = dumps(tags)
+    )
+
+    assert SiteLifts.followed("vitepress", "2.0.0-alpha.20") == followed
 
 
 def test_a_site_package_named_for_the_deployer_takes_the_manifests_route(
@@ -1029,49 +1159,6 @@ def test_a_site_write_of_wrangler_alone_runs_no_bun_add(
     assert not list(fp.calls)
 
 
-@mark.parametrize(
-    ("tags", "followed"),
-    [
-        param(
-            {"latest": "1.6.4", "next": "2.0.0-alpha.21"},
-            "2.0.0-alpha.21",
-            id = "the-next-tag-past-the-pin"
-        ),
-        param(
-            {"latest": "2.0.0", "next": "2.0.0-rc.1"},
-            "2.0.0",
-            id = "the-stable-release-once-it-passes-the-next-tag"
-        ),
-        param({"latest": "1.6.4"}, "2.0.0-alpha.20", id="no-tag-past-the-pin"),
-        param(
-            {"latest": "1.6.4", "next": "2.0.0-alpha.20"},
-            "2.0.0-alpha.20",
-            id = "the-pin-itself"
-        ),
-        param(
-            {"canary": "not-a-version", "latest": "1.6.4"},
-            "2.0.0-alpha.20",
-            id = "a-tag-naming-no-version"
-        )
-    ]
-)
-def test_a_prerelease_pin_follows_the_highest_dist_tag_at_or_above_it(
-    followed : str,
-    fp       : FakeProcess,
-    tags     : dict[str, str]
-):
-    """
-    Pins the version a prerelease pin moves to, given every dist-tag the
-    package carries.
-    """
-    fp.register(
-        ["bun", "info", "vitepress", "dist-tags", "--json"],
-        stdout = dumps(tags)
-    )
-
-    assert SiteLifts.followed("vitepress", "2.0.0-alpha.20") == followed
-
-
 def test_a_site_write_pins_each_package_and_the_deploy_step(
     checkout : Callable[[Mapping[str, str]], None],
     fp       : FakeProcess,
@@ -1107,30 +1194,6 @@ def test_a_site_write_pins_each_package_and_the_deploy_step(
     )
 
 
-def test_a_write_stops_at_the_first_command_failing(fp: FakeProcess, tmp_path: Path):
-    """
-    Pins that a failing `mise lock` ends the write before any install.
-    """
-    fp.register(["mise", "lock"], returncode=1)
-
-    with raises(CalledProcessError):
-        lifts_of(lift_of("uv 0.12.13 0.13.0")).write(Checkout(root=tmp_path))
-
-    assert [list(call) for call in fp.calls] == [["mise", "lock"]]
-
-
-def test_an_action_at_its_latest_release_reads_as_no_lift(
-    tagged: Callable[[str], None]
-):
-    """
-    Pins that a pin on the commit the latest tag names is no lift, whichever
-    name the tag carries.
-    """
-    tagged(f"{PINNED}\trefs/tags/v5.0.0\n")
-
-    assert ActionLift.read(pinned=PINNED, repository="actions/checkout") is None
-
-
 @mark.parametrize(
     ("tags", "current"),
     [
@@ -1164,6 +1227,154 @@ def test_an_action_lift_reads_its_current_version_from_the_tags_naming_its_commi
     assert (lift.current, lift.newest, lift.target) == (current, "v5.0.0", TARGET)
     assert lift.released == datetime(2026, 10, 1, tzinfo=UTC)
     assert lift.home == Path(".github")
+
+
+def test_a_trial_flushes_each_sentence_before_the_next_attempt_starts(
+    monkeypatch: MonkeyPatch
+):
+    """
+    Pins that a sentence reaches a piped standard output as its attempt ends
+    rather than when the buffer fills, since each attempt runs for minutes.
+    """
+    piped   = BytesIO()
+    printed = []
+
+    def attempt(_: Lifts, held: tuple[Lift, ...], logs: Path) -> Attempt:
+        """
+        Records how many sentences had reached the pipe as the attempt
+        began.
+        """
+        printed.append(piped.getvalue().count(b"records"))
+
+        return Attempt(held=held, log=logs / "log", passed=False)
+
+    monkeypatch.setattr("sys.stdout", TextIOWrapper(piped, encoding="utf-8"))
+    monkeypatch.setattr(Lifts, "attempt", attempt)
+
+    lifts_of(lift_of("a 1.0.0 2.0.0")).tried(Path("logs"))
+
+    assert printed == [0, 1]
+
+
+def test_a_trial_holding_a_package_another_lift_moves_names_that_lift(
+    capsys   : CaptureFixture[str],
+    clone    : Path,
+    fp       : FakeProcess,
+    relocked : Callable[..., None]
+):
+    """
+    Pins that the attempt whose lock moves a held package ends as failed
+    with the sentence in its log and no `mise ci`, reading the lockfile the
+    clone holds, and that the trial carries on to the attempt holding the
+    lift that moved it.
+    """
+    fp.pass_command(["git", fp.any()], occurrences=8)
+    relocked(lock_of("a 2.0.0 b", "b 2.0.0"), "a")
+
+    for command in (
+        ["mise", "lock"],
+        ["mise", "install"],
+        ["mise", "run", "lock:sync"],
+        ["mise", "run", "--continue-on-error", "repo:ci"]
+    ):
+        fp.register(command)
+
+    trial = Lifts(
+        found = (
+            PackageLifts(lifts=(lift_of("a 1.0.0 2.0.0"), lift_of("b 1.0.0 2.0.0"))),
+        )
+    ).holding({"b"}).tried(clone / "data/lift")
+
+    whole, *held = trial.attempts
+
+    assert (whole.passed, [attempt.passed for attempt in held]) == (False, [True])
+    assert (trial.status, trial.verdict) == (1, "The lift breaking the tree is a 2.0.0")
+    assert (
+        "`uv lock` moved b from the 1.0.0 it is held at to 2.0.0, so hold each lift "
+        "depending on it as well: a"
+    ) in whole.log.read_text(encoding="utf-8")
+    assert fp.call_count(["mise", "run", "--continue-on-error", "repo:ci"]) == 1
+    assert (clone / "uv.lock").read_text(encoding="utf-8") == "version = 1\n"
+    assert capsys.readouterr().out.splitlines() == [
+        attempt.sentence for attempt in trial.attempts
+    ]
+
+
+def test_a_write_moving_a_held_package_exits_1_with_every_file_as_it_stood(
+    capsys   : CaptureFixture[str],
+    checkout : Callable[[Mapping[str, str]], None],
+    relocked : Callable[..., None],
+    tmp_path : Path
+):
+    """
+    Pins that `--write` reports the failure on standard error and through
+    its exit status rather than as an uncaught error, with the line saying
+    the pin stays still true of the checkout.
+    """
+    before = lock_of("a 1.0.0", "b 1.0.0")
+
+    checkout({"uv.lock": before})
+    relocked(lock_of("a 2.0.0 b", "b 2.0.0"), "a")
+
+    lifts = Lifts(
+        found = (
+            PackageLifts(lifts=(lift_of("a 1.0.0 2.0.0"), lift_of("b 1.0.0 2.0.0"))),
+        )
+    )
+
+    assert lifts.lift(held=("b",), trying=False, writing=True) == 1
+
+    printed = capsys.readouterr()
+
+    assert "Leaving b at 1.0.0, because `--hold` names it for this run" in printed.out
+    assert printed.err.splitlines() == [
+        "`uv lock` moved b from the 1.0.0 it is held at to 2.0.0, so hold each lift "
+        "depending on it as well: a",
+        "The write stops with every file as it stood"
+    ]
+    assert (tmp_path / "uv.lock").read_text(encoding="utf-8") == before
+
+
+def test_a_write_stops_at_the_first_command_failing(fp: FakeProcess, tmp_path: Path):
+    """
+    Pins that a failing `mise lock` ends the write before any install.
+    """
+    fp.register(["mise", "lock"], returncode=1)
+
+    with raises(CalledProcessError):
+        lifts_of(lift_of("uv 0.12.13 0.13.0")).write(Checkout(root=tmp_path))
+
+    assert [list(call) for call in fp.calls] == [["mise", "lock"]]
+
+
+@mark.parametrize(
+    ("versions", "highest"),
+    [
+        param("v1.2.3", "1.2.3", id="one-version"),
+        param("v2.14.1, v2.14.1+cpu", "2.14.1", id="a-local-build-across-platforms"),
+        param("v1.9.0, v1.10.0", "1.10.0", id="compared-as-versions-rather-than-text")
+    ]
+)
+def test_the_dry_run_reads_the_highest_public_version_it_lists(
+    highest  : str,
+    versions : str
+):
+    """
+    Pins how a package whose resolution forks across platforms reads.
+    """
+    assert PackageLifts.highest(versions) == highest
+
+
+def test_an_action_at_its_latest_release_reads_as_no_lift(
+    tagged: Callable[[str], None]
+):
+    """
+    Pins that a pin on the commit the latest tag names is no lift, whichever
+    name the tag carries.
+    """
+    tagged(f"{PINNED}\trefs/tags/v5.0.0\n")
+
+    assert ActionLift.read(pinned=PINNED, repository="actions/checkout") is None
 
 
 def test_an_action_write_moves_the_commit_in_every_file_naming_it(
@@ -1278,24 +1489,6 @@ def test_an_exact_pin_lift_writes_only_the_pin_it_names(
     ) == '["a==2.0.0", "b==1.0.0"]\n'
 
 
-@mark.parametrize(
-    ("versions", "highest"),
-    [
-        param("v1.2.3", "1.2.3", id="one-version"),
-        param("v2.14.1, v2.14.1+cpu", "2.14.1", id="a-local-build-across-platforms"),
-        param("v1.9.0, v1.10.0", "1.10.0", id="compared-as-versions-rather-than-text")
-    ]
-)
-def test_the_dry_run_reads_the_highest_public_version_it_lists(
-    highest  : str,
-    versions : str
-):
-    """
-    Pins how a package whose resolution forks across platforms reads.
-    """
-    assert PackageLifts.highest(versions) == highest
-
-
 def test_concurrently_returns_each_result_in_the_order_of_its_items():
     """
     Pins that the pool's results follow the items rather than the order the
@@ -1348,107 +1541,6 @@ def test_each_action_repository_reads_once_across_every_workflow_and_manifest(
     assert [lift.name for lift in ActionLifts.read().lifts] == [
         "actions/checkout", "github/codeql-action"
     ]
-
-
-def test_holding_leaves_out_only_the_lifts_it_names():
-    """
-    Pins that a held pin's lift drops out, on a manager and on the whole.
-    """
-    lifts = lifts_of(lift_of("a 1.0.0 2.0.0"), lift_of("b 1.0.0 2.0.0"))
-
-    assert [lift.name for lift in lifts.holding({"a"}).lifts] == ["b"]
-    assert [lift.name for lift in lifts.lifts] == ["a", "b"]
-
-
-def test_only_the_lift_of_mise_itself_reads_the_running_mise(fp: FakeProcess):
-    """
-    Pins that a lift of any other pin is refused nothing, however far its
-    newest release sits past the running mise, and runs no `mise --version`,
-    which `fp` would raise on.
-    """
-    assert lifts_of(lift_of("uv 0.12.13 9999.0.0")).refused() == {}
-
-
-def test_the_exact_pins_lag_the_resolution_of_each_group(
-    checkout : Callable[[Mapping[str, str]], None],
-    fp       : FakeProcess,
-    manifest : str,
-    tmp_path : Path
-):
-    """
-    Pins the build requirement, the build constraint resolved beside it, and
-    a script's dependency each reading as a lift in the file declaring it,
-    each dated by the release's first upload, in the order of their groups.
-    A script declaring no dependency resolves nothing.
-    """
-    scripts = QUIET | {".mise/tasks/repo/tool.py": SCRIPT}
-
-    checkout(scripts | {"pyproject.toml": manifest})
-
-    for script in scripts:
-        (tmp_path / script).chmod(0o755)
-
-    fp.register(
-        [*COMPILE, "-"],
-        occurrences = 2,
-        stdout      = pylock_of(
-            ("hatchling", "1.33.0"),
-            ("packaging", "26.4"),
-            ("pyyaml", "6.0.3")
-        )
-    )
-
-    lifts = RequirementLifts.read().lifts
-
-    assert [(lift.home, lift.name, lift.current, lift.newest) for lift in lifts] == [
-        (Path("pyproject.toml"), "hatchling", "1.32.4", "1.33.0"),
-        (Path("pyproject.toml"), "packaging", "26.3", "26.4"),
-        (Path(".mise/tasks/repo/tool.py"), "pyyaml", "6.0.2", "6.0.3")
-    ]
-    assert lifts[0].released == datetime(2026, 10, 1, tzinfo=UTC)
-
-
-def test_the_holds_read_each_pin_beside_its_reason(
-    checkout: Callable[[Mapping[str, str]], None]
-):
-    """
-    Pins that the record reads the `[holds]` table of `.mise/holds.toml`.
-    """
-    checkout({".mise/holds.toml": '[holds]\nuv = "the reason"\n'})
-
-    assert Holds.read().reasons == {"uv": "the reason"}
-
-
-def test_the_locked_packages_read_each_update_the_dry_run_names(fp: FakeProcess):
-    """
-    Pins that each `Update` line reads as a lift of `uv.lock`, dated through
-    the lockfile compiled for the newest releases alone, whereas a line
-    adding or removing a package names none.
-    """
-    fp.register(
-        ["uv", "lock", "--color", "never", "--dry-run", "--no-locked", "--upgrade"],
-        stderr = dedent(
-            """\
-            Resolved 143 packages in 12ms
-            Add onnx v1.0.0
-            Remove old-package v0.1.0
-            Update setuptools v84.0.0 -> v84.2.1
-            Update torch v2.14.1, v2.14.1+cpu -> v2.15.0, v2.15.0+cpu
-            """
-        )
-    )
-    fp.register(
-        [*COMPILE, "--no-deps", "-"],
-        stdout = pylock_of(("setuptools", "84.2.1"), ("torch", "2.15.0"))
-    )
-
-    lifts = PackageLifts.read().lifts
-
-    assert [(lift.name, lift.current, lift.newest) for lift in lifts] == [
-        ("setuptools", "84.0.0", "84.2.1"),
-        ("torch", "2.14.1", "2.15.0")
-    ]
-    assert lifts[0].released == datetime(2026, 10, 1, tzinfo=UTC)
 
 
 @mark.parametrize(
@@ -1523,19 +1615,14 @@ def test_a_tool_write_reaches_every_home_audit_holds_the_pin_to(
         assert (tmp_path / script).read_text(encoding="utf-8") == written
 
 
-def test_the_shipped_holds_keep_python_on_its_minor_for_the_cp315_wheels(
-    monkeypatch  : MonkeyPatch,
-    pytestconfig : Config
-):
+def test_holding_leaves_out_only_the_lifts_it_names():
     """
-    Pins that the repository holds `python` from the start, with a reason
-    naming the `cp315` wheels of `torch` the move waits on.
+    Pins that a held pin's lift drops out, on a manager and on the whole.
     """
-    monkeypatch.chdir(pytestconfig.rootpath)
+    lifts = lifts_of(lift_of("a 1.0.0 2.0.0"), lift_of("b 1.0.0 2.0.0"))
 
-    reason = Holds.read().reasons["python"]
-
-    assert "cp315" in reason and "torch" in reason
+    assert [lift.name for lift in lifts.holding({"a"}).lifts] == ["b"]
+    assert [lift.name for lift in lifts.lifts] == ["a", "b"]
 
 
 @mark.parametrize(
@@ -1667,69 +1754,13 @@ def test_a_write_locks_installs_and_syncs_after_every_manager_writes(
     assert [list(call) for call in fp.calls] == [*commands, *rebuilt]
 
 
-def test_the_site_lags_the_latest_release_bun_draws_for_each_pin(
-    checkout : Callable[[Mapping[str, str]], None],
-    fp       : FakeProcess
-):
+def test_only_the_lift_of_mise_itself_reads_the_running_mise(fp: FakeProcess):
     """
-    Pins that a pin reads the `Latest` cell of its row, a prerelease pin the
-    dist-tag it follows, and the Wrangler pin its `latest` dist-tag, whereas
-    a pin in no row or at its newest release names no lift, and that the
-    report dates each lift.
+    Pins that a lift of any other pin is refused nothing, however far its
+    newest release sits past the running mise, and runs no `mise --version`,
+    which `fp` would raise on.
     """
-    checkout(
-        {
-            ".github/workflows/pages.yml" : WORKFLOW,
-            "docs/package.json"           : SITE
-        }
-    )
-    fp.register(
-        ["bun", "outdated"],
-        stdout = dedent(
-            """\
-            |--------------------------------------------------------|
-            | Package                    | Current | Update | Latest |
-            |----------------------------|---------|--------|--------|
-            | @types/node (dev)          | 26.6.5  | 26.6.5 | 26.7.0 |
-            |----------------------------|---------|--------|--------|
-            | oxlint (dev)               | 1.0.0   | 1.0.0  | 1.2.0  |
-            |----------------------------|---------|--------|--------|
-            | vitepress (dev)            | 2.0.0-alpha.20 | 2.0.0-alpha.20 | 1.6.4 |
-            |----------------------------|---------|--------|--------|
-            """
-        )
-    )
-    fp.register(
-        ["bun", "info", "vitepress", "dist-tags", "--json"],
-        stdout = dumps({"latest": "1.6.4", "next": "2.0.0-alpha.21"})
-    )
-    fp.register(
-        ["bun", "info", "wrangler", "dist-tags", "--json"],
-        stdout = dumps({"latest": "4.200.0"})
-    )
-
-    for name, newest in (
-        ("@types/node", "26.7.0"),
-        ("oxlint", "1.2.0"),
-        ("vitepress", "2.0.0-alpha.21"),
-        ("wrangler", "4.200.0")
-    ):
-        fp.register(
-            ["bun", "info", name, "time", "--json"],
-            stdout = dumps(
-                {"created": "2020-01-01T00:00:00Z", newest: "2026-10-01T00:00:00Z"}
-            )
-        )
-
-    lifts = SiteLifts.read().lifts
-
-    assert [(lift.home, lift.name, lift.current, lift.newest) for lift in lifts] == [
-        (Path("docs/package.json"), "@types/node", "26.6.5", "26.7.0"),
-        (Path("docs/package.json"), "oxlint", "1.0.0", "1.2.0"),
-        (Path("docs/package.json"), "vitepress", "2.0.0-alpha.20", "2.0.0-alpha.21"),
-        (Path(".github/workflows/pages.yml"), "wrangler", "4.151.3", "4.200.0")
-    ]
-    assert {lift.released for lift in lifts} == {datetime(2026, 10, 1, tzinfo=UTC)}
+    assert lifts_of(lift_of("uv 0.12.13 9999.0.0")).refused() == {}
 
 
 @mark.parametrize(
@@ -1942,6 +1973,16 @@ def test_a_trial_holds_back_each_major_lift_only_after_the_whole_lift_fails(
             (
                 lift_of("a 1.0.0 2.0.0"),
                 lift_of("b 1.0.0 1.1.0"),
+                lift_of("c 1.0.0 2.0.0")
+            ),
+            [((), False), (("a",), True), (("c",), False)],
+            "The lift breaking the tree is a 2.0.0",
+            id = "a-major-hold-passing-before-the-last-still-ends-the-trial"
+        ),
+        param(
+            (
+                lift_of("a 1.0.0 2.0.0"),
+                lift_of("b 1.0.0 1.1.0"),
                 lift_of("c 1.0.0 1.1.0")
             ),
             [((), False), (("a",), False), (("b",), True), (("c",), False)],
@@ -2037,6 +2078,215 @@ def test_a_trial_holds_back_each_other_pin_once_no_major_hold_passes(
 
 
 @mark.parametrize(
+    ("held", "locked", "sentences"),
+    [
+        param(
+            {"b"},
+            lock_of("a 2.0.0 b", "b 2.0.0", "c 1.0.0 b", "d 2.0.0"),
+            [
+                "`uv lock` moved b from the 1.0.0 it is held at to 2.0.0, so hold "
+                "each lift depending on it as well: a"
+            ],
+            id = "naming-each-lift-depending-on-it-and-no-other-package"
+        ),
+        param(
+            {"b"},
+            lock_of("a 2.0.0", "b 2.0.0", "d 2.0.0"),
+            ["`uv lock` moved b from the 1.0.0 it is held at to 2.0.0"],
+            id = "with-no-lift-depending-on-it"
+        ),
+        param(
+            {"b"},
+            lock_of("a 2.0.0", "d 2.0.0"),
+            ["`uv lock` moved b from the 1.0.0 it is held at to no release"],
+            id = "leaving-the-lock"
+        ),
+        param(
+            {"a", "b"},
+            lock_of("a 3.0.0", "b 2.0.0", "d 2.0.0 a b"),
+            [
+                "`uv lock` moved a from the 1.0.0 it is held at to 3.0.0, so hold "
+                "each lift depending on it as well: d",
+                "`uv lock` moved b from the 1.0.0 it is held at to 2.0.0, so hold "
+                "each lift depending on it as well: d"
+            ],
+            id = "each-on-a-line-of-its-own"
+        )
+    ]
+)
+def test_a_lock_write_puts_the_lock_back_and_raises_where_a_held_package_moves(
+    held      : set[str],
+    locked    : str,
+    relocked  : Callable[..., None],
+    sentences : list[str],
+    tmp_path  : Path
+):
+    """
+    Pins that the write compares each held package against the `uv.lock` the
+    checkout then holds, raises a sentence on each one that moved, and puts
+    the lockfile back as it stood.
+    """
+    lifts  = {name: lift_of(f"{name} 1.0.0 2.0.0") for name in "abd"}
+    before = lock_of("a 1.0.0 b", "b 1.0.0", "d 1.0.0")
+    file   = tmp_path / "uv.lock"
+
+    file.write_text(before, encoding="utf-8")
+    relocked(locked, *(name for name in lifts if name not in held))
+
+    with raises(HeldPackageMoved) as caught:
+        PackageLifts(lifts=tuple(lifts.values())).holding(held).write(
+            Checkout(root=tmp_path)
+        )
+
+    assert str(caught.value).splitlines() == sentences
+    assert file.read_text(encoding="utf-8") == before
+
+
+@mark.parametrize(
+    ("lift", "locked"),
+    [
+        param(
+            lift_of("b 1.0.0 2.0.0"),
+            lock_of("a 2.0.0 b", "b 1.0.0"),
+            id = "one-release"
+        ),
+        param(
+            lift_of("torch 2.14.1 2.15.0"),
+            lock_of("a 2.0.0", "torch 2.14.0", "torch 2.14.1", "torch 2.14.1+cpu"),
+            id = "a-fork-whose-highest-release-carries-a-local-version"
+        )
+    ]
+)
+def test_a_lock_write_keeps_the_new_lock_where_every_held_package_stays(
+    lift     : Lift,
+    locked   : str,
+    relocked : Callable[..., None],
+    tmp_path : Path
+):
+    """
+    Pins that a held package still at its current release raises nothing
+    and leaves the `uv.lock` the upgrade wrote, the highest public version
+    of a forked package standing for its release as `PackageLifts.highest`
+    reads it.
+    """
+    file = tmp_path / "uv.lock"
+
+    file.write_text(lock_of("a 1.0.0", "b 1.0.0"), encoding="utf-8")
+    relocked(locked, "a")
+
+    PackageLifts(lifts=(lift_of("a 1.0.0 2.0.0"), lift)).holding({lift.name}).write(
+        Checkout(root=tmp_path)
+    )
+
+    assert file.read_text(encoding="utf-8") == locked
+
+
+def test_the_exact_pins_lag_the_resolution_of_each_group(
+    checkout : Callable[[Mapping[str, str]], None],
+    fp       : FakeProcess,
+    manifest : str,
+    tmp_path : Path
+):
+    """
+    Pins the build requirement, the build constraint resolved beside it, and
+    a script's dependency each reading as a lift in the file declaring it,
+    each dated by the release's first upload, in the order of their groups.
+    A script declaring no dependency resolves nothing.
+    """
+    scripts = QUIET | {".mise/tasks/repo/tool.py": SCRIPT}
+
+    checkout(scripts | {"pyproject.toml": manifest})
+
+    for script in scripts:
+        (tmp_path / script).chmod(0o755)
+
+    fp.register(
+        [*COMPILE, "-"],
+        occurrences = 2,
+        stdout      = pylock_of(
+            ("hatchling", "1.33.0"),
+            ("packaging", "26.4"),
+            ("pyyaml", "6.0.3")
+        )
+    )
+
+    lifts = RequirementLifts.read().lifts
+
+    assert [(lift.home, lift.name, lift.current, lift.newest) for lift in lifts] == [
+        (Path("pyproject.toml"), "hatchling", "1.32.4", "1.33.0"),
+        (Path("pyproject.toml"), "packaging", "26.3", "26.4"),
+        (Path(".mise/tasks/repo/tool.py"), "pyyaml", "6.0.2", "6.0.3")
+    ]
+    assert lifts[0].released == datetime(2026, 10, 1, tzinfo=UTC)
+
+
+def test_the_holds_read_each_pin_beside_its_reason(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that the record reads the `[holds]` table of `.mise/holds.toml`.
+    """
+    checkout({".mise/holds.toml": '[holds]\nuv = "the reason"\n'})
+
+    assert Holds.read().reasons == {"uv": "the reason"}
+
+
+def test_the_locked_packages_read_each_update_the_dry_run_names(fp: FakeProcess):
+    """
+    Pins that each `Update` line reads as a lift of `uv.lock`, dated through
+    the lockfile compiled for the newest releases alone, whereas a line
+    adding or removing a package names none.
+    """
+    fp.register(
+        ["uv", "lock", "--color", "never", "--dry-run", "--no-locked", "--upgrade"],
+        stderr = dedent(
+            """\
+            Resolved 143 packages in 12ms
+            Add onnx v1.0.0
+            Remove old-package v0.1.0
+            Update setuptools v84.0.0 -> v84.2.1
+            Update torch v2.14.1, v2.14.1+cpu -> v2.15.0, v2.15.0+cpu
+            """
+        )
+    )
+    fp.register(
+        [*COMPILE, "--no-deps", "-"],
+        stdout = pylock_of(("setuptools", "84.2.1"), ("torch", "2.15.0"))
+    )
+
+    lifts = PackageLifts.read().lifts
+
+    assert [(lift.name, lift.current, lift.newest) for lift in lifts] == [
+        ("setuptools", "84.0.0", "84.2.1"),
+        ("torch", "2.14.1", "2.15.0")
+    ]
+    assert lifts[0].released == datetime(2026, 10, 1, tzinfo=UTC)
+
+
+def test_the_packages_write_before_every_other_manager():
+    """
+    Pins that `PackageLifts` writes first, so a held package it finds moved
+    stops the write before any other manager moves a pin.
+    """
+    assert Lifts.managers[0] is PackageLifts
+
+
+def test_the_shipped_holds_keep_python_on_its_minor_for_the_cp315_wheels(
+    monkeypatch  : MonkeyPatch,
+    pytestconfig : Config
+):
+    """
+    Pins that the repository holds `python` from the start, with a reason
+    naming the `cp315` wheels of `torch` the move waits on.
+    """
+    monkeypatch.chdir(pytestconfig.rootpath)
+
+    reason = Holds.read().reasons["python"]
+
+    assert "cp315" in reason and "torch" in reason
+
+
+@mark.parametrize(
     ("trying", "writing"),
     [param(True, False, id="a-trial"), param(False, True, id="a-write")]
 )
@@ -2051,6 +2301,15 @@ def test_a_trial_holds_back_each_other_pin_once_no_major_hold_passes(
                 "a `min_version` of 2026.11.1 until `mise self-update` moves it"
             ],
             id = "a-running-mise-older-than-the-newest-release"
+        ),
+        param(
+            "2026.9.18",
+            ["uv"],
+            [
+                "Leaving mise at 2026.9.18, because the running mise 2026.9.18 refuses "
+                "a `min_version` of 2026.11.1 until `mise self-update` moves it"
+            ],
+            id = "a-running-mise-older-by-number-though-not-by-spelling"
         ),
         param(
             "2026.11.1",
@@ -2122,28 +2381,69 @@ def test_a_lift_with_only_a_floor_past_the_running_mise_neither_tries_nor_writes
     assert "`mise self-update`" in capsys.readouterr().out
 
 
-def test_the_table_prints_one_markdown_row_per_lift(snapshot: SnapshotAssertion):
+def test_the_site_lags_the_latest_release_bun_draws_for_each_pin(
+    checkout : Callable[[Mapping[str, str]], None],
+    fp       : FakeProcess
+):
     """
-    Pins the columns a row gives, an empty cell for a release no manager
-    dates, and the shape that pastes into a pull request as it prints.
+    Pins that a pin reads the `Latest` cell of its row, a prerelease pin the
+    dist-tag it follows, and the Wrangler pin its `latest` dist-tag, whereas
+    a pin in no row or at its newest release names no lift, and that the
+    report dates each lift.
     """
-    now = datetime.now(UTC)
-
-    table = lifts_of(
-        lift_of(
-            clears   = ("GHSA-xmj3-9gf7-h52w", "GHSA-other"),
-            pin      = "setuptools 84.0.0 84.2.1",
-            released = now - timedelta(days=12, hours=1)
-        ),
-        lift_of("python 3.14.6 3.15.1", home=Path(".mise/config.toml")),
-        lift_of(
-            pin      = f"actions/checkout {PINNED} v5.0.0",
-            home     = Path(".github"),
-            released = now - timedelta(hours=1)
+    checkout(
+        {
+            ".github/workflows/pages.yml" : WORKFLOW,
+            "docs/package.json"           : SITE
+        }
+    )
+    fp.register(
+        ["bun", "outdated"],
+        stdout = dedent(
+            """\
+            |--------------------------------------------------------|
+            | Package                    | Current | Update | Latest |
+            |----------------------------|---------|--------|--------|
+            | @types/node (dev)          | 26.6.5  | 26.6.5 | 26.7.0 |
+            |----------------------------|---------|--------|--------|
+            | oxlint (dev)               | 1.0.0   | 1.0.0  | 1.2.0  |
+            |----------------------------|---------|--------|--------|
+            | vitepress (dev)            | 2.0.0-alpha.20 | 2.0.0-alpha.20 | 1.6.4 |
+            |----------------------------|---------|--------|--------|
+            """
         )
-    ).table
+    )
+    fp.register(
+        ["bun", "info", "vitepress", "dist-tags", "--json"],
+        stdout = dumps({"latest": "1.6.4", "next": "2.0.0-alpha.21"})
+    )
+    fp.register(
+        ["bun", "info", "wrangler", "dist-tags", "--json"],
+        stdout = dumps({"latest": "4.200.0"})
+    )
 
-    assert table_text(table) == snapshot
+    for name, newest in (
+        ("@types/node", "26.7.0"),
+        ("oxlint", "1.2.0"),
+        ("vitepress", "2.0.0-alpha.21"),
+        ("wrangler", "4.200.0")
+    ):
+        fp.register(
+            ["bun", "info", name, "time", "--json"],
+            stdout = dumps(
+                {"created": "2020-01-01T00:00:00Z", newest: "2026-10-01T00:00:00Z"}
+            )
+        )
+
+    lifts = SiteLifts.read().lifts
+
+    assert [(lift.home, lift.name, lift.current, lift.newest) for lift in lifts] == [
+        (Path("docs/package.json"), "@types/node", "26.6.5", "26.7.0"),
+        (Path("docs/package.json"), "oxlint", "1.0.0", "1.2.0"),
+        (Path("docs/package.json"), "vitepress", "2.0.0-alpha.20", "2.0.0-alpha.21"),
+        (Path(".github/workflows/pages.yml"), "wrangler", "4.151.3", "4.200.0")
+    ]
+    assert {lift.released for lift in lifts} == {datetime(2026, 10, 1, tzinfo=UTC)}
 
 
 @mark.parametrize(
@@ -2196,57 +2496,28 @@ def test_a_lift_tries_and_writes_as_its_flags_ask(
     ]
 
 
-def test_the_tools_read_each_entry_naming_a_newer_release_beside_the_floor(
-    checkout    : Callable[[Mapping[str, str]], None],
-    fp          : FakeProcess,
-    mise_config : str
-):
+def test_the_table_prints_one_markdown_row_per_lift(snapshot: SnapshotAssertion):
     """
-    Pins the two reports `mise outdated` gives, the project's and the
-    floor's under the `aqua:` name it takes, each in the order of the name
-    mise gives it. An entry naming no bump is left out, and a release `mise
-    ls-remote` lists no time for reads an empty age.
+    Pins the columns a row gives, an empty cell for a release no manager
+    dates, and the shape that pastes into a pull request as it prints.
     """
-    checkout({".mise/config.toml": mise_config})
-    fp.register(
-        ["mise", "outdated", "--bump", "--json", "--local"],
-        stdout = dumps(
-            {
-                "node" : {"bump": None, "requested": "26.12.1"},
-                "uv"   : {"bump": "0.13.0", "requested": "0.12.13"}
-            }
-        )
-    )
-    fp.register(
-        ["mise", "outdated", "--bump", "--json", "aqua:jdx/mise@2026.9.18"],
-        stdout = dumps(
-            {"aqua:jdx/mise": {"bump": "2026.10.25", "requested": "2026.9.18"}}
-        )
-    )
-    fp.register(
-        ["mise", "ls-remote", "--json", "aqua:jdx/mise", "2026.10.25"],
-        stdout = dumps([{"version": "2026.10.25"}])
-    )
-    fp.register(
-        ["mise", "ls-remote", "--json", "uv", "0.13.0"],
-        stdout = dumps(
-            [
-                {"created_at": "2026-01-01T00:00:00Z", "version": "0.13.0-rc.1"},
-                {"created_at": "2026-10-01T00:00:00Z", "version": "0.13.0"}
-            ]
-        )
-    )
+    now = datetime.now(UTC)
 
-    floor, uv = ToolLifts.read().lifts
+    table = lifts_of(
+        lift_of(
+            clears   = ("GHSA-xmj3-9gf7-h52w", "GHSA-other"),
+            pin      = "setuptools 84.0.0 84.2.1",
+            released = now - timedelta(days=12, hours=1)
+        ),
+        lift_of("python 3.14.6 3.15.1", home=Path(".mise/config.toml")),
+        lift_of(
+            pin      = f"actions/checkout {PINNED} v5.0.0",
+            home     = Path(".github"),
+            released = now - timedelta(hours=1)
+        )
+    ).table
 
-    assert (floor.name, floor.current, floor.newest, floor.released) == (
-        "mise", "2026.9.18", "2026.10.25", None
-    )
-    assert (uv.name, uv.current, uv.newest, uv.released) == (
-        "uv", "0.12.13", "0.13.0",
-        datetime(2026, 10, 1, tzinfo=UTC)
-    )
-    assert uv.home == Path(".mise/config.toml")
+    assert table_text(table) == snapshot
 
 
 @mark.parametrize(
@@ -2311,6 +2582,59 @@ def test_a_lift_with_nothing_left_to_lift_neither_tries_nor_writes(
     """
     assert lifts.lift(held=(), trying=True, writing=True) == 0
     assert capsys.readouterr().out.endswith(printed)
+
+
+def test_the_tools_read_each_entry_naming_a_newer_release_beside_the_floor(
+    checkout    : Callable[[Mapping[str, str]], None],
+    fp          : FakeProcess,
+    mise_config : str
+):
+    """
+    Pins the two reports `mise outdated` gives, the project's and the
+    floor's under the `aqua:` name it takes, each in the order of the name
+    mise gives it. An entry naming no bump is left out, and a release `mise
+    ls-remote` lists no time for reads an empty age.
+    """
+    checkout({".mise/config.toml": mise_config})
+    fp.register(
+        ["mise", "outdated", "--bump", "--json", "--local"],
+        stdout = dumps(
+            {
+                "node" : {"bump": None, "requested": "26.12.1"},
+                "uv"   : {"bump": "0.13.0", "requested": "0.12.13"}
+            }
+        )
+    )
+    fp.register(
+        ["mise", "outdated", "--bump", "--json", "aqua:jdx/mise@2026.9.18"],
+        stdout = dumps(
+            {"aqua:jdx/mise": {"bump": "2026.10.25", "requested": "2026.9.18"}}
+        )
+    )
+    fp.register(
+        ["mise", "ls-remote", "--json", "aqua:jdx/mise", "2026.10.25"],
+        stdout = dumps([{"version": "2026.10.25"}])
+    )
+    fp.register(
+        ["mise", "ls-remote", "--json", "uv", "0.13.0"],
+        stdout = dumps(
+            [
+                {"created_at": "2026-01-01T00:00:00Z", "version": "0.13.0-rc.1"},
+                {"created_at": "2026-10-01T00:00:00Z", "version": "0.13.0"}
+            ]
+        )
+    )
+
+    floor, uv = ToolLifts.read().lifts
+
+    assert (floor.name, floor.current, floor.newest, floor.released) == (
+        "mise", "2026.9.18", "2026.10.25", None
+    )
+    assert (uv.name, uv.current, uv.newest, uv.released) == (
+        "uv", "0.12.13", "0.13.0",
+        datetime(2026, 10, 1, tzinfo=UTC)
+    )
+    assert uv.home == Path(".mise/config.toml")
 
 
 def test_the_tools_write_after_every_manager_that_runs_uv():

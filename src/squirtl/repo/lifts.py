@@ -294,6 +294,13 @@ class GithubRelease(Record, extra="ignore"):
     """
 
 
+class HeldPackageMoved(ValueError):
+    """
+    Raised where `uv lock` leaves a held package off its current release,
+    its argument a sentence on each such package, one to a line.
+    """
+
+
 class Holds(TomlFile):
     """
     The pins `file` keeps where they stand on every run of `repo:lift`, each
@@ -965,6 +972,46 @@ class PackageLifts(Manager):
 
     ecosystem: ClassVar[str | None] = "pip"
 
+    held: tuple[Lift, ...] = ()
+    """
+    Each lift `holding` left out, whose package `write` checks `uv.lock` still
+    resolves at its current release.
+    """
+
+    def check(self, lockfile: Lockfile):
+        """
+        Compares each package of `held` with `lockfile`, reading its highest
+        public version as `highest` does.
+
+        Raises:
+            HeldPackageMoved: Where `lockfile` leaves any of them off its
+                              current release, with a sentence on each that
+                              names each lift depending on the package,
+                              since only a lift can be held beside it.
+        """
+        lifted = {lift.name for lift in self.lifts}
+        moved  = []
+
+        for lift in self.held:
+            resolved = lockfile.resolved(lift.name)
+            release  = resolved[-1].public if resolved else "no release"
+
+            if release != lift.current:
+                beside = ", ".join(sorted(lockfile.dependents(lift.name) & lifted))
+
+                moved.append(
+                    f"`uv lock` moved {lift.name} from the {lift.current} it is held "
+                    f"at to {release}"
+                    + (
+                        f", so hold each lift depending on it as well: {beside}"
+                        if beside
+                        else ""
+                    )
+                )
+
+        if moved:
+            raise HeldPackageMoved("\n".join(moved))
+
     @staticmethod
     def highest(versions: str) -> str:
         """
@@ -973,6 +1020,20 @@ class PackageLifts(Manager):
         each opening on `v`.
         """
         return max(map(Version, versions.split(", "))).public
+
+    def holding(self, names: Collection[str]) -> Self:
+        """
+        Copies the manager with the lift of each package `names` lists moved
+        from `lifts` to `held`.
+        """
+        return super().holding(names).model_copy(
+            update = {
+                "held": (
+                    *self.held,
+                    *(lift for lift in self.lifts if lift.name in names)
+                )
+            }
+        )
 
     @classmethod
     def read(cls) -> Self:
@@ -1016,10 +1077,19 @@ class PackageLifts(Manager):
 
     def write(self, checkout: Checkout):
         """
-        Moves each package in `uv.lock` to its newest release, so a package
-        a held lift names stays where it stands.
+        Moves each package of `lifts` in `uv.lock` to its newest release.
+        The resolver treats every other locked version as a preference, so
+        a new release requiring a newer held package moves that package too,
+        and the write then puts `uv.lock` back as it stood.
+
+        Raises:
+            HeldPackageMoved: Where `uv.lock` leaves a package of `held` off
+                              its current release.
         """
         if self.lifts:
+            file   = checkout.root / Lockfile.file
+            locked = file.read_bytes()
+
             checkout.run(
                 "uv",
                 "lock",
@@ -1028,6 +1098,12 @@ class PackageLifts(Manager):
                     ("--upgrade-package", lift.name) for lift in self.lifts
                 )
             )
+
+            try:
+                self.check(Lockfile.read(checkout.root))
+            except HeldPackageMoved:
+                file.write_bytes(locked)
+                raise
 
 
 def table_text(table: Table) -> str:
@@ -1265,8 +1341,9 @@ class Lifts(Record):
     )
     """
     Every manager whose pins the task reads, in the order `write` writes
-    them. `ToolLifts` writes last, since every `uv` command before it runs
-    under the `required-version` it moves.
+    them. `PackageLifts` writes first, so a held package it finds moved stops
+    the write before any other pin moves, and `ToolLifts` writes last, since
+    every `uv` command before it runs under the `required-version` it moves.
     """
 
     found: tuple[Manager, ...]
@@ -1374,8 +1451,9 @@ class Lifts(Record):
         """
         Prints the table of every lift and each held pin beside its reason,
         then tries the lift, writes it, or both where a lift remains. Each
-        held pin stays where it stands, and the write runs only after a
-        passing trial where both are asked for.
+        held pin stays where it stands, the write stopping with every file
+        as it stood where `uv lock` would move a held package, and the write
+        runs only after a passing trial where both are asked for.
 
         A pin is held where `held` or `Holds` names it, where `refused`
         names it, or where it moves with a held pin, since a partner left
@@ -1384,7 +1462,7 @@ class Lifts(Record):
         Returns:
             The exit status, which is 2 where a hold names a pin the table
             does not list, before any trial or write, 1 where the trial
-            fails, and 0 otherwise.
+            fails or the write stops on a held package, and 0 otherwise.
         """
         named = (
             self.refused()
@@ -1430,7 +1508,14 @@ class Lifts(Record):
                 return trial.status
 
         if writing:
-            lifts.write(Checkout(root=Path.cwd()))
+            try:
+                lifts.write(Checkout(root=Path.cwd()))
+            except HeldPackageMoved as error:
+                Console(stderr=True).out(
+                    f"{error}\nThe write stops with every file as it stood",
+                    highlight = False
+                )
+                return 1
 
         return 0
 

@@ -13,7 +13,8 @@ are given. Each leaves the pins `.mise/holds.toml` and `--hold` name where
 they stand, beside each pin paired with one, and leaves `min_version` where
 it stands while the running mise is older than its newest release. The task
 exits 2 where a hold names a pin the table does not list, and 1 where the
-trial fails.
+trial fails or where `uv lock` moves a held package, which stops the write
+with every file as it stood.
 """
 
 from os import environ
