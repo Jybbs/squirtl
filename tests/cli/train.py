@@ -242,7 +242,7 @@ def test_a_run_of_pqn_or_ppo_writes_its_lines_and_its_checkpoint(rolled: Path):
     """
     Asserts that either agent's run across two environments exits
     zero having written, in the directory it prints, a line for each
-    environment's five 3-step episodes and its checkpoint at its sixteenth
+    environment's two 3-step episodes and its checkpoint at its sixteenth
     and last step.
     """
     run = Run.read(rolled)

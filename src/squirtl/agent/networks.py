@@ -179,13 +179,14 @@ class QNetwork(Module):
     """
     The Q-network the deep Q-network and PQN train, whose `Encoder` reads
     each observation through one fully connected layer before Mnih et al.'s
-    head of one value per action, each layer normalized for PQN.
+    head of one value per action, each layer beneath the head normalized
+    for PQN.
     """
 
     def __init__(self, actions: int, space: Dict, normalized: bool = False):
         """
-        Builds the encoder over `space`, normalizing each layer where
-        `normalized` is set, and the head over `actions` actions.
+        Builds the encoder over `space`, normalizing each of its layers
+        where `normalized` is set, and the head over `actions` actions.
         """
         super().__init__()
 

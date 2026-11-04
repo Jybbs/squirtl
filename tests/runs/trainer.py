@@ -334,6 +334,18 @@ def test_each_finished_episode_writes_a_line_and_the_cut_one_none(
     ] == [(6, False, 6)] * 3
 
 
+def test_a_rollout_run_goes_on_to_the_end_of_the_rollout_reaching_its_steps(
+    rolling: Callable[..., Trainer]
+):
+    """
+    Asserts that a run of 9 steps across rollouts of 8 samples plays its
+    second rollout whole, its last checkpoint landing at step 16.
+    """
+    run = finish(rolling(Algorithm.PQN, steps=9))
+
+    assert VectorCheckpoint.from_path(run.checkpoint).step == 16
+
+
 def test_a_rollout_run_makes_the_environments_its_settings_name(
     rolling: Callable[..., Trainer]
 ):
@@ -351,6 +363,31 @@ def test_a_rollout_run_makes_the_environments_its_settings_name(
             run.env.gamma, vector.autoreset_mode,
             vector.max_concurrency, vector.num_envs
         ) == (0.9, AutoresetMode.SAME_STEP, 1, 2)
+
+
+@mark.parametrize(
+    ("algorithm", "steps"),
+    [param(Algorithm.PPO, 3, id="ppo"), param(Algorithm.PQN, 5, id="pqn")]
+)
+def test_a_rollout_takes_the_steps_of_the_settings_of_its_own_agent(
+    algorithm : Algorithm,
+    rolling   : Callable[..., Trainer],
+    steps     : int
+):
+    """
+    Asserts that one rollout in each of two environments takes the steps
+    its own agent's record names where PPO's and PQN's differ, stepping that
+    many times and then updating once.
+    """
+    with rolling(
+        algorithm,
+        agent = {
+            "ppo" : {"minibatches": 2, "rollout_steps": 3},
+            "pqn" : {"minibatches": 2, "rollout_steps": 5}
+        }
+    ) as run:
+        assert list(run.play()) == [*range(2, 2 * steps + 1, 2)]
+        assert run.tally.counts.tolist() == [1, 1]
 
 
 def test_a_rollout_run_of_one_environment_writes_a_line_for_each_episode(
@@ -441,9 +478,9 @@ def test_a_run_remembers_the_value_of_a_final_observation_at_the_step_truncating
     rolling     : Callable[..., Trainer]
 ):
     """
-    Asserts that a run hands the agent 0 on every step but the sixth, which
-    truncates both environments' episodes and carries the value of each
-    one's final observation.
+    Asserts that a run passes the agent 0 and no ending on every step but
+    the sixth, which truncates both environments' episodes, terminates
+    neither, and carries the value of each one's final observation.
     """
     trainer  = rolling(Algorithm.PQN, steps=16)
     remember = trainer.agent.remember
@@ -451,10 +488,9 @@ def test_a_run_remembers_the_value_of_a_final_observation_at_the_step_truncating
     monkeypatch.setattr(
         trainer.agent,
         "remember",
-        lambda bootstraps, *outcome: seen.append(bootstraps.tolist()) or remember(
-            bootstraps,
-            *outcome
-        )
+        lambda bootstraps, rewards, terminated, truncated: seen.append(
+            (bootstraps.tolist(), terminated.tolist(), truncated.tolist())
+        ) or remember(bootstraps, rewards, terminated, truncated)
     )
     monkeypatch.setattr(
         trainer.agent,
@@ -463,7 +499,13 @@ def test_a_run_remembers_the_value_of_a_final_observation_at_the_step_truncating
     )
     finish(trainer)
 
-    assert seen == [[0.0, 0.0]] * 5 + [[7.0, 7.0]] + [[0.0, 0.0]] * 2
+    idle = [0.0, 0.0], [False, False], [False, False]
+
+    assert seen == [idle] * 5 + [(
+        [7.0, 7.0],
+        [False, False],
+        [True, True]
+    )] + [idle] * 2
 
 
 def test_a_run_stopped_halfway_and_resumed_ends_as_a_run_that_never_stopped(

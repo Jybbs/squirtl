@@ -97,13 +97,6 @@
           "$ref": "#/$defs/PQNSettings",
           "description": "The settings PQN alone reads."
         },
-        "rollout_steps": {
-          "default": 512,
-          "description": "The steps each of PQN's and PPO's environments takes in a rollout, which\neach update then reads whole, whose default is the shortest of the 512,\n1024, and 2048 across which neither agent's steps per second differ\nmeasurably on the ten-core machine the runs train on, since a stop, a\ncheckpoint, and an evaluation each land once an update ends.",
-          "exclusiveMinimum": 0,
-          "title": "Rollout Steps",
-          "type": "integer"
-        },
         "sync_steps": {
           "default": 1000,
           "description": "The environment steps between two copies of the deep Q-network's online\nnetwork into its target network, whose default follows CleanRL's\n`dqn_atari.py`.",
@@ -308,6 +301,13 @@
           "title": "Minibatches",
           "type": "integer"
         },
+        "rollout_steps": {
+          "default": 2048,
+          "description": "The steps each environment takes in a rollout, which each update then\nreads whole, whose default is the horizon Section III-B of Pleines et\nal. reports as more effective than horizons of 512 or 1024 steps.",
+          "exclusiveMinimum": 0,
+          "title": "Rollout Steps",
+          "type": "integer"
+        },
         "trace_decay": {
           "$ref": "#/$defs/UnitInterval",
           "default": 0.95,
@@ -369,6 +369,13 @@
           "description": "The minibatches each epoch splits the rollout into, whose default is the\ncount of Gallici et al.'s Atari settings.",
           "exclusiveMinimum": 0,
           "title": "Minibatches",
+          "type": "integer"
+        },
+        "rollout_steps": {
+          "default": 512,
+          "description": "The steps each environment takes in a rollout, which each update then\nreads whole, whose default gives 8 environments the 4,096 samples of\nGallici et al.'s Atari settings, their 128 environments of 32 steps.",
+          "exclusiveMinimum": 0,
+          "title": "Rollout Steps",
           "type": "integer"
         },
         "trace_decay": {
@@ -455,7 +462,7 @@
     },
     "steps": {
       "default": 2500000,
-      "description": "The environment steps the run takes, whose default is ten of the\n250,000-step iterations Dopamine's DQN evaluates after.",
+      "description": "The environment steps the run takes, a run of PQN or PPO going on to\nthe end of the rollout that reaches them, whose default is ten of the\n250,000-step iterations Dopamine's DQN evaluates after.",
       "exclusiveMinimum": 0,
       "title": "Steps",
       "type": "integer"

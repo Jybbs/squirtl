@@ -18,6 +18,7 @@
       "learning_rate": 0.0003,
       "max_grad_norm": 0.5,
       "minibatches": 8,
+      "rollout_steps": 2048,
       "trace_decay": 0.95,
       "value_coefficient": 0.5
     },
@@ -29,9 +30,9 @@
       "learning_rate": 0.00025,
       "max_grad_norm": 10.0,
       "minibatches": 32,
+      "rollout_steps": 512,
       "trace_decay": 0.65
     },
-    "rollout_steps": 512,
     "sync_steps": 1000,
     "threads": null,
     "update_steps": 4,

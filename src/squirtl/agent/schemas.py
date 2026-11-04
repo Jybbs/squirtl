@@ -83,9 +83,9 @@ class Algorithm(StrEnum):
 
     def network(self, actions: int, space: Dict) -> Module:
         """
-        Builds the network the agent acts through for `actions` actions over
-        `space`, a `QNetwork` for the deep Q-network, one normalizing each
-        layer for PQN, and an `ActorCritic` for PPO.
+        Builds the network the agent acts through for `actions` actions
+        over `space`, a `QNetwork` for the deep Q-network, one whose encoder
+        normalizes each layer for PQN, and an `ActorCritic` for PPO.
         """
         match self:
             case Algorithm.DQN : return QNetwork(actions, space)
@@ -237,6 +237,13 @@ class PPOSettings(Record):
     count Pleines et al. train with.
     """
 
+    rollout_steps: PositiveInt = 2048
+    """
+    The steps each environment takes in a rollout, which each update then
+    reads whole, whose default is the horizon Section III-B of Pleines et
+    al. reports as more effective than horizons of 512 or 1024 steps.
+    """
+
     trace_decay: UnitInterval = 0.95
     """
     The λ that weights each generalized advantage estimate of Schulman et
@@ -298,6 +305,13 @@ class PQNSettings(Record):
     """
     The minibatches each epoch splits the rollout into, whose default is the
     count of Gallici et al.'s Atari settings.
+    """
+
+    rollout_steps: PositiveInt = 512
+    """
+    The steps each environment takes in a rollout, which each update then
+    reads whole, whose default gives 8 environments the 4,096 samples of
+    Gallici et al.'s Atari settings, their 128 environments of 32 steps.
     """
 
     trace_decay: UnitInterval = 0.65
@@ -472,15 +486,6 @@ class AgentSettings(Record):
     The settings PQN alone reads.
     """
 
-    rollout_steps: PositiveInt = 512
-    """
-    The steps each of PQN's and PPO's environments takes in a rollout, which
-    each update then reads whole, whose default is the shortest of the 512,
-    1024, and 2048 across which neither agent's steps per second differ
-    measurably on the ten-core machine the runs train on, since a stop, a
-    checkpoint, and an evaluation each land once an update ends.
-    """
-
     sync_steps: PositiveInt = 1000
     """
     The environment steps between two copies of the deep Q-network's online
@@ -553,13 +558,14 @@ class AgentSettings(Record):
                 f"transitions than the {self.batch_size:,} each update draws"
             )
 
-        samples = self.environments * self.rollout_steps
+        if hyperparameters := self.hyperparameters:
+            samples = self.environments * hyperparameters.rollout_steps
 
-        if self.hyperparameters and samples < 2 * self.hyperparameters.minibatches:
-            raise ValueError(
-                f"a rollout of {samples:,} samples gives some of its "
-                f"{self.hyperparameters.minibatches:,} minibatches fewer than two"
-            )
+            if samples < 2 * hyperparameters.minibatches:
+                raise ValueError(
+                    f"a rollout of {samples:,} samples gives some of its "
+                    f"{hyperparameters.minibatches:,} minibatches fewer than two"
+                )
 
         return self
 
@@ -655,7 +661,7 @@ class PolicyUpdate(Measures):
     kl: float
     """
     The mean of the ratio less 1 less its logarithm, Schulman's estimate of
-    the Kullback-Leibler divergence of the new policy from the old.
+    the Kullback-Leibler divergence of the old policy from the new.
     """
 
     policy_loss: float

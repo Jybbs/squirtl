@@ -107,6 +107,11 @@ Each of these exits 1 before any directory is made:
 │ --agent.ppo.minibatches INT   The minibatches each epoch splits the rollout  │
 │                               into, whose default is the count Pleines et    │
 │                               al. train with. [default: 8]                   │
+│ --agent.ppo.rollout-steps     The steps each environment takes in a rollout, │
+│   INT                         which each update then reads whole, whose      │
+│                               default is the horizon Section III-B of        │
+│                               Pleines et al. reports as more effective than  │
+│                               horizons of 512 or 1024 steps. [default: 2048] │
 │ --agent.ppo.trace-decay       The λ that weights each generalized advantage  │
 │   FLOAT                       estimate of Schulman et al., whose default is  │
 │                               the one Pleines et al. train with. [default:   │
@@ -142,18 +147,15 @@ Each of these exits 1 before any directory is made:
 │ --agent.pqn.minibatches INT   The minibatches each epoch splits the rollout  │
 │                               into, whose default is the count of Gallici et │
 │                               al.'s Atari settings. [default: 32]            │
+│ --agent.pqn.rollout-steps     The steps each environment takes in a rollout, │
+│   INT                         which each update then reads whole, whose      │
+│                               default gives 8 environments the 4,096 samples │
+│                               of Gallici et al.'s Atari settings, their 128  │
+│                               environments of 32 steps. [default: 512]       │
 │ --agent.pqn.trace-decay       The λ that weights each λ-return the network's │
 │   FLOAT                       values are trained toward, whose default is    │
 │                               the one of Gallici et al.'s Atari settings.    │
 │                               [default: 0.65]                                │
-│ --agent.rollout-steps INT     The steps each of PQN's and PPO's environments │
-│                               takes in a rollout, which each update then     │
-│                               reads whole, whose default is the shortest of  │
-│                               the 512, 1024, and 2048 across which neither   │
-│                               agent's steps per second differ measurably on  │
-│                               the ten-core machine the runs train on, since  │
-│                               a stop, a checkpoint, and an evaluation each   │
-│                               land once an update ends. [default: 512]       │
 │ --agent.sync-steps INT        The environment steps between two copies of    │
 │                               the deep Q-network's online network into its   │
 │                               target network, whose default follows          │
@@ -246,10 +248,11 @@ Each of these exits 1 before any directory is made:
 │ --seed INT                    The seed every random draw in the run derives  │
 │                               from, whose default follows CleanRL's          │
 │                               dqn_atari.py. [default: 1]                     │
-│ --steps INT                   The environment steps the run takes, whose     │
-│                               default is ten of the 250,000-step iterations  │
-│                               Dopamine's DQN evaluates after. [default:      │
-│                               2500000]                                       │
+│ --steps INT                   The environment steps the run takes, a run of  │
+│                               PQN or PPO going on to the end of the rollout  │
+│                               that reaches them, whose default is ten of the │
+│                               250,000-step iterations Dopamine's DQN         │
+│                               evaluates after. [default: 2500000]            │
 │ --verbose                     Log each step beside the line each episode     │
 │                               logs. [default: False]                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯

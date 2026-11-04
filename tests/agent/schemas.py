@@ -661,24 +661,24 @@ def test_a_rollout_of_two_samples_per_minibatch_is_the_least_each_agent_accepts(
     algorithm: Algorithm
 ):
     """
-    Asserts that each agent reads its own count of minibatches, three of
-    them accepting a rollout of six samples and refusing one of five.
+    Asserts that each agent reads its own count of minibatches and its own
+    rollout length, three minibatches accepting a rollout of six samples
+    and refusing one of five while the other agent's record stands at its
+    defaults.
     """
-    hyperparameters = {algorithm.value: {"minibatches": 3}}
+    own = algorithm.value
 
     assert AgentSettings(
-        **hyperparameters,
-        algorithm     = algorithm,
-        environments  = 3,
-        rollout_steps = 2
-    ).rollout_steps == 2
+        **{own: {"minibatches": 3, "rollout_steps": 2}},
+        algorithm    = algorithm,
+        environments = 3
+    ).hyperparameters.rollout_steps == 2
 
     with raises(ValidationError, match="a rollout of 5 samples gives some of its 3"):
         AgentSettings(
-            **hyperparameters,
-            algorithm     = algorithm,
-            environments  = 5,
-            rollout_steps = 1
+            **{own: {"minibatches": 3, "rollout_steps": 1}},
+            algorithm    = algorithm,
+            environments = 5
         )
 
 
@@ -727,7 +727,13 @@ def test_the_deep_q_network_reads_no_minibatches():
     Asserts that a rollout too small for PQN's and PPO's minibatches is
     accepted for the deep Q-network, which collects no rollout.
     """
-    assert AgentSettings(environments=1, rollout_steps=1).algorithm is Algorithm.DQN
+    short = {"rollout_steps": 1}
+
+    assert AgentSettings(
+        environments = 1,
+        ppo          = short,
+        pqn          = short
+    ).algorithm is Algorithm.DQN
 
 
 def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(

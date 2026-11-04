@@ -626,13 +626,14 @@ class RolloutTrainer(Trainer):
 
     def play(self) -> Iterator[int]:
         """
-        Collects one rollout of `rollout_steps` steps in every environment,
-        the agent choosing each batch of actions and remembering each batch
-        of outcomes, then updates the agent on it. It records each episode
-        an environment ends as that step returns, its measures averaged over
-        the updates taken while it played.
+        Collects one rollout in every environment, of the `rollout_steps`
+        steps the agent's own settings name, the agent choosing each batch
+        of actions and remembering each batch of outcomes, then updates the
+        agent on it. It records each episode an environment ends as that
+        step returns, its measures averaged over the updates taken while
+        it played.
         """
-        for _ in range(self.settings.agent.rollout_steps):
+        for _ in range(self.settings.agent.hyperparameters.rollout_steps):
             self.observations, rewards, terminated, truncated, info = self.env.step(
                 self.agent.act(self.observations)
             )

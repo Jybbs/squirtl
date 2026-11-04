@@ -163,7 +163,8 @@ class RunSettings(Record):
 
     steps: PositiveInt = 2_500_000
     """
-    The environment steps the run takes, whose default is ten of the
+    The environment steps the run takes, a run of PQN or PPO going on to
+    the end of the rollout that reaches them, whose default is ten of the
     250,000-step iterations Dopamine's DQN evaluates after.
     """
 

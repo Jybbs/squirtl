@@ -74,7 +74,7 @@ def collect(batched: dict[str, ndarray]) -> Callable[[RolloutAgent], None]:
         """
         Takes a rollout's steps through `agent`, as the fixture describes.
         """
-        for _ in range(agent.settings.rollout_steps):
+        for _ in range(agent.settings.hyperparameters.rollout_steps):
             agent.act(batched)
             agent.remember(
                 bootstraps = zeros(2, float32),
@@ -205,11 +205,16 @@ def rolling(space: Dict) -> Callable[..., RolloutAgent]:
             environments = 2,
             seed         = seed,
             settings     = AgentSettings(
-                **{algorithm.value: {"minibatches": minibatches, **fields}},
-                algorithm     = algorithm,
-                device        = "cpu",
-                environments  = 2,
-                rollout_steps = 4
+                **{
+                    algorithm.value: {
+                        "minibatches"   : minibatches,
+                        "rollout_steps" : 4,
+                        **fields
+                    }
+                },
+                algorithm    = algorithm,
+                device       = "cpu",
+                environments = 2
             ),
             space = space,
             steps = steps

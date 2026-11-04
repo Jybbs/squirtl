@@ -129,9 +129,10 @@ def rolling() -> Callable[[str], list[str]]:
     8 steps, and each evaluation playing 2 episodes in 2 environments.
     """
     return lambda algorithm: [
-        "--agent.algorithm", algorithm, "--agent.device", "cpu", "--agent.environments",
-        "2", "--agent.ppo.minibatches", "2", "--agent.pqn.minibatches", "2",
-        "--agent.rollout-steps", "4", "--checkpoint-steps", "8",
+        "--agent.algorithm", algorithm, "--agent.device", "cpu",
+        "--agent.environments", "2", "--agent.ppo.minibatches", "2",
+        "--agent.ppo.rollout-steps", "4", "--agent.pqn.minibatches", "2",
+        "--agent.pqn.rollout-steps", "4", "--checkpoint-steps", "8",
         "--environment.max-episode-steps", "3", "--evaluation.environments", "2",
         "--evaluation.episodes", "2", "--steps", "16"
     ]

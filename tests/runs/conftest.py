@@ -137,12 +137,11 @@ def rolling(trainer: Callable[..., Trainer]) -> Callable[..., Trainer]:
             **{
                 "agent" : AgentSettings.model_validate(
                     {
-                        "algorithm"     : algorithm,
-                        "device"        : "cpu",
-                        "environments"  : 2,
-                        "rollout_steps" : 4,
-                        "ppo"           : {"minibatches": 2},
-                        "pqn"           : {"minibatches": 2}
+                        "algorithm"    : algorithm,
+                        "device"       : "cpu",
+                        "environments" : 2,
+                        "ppo"          : {"minibatches": 2, "rollout_steps": 4},
+                        "pqn"          : {"minibatches": 2, "rollout_steps": 4}
                     } | agent
                 ),
                 "steps" : 32

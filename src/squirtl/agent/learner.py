@@ -256,7 +256,11 @@ class RolloutAgent(ABC):
         self.actions   = actions
         self.generator = default_rng(seed)
         self.network   = settings.network(actions, seed, space)
-        self.rollout   = Rollout(environments, space, settings.rollout_steps)
+        self.rollout   = Rollout(
+            environments,
+            space,
+            settings.hyperparameters.rollout_steps
+        )
         self.settings  = settings
         self.step      = 0
         self.steps     = steps

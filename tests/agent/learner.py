@@ -633,6 +633,39 @@ def test_building_an_agent_turns_nnpack_off(build: Callable[..., DQN]):
         assert nnpack.set_flags(True) == (False,)
 
 
+def test_each_update_of_one_seed_moves_the_network_alike(
+    batched : dict[str, ndarray],
+    collect : Callable[[RolloutAgent], None],
+    rolling : Callable[..., RolloutAgent]
+):
+    """
+    Asserts that two PPO agents of one seed end an update holding the same
+    weights, each epoch's minibatches drawn from their generators alone.
+    """
+    agents = [rolling(Algorithm.PPO), rolling(Algorithm.PPO)]
+
+    for agent in agents:
+        collect(agent)
+        agent.update(batched)
+
+    assert equal(
+        parameters_to_vector(agents[0].network.parameters()),
+        parameters_to_vector(agents[1].network.parameters())
+    )
+
+
+@each_agent
+def test_each_agent_allocates_a_rollout_of_the_steps_its_own_settings_name(
+    algorithm : Algorithm,
+    rolling   : Callable[..., RolloutAgent]
+):
+    """
+    Asserts that an agent's rollout holds the rows its own record names,
+    whatever the other agent's default, and a column per environment.
+    """
+    assert rolling(algorithm, rollout_steps=3).rollout.rewards.shape == (3, 2)
+
+
 @mark.parametrize(
     ("algorithm", "network", "normalized", "optimizer", "rate"),
     [
@@ -688,27 +721,6 @@ def test_a_seed_builds_each_agents_network_and_leaves_pytorchs_generator_alone(
     )
 
 
-def test_each_update_of_one_seed_moves_the_network_alike(
-    batched : dict[str, ndarray],
-    collect : Callable[[RolloutAgent], None],
-    rolling : Callable[..., RolloutAgent]
-):
-    """
-    Asserts that two PPO agents of one seed end an update holding the same
-    weights, each epoch's minibatches drawn from their generators alone.
-    """
-    agents = [rolling(Algorithm.PPO), rolling(Algorithm.PPO)]
-
-    for agent in agents:
-        collect(agent)
-        agent.update(batched)
-
-    assert equal(
-        parameters_to_vector(agents[0].network.parameters()),
-        parameters_to_vector(agents[1].network.parameters())
-    )
-
-
 def test_ppo_draws_its_samples_from_its_own_generator(
     batched : dict[str, ndarray],
     rolling : Callable[..., RolloutAgent]
@@ -725,6 +737,30 @@ def test_ppo_draws_its_samples_from_its_own_generator(
 
     assert drawn[0] == drawn[1]
     assert equal(get_rng_state(), manual_seed(5).get_state())
+
+
+def test_ppo_reads_each_advantage_and_clips_each_value_from_the_value_it_stored(
+    rolling: Callable[..., RolloutAgent]
+):
+    """
+    Asserts that on a critic reading 0, returns of 1 and 0 and old values of
+    2 and -1 give advantages of -1 and 1, whose normalized gains on ratios
+    of 2 and 1 give the objective's loss, and that the value's loss clips
+    about each old value, the mean of the larger squared errors 1 and 0.64.
+    """
+    agent = rolling(Algorithm.PPO)
+    flat([0.0] * 7, agent.network.policy)
+    flat([0.0], agent.network.critic)
+    uniform     = log(1 / 7)
+    _, measures = agent.learn(
+        batch_of(
+            log_probs = [uniform - log(2), uniform],
+            returns   = [1.0, 0.0],
+            values    = [2.0, -1.0]
+        )
+    )
+
+    assert measures[3:].tolist() == approx([0.5 / 2**0.5, 0.82], abs=1e-5)
 
 
 @mark.parametrize(
