@@ -1477,14 +1477,16 @@ class Lifts(Record):
         } | named
 
         if self.lifts:
-            print(table_text(self.table))
+            print(table_text(self.table), flush=True)
         else:
             print("Every pin stands at its newest release")
 
         for lift in self.lifts:
             if lift.name in holds:
                 print(
-                    f"Leaving {lift.name} at {lift.current}, because {holds[lift.name]}"
+                    f"Leaving {lift.name} at {lift.current}, "
+                    f"because {holds[lift.name]}",
+                    flush = True
                 )
 
         if unknown := sorted(holds.keys() - {lift.name for lift in self.lifts}):
@@ -1502,7 +1504,7 @@ class Lifts(Record):
 
         if trying:
             trial = lifts.tried(Path(".cache/lift"))
-            print(trial.verdict)
+            print(trial.verdict, flush=True)
 
             if trial.status:
                 return trial.status

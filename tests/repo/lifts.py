@@ -1229,6 +1229,61 @@ def test_an_action_lift_reads_its_current_version_from_the_tags_naming_its_commi
     assert lift.home == Path(".github")
 
 
+@mark.parametrize(
+    ("holds", "trying", "last"),
+    [
+        param({}, False, "2.0.0", id="the-table"),
+        param(
+            {"b": "the reason"},
+            False,
+            "Leaving b at 1.0.0, because the reason",
+            id = "the-line-on-a-hold"
+        ),
+        param({}, True, "Every lift not held passes mise ci", id="the-verdict")
+    ]
+)
+def test_a_lift_flushes_what_it_prints_before_the_write_starts(
+    holds       : dict[str, str],
+    last        : str,
+    monkeypatch : MonkeyPatch,
+    trying      : bool
+):
+    """
+    Pins that what the task prints reaches a piped standard output before
+    the commands of a write print into the same pipe.
+    """
+    piped   = BytesIO()
+    reached = []
+
+    monkeypatch.setattr("sys.stdout", TextIOWrapper(piped, encoding="utf-8"))
+    monkeypatch.setattr(
+        Lifts,
+        "tried",
+        lambda self, logs: Trial(
+            attempts = (Attempt(held=(), log=logs / "whole.log", passed=True),)
+        )
+    )
+    monkeypatch.setattr(
+        Lifts,
+        "write",
+        lambda self, checkout: reached.extend(
+            (
+                piped.getvalue()
+                     .decode()
+                     .splitlines()
+            )
+        )
+    )
+
+    lifts_of(
+        lift_of("a 1.0.0 2.0.0"),
+        lift_of("b 1.0.0 2.0.0"),
+        holds = holds
+    ).lift(held=(), trying=trying, writing=True)
+
+    assert last in reached[-1]
+
+
 def test_a_trial_flushes_each_sentence_before_the_next_attempt_starts(
     monkeypatch: MonkeyPatch
 ):
