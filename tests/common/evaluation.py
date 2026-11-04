@@ -10,7 +10,7 @@ Defines what the tests of an evaluation build from:
 from collections.abc import Iterable
 from contextlib      import AbstractContextManager
 
-from squirtl.agent.schemas       import Weights
+from squirtl.agent.checkpoint    import Weights
 from squirtl.environment.schemas import Outcome
 from squirtl.evaluation.schemas  import Evaluation
 from squirtl.reward.schemas      import Term
@@ -19,9 +19,10 @@ from squirtl.reward.schemas      import Term
 class EvaluatorStandIn(AbstractContextManager):
     """
     Stands in for `Evaluator`, holding the arguments it was built with and
-    the step of each evaluation asked of it, `None` for the baseline's, in
-    the order asked. It answers each with one episode `played` builds, whose
-    return is the step over 1,000, or 0.125 for the baseline.
+    the step of each evaluation asked of it, `None` for the baseline's,
+    in the order asked. It answers each with one episode `played` builds,
+    the agent's reaching the starter for a return of the step over 1,000,
+    whereas the baseline's is truncated at a return of 0.125.
     """
 
     def __exit__(self, *raised: object):
@@ -31,7 +32,8 @@ class EvaluatorStandIn(AbstractContextManager):
 
     def __init__(self, *arguments: object):
         """
-        Records the arguments `Run.evaluate` builds an `Evaluator` with.
+        Records the arguments `Benchmark.from_run` builds an `Evaluator`
+        with.
         """
         self.arguments = arguments
         self.asked     = []
@@ -51,7 +53,7 @@ class EvaluatorStandIn(AbstractContextManager):
         """
         self.asked.append(weights.step)
 
-        return played([weights.step / 1000], weights.step)
+        return played([weights.step / 1000], weights.step, terminated=True)
 
 
 def outcome(reward: float = 0.0025, **fields: object) -> Outcome:
@@ -73,9 +75,13 @@ def outcome(reward: float = 0.0025, **fields: object) -> Outcome:
     )
 
 
-def played(rewards: Iterable[float], step: int | None) -> Evaluation:
+def played(rewards: Iterable[float], step: int | None, **fields: object) -> Evaluation:
     """
     Builds the evaluation at `step` of one truncated episode per return in
-    `rewards`, all of it the novelty.
+    `rewards`, all of it the novelty, unless a keyword sets another field of
+    each episode.
     """
-    return Evaluation(outcomes=list(map(outcome, rewards)), step=step)
+    return Evaluation(
+        outcomes = [outcome(reward, **fields) for reward in rewards],
+        step     = step
+    )

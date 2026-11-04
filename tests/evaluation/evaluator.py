@@ -22,8 +22,8 @@ from signal            import SIGINT
 from torch             import Tensor, equal, get_rng_state, tensor
 from typing            import Any
 
+from squirtl.agent.checkpoint      import Weights
 from squirtl.agent.networks        import QNetwork
-from squirtl.agent.schemas         import Weights
 from squirtl.emulator.schemas      import Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Outcome

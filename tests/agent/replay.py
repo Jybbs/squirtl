@@ -8,6 +8,8 @@ Pins replay memory, covering:
 - The generator its draws come from, and its 606 MB at the default capacity
 - The arrays it gathers for a checkpoint and loads back uncopied, and the
   arrays of another capacity, dtype, or name it refuses
+- The value a batch reads for each draw, and its target under the action
+  one network chooses and another values
 """
 
 from collections.abc  import Callable, Mapping
@@ -17,9 +19,10 @@ from numpy            import arange, array, int8, ndarray, uint8, zeros
 from numpy.random     import default_rng
 from numpy.testing    import assert_array_equal
 from pytest           import fixture, mark, param, raises
+from torch            import Tensor, tensor
 from torch.testing    import assert_close
 
-from squirtl.agent.replay        import Replay
+from squirtl.agent.replay        import Batch, Replay
 from squirtl.agent.schemas       import AgentSettings
 from squirtl.environment.schemas import Entry
 
@@ -133,6 +136,65 @@ def fill(replay: Replay, stacked: Stacked, tiny: Dict):
             replay.store(step, reached, float(step), terminated and step == steps - 1)
 
 
+def frames(observations: Mapping[str, Tensor]) -> Tensor:
+    """
+    Values each frame of a one-pixel stack as one action, at the value its
+    pixel holds.
+    """
+    return observations[Entry.FRAMES][:, :, 0, 0].float()
+
+
+def reversed_frames(observations: Mapping[str, Tensor]) -> Tensor:
+    """
+    Values each frame of a one-pixel stack as one action, at the negative of
+    the value its pixel holds, so it values the first frame highest.
+    """
+    return -frames(observations)
+
+
+def test_a_batch_runs_a_network_choosing_for_itself_once():
+    """
+    Asserts that a batch whose choosing and valuing network are one network
+    runs it once on the observation reached, reading both the choice and its
+    value from that pass.
+    """
+    passes = []
+
+    def network(observations: Mapping[str, Tensor]) -> Tensor:
+        """
+        Values each frame as `frames` does, counting each pass.
+        """
+        passes.append(observations)
+
+        return frames(observations)
+
+    targets = Batch(
+        actions    = tensor([0]),
+        rewards    = tensor([1.0]),
+        terminated = tensor([False]),
+        windows    = {Entry.FRAMES: tensor(arange(5, dtype=uint8)).reshape(1, 5, 1, 1)}
+    ).targets(network, 0.5, network)
+
+    assert (targets.tolist(), len(passes)) == ([3.0], 1)
+
+
+def test_a_batch_values_each_draw_at_the_action_it_took():
+    """
+    Asserts that a batch reads the value a network gives each draw's action
+    on the stack that action was taken on, from a network valuing each of a
+    stack's four frames as one action, so action 2 on frames 0 to 3 reads 2
+    and action 0 on frames 5 to 8 reads 5.
+    """
+    batch = Batch(
+        actions    = tensor([2, 0]),
+        rewards    = tensor([0.0, 0.0]),
+        terminated = tensor([False, False]),
+        windows    = {Entry.FRAMES: tensor(arange(10, dtype=uint8)).reshape(2, 5, 1, 1)}
+    )
+
+    assert batch.values(frames).tolist() == [2.0, 5.0]
+
+
 def test_replay_at_its_default_capacity_packs_each_binary_entry_into_606_mb(
     space: Dict
 ):
@@ -187,6 +249,27 @@ def test_replay_draws_a_reset_observation_back_element_by_element(tiny: Dict):
     ]
 
 
+@mark.parametrize(
+    "capacity",
+    [param(16, id="a-larger-one"), param(1, id="one-slot-broadcasting-to-all")]
+)
+def test_replay_refuses_the_arrays_of_another_capacity(
+    capacity : int,
+    stacked  : Stacked,
+    tiny     : Dict
+):
+    """
+    Asserts that replay memory refuses arrays gathered at another capacity
+    rather than loading them into slots they do not fit, a single slot that
+    would broadcast across all twelve among them.
+    """
+    saved = Replay(capacity, default_rng(0), tiny)
+    fill(saved, stacked, tiny)
+
+    with raises(ValueError, match="where the arrays loaded hold"):
+        Replay(12, default_rng(0), tiny).load(saved.arrays)
+
+
 def test_replay_draws_each_batch_from_the_generator_it_is_built_with(
     stacked : Stacked,
     tiny    : Dict
@@ -207,6 +290,42 @@ def test_replay_draws_each_batch_from_the_generator_it_is_built_with(
     first, second = (replay.sample("cpu", 32) for replay in replays)
 
     assert_close(first.model_dump(), second.model_dump(), atol=0, rtol=0)
+
+
+@mark.parametrize(
+    ("change", "refusal"),
+    [
+        param(
+            lambda arrays: arrays | {"rewards": arrays["rewards"].astype("float64")},
+            "holds `rewards` as float32",
+            id = "rewards-of-another-dtype"
+        ),
+        param(
+            lambda arrays: arrays | {"extra": arrays["held"]},
+            "where the arrays loaded are",
+            id = "an-array-it-holds-none-of"
+        )
+    ]
+)
+def test_replay_refuses_arrays_of_another_dtype_or_name(
+    change  : Callable[[dict[str, ndarray]], dict[str, ndarray]],
+    refusal : str,
+    stacked : Stacked,
+    tiny    : Dict
+):
+    """
+    Asserts that replay memory refuses arrays one of which holds another
+    dtype than its own, which `copyto` would have cast without a word, or
+    which name an array it holds none of, taking none of them.
+    """
+    saved = Replay(16, default_rng(4), tiny)
+    fill(saved, stacked, tiny)
+    loaded = Replay(16, default_rng(4), tiny)
+
+    with raises(ValueError, match=refusal):
+        loaded.load(change(saved.arrays))
+
+    assert not loaded.held.any()
 
 
 def test_replay_gathers_each_array_it_holds_uncopied_under_its_name(
@@ -260,27 +379,6 @@ def test_replay_keeps_the_arrays_it_loads_uncopied(stacked: Stacked, tiny: Dict)
     )
 
 
-@mark.parametrize(
-    "capacity",
-    [param(16, id="a-larger-one"), param(1, id="one-slot-broadcasting-to-all")]
-)
-def test_replay_refuses_the_arrays_of_another_capacity(
-    capacity : int,
-    stacked  : Stacked,
-    tiny     : Dict
-):
-    """
-    Asserts that replay memory refuses arrays gathered at another capacity
-    rather than loading them into slots they do not fit, a single slot that
-    would broadcast across all twelve among them.
-    """
-    saved = Replay(capacity, default_rng(0), tiny)
-    fill(saved, stacked, tiny)
-
-    with raises(ValueError, match="where the arrays loaded hold"):
-        Replay(12, default_rng(0), tiny).load(saved.arrays)
-
-
 def test_replay_loaded_from_another_replays_arrays_draws_and_stores_as_it_would(
     stacked : Stacked,
     tiny    : Dict
@@ -308,36 +406,32 @@ def test_replay_loaded_from_another_replays_arrays_draws_and_stores_as_it_would(
 
 
 @mark.parametrize(
-    ("change", "refusal"),
+    ("chooser", "terminated", "target"),
     [
-        param(
-            lambda arrays: arrays | {"rewards": arrays["rewards"].astype("float64")},
-            "holds `rewards` as float32",
-            id = "rewards-of-another-dtype"
-        ),
-        param(
-            lambda arrays: arrays | {"extra": arrays["held"]},
-            "where the arrays loaded are",
-            id = "an-array-it-holds-none-of"
-        )
+        param(frames,          False, 3.0, id="the-valuing-networks-own-choice"),
+        param(reversed_frames, False, 1.5, id="another-networks-choice"),
+        param(frames,          True,  1.0, id="a-terminated-step")
     ]
 )
-def test_replay_refuses_arrays_of_another_dtype_or_name(
-    change  : Callable[[dict[str, ndarray]], dict[str, ndarray]],
-    refusal : str,
-    stacked : Stacked,
-    tiny    : Dict
+def test_a_batch_targets_its_reward_plus_the_discounted_value_of_the_chosen_action(
+    chooser    : Callable[[Mapping[str, Tensor]], Tensor],
+    target     : float,
+    terminated : bool
 ):
     """
-    Asserts that replay memory refuses arrays one of which holds another
-    dtype than its own, which `copyto` would have cast without a word, or
-    which name an array it holds none of, taking none of them.
+    Asserts that a batch targets a draw at its reward of one plus 0.5 times
+    the value a network gives the stack its action reached under the action
+    `chooser` values highest there, recording no autograd graph. The network
+    values each of the stack's frames 1 to 4 as one action, so the 4 of its
+    own choice targets 3, the 1 of the first action, which a chooser valuing
+    the frames in reverse picks, targets 1.5, and a terminated step targets
+    its reward alone.
     """
-    saved = Replay(16, default_rng(4), tiny)
-    fill(saved, stacked, tiny)
-    loaded = Replay(16, default_rng(4), tiny)
+    targets = Batch(
+        actions    = tensor([0]),
+        rewards    = tensor([1.0]),
+        terminated = tensor([terminated]),
+        windows    = {Entry.FRAMES: tensor(arange(5, dtype=uint8)).reshape(1, 5, 1, 1)}
+    ).targets(chooser, 0.5, lambda observations: frames(observations).requires_grad_())
 
-    with raises(ValueError, match=refusal):
-        loaded.load(change(saved.arrays))
-
-    assert not loaded.held.any()
+    assert (targets.tolist(), targets.requires_grad) == ([target], False)

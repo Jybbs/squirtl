@@ -1,6 +1,7 @@
 """
 Defines `Trainer`, the training loop of one run, which `squirtl train`
-drives through each step of the run.
+drives through each step of the run, and `Handover`, what a resumed run
+takes over from the stopped run it continues.
 """
 
 from collections.abc import Iterator
@@ -14,10 +15,101 @@ from statistics      import fmean
 from types           import FrameType
 from typing          import Self
 
-from squirtl.agent.learner    import Agent
-from squirtl.agent.schemas    import Update
-from squirtl.emulator.schemas import Cartridge
-from squirtl.runs.schemas     import Episode, Handover, Run, RunSettings, Stream
+from squirtl.agent.checkpoint      import Checkpoint
+from squirtl.agent.learner         import Agent
+from squirtl.agent.schemas         import Update
+from squirtl.emulator.schemas      import Cartridge, Record
+from squirtl.environment.overworld import Overworld
+from squirtl.evaluation.schemas    import Evaluation
+from squirtl.runs.benchmark        import Benchmark
+from squirtl.runs.schemas          import Episode, Run, RunSettings, Stream
+
+
+class Handover(Record):
+    """
+    What a resumed run takes over from the stopped run it continues, read
+    whole before the new run writes anything, so a resume refused for any of
+    it leaves no directory behind.
+    """
+
+    baseline: str | None
+    """
+    The random baseline's evaluation as the stopped run's `baseline` holds
+    it, or `None` where it played none.
+    """
+
+    checkpoint: Checkpoint
+    """
+    The stopped run's last checkpoint, which the agent restores.
+    """
+
+    episodes: list[str]
+    """
+    The line of each episode that ended by the checkpoint's step, as the
+    stopped run's `episodes` holds it.
+    """
+
+    evaluations: list[Evaluation]
+    """
+    Each evaluation of the agent at the checkpoint's step or before it.
+    """
+
+    name: str
+    """
+    The stopped run's name, which the new run records under `resumes`.
+    """
+
+    @property
+    def evaluated(self) -> int:
+        """
+        Reads the step of the last evaluation carried over, or 0 where none
+        is.
+        """
+        return self.evaluations[-1].step if self.evaluations else 0
+
+    @classmethod
+    def from_run(cls, previous: Run) -> Self:
+        """
+        Reads what `previous` recorded up to its last checkpoint.
+
+        Raises:
+            FileNotFoundError : Where `previous` holds no checkpoint.
+            ValueError        : Where the checkpoint is damaged or already
+                                holds the run's `steps`, or the episodes
+                                `previous` recorded end short of it, as
+                                `Run.ended_by` raises.
+        """
+        checkpoint = Checkpoint.from_path(previous.checkpoint)
+
+        if checkpoint.step >= previous.settings.steps:
+            raise ValueError(
+                f"{previous.checkpoint} already holds the run's "
+                f"{previous.settings.steps:,} steps"
+            )
+
+        return cls(
+            baseline = previous.baseline.read_text(
+                encoding = "utf-8"
+            ) if previous.baseline.exists() else None,
+            checkpoint  = checkpoint,
+            episodes    = previous.ended_by(checkpoint.step),
+            evaluations = list(previous.evaluated_by(checkpoint.step)),
+            name        = previous.name
+        )
+
+    def write(self, run: Run):
+        """
+        Writes into `run` what the handover carries over, each episode's
+        line as the stopped run wrote it, each evaluation, and the random
+        baseline's where it played one.
+        """
+        with run.episodes.open("a", encoding="utf-8") as lines:
+            lines.writelines(self.episodes)
+
+        run.append(run.evaluations, *self.evaluations)
+
+        if self.baseline is not None:
+            run.baseline.write_text(self.baseline, encoding="utf-8")
 
 
 class Trainer(AbstractContextManager):
@@ -73,7 +165,12 @@ class Trainer(AbstractContextManager):
                         the agent, as `Agent.restore` raises, beside each
                         error `Run.start` raises.
         """
-        self.env   = settings.specification(cartridge).make()
+        self.env = Overworld.specification(
+            cartridge,
+            settings.emulator,
+            settings.environment,
+            settings.reward
+        ).make()
         self.agent = Agent(
             actions  = self.env.action_space.n,
             seed     = settings.seeds[Stream.AGENT],
@@ -181,35 +278,36 @@ class Trainer(AbstractContextManager):
 
     def evaluate(self):
         """
-        Evaluates the agent at its step through `Run.evaluate`, recording
-        the step it landed at, and logs how often the agent and the random
-        baseline reached the starter and the returns each averaged.
+        Evaluates the agent at its step through `Benchmark.from_run`,
+        recording the step it landed at, and logs how often the agent
+        and the random baseline reached the starter and the returns each
+        averaged.
         """
         logger.info("Evaluating the agent at step {:,}", self.agent.step)
 
-        evaluation, baseline = self.run.evaluate(self.cartridge, self.agent.weights)
-        self.evaluated       = self.agent.step
+        benchmark = Benchmark.from_run(self.cartridge, self.run, self.agent.weights)
+        self.evaluated = self.agent.step
 
         logger.info(
             "At step {:,}, the agent reached the starter in {:.0%} of its "
             "evaluation episodes for a mean return of {:.4f}, and the random "
             "baseline in {:.0%} for {:.4f}",
             self.evaluated,
-            evaluation.reached,
-            evaluation.reward,
-            baseline.reached,
-            baseline.reward
+            benchmark.agent.reached,
+            benchmark.agent.reward,
+            benchmark.baseline.reached,
+            benchmark.baseline.reward
         )
 
     def inherit(self, handover: Handover):
         """
         Writes into the run what `handover` carries over, through
-        `Run.inherit`, counting its episodes among those `finished` and the
-        next checkpoint and evaluation on from the steps the last of each
-        landed at, so the run goes on as though the run it continues had
-        never stopped.
+        `Handover.write`, counting its episodes among those `finished` and
+        the next checkpoint and evaluation on from the steps the last of
+        each landed at, so the run goes on as though the run it continues
+        had never stopped.
         """
-        self.run.inherit(handover)
+        handover.write(self.run)
         self.evaluated = handover.evaluated
         self.finished  = len(handover.episodes)
         self.saved     = handover.checkpoint.step
