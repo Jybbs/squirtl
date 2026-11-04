@@ -58,7 +58,8 @@ describe('renderCards', () => {
     await renderCards(FACTS, import.meta.url, folder, [PAGES[0]!, page])
 
     const read = (name: string): Buffer => fs.readFileSync(path.join(folder, 'cards', `${name}.png`))
-    expect(read('about')).toEqual(read('site'))
+    // `toEqual` walks a PNG one byte at a time in JavaScript, whereas `Buffer.equals` compares it natively.
+    expect(read('about').equals(read('site'))).toBe(true)
   })
 })
 
