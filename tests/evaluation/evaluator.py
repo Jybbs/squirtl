@@ -7,7 +7,8 @@ Pins how `Evaluator` plays an evaluation's episodes, covering:
   processes on PyBoy, and a worker ignoring the interrupt signal
 - The policy taking the network's action or a random one from each
   environment's seeded action space, at the epsilon the settings name for
-  the agent, leaving PyTorch's global generator as it found it
+  the deep Q-network and PQN and at none for PPO, which plays its most likely
+  action, leaving PyTorch's global generator as it found it
 """
 
 from collections.abc   import Callable
@@ -19,11 +20,13 @@ from numpy             import ndarray, uint8, zeros
 from os                import kill
 from pytest            import MonkeyPatch, fixture, mark, param
 from signal            import SIGINT
-from torch             import Tensor, equal, get_rng_state, tensor
+from torch             import Tensor, arange, equal, get_rng_state, no_grad, tensor
+from torch.testing     import assert_close
 from typing            import Any
 
 from squirtl.agent.checkpoint      import Weights
-from squirtl.agent.networks        import QNetwork
+from squirtl.agent.networks        import ActorCritic, acting_network
+from squirtl.agent.schemas         import Algorithm
 from squirtl.emulator.schemas      import Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Outcome
@@ -90,14 +93,15 @@ def evaluator(cartridge: Cartridge) -> Callable[..., Evaluator]:
     """
     Builds a factory of evaluators on `cartridge` on the CPU from seed 1,
     under episodes of three steps and the evaluation settings any keyword
-    sets.
+    sets, playing the deep Q-network unless the call names another agent.
     """
 
-    def build(**settings: object) -> Evaluator:
+    def build(algorithm: Algorithm = Algorithm.DQN, **settings: object) -> Evaluator:
         """
-        Starts the evaluator `settings` describe.
+        Starts the evaluator of `algorithm` that `settings` describe.
         """
         return Evaluator(
+            algorithm,
             "cpu",
             1,
             EvaluationSettings(**settings),
@@ -159,6 +163,70 @@ def test_each_episode_plays_alike_however_many_environments_run(
     assert len({outcome.length for outcome in played[0]}) > 1
 
 
+def test_a_policy_takes_the_largest_logit_of_ppos_network_at_no_chance():
+    """
+    Asserts that PPO's network, whose forward pass reads the policy's
+    logits, plays the most likely action of each observation at an epsilon
+    of 0.
+    """
+    network = ActorCritic(7, Dict(frames=Box(0, 255, (4, 36, 36), uint8)))
+
+    with no_grad():
+        network.policy.weight.zero_()
+        network.policy.bias.copy_(arange(7.0))
+
+    acted = Policy(epsilon=0.0, network=network).act(
+        {"frames": zeros((2, 4, 36, 36), uint8)},
+        [Discrete(7, seed=seed) for seed in (0, 1)]
+    )
+
+    assert acted.tolist() == [6, 6]
+
+
+@mark.parametrize(
+    ("algorithm", "epsilon"),
+    [
+        param(Algorithm.DQN, 0.05, id="the-deep-q-network"),
+        param(Algorithm.PPO, 0.0,  id="ppos-most-likely-action"),
+        param(Algorithm.PQN, 0.05, id="pqn")
+    ]
+)
+def test_each_agent_plays_its_network_at_its_epsilon(
+    algorithm   : Algorithm,
+    epsilon     : float,
+    evaluator   : Callable[..., Evaluator],
+    monkeypatch : MonkeyPatch
+):
+    """
+    Asserts that an evaluation builds the agent's own network from its
+    weights and plays it at the epsilon the evaluation settings name, 0.05
+    by default, for the deep Q-network and PQN, and at 0 for PPO, whereas
+    the baseline plays every action at random.
+    """
+    policies = []
+    monkeypatch.setattr(
+        Evaluator,
+        "play",
+        lambda evaluator, policy: policies.append(policy) or [outcome()]
+    )
+
+    with evaluator(algorithm, environments=1, episodes=1) as started:
+        built = acting_network(
+            started.envs.single_action_space.n,
+            algorithm,
+            started.envs.single_observation_space
+        )
+        started.evaluate(Weights(online=built.state_dict(), step=9))
+        started.baseline()
+
+    assert [(policy.epsilon, policy.network is None) for policy in policies] == [
+        (epsilon, False),
+        (1.0, True)
+    ]
+    assert type(policies[0].network) is type(built)
+    assert_close(policies[0].network.state_dict(), built.state_dict(), atol=0, rtol=0)
+
+
 def test_a_worker_plays_on_through_an_interrupt(evaluator: Callable[..., Evaluator]):
     """
     Asserts that the interrupt signal reaching each worker process, as a
@@ -170,36 +238,6 @@ def test_a_worker_plays_on_through_an_interrupt(evaluator: Callable[..., Evaluat
             kill(process.pid, SIGINT)
 
         assert len(started.baseline().outcomes) == 2
-
-
-def test_the_agent_plays_at_the_epsilon_its_settings_name(
-    evaluator   : Callable[..., Evaluator],
-    monkeypatch : MonkeyPatch
-):
-    """
-    Asserts that the agent's evaluation plays its network at the epsilon
-    the evaluation settings name, 0.05 by default, where the baseline plays
-    every action at random.
-    """
-    policies = []
-    monkeypatch.setattr(
-        Evaluator,
-        "play",
-        lambda evaluator, policy: policies.append(policy) or [outcome()]
-    )
-
-    with evaluator(environments=1, episodes=1) as started:
-        online = QNetwork(
-            started.envs.single_action_space.n,
-            started.envs.single_observation_space
-        ).state_dict()
-        started.evaluate(Weights(online=online, step=9))
-        started.baseline()
-
-    assert [(policy.epsilon, policy.network is None) for policy in policies] == [
-        (0.05, False),
-        (1.0, True)
-    ]
 
 
 @mark.parametrize(
@@ -241,18 +279,28 @@ def test_an_evaluation_runs_no_more_environments_than_its_episodes(
     assert evaluator(environments=8, episodes=2).envs.num_envs == 2
 
 
+@mark.parametrize(
+    "algorithm",
+    [
+        param(Algorithm.DQN, id="the-deep-q-network"),
+        param(Algorithm.PPO, id="ppo"),
+        param(Algorithm.PQN, id="pqn")
+    ]
+)
 def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
-    evaluator: Callable[..., Evaluator]
+    algorithm : Algorithm,
+    evaluator : Callable[..., Evaluator]
 ):
     """
     Asserts that two worker processes on PyBoy play the random baseline's
-    three episodes and the agent's, each truncated after three steps on the
-    blank cartridge, the agent's evaluation recording the step it read and
-    leaving PyTorch's global generator as it found it.
+    three episodes and those of each agent, each truncated after three steps
+    on the blank cartridge, the agent's evaluation recording the step it
+    read and leaving PyTorch's global generator as it found it.
     """
-    with evaluator(environments=2, episodes=3) as started:
-        online = QNetwork(
+    with evaluator(algorithm, environments=2, episodes=3) as started:
+        online = acting_network(
             started.envs.single_action_space.n,
+            algorithm,
             started.envs.single_observation_space
         ).state_dict()
         state  = get_rng_state()

@@ -8,6 +8,7 @@ Pins what `squirtl evaluate` does, covering:
 - A directory holding no run, a run missing its checkpoint or its
   cartridge, and a damaged checkpoint, each exiting 1, and a damaged
   member of replay memory, which it never reads
+- A run of PQN or PPO, whose network it builds from the agent the run names
 """
 
 from collections.abc   import Callable
@@ -99,6 +100,22 @@ def test_a_run_holding_a_damaged_checkpoint_exits_1_naming_it(
         1, True,
         []
     )
+
+
+def test_a_run_of_pqn_or_ppo_plays_its_evaluation_across_worker_processes(
+    invoke : Invoker,
+    rolled : Path
+):
+    """
+    Asserts that evaluating a run of either agent exits zero, writing
+    the evaluation of its last checkpoint and printing its report, on the
+    network the run's agent builds from those weights.
+    """
+    invocation = invoke(["evaluate", str(rolled)])
+    run        = Run.read(rolled)
+
+    assert (invocation.code, [played.step for played in run.evaluated]) == (0, [16])
+    assert rolled.name in invocation.output
 
 
 def test_a_second_evaluation_reads_what_the_first_wrote(

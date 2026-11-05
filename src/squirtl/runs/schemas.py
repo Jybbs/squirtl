@@ -25,7 +25,7 @@ from pydantic        import AwareDatetime, Field, NonNegativeInt, PositiveInt, P
 from subprocess      import check_output
 from typing          import Annotated, Self
 
-from squirtl.agent.schemas       import AgentSettings, flush
+from squirtl.agent.schemas       import AgentSettings, PolicyUpdate, Update, flush
 from squirtl.emulator.schemas    import EmulatorSettings, Record
 from squirtl.environment.schemas import EnvironmentSettings, Outcome, Recording
 from squirtl.evaluation.schemas  import Evaluation, EvaluationSettings
@@ -115,8 +115,9 @@ class RunSettings(Record):
     checkpoint_steps: PositiveInt = 250_000
     """
     The environment steps between checkpoints, each written at the first
-    episode end reaching a multiple of them, whose default is the 250,000
-    steps of each iteration Dopamine's DQN checkpoints after.
+    episode end, or the end of a rollout's update for PQN and PPO, reaching
+    a multiple of them, whose default is the 250,000 steps of each iteration
+    Dopamine's DQN checkpoints after.
     """
 
     emulator: EmulatorSettings = Field(default_factory=EmulatorSettings)
@@ -137,9 +138,9 @@ class RunSettings(Record):
     evaluation_steps: PositiveInt = 250_000
     """
     The environment steps between the evaluations a run plays, each where
-    an episode end or the run's last step first reaches a multiple of them,
-    whose default is the 250,000 steps of each iteration Dopamine's DQN
-    evaluates after.
+    an episode end, the end of a rollout's update for PQN and PPO, or the
+    run's last step first reaches a multiple of them, whose default is the
+    250,000 steps of each iteration Dopamine's DQN evaluates after.
     """
 
     reward: RewardSettings = Field(default_factory=RewardSettings)
@@ -155,7 +156,8 @@ class RunSettings(Record):
 
     steps: PositiveInt = 2_500_000
     """
-    The environment steps the run takes, whose default is ten of the
+    The environment steps the run takes, a run of PQN or PPO going on to
+    the end of the rollout that reaches them, whose default is ten of the
     250,000-step iterations Dopamine's DQN evaluates after.
     """
 
@@ -295,8 +297,10 @@ class Run(Record):
     @property
     def stop(self) -> Path:
         """
-        Locates the file whose presence stops the run at the end of the
-        episode it is playing, which `squirtl stop` writes.
+        Locates the file whose presence stops the run where its training
+        loop next pauses, the end of an episode for the deep Q-network and
+        the end of a rollout's update for PQN and PPO, which `squirtl stop`
+        writes.
         """
         return self.directory / "stop"
 
@@ -380,6 +384,23 @@ class Run(Record):
         the run or before it, in the order the run played them.
         """
         return takewhile(lambda evaluation: evaluation.step <= step, self.evaluated)
+
+    def first(self, count: int) -> list[str]:
+        """
+        Reads the line of each of the first `count` episodes `episodes`
+        holds, validating no line.
+
+        Raises:
+            ValueError: Where `episodes` holds fewer, as where a crash lost
+                        the log's last lines.
+        """
+        if len(lines := list(islice(self.lines(self.episodes), count))) < count:
+            raise ValueError(
+                f"{self.episodes} holds {len(lines):,} episodes, short of the "
+                f"{count:,} the checkpoint follows"
+            )
+
+        return lines
 
     def lines(self, path: Path) -> Iterator[str]:
         """
@@ -468,18 +489,14 @@ class Run(Record):
 class Episode(Outcome):
     """
     One episode as a run records it on a line of its `episodes`, from what
-    the episode reached to the `Recording` that `squirtl watch` plays back.
+    the episode reached to the `Recording` that `squirtl watch` plays back,
+    beside the measures of the agent that played it.
     """
 
-    epsilon: float
+    epsilon: float | None
     """
-    The chance of a random action at the episode's last step.
-    """
-
-    loss: float | None
-    """
-    The mean Huber loss over the updates the episode's steps took, or `None`
-    where none of its steps took one.
+    The chance of a random action at the episode's last step, or `None` for
+    PPO, which samples each action from its policy.
     """
 
     recording: Recording
@@ -488,8 +505,9 @@ class Episode(Outcome):
     from.
     """
 
-    value: float | None
+    update: PolicyUpdate | Update | None
     """
-    The mean value the online network gave the actions of each update's
-    batch, or `None` where no update ran.
+    Each measure of the agent's updates averaged over those taken while the
+    episode played, the loss and the value for the deep Q-network and PQN
+    and PPO's own for PPO, or `None` where none ran.
     """

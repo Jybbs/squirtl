@@ -22,8 +22,8 @@ class Benchmark(Record):
 
     agent: Evaluation
     """
-    The agent's evaluation, played from the online network whose weights
-    `from_run` takes.
+    The agent's evaluation, played from the network whose weights `from_run`
+    takes.
     """
 
     baseline: Evaluation
@@ -56,6 +56,7 @@ class Benchmark(Record):
             settings = run.settings
 
             with Evaluator(
+                settings.agent.algorithm,
                 settings.agent.device,
                 settings.seeds[Stream.EVALUATION],
                 settings.evaluation,

@@ -1,10 +1,11 @@
 """
-Defines the file the agent writes at each checkpoint and reads back:
+Defines the file the agents write at each checkpoint and read back:
 
-- `Checkpoint`, everything a resumed run continues training from, replay
-  memory included
-- `Weights`, the online network's weights and their step, which an
-  evaluation reads from a checkpoint alone
+- `Checkpoint`, everything a resumed run continues training from, whose
+  `ReplayCheckpoint` holds replay memory for the deep Q-network and whose
+  `RolloutCheckpoint` holds the generator of PQN or PPO
+- `Weights`, the weights of the network an agent acts through and their
+  step, which an evaluation reads from a checkpoint alone
 """
 
 from compression.zstd import ZstdError
@@ -15,8 +16,9 @@ from os               import O_RDONLY, close, fsync, open as os_open
 from pathlib          import Path
 from pydantic         import InstanceOf, ValidatorFunctionWrapHandler, WrapValidator
 from torch            import Tensor, load, save
-from typing           import Annotated, Self
-from zipfile          import BadZipFile, ZIP_ZSTANDARD, ZipFile
+from torch.serialization import safe_globals
+from typing              import Annotated, Self
+from zipfile             import BadZipFile, ZIP_ZSTANDARD, ZipFile
 
 from squirtl.agent.schemas    import flush
 from squirtl.emulator.schemas import Record
@@ -42,18 +44,20 @@ def validate_in_place(  # prose: ignore[unsorted-positionals]
 
 class Weights(Record, extra="ignore"):
     """
-    The online network's weights and the step a checkpoint holds them at,
-    which an evaluation reads from the checkpoint's `agent.pt` member alone.
+    The weights of the network an agent acts through and the step
+    a checkpoint holds them at, which an evaluation reads from the
+    checkpoint's `agent.pt` member alone.
     """
 
     online: StateDict
     """
-    The online network's `state_dict`.
+    The `state_dict` of the network the agent acts through, the online
+    network for the deep Q-network.
     """
 
     step: int
     """
-    The environment steps the agent has remembered.
+    The environment steps the agent has taken.
     """
 
     @classmethod
@@ -83,63 +87,49 @@ class Weights(Record, extra="ignore"):
     def members(cls, archive: NpzFile) -> dict[str, object]:
         """
         Reads the `agent.pt` member of `archive` onto the CPU, leaving
-        replay memory's members unread. `torch.load` reads it under its
-        default `weights_only=True`, which unpickles tensors and plain
-        values alone.
+        every other member unread. `torch.load` reads it under its default
+        `weights_only=True`, which unpickles tensors and plain values alone,
+        with the `bytes` global allowed for the recording of an episode no
+        step has played, since `torch.save` pickles an empty `bytes` through
+        that global.
         """
-        return load(BytesIO(archive["agent.pt"]), map_location="cpu")
+        with safe_globals([bytes]):
+            return load(BytesIO(archive["agent.pt"]), map_location="cpu")
 
 
 class Checkpoint(Weights, extra="forbid"):
     """
     Everything a resumed run continues training from, the `Weights` an
-    evaluation reads among it, which `save` writes as one `.npz` holding
-    replay memory's arrays beside an `agent.pt` member holding the rest.
-    """
-
-    exploration: dict[str, object]
-    """
-    The state of the generator choosing each random action.
+    evaluation reads among it, which `save` writes as one `.npz` holding an
+    `agent.pt` member beside an `.npy` member for each of its `arrays`.
     """
 
     optimizer: dict[str, object]
     """
-    Adam's `state_dict`.
+    The optimizer's `state_dict`.
     """
 
-    replay: dict[str, InstanceOf[ndarray]]
-    """
-    Each array replay memory holds, named as `Replay.arrays` names it.
-    """
-
-    sampling: dict[str, object]
-    """
-    The state of the generator drawing each batch from replay memory.
-    """
-
-    target: StateDict
-    """
-    The target network's `state_dict`.
-    """
-
-    @classmethod
-    def members(cls, archive: NpzFile) -> dict[str, object]:
+    @property
+    def arrays(self) -> dict[str, ndarray]:
         """
-        Reads `agent.pt` as `Weights.members` does and every other member of
-        `archive` as an array of `replay`.
+        Lists each array `save` writes as an `.npy` member of its own, none
+        beyond what `agent.pt` holds.
         """
-        return super().members(archive) | {
-            "replay":
-                {name: archive[name] for name in archive.files if name != "agent.pt"}
-        }
+        return {}
+
+    @property
+    def contents(self) -> dict[str, object]:
+        """
+        Gathers what the `agent.pt` member holds, every field as it is, so
+        each `state_dict` keeps its `_metadata`.
+        """
+        return dict(self)
 
     def save(self, path: Path):
         """
         Writes the checkpoint to `path` as an `.npz` whose members `zipfile`
-        compresses with zstd, an `.npy` member for each array of `replay`
-        beside an `agent.pt` member. `torch.save` writes that member
-        holding every other field as it is, so each `state_dict` keeps its
-        `_metadata`.
+        compresses with zstd, an `agent.pt` member that `torch.save` writes
+        from `contents` beside an `.npy` member for each of `arrays`.
 
         The archive is written to the `.partial` file beside `path` and
         flushed through the drive's own cache, then takes the name `path`,
@@ -153,12 +143,9 @@ class Checkpoint(Weights, extra="forbid"):
             with partial.open("wb") as file:
                 with ZipFile(file, "w", ZIP_ZSTANDARD) as archive:
                     with archive.open("agent.pt", "w") as member:
-                        save(
-                            {key: value for key, value in self if key != "replay"},
-                            member
-                        )
+                        save(self.contents, member)
 
-                    for name, array in self.replay.items():
+                    for name, array in self.arrays.items():
                         # ZIP64 lets the frames of a large replay memory pass 2 GiB.
                         with archive.open(
                             f"{name}.npy",
@@ -179,3 +166,69 @@ class Checkpoint(Weights, extra="forbid"):
             fsync(directory)
         finally:
             close(directory)
+
+
+class ReplayCheckpoint(Checkpoint):
+    """
+    Everything a resumed run of the deep Q-network continues training from,
+    replay memory's arrays written as members of their own.
+    """
+
+    exploration: dict[str, object]
+    """
+    The state of the generator choosing each random action.
+    """
+
+    replay: dict[str, InstanceOf[ndarray]]
+    """
+    Each array replay memory holds, named as `Replay.arrays` names it.
+    """
+
+    sampling: dict[str, object]
+    """
+    The state of the generator drawing each batch from replay memory.
+    """
+
+    target: StateDict
+    """
+    The target network's `state_dict`.
+    """
+
+    @property
+    def arrays(self) -> dict[str, ndarray]:
+        """
+        Lists replay memory's arrays.
+        """
+        return self.replay
+
+    @property
+    def contents(self) -> dict[str, object]:
+        """
+        Gathers every field but `replay`, as `Checkpoint.contents` does.
+        """
+        return {
+            key: value for key, value in super().contents.items() if key != "replay"
+        }
+
+    @classmethod
+    def members(cls, archive: NpzFile) -> dict[str, object]:
+        """
+        Reads `agent.pt` as `Weights.members` does and every other member of
+        `archive` as an array of `replay`.
+        """
+        return super().members(archive) | {
+            "replay":
+                {name: archive[name] for name in archive.files if name != "agent.pt"}
+        }
+
+
+class RolloutCheckpoint(Checkpoint):
+    """
+    Everything a resumed run of PQN or PPO continues training from on the
+    agent's side.
+    """
+
+    generator: dict[str, object]
+    """
+    The state of the generator every random draw of the agent comes from.
+    """

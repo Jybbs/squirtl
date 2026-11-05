@@ -52,7 +52,7 @@ def test_a_benchmark_plays_the_evaluations_its_run_lacks_and_reads_those_it_hold
 
     assert [stand_in.asked for stand_in in evaluators] == [[10, None], [20]]
     assert evaluators[0].arguments == (
-        run.settings.agent.device,
+        run.settings.agent.algorithm, run.settings.agent.device,
         run.settings.seeds[Stream.EVALUATION],
         run.settings.evaluation,
         Overworld.specification(

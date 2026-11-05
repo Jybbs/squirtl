@@ -1,5 +1,5 @@
 """
-Pins the file the agent writes at each checkpoint, covering:
+Pins the file the agents write at each checkpoint, covering:
 
 - A checkpoint reading back as written with each `state_dict`'s metadata
   and replay memory's arrays, refusing a file holding more than tensors
@@ -10,6 +10,8 @@ Pins the file the agent writes at each checkpoint, covering:
   which it refuses naming it, and the archive a save flushes whole before
   the directory
 - The weights read from a checkpoint's `agent.pt` member alone
+- A checkpoint of PQN or PPO reading back as written with no member beyond
+  `agent.pt`
 """
 
 from collections.abc import Callable
@@ -25,15 +27,15 @@ from torch           import arange, equal, save, tensor, uint8
 from torch.nn        import Linear
 from zipfile         import ZIP_ZSTANDARD, ZipFile
 
-from squirtl.agent.checkpoint import Checkpoint, Weights
+from squirtl.agent.checkpoint import ReplayCheckpoint, RolloutCheckpoint, Weights
 
 
-def blank(**fields: object) -> Checkpoint:
+def blank(**fields: object) -> ReplayCheckpoint:
     """
     Builds a checkpoint holding nothing at step 0, any keyword setting a
     field in its place.
     """
-    return Checkpoint(
+    return ReplayCheckpoint(
         **{
             "step"        : 0,
             "exploration" : {},
@@ -98,7 +100,7 @@ def misname_agent(path: Path):
 def pack(agent: dict[str, object], path: Path, **members: bytes):
     """
     Writes an `.npz` holding `agent` as its `agent.pt` member, the way
-    `Checkpoint.save` writes every field but `replay`, beside each of
+    `ReplayCheckpoint.save` writes every field but `replay`, beside each of
     `members` under its name.
     """
     with ZipFile(path, "w") as archive:
@@ -155,7 +157,7 @@ def test_a_checkpoint_refuses_a_network_entry_that_is_no_tensor(
     )
 
     with raises(ValidationError, match=rf"{network}\.weight"):
-        Checkpoint.from_path(tmp_path / "checkpoint.npz")
+        ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz")
 
 
 def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path):
@@ -167,7 +169,7 @@ def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path)
     online, target = Linear(2, 1).state_dict(), Linear(2, 1).state_dict()
     written        = blank(online=online, target=target)
     written.save(tmp_path / "checkpoint.npz")
-    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
+    read = ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz")
 
     assert written.online is online and written.target is target
     assert (read.online._metadata, read.target._metadata) == (
@@ -191,7 +193,7 @@ def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
         target      = {"weight": tensor([0.5, 2.0])}
     )
     written.save(tmp_path / "checkpoint.npz")
-    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
+    read = ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz")
 
     assert equal(read.online["weight"], written.online["weight"])
     assert equal(read.target["weight"], written.target["weight"])
@@ -210,7 +212,33 @@ def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path)
     pack({"online": Path("online.pt")}, tmp_path / "checkpoint.npz")
 
     with raises(UnpicklingError, match="Weights only load failed"):
-        Checkpoint.from_path(tmp_path / "checkpoint.npz")
+        ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz")
+
+
+def test_a_rollout_checkpoint_reads_back_as_written_with_no_member_beyond_the_agents(
+    tmp_path: Path
+):
+    """
+    Asserts that a checkpoint of PQN or PPO reads back with each field the
+    one written, in an archive of its `agent.pt` member alone, since it
+    holds no replay memory.
+    """
+    written = RolloutCheckpoint(
+        generator = {"bit_generator": "PCG64", "state": {"inc": 1, "state": 2**100}},
+        online    = {"weight": tensor([1.0, 2.0])},
+        optimizer = {"param_groups": [{"lr": 1e-4, "params": [0]}], "state": {}},
+        step      = 16
+    )
+    written.save(tmp_path / "checkpoint.npz")
+    read = RolloutCheckpoint.from_path(tmp_path / "checkpoint.npz")
+
+    assert equal(read.online["weight"], written.online["weight"])
+    assert (read.generator, read.optimizer, read.step) == (
+        written.generator, written.optimizer, written.step
+    )
+
+    with ZipFile(tmp_path / "checkpoint.npz") as archive:
+        assert archive.namelist() == ["agent.pt"]
 
 
 def test_a_save_flushes_the_whole_archive_then_the_directory_it_lands_in(
@@ -244,17 +272,6 @@ def test_a_save_flushes_the_whole_archive_then_the_directory_it_lands_in(
     )
 
 
-def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
-    """
-    Asserts that a save beside the `.partial` file a killed save left behind
-    writes over it and leaves the checkpoint alone in its directory.
-    """
-    (tmp_path / "checkpoint.npz.partial").write_bytes(b"left by a killed save")
-    blank().save(tmp_path / "checkpoint.npz")
-
-    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
-
-
 @mark.parametrize(
     "damage",
     [
@@ -281,7 +298,18 @@ def test_a_damaged_checkpoint_is_refused_naming_its_file(
     damage(path)
 
     with raises(ValueError, match=f"{path} holds no whole checkpoint"):
-        Checkpoint.from_path(path)
+        ReplayCheckpoint.from_path(path)
+
+
+def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
+    """
+    Asserts that a save beside the `.partial` file a killed save left behind
+    writes over it and leaves the checkpoint alone in its directory.
+    """
+    (tmp_path / "checkpoint.npz.partial").write_bytes(b"left by a killed save")
+    blank().save(tmp_path / "checkpoint.npz")
+
+    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
 
 
 def test_a_write_interrupted_partway_leaves_the_last_checkpoint_as_it_was(
@@ -318,8 +346,8 @@ def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
     """
     Asserts that `Weights` reads the online network and the step from a
     checkpoint's `agent.pt` member alone, even where a member of replay
-    memory holds an array header cut short, which `Checkpoint` refuses to
-    read.
+    memory holds an array header cut short, which `ReplayCheckpoint` refuses
+    to read.
     """
     agent = {
         "step"        : 12,
@@ -337,4 +365,4 @@ def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
     assert (weights.online["weight"].tolist(), weights.step) == ([1.0, 2.0], 12)
 
     with raises(ValueError):
-        Checkpoint.from_path(tmp_path / "checkpoint.npz")
+        ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz")

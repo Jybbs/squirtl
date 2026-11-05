@@ -1,0 +1,42 @@
+QNetwork(
+  (encoder): Encoder(
+    (encoders): ModuleDict(
+      (flags): Sequential(
+        (0): Flatten(start_dim=1, end_dim=-1)
+        (1): Linear(in_features=4, out_features=64, bias=True)
+        (2): LayerNorm((64,), eps=1e-05, elementwise_affine=True, bias=True)
+        (3): ReLU()
+      )
+      (frames): Sequential(
+        (0): Conv2d(4, 32, kernel_size=(8, 8), stride=(4, 4))
+        (1): ChannelNorm((32,), eps=1e-05, elementwise_affine=True, bias=True)
+        (2): ReLU()
+        (3): Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2))
+        (4): ChannelNorm((64,), eps=1e-05, elementwise_affine=True, bias=True)
+        (5): ReLU()
+        (6): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1))
+        (7): ChannelNorm((64,), eps=1e-05, elementwise_affine=True, bias=True)
+        (8): ReLU()
+        (9): Flatten(start_dim=1, end_dim=-1)
+      )
+      (grid): Sequential(
+        (0): Conv2d(1, 32, kernel_size=(8, 8), stride=(4, 4))
+        (1): ChannelNorm((32,), eps=1e-05, elementwise_affine=True, bias=True)
+        (2): ReLU()
+        (3): Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2))
+        (4): ChannelNorm((64,), eps=1e-05, elementwise_affine=True, bias=True)
+        (5): ReLU()
+        (6): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1))
+        (7): ChannelNorm((64,), eps=1e-05, elementwise_affine=True, bias=True)
+        (8): ReLU()
+        (9): Flatten(start_dim=1, end_dim=-1)
+      )
+    )
+    (layers): Sequential(
+      (0): Linear(in_features=2240, out_features=512, bias=True)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True, bias=True)
+      (2): ReLU()
+    )
+  )
+  (head): Linear(in_features=512, out_features=7, bias=True)
+)

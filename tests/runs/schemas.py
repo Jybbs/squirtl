@@ -21,6 +21,9 @@ Pins the records one run reads and writes, covering:
   line alone
 - The lines of the episodes ending by a checkpoint, and a log ending short
   of a checkpoint below the run's steps, which is refused
+- The lines of the first episodes a checkpoint of PQN or PPO counts, and a
+  log holding fewer, which is refused
+- The measures and the epsilon of each agent's episode read back from its line
 - A run holding no evaluations
 """
 
@@ -39,6 +42,7 @@ from shutil            import copytree
 from subprocess        import CalledProcessError, check_output
 from syrupy.assertion  import SnapshotAssertion
 
+from squirtl.agent.schemas      import Measures, PolicyUpdate, Update
 from squirtl.emulator.schemas   import Record
 from squirtl.evaluation.schemas import Evaluation
 from squirtl.runs.schemas       import Episode, Revision, Run, RunSettings, Stream
@@ -89,6 +93,23 @@ def test_a_clean_clone_reads_as_its_commit_and_its_lockfile(clone: Path):
     )
 
 
+def test_a_log_holding_fewer_episodes_than_a_count_is_refused(
+    holding: Callable[[str], Run]
+):
+    """
+    Asserts that a run whose episodes hold fewer lines than a checkpoint of
+    PQN or PPO counts refuses to read them, as where a crash lost its last
+    lines.
+    """
+    run = holding('{"length": 3}\n')
+
+    with raises(
+        ValueError,
+        match = "holds 1 episodes, short of the 2 the checkpoint follows"
+    ):
+        run.first(2)
+
+
 def test_a_resumed_run_names_the_run_it_continues(clone: Path):
     """
     Asserts that a run resuming another records the name of the run it
@@ -116,14 +137,6 @@ def test_a_revision_outside_a_clone_raises_the_error_git_exits_with(outside: Pat
         Revision.checked_out()
 
 
-def test_a_run_holding_no_evaluations_reads_none(run: Run):
-    """
-    Asserts that a run whose directory holds no `evaluations`, as a run that
-    has played none leaves it, reads no evaluation rather than raising.
-    """
-    assert list(run.evaluated) == []
-
-
 @mark.usefixtures("clone")
 @mark.parametrize(
     ("path", "dirty"),
@@ -148,6 +161,14 @@ def test_a_revision_is_dirty_wherever_git_reports_a_change(
     assert Revision.checked_out().dirty is dirty
 
 
+def test_a_run_holding_no_evaluations_reads_none(run: Run):
+    """
+    Asserts that a run whose directory holds no `evaluations`, as a run that
+    has played none leaves it, reads no evaluation rather than raising.
+    """
+    assert list(run.evaluated) == []
+
+
 def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
     """
     Asserts that starting a run where no clone holds the working directory
@@ -158,19 +179,6 @@ def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
         Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
 
     assert not (outside / "data").exists()
-
-
-def test_a_run_reads_an_episode_validating_its_line_alone(
-    episode : Episode,
-    holding : Callable[[str], Run]
-):
-    """
-    Asserts that a run reads its second episode though the line before it
-    holds no episode, since it validates the line it returns alone.
-    """
-    run = holding(f'{{"length": 3}}\n{episode.model_dump_json()}\n')
-
-    assert run.episode(2) == episode
 
 
 @mark.parametrize(
@@ -191,6 +199,19 @@ def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
     )
 
 
+def test_a_run_reads_an_episode_validating_its_line_alone(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
+    """
+    Asserts that a run reads its second episode though the line before it
+    holds no episode, since it validates the line it returns alone.
+    """
+    run = holding(f'{{"length": 3}}\n{episode.model_dump_json()}\n')
+
+    assert run.episode(2) == episode
+
+
 def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path):
     """
     Asserts that reading the directory a run started in returns that run,
@@ -206,16 +227,6 @@ def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path
         (run.model_dump(), run.directory),
         (run.model_dump(), clone / run.directory)
     ]
-
-
-def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
-    """
-    Asserts that the JSON a run writes into its directory validates back
-    into a record equal to the run that wrote it.
-    """
-    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
-
-    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
 
 
 @mark.parametrize(
@@ -251,6 +262,48 @@ def test_a_run_name_reads_back_as_the_instant_it_started(
     assert datetime.fromisoformat(name) == started
 
 
+def test_a_run_reads_the_lines_of_its_first_episodes_reading_no_further(
+    holding : Callable[[str], Run],
+    logged  : list[str]
+):
+    """
+    Asserts that a run reads, as written, the lines of the episodes a count
+    names and reads no further, so the unfinished line past them draws no
+    warning.
+    """
+    lines = ['{"length": 3}\n', '{"length": 4}\n']
+    run   = holding(f'{lines[0]}{lines[1]}{{"length": ')
+
+    assert (run.first(2), logged) == (lines, [])
+
+
+def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
+    """
+    Asserts that the JSON a run writes into its directory validates back
+    into a record equal to the run that wrote it.
+    """
+    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
+
+    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
+
+
+@mark.usefixtures("clone")
+def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
+    checkout    : Callable[[Mapping[str, str]], None],
+    monkeypatch : MonkeyPatch
+):
+    """
+    Asserts that an untracked file marks the revision dirty in a clone whose
+    configuration sets `status.showUntrackedFiles` to `no`.
+    """
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "status.showUntrackedFiles")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "no")
+    checkout({"notes.md": "changed\n"})
+
+    assert Revision.checked_out().dirty
+
+
 def test_a_run_records_its_settings_revision_and_start(clone: Path):
     """
     Asserts that a run writes its record into the directory named for the
@@ -274,50 +327,6 @@ def test_a_run_records_its_settings_revision_and_start(clone: Path):
     }
 
 
-def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
-    """
-    Asserts that a run built on an instant carrying no UTC offset raises
-    rather than reading that instant as the machine's local time.
-    """
-    with raises(ValidationError, match="timezone info"):
-        Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
-
-
-@mark.usefixtures("clone")
-def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
-    checkout    : Callable[[Mapping[str, str]], None],
-    monkeypatch : MonkeyPatch
-):
-    """
-    Asserts that an untracked file marks the revision dirty in a clone whose
-    configuration sets `status.showUntrackedFiles` to `no`.
-    """
-    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
-    monkeypatch.setenv("GIT_CONFIG_KEY_0", "status.showUntrackedFiles")
-    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "no")
-    checkout({"notes.md": "changed\n"})
-
-    assert Revision.checked_out().dirty
-
-
-def test_a_run_skips_an_unfinished_last_line_with_a_warning(
-    episode : Episode,
-    holding : Callable[[str], Run],
-    logged  : list[str]
-):
-    """
-    Asserts that a run reads its episodes past a last line lacking its
-    newline, as a run that stopped while writing it leaves it, logging a
-    warning naming the file rather than failing to validate the line.
-    """
-    run = holding(f'{episode.model_dump_json()}\n{{"length": ')
-
-    assert (list(run.recorded), logged) == (
-        [episode],
-        [f"Skipping the unfinished last line of {run.episodes}"]
-    )
-
-
 @mark.parametrize(
     "commit",
     [
@@ -334,20 +343,13 @@ def test_a_revision_refuses_output_that_holds_no_hash(commit: str):
         Revision(commit=commit, dirty=False, lockfile="0")
 
 
-def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
+def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
     """
-    Asserts that a run started at the same instant as an earlier one raises
-    rather than writing into the earlier run's directory, whose record stays
-    as the earlier run wrote it.
+    Asserts that a run built on an instant carrying no UTC offset raises
+    rather than reading that instant as the machine's local time.
     """
-    started = datetime(2026, 10, 4, tzinfo=UTC)
-    first   = Run.start("0", RunSettings(seed=1), started)
-    record  = first.record.read_text(encoding="utf-8")
-
-    with raises(FileExistsError):
-        Run.start("0", RunSettings(seed=2), started)
-
-    assert first.record.read_text(encoding="utf-8") == record
+    with raises(ValidationError, match="timezone info"):
+        Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
 
 
 @mark.parametrize(
@@ -458,6 +460,40 @@ def test_a_run_read_from_outside_the_clone_keeps_its_files_where_it_was_read(
     ]
 
 
+def test_a_run_skips_an_unfinished_last_line_with_a_warning(
+    episode : Episode,
+    holding : Callable[[str], Run],
+    logged  : list[str]
+):
+    """
+    Asserts that a run reads its episodes past a last line lacking its
+    newline, as a run that stopped while writing it leaves it, logging a
+    warning naming the file rather than failing to validate the line.
+    """
+    run = holding(f'{episode.model_dump_json()}\n{{"length": ')
+
+    assert (list(run.recorded), logged) == (
+        [episode],
+        [f"Skipping the unfinished last line of {run.episodes}"]
+    )
+
+
+def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
+    """
+    Asserts that a run started at the same instant as an earlier one raises
+    rather than writing into the earlier run's directory, whose record stays
+    as the earlier run wrote it.
+    """
+    started = datetime(2026, 10, 4, tzinfo=UTC)
+    first   = Run.start("0", RunSettings(seed=1), started)
+    record  = first.record.read_text(encoding="utf-8")
+
+    with raises(FileExistsError):
+        Run.start("0", RunSettings(seed=2), started)
+
+    assert first.record.read_text(encoding="utf-8") == record
+
+
 def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
     """
     Asserts that starting a run creates its directory under `data/runs/` and
@@ -471,45 +507,6 @@ def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
     assert {
         path.relative_to(clone) for path in changed if ".git" not in path.parts
     } == {Path("data"), Path("data/runs"), run.directory, run.record}
-
-
-def test_a_runs_episodes_read_back_in_the_order_written(
-    episode : Episode,
-    holding : Callable[[str], Run]
-):
-    """
-    Asserts that a run reads each line of its `episodes` back as the episode
-    written there, nested recording included, in the order the lines run,
-    and parses no line past the last one drawn, so a line a stopped run left
-    half written stays unread.
-    """
-    later    = episode.model_copy(update={"length": 4})
-    recorded = holding(
-        f'{episode.model_dump_json()}\n{later.model_dump_json()}\n{{"length": '
-    ).recorded
-
-    assert [next(recorded), next(recorded)] == [episode, later]
-
-
-def test_a_sync_writes_the_file_through_the_drives_cache(
-    monkeypatch : MonkeyPatch,
-    run         : Run,
-    tmp_path    : Path
-):
-    """
-    Asserts that syncing one of a run's files hands `flush` a descriptor of
-    that file, which writes it through the drive's cache.
-    """
-    flushed = []
-    monkeypatch.setattr(
-        "squirtl.runs.schemas.flush",
-        lambda descriptor: flushed.append(fstat(descriptor).st_ino)
-    )
-    path = tmp_path / "episodes.jsonl"
-    path.write_text("", encoding="utf-8")
-    run.sync(path)
-
-    assert flushed == [path.stat().st_ino]
 
 
 @mark.parametrize(
@@ -639,6 +636,45 @@ def test_an_append_cuts_an_unfinished_last_line_alone(
     ) == ([12] * kept + [20], [f"Cutting the unfinished last line of {path}"] * cut)
 
 
+def test_a_runs_episodes_read_back_in_the_order_written(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
+    """
+    Asserts that a run reads each line of its `episodes` back as the episode
+    written there, nested recording included, in the order the lines run,
+    and parses no line past the last one drawn, so a line a stopped run left
+    half written stays unread.
+    """
+    later    = episode.model_copy(update={"length": 4})
+    recorded = holding(
+        f'{episode.model_dump_json()}\n{later.model_dump_json()}\n{{"length": '
+    ).recorded
+
+    assert [next(recorded), next(recorded)] == [episode, later]
+
+
+def test_a_sync_writes_the_file_through_the_drives_cache(
+    monkeypatch : MonkeyPatch,
+    run         : Run,
+    tmp_path    : Path
+):
+    """
+    Asserts that syncing one of a run's files hands `flush` a descriptor of
+    that file, which writes it through the drive's cache.
+    """
+    flushed = []
+    monkeypatch.setattr(
+        "squirtl.runs.schemas.flush",
+        lambda descriptor: flushed.append(fstat(descriptor).st_ino)
+    )
+    path = tmp_path / "episodes.jsonl"
+    path.write_text("", encoding="utf-8")
+    run.sync(path)
+
+    assert flushed == [path.stat().st_ino]
+
+
 def test_each_stream_seed_fits_in_64_unsigned_bits():
     """
     Asserts that every stream's seed is a 64-bit unsigned integer, the
@@ -707,3 +743,35 @@ def test_the_settings_refuse_a_negative_seed():
     """
     with raises(ValidationError, match="greater than or equal to 0"):
         RunSettings(seed=-1)
+
+
+@mark.parametrize(
+    ("epsilon", "update"),
+    [
+        param(0.5,  None,                         id="no-update"),
+        param(0.5,  Update(loss=1.0, value=-2.0), id="the-loss-and-the-value"),
+        param(
+            None,
+            PolicyUpdate(
+                clipped     = 0.25,
+                entropy     = 1.5,
+                kl          = 0.01,
+                policy_loss = -0.5,
+                value_loss  = 3.0
+            ),
+            id = "ppos-measures-at-no-epsilon"
+        )
+    ]
+)
+def test_an_episode_reads_back_the_measures_of_the_agent_that_played_it(
+    episode : Episode,
+    epsilon : float | None,
+    update  : Measures | None
+):
+    """
+    Asserts that an episode's line reads back into the record of measures it
+    holds, `Update` or `PolicyUpdate`, at the epsilon it holds.
+    """
+    written = episode.model_copy(update={"epsilon": epsilon, "update": update})
+
+    assert Episode.model_validate_json(written.model_dump_json()) == written

@@ -1,18 +1,24 @@
 """
-Pins the records the agent reads and writes, covering:
+Pins the records the agents read and write, covering:
 
 - The device the settings default to, and the values they refuse, a
   warm-up short of a batch among them
 - The values the settings accept at a bound, a fraction of one and a
   warm-up as long as a batch
 - The flush that writes a file through the drive's cache
+- The agents a run trains, the record of measures each reads, how each
+  chooses, the settings each alone reads, and a rollout each refuses as too
+  small for its minibatches
+- The sums, the averages, and the logged form of an update's measures
 """
 
-from pydantic import ValidationError
-from pytest   import MonkeyPatch, mark, param, raises
-from torch    import device
+from collections.abc import Callable
+from common.agents   import each_agent
+from pydantic        import ValidationError
+from pytest          import MonkeyPatch, mark, param, raises
+from torch           import device
 
-from squirtl.agent.schemas import AgentSettings, flush
+from squirtl.agent.schemas import AgentSettings, Algorithm, Measures, PolicyUpdate, Update, flush
 
 
 @mark.parametrize(
@@ -114,14 +120,14 @@ def test_the_settings_accept_a_fraction_of_one(field: str):
     assert getattr(AgentSettings(**{field: 1}), field) == 1
 
 
-def test_a_warmup_as_long_as_the_batch_size_is_accepted():
+def test_a_run_trains_the_deep_q_network_unless_it_names_another_agent():
     """
-    Asserts that a warm-up of exactly `batch_size` steps, the shortest the
-    settings take, is accepted.
+    Asserts that the settings default to the deep Q-network, whose own
+    settings sit on the record itself.
     """
-    settings = AgentSettings(batch_size=8, warmup_steps=8)
+    settings = AgentSettings()
 
-    assert settings.warmup_steps == settings.batch_size == 8
+    assert (settings.algorithm, settings.hyperparameters) == (Algorithm.DQN, None)
 
 
 @mark.parametrize(
@@ -159,3 +165,133 @@ def test_a_flush_takes_f_fullfsync_where_fcntl_has_it_and_fsync_elsewhere(
     flush(7)
 
     assert calls == [call]
+
+
+def test_a_warmup_as_long_as_the_batch_size_is_accepted():
+    """
+    Asserts that a warm-up of exactly `batch_size` steps, the shortest the
+    settings take, is accepted.
+    """
+    settings = AgentSettings(batch_size=8, warmup_steps=8)
+
+    assert settings.warmup_steps == settings.batch_size == 8
+
+
+@mark.parametrize(
+    ("algorithm", "read"),
+    [
+        param(Algorithm.PPO, lambda settings: settings.ppo, id="ppo"),
+        param(Algorithm.PQN, lambda settings: settings.pqn, id="pqn")
+    ]
+)
+def test_each_rollout_agent_reads_the_settings_of_its_own(
+    algorithm : Algorithm,
+    read      : Callable[[AgentSettings], object]
+):
+    """
+    Asserts that `hyperparameters` reads the record of the agent the
+    settings name.
+    """
+    settings = AgentSettings(algorithm=algorithm)
+
+    assert settings.hyperparameters is read(settings)
+
+
+@each_agent
+def test_a_rollout_of_two_samples_per_minibatch_is_the_least_each_agent_accepts(
+    algorithm: Algorithm
+):
+    """
+    Asserts that each agent reads its own count of minibatches and its own
+    rollout length, three minibatches accepting a rollout of six samples
+    and refusing one of five while the other agent's record stands at its
+    defaults.
+    """
+    own = algorithm.value
+
+    assert AgentSettings(
+        **{own: {"minibatches": 3, "rollout_steps": 2}},
+        algorithm    = algorithm,
+        environments = 3
+    ).hyperparameters.rollout_steps == 2
+
+    with raises(ValidationError, match="a rollout of 5 samples gives some of its 3"):
+        AgentSettings(
+            **{own: {"minibatches": 3, "rollout_steps": 1}},
+            algorithm    = algorithm,
+            environments = 5
+        )
+
+
+def test_measures_log_each_name_beside_its_value_at_four_significant_digits():
+    """
+    Asserts that a record of measures reads as each name beside its value at
+    four significant digits, the form an episode's line logs.
+    """
+    assert str(Update(loss=2.0, value=-6.54321)) == "loss 2, value -6.543"
+
+
+@mark.parametrize(
+    ("record", "fields"),
+    [
+        param(Update, {"loss": 1.0, "value": 2.0}, id="the-loss-and-the-value"),
+        param(
+            PolicyUpdate,
+            {
+                "clipped"     : 0.25,
+                "entropy"     : 1.5,
+                "kl"          : 0.01,
+                "policy_loss" : -0.5,
+                "value_loss"  : 3.0
+            },
+            id = "ppos-measures"
+        )
+    ]
+)
+def test_measures_list_their_totals_and_average_over_a_count(
+    fields : dict[str, float],
+    record : type[Measures]
+):
+    """
+    Asserts that `totals` lists each measure in the order the record
+    declares them, and that `averaged` divides each of them by the count
+    back into the record holding the mean of each.
+    """
+    measures = record(**fields)
+
+    assert measures.totals == tuple(fields.values())
+    assert record.averaged(4, [4 * total for total in measures.totals]) == measures
+
+
+def test_the_deep_q_network_reads_no_minibatches():
+    """
+    Asserts that a rollout too small for PQN's and PPO's minibatches is
+    accepted for the deep Q-network, which collects no rollout.
+    """
+    short = {"rollout_steps": 1}
+
+    assert AgentSettings(
+        environments = 1,
+        ppo          = short,
+        pqn          = short
+    ).algorithm is Algorithm.DQN
+
+
+@mark.parametrize(
+    ("algorithm", "record", "sampled"),
+    [
+        param(Algorithm.DQN, Update,       False, id="the-deep-q-network"),
+        param(Algorithm.PPO, PolicyUpdate, True,  id="ppo"),
+        param(Algorithm.PQN, Update,       False, id="pqn")
+    ]
+)
+def test_each_agent_names_its_measures_and_how_it_chooses(
+    algorithm : Algorithm,
+    record    : type[Measures],
+    sampled   : bool
+):
+    """
+    Asserts that each agent reads its own record of measures and samples
+    from a policy or chooses epsilon-greedily.
+    """
+    assert (algorithm.measures, algorithm.sampled) == (record, sampled)

@@ -9,16 +9,18 @@ Pins what `squirtl train` does, covering:
 - A resume into a new directory under the settings the stopped run recorded
 - The line each episode logs and the line each step logs under `--verbose`
 - The emulator's window `--emulator.open-window` opens
+- PQN's and PPO's run across environments and a resume of one stopped short
 """
 
 from collections.abc import Callable
 from common.cli      import Invoker
 from os              import truncate
 from pathlib         import Path
-from pytest          import mark, param
+from pytest          import MonkeyPatch, mark, param
 
-from squirtl.agent.checkpoint import Checkpoint
+from squirtl.agent.checkpoint import ReplayCheckpoint
 from squirtl.runs.schemas     import Run
+from squirtl.runs.trainer     import Trainer, VectorCheckpoint
 
 
 def cut_checkpoint(run: Run):
@@ -81,7 +83,7 @@ def reshape_flags(run: Run):
     Rewrites the checkpoint of `run` with replay memory holding `flags` cut
     to one slot.
     """
-    checkpoint = Checkpoint.from_path(run.checkpoint)
+    checkpoint = ReplayCheckpoint.from_path(run.checkpoint)
     checkpoint.model_copy(
         update = {
             "replay": checkpoint.replay | {"flags": checkpoint.replay["flags"][:1]}
@@ -108,7 +110,7 @@ def test_a_resume_continues_in_a_new_directory_under_the_recorded_settings(
     )
     assert (
         resumed.episodes.read_text(encoding="utf-8"),
-        Checkpoint.from_path(resumed.checkpoint).step
+        ReplayCheckpoint.from_path(resumed.checkpoint).step
     ) == (previous.episodes.read_text(encoding="utf-8"), 10)
 
 
@@ -236,21 +238,19 @@ def test_each_episode_logs_a_line_and_each_step_one_under_verbose(
     )
 
 
-def test_a_run_writes_its_record_lines_and_checkpoint_and_prints_its_directory(
-    trained: Path
-):
+def test_a_run_of_pqn_or_ppo_writes_its_lines_and_its_checkpoint(rolled: Path):
     """
-    Asserts that a run exits zero having written, in the directory under
-    `data/runs/` it prints, its record, a line for each of its two 4-step
-    episodes, and its checkpoint at its tenth and last step.
+    Asserts that either agent's run across two environments exits
+    zero having written, in the directory it prints, a line for each
+    environment's two 3-step episodes and its checkpoint at its sixteenth
+    and last step.
     """
-    run = Run.read(trained)
+    run = Run.read(rolled)
 
     assert (
-        trained.parent,
         len(list(run.recorded)),
-        Checkpoint.from_path(run.checkpoint).step
-    ) == (Path("data/runs"), 2, 10)
+        VectorCheckpoint.from_path(run.checkpoint).step
+    ) == (4, 16)
 
 
 @mark.parametrize(
@@ -275,3 +275,55 @@ def test_the_window_flag_boots_the_emulator_in_its_sdl2_window(
     invoke(["train", *quick, *flags])
 
     assert windows == [window]
+
+
+def test_a_run_writes_its_record_lines_and_checkpoint_and_prints_its_directory(
+    trained: Path
+):
+    """
+    Asserts that a run exits zero having written, in the directory under
+    `data/runs/` it prints, its record, a line for each of its two 4-step
+    episodes, and its checkpoint at its tenth and last step.
+    """
+    run = Run.read(trained)
+
+    assert (
+        trained.parent,
+        len(list(run.recorded)),
+        ReplayCheckpoint.from_path(run.checkpoint).step
+    ) == (Path("data/runs"), 2, 10)
+
+
+@mark.parametrize("algorithm", [param("ppo", id="ppo"), param("pqn", id="pqn")])
+@mark.usefixtures("accepted", "clone", "rom")
+def test_a_stopped_run_of_pqn_or_ppo_resumes_in_a_new_directory(
+    algorithm   : str,
+    invoke      : Invoker,
+    monkeypatch : MonkeyPatch,
+    rolling     : Callable[[str], list[str]]
+):
+    """
+    Asserts that resuming a run of either agent stopped at step 8 writes a
+    new directory naming that run, under the settings it recorded, holding
+    the lines it wrote and those of the steps left, its checkpoint at the
+    sixteenth and last step.
+    """
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            Trainer,
+            "stopping",
+            property(lambda trainer: trainer.agent.step >= 8)
+        )
+        stopped = Run.read(Path(invoke(["train", *rolling(algorithm)]).output.strip()))
+
+    invocation = invoke(["train", "--resume", str(stopped.directory)])
+    resumed    = Run.read(Path(invocation.output.strip()))
+
+    assert (invocation.code, resumed.resumes, resumed.settings) == (
+        0, stopped.name, stopped.settings
+    )
+    assert (
+        len(list(stopped.recorded)),
+        len(list(resumed.recorded)),
+        VectorCheckpoint.from_path(resumed.checkpoint).step
+    ) == (2, 4, 16)

@@ -2,7 +2,7 @@
 Defines the fixtures the tests of `squirtl.runs` request, meaning the
 stand-in records a test reading no clone builds on, the record of one
 episode, a writer of a run's episodes, the settings of a short run beside
-a factory of trainers starting one, and the messages loguru logs during
+factories of trainers starting one, and the messages loguru logs during
 a test.
 """
 
@@ -14,7 +14,7 @@ from loguru          import logger
 from pathlib         import Path
 from pytest          import fixture
 
-from squirtl.agent.schemas       import AgentSettings
+from squirtl.agent.schemas       import AgentSettings, Algorithm
 from squirtl.emulator.schemas    import Cartridge
 from squirtl.environment.schemas import EnvironmentSettings, Recording
 from squirtl.reward.schemas      import Term
@@ -55,14 +55,13 @@ def episode() -> Episode:
     return Episode(
         epsilon    = 1.0,
         length     = 3,
-        loss       = None,
         positions  = 3,
         recording  = Recording(presses=bytes([1, 4, 4]), timer_div=9),
         reward     = 0.125,
         seconds    = 0.5,
         shares     = {Term.MILESTONE: 0.0, Term.NOVELTY: 0.125, Term.STARTER: 0.0},
         terminated = False,
-        value      = None
+        update     = None
     )
 
 
@@ -102,11 +101,51 @@ def trainer(cartridge: Cartridge, short: RunSettings) -> Callable[..., Trainer]:
         Builds the trainer of the run `fields` describe, which continues the
         run `resumes` from its checkpoint where it is one.
         """
-        return Trainer(
+        return Trainer.start(
             cartridge,
             short.model_copy(update=fields),
             datetime(2026, 10, 4, tzinfo=UTC) + timedelta(seconds=next(seconds)),
             resumes and Handover.from_run(resumes)
+        )
+
+    return build
+
+
+@fixture
+def rolling(trainer: Callable[..., Trainer]) -> Callable[..., Trainer]:
+    """
+    Builds a factory starting a 32-step run of `short` under PQN or PPO,
+    each of its rollouts four steps across two environments, whose eight
+    samples each update splits into two minibatches.
+    """
+
+    def build(
+        algorithm : Algorithm,
+        *,
+        agent     : Mapping[str, object] = {},
+        resumes   : Run | None           = None,
+        **fields  : object
+    ) -> Trainer:
+        """
+        Builds the trainer of the run of `algorithm` that `fields` describe,
+        any key of `agent` a field of `AgentSettings` to set in its place,
+        which continues the run `resumes` from its checkpoint where it is
+        one.
+        """
+        return trainer(
+            resumes,
+            **{
+                "agent" : AgentSettings.model_validate(
+                    {
+                        "algorithm"    : algorithm,
+                        "device"       : "cpu",
+                        "environments" : 2,
+                        "ppo"          : {"minibatches": 2, "rollout_steps": 4},
+                        "pqn"          : {"minibatches": 2, "rollout_steps": 4}
+                    } | agent
+                ),
+                "steps" : 32
+            } | fields
         )
 
     return build
