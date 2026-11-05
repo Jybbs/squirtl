@@ -1,8 +1,9 @@
 """
 Defines `Inventory`, every file `squirtl write docs` writes into `docs/`
-from a declaration in the package, which the `docs:write` task writes and
-the `🗺️ Audit` row of `🕹️ CI` holds to its declaration, and `Output`, one of
-those files.
+from a declaration in the package, which the `docs:write` task writes
+and the `🗺️ Audit` row of `🕹️ CI` holds to its declaration, and `Output`,
+one of those files, leaving the footnotes of each Markdown file to
+`squirtl.docs.schemas`.
 """
 
 from collections.abc import Mapping
@@ -73,7 +74,8 @@ class Output(Record):
 
 class Inventory(Record):
     """
-    Every file `squirtl write docs` writes, in the order it writes them.
+    Every file `squirtl write docs` writes from a declaration in the
+    package, in the order it writes them.
     """
 
     outputs: tuple[Output, ...]

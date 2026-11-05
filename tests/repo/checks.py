@@ -12,6 +12,7 @@ Pins what each check `repo:audit` runs reports, covering:
 - The label registry against the files naming its labels
 - The layout of the package and the docstrings of its Python
 - The files `squirtl write docs` writes against their declarations, the
+  footnotes of each Markdown file against `docs/references.bib`, the
   docs site's pins that move together, and the flags of each `bun install`
 - How `Audit` reads every check and reports what they find
 
@@ -32,8 +33,8 @@ from textwrap          import dedent
 from squirtl.docs.outputs     import Inventory
 from squirtl.emulator.schemas import Record
 from squirtl.repo.checks  import (
-    Anchors, Attribution, Audit, Check, Commits, Docstrings, Gates, Inputs,
-    Installs, LabelCheck, Layout, Pins, Rendered, Rows, Runners, ScriptCheck,
+    Anchors, Attribution, Audit, Check, Commits, Docstrings, Footnotes, Gates,
+    Inputs, Installs, LabelCheck, Layout, Pins, Rendered, Rows, Runners, ScriptCheck,
     SitePins, Subsets, Summaries, TaskCheck, Warming
 )
 from squirtl.repo.schemas import Finding, Severity, Task, TaskIssue, Tasks, Tree, Unreadable
@@ -642,6 +643,63 @@ def test_docstrings_report_each_definition_carrying_none(
         ("src/squirtl/repo/pin.py", 1)
     ]
     assert broken[0][2].startswith("Reading `src/squirtl/repo/box.py` fails with")
+
+
+def test_footnotes_reports_a_bibliography_that_fails_to_read_at_its_line(scan: Scan):
+    """
+    Pins that the footnotes check raises `Unreadable` on
+    `docs/references.bib` at the line of an entry that fails validation, so
+    the audit reports it as a finding rather than ending.
+    """
+    with raises(Unreadable) as raised:
+        scan(
+            Footnotes,
+            {
+                "docs/references.bib":
+                    "\n@misc{smith2020, author = {Smith, A.}, year = {2020}}"
+            }
+        )
+
+    finding, = raised.value.args
+
+    assert (str(finding.file), finding.line) == ("docs/references.bib", 2)
+
+
+def test_footnotes_reports_each_fault_at_its_file_and_line(
+    fp   : FakeProcess,
+    scan : Scan
+):
+    """
+    Pins that the footnotes check passes a file closing on its source's
+    definition, and reports a file whose definition differs at that
+    definition's line, leaving out a file git does not list.
+    """
+    definition = '[^smith2020]: Smith 2020. "T." arXiv:1. <https://arxiv.org/abs/1>'
+    bib        = (
+        "@misc{smith2020, author = {Smith, A.}, title = {T}, year = {2020}, "
+        "eprint = {1}}"
+    )
+
+    fp.register(["git", "ls-files", fp.any()], occurrences=1, stdout="a.md\0b.md\0")
+
+    found = scan(
+        Footnotes,
+        {
+            "a.md"                : f"One.[^smith2020]\n\n{definition}\n",
+            "b.md"                : "One.[^smith2020]\n\n[^smith2020]: By hand.\n",
+            "c.md"                : "One.[^jones2020]\n",
+            "docs/references.bib" : bib
+        }
+    )
+
+    assert found == [
+        (
+            "b.md",
+            3,
+            "`[^smith2020]` differs from what `docs/references.bib` writes, which "
+            "`mise write` writes in its place"
+        )
+    ]
 
 
 def test_inputs_report_an_input_the_manifest_does_not_declare(
@@ -1760,6 +1818,7 @@ def test_the_audit_reports_each_unreadable_file_once(
         "a.py",
         "b.py",
         "docs/package.json",
+        "docs/references.bib",
         "pyproject.toml",
         "uv.lock",
         *(str(output.path) for output in Inventory.read().outputs)

@@ -30,7 +30,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise lint` | *Reports every rewrite the formatter would make and every lint finding* |
 | `mise format` | *Rewrites the Python source to the house style* |
 | `mise serve` | *Serves the docs site under `docs/` and reloads a page as it is edited* |
-| `mise write` | *Writes each file the package declares into `docs/`, the identity's JSON and the theme's sheet among them, which `mise audit` holds to its declaration* |
+| `mise write` | *Writes each file the package declares into `docs/`, the identity's JSON and the theme's sheet among them, and each cited source's footnote definition from `docs/references.bib` into every Markdown file git tracks, all of which `mise audit` holds to what it writes* |
 | `mise draw` | *Redraws the logo, the favicon, and the navigation bar's mark from the drawings that set them in the identity* |
 | `mise lockfile` | *Verifies `uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` against their manifests, and that every pinned tool installs from `.mise/mise.lock`* |
 | `mise relock` | *Re-resolves every lockfile after a change to `pyproject.toml`, `.mise/config.toml`, `docs/package.json`, or a task script's inline metadata* |
@@ -191,8 +191,8 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 | **Subpackage** | **What It Holds** |
 |---|---|
 | `squirtl.agent` | *The deep Q-network agent, meaning the Q-network reading each entry of an observation through an encoder of its own, replay memory holding each element of each entry once with each binary entry packed eight cells to a byte, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from, replay memory included* |
-| `squirtl.cli` | *The `squirtl` command and its `evaluate`, `stop`, `train`, `watch`, and `write docs` subcommands* |
-| `squirtl.docs` | *The inventory of every file `squirtl write docs` writes into the docs site from a declaration in the package, meaning the identity, the theme's sheet, the event flags, and the default of each setting a run reads* |
+| `squirtl.cli` | *The `squirtl` command and its `cite`, `evaluate`, `stop`, `train`, `watch`, and `write docs` subcommands* |
+| `squirtl.docs` | *The inventory of every file `squirtl write docs` writes into the docs site from a declaration in the package, meaning the identity, the theme's sheet, the event flags, and the default of each setting a run reads, beside the bibliography each footnote's definition is written from* |
 | `squirtl.emulator` | *The cartridge a run reads, refused unless its SHA-1 is the one pret/pokered lists for the English Pokémon Blue, and `GameBoy` running it headless through PyBoy with no save beside it, beside the buttons a step presses and the addresses in the game's memory the package reads* |
 | `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Blue's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, the time limit truncating an episode, the outcome each episode's last step reports, and the recording of each episode's `timer_div` and presses* |
 | `squirtl.evaluation` | *The evaluation of an agent, meaning the episodes it plays across worker processes from a seed per episode number, the random baseline under the same seeds, the measures a reader judges a policy by, and the interquartile mean, the percentile bootstrap interval, and the probability of improvement compared across runs* |
@@ -341,6 +341,6 @@ I also would be remiss if I didn't thank **Sean Sullivan** for constantly helpin
 
 [^agarwal2021]: Agarwal et al. 2021. "Deep Reinforcement Learning at the Edge of the Statistical Precipice." *Advances in Neural Information Processing Systems* 34: 29304–29320. <https://proceedings.neurips.cc/paper/2021/hash/f514cec81cb148559cf475e7426eed5e-Abstract.html>
 
-[^pleines2025]: Pleines et al. 2025. "Pokemon Red via Reinforcement Learning." arXiv:2502.19920. <https://arxiv.org/abs/2502.19920>
+[^pleines2025]: Pleines et al. 2025. "Pokémon Red via Reinforcement Learning." *2025 IEEE Conference on Games (CoG)*: 1–8. <https://doi.org/10.1109/cog64752.2025.11114399>
 
 [^vanhasselt2016]: van Hasselt et al. 2016. "Deep Reinforcement Learning with Double Q-Learning." *Proceedings of the AAAI Conference on Artificial Intelligence* 30(1). <https://doi.org/10.1609/aaai.v30i1.10295>

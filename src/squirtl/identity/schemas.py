@@ -211,7 +211,7 @@ class Lengths(Declared):
     The corner radii, each under the step its utility names.
     """
 
-    sizes: dict[str, int]
+    sizes: dict[str, float]
     """
     The fixed sizes the settled widgets set a part at, such as the slot a
     chip's mark sits in, each under the name its spacing utility takes.
@@ -629,6 +629,12 @@ class Identity(Declared):
     The gym badges in the order the game awards them.
     """
 
+    citation: dict[str, Swatch]
+    """
+    The colors a footnote's phone draws in, each under the name its
+    `--color-citation-*` variable takes, which mark citations alone.
+    """
+
     colors: dict[str, Color]
     """
     The palette's colors, each under its token.
@@ -787,6 +793,7 @@ class Identity(Declared):
                 token: Swatch(dark=palette[on_dark].hex, light=palette[on_light].hex)
                 for token, (on_light, on_dark) in self.logo.named.items()
             },
+            {f"citation-{name}": swatch for name, swatch in self.citation.items()},
             {token: color.swatch for token, color in self.colors.items()},
             {
                 color.name.lower().replace(" ", "-"): color.swatch

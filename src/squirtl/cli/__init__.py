@@ -12,6 +12,7 @@ from cyclopts           import App, Parameter
 from cyclopts.config    import Toml
 from importlib.metadata import metadata
 
+from squirtl.cli.cite     import cite
 from squirtl.cli.evaluate import evaluate
 from squirtl.cli.stop     import stop
 from squirtl.cli.train    import train
@@ -24,6 +25,7 @@ app = App(
     name              = "squirtl"
 )
 
+app.command(cite)
 app.command(evaluate)
 app.command(stop)
 app.command(

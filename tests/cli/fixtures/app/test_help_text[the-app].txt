@@ -4,6 +4,9 @@ Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and
 PyTorch.
 
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ cite         Prints the footnote definition of each given key in the order   │
+│              given, a blank line between two, for the body of an issue or a  │
+│              pull request.                                                   │
 │ evaluate     Evaluates the agent of each run at its last checkpoint, at the  │
 │              epsilon and over the episodes the run's settings record, beside │
 │              the random baseline under the same seeds, and writes each       │
