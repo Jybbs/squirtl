@@ -1,7 +1,7 @@
 """
 Pins what `squirtl cite` does, covering the definition of each key it prints
-in the order given, and the unknown key, the missing file, and the empty
-call it refuses with exit status 1.
+in the order given, the unknown key and the missing file it refuses with
+exit status 1, and the empty call it refuses with exit status 2.
 """
 
 from collections.abc import Callable, Mapping
@@ -34,36 +34,39 @@ def test_a_citation_prints_each_definition_in_the_order_given(
 
 
 @mark.parametrize(
-    ("argv", "files"),
+    ("argv", "code", "files"),
     [
         param(
             ["cite", "smith2020", "nobody1999"],
+            1,
             {"docs/references.bib": ENTRIES},
             id = "unknown"
         ),
-        param(["cite", "smith2020"], {}, id="missing-file"),
+        param(["cite", "smith2020"], 1, {}, id="missing-file"),
         param(
             ["cite", "smith2020"],
+            1,
             {"docs/references.bib": "@misc{smith2020, author = {Smith, A.}}"},
             id = "broken-file"
         ),
-        param(["cite"], {"docs/references.bib": ENTRIES}, id="no-key")
+        param(["cite"], 2, {"docs/references.bib": ENTRIES}, id="no-key")
     ]
 )
 def test_a_citation_it_cannot_write_exits_nonzero_and_prints_no_definition(
     argv     : list[str],
+    code     : int,
     checkout : Callable[[Mapping[str, str]], None],
     files    : Mapping[str, str],
     invoke   : Invoker
 ):
     """
     Asserts that an unknown key among known ones, a checkout holding no
-    `docs/references.bib`, an entry failing validation, and a call naming no
-    key each exit nonzero and print no definition.
+    `docs/references.bib`, and an entry failing validation each exit 1, and
+    that a call naming no key exits 2, each printing no definition.
     """
     checkout(files)
 
     invocation = invoke(argv)
 
-    assert invocation.code != 0
+    assert invocation.code == code
     assert "[^" not in invocation.output
