@@ -6,24 +6,40 @@ Pins the networks the agents train, covering:
 - The layers PQN's Q-network normalizes and PPO's network adds, and what
   `ChannelNorm` normalizes over
 - The logits and the values PPO's network reads from one pass of its encoder
+- The weights and the biases PQN and PPO take from each method's published
+  code, PQN's layer normalization keeping its own, and the deep Q-network's
+  parameters under a seed
 - `tensors` moving each entry onto the device it names
 - The network each agent builds, PQN's alone normalized
 """
 
-from collections.abc        import Callable
 from gymnasium.spaces       import Box, Dict
 from gymnasium.vector.utils import batch_space
+from math             import sqrt
 from numpy            import ones, uint8
 from pytest           import mark, param, raises
 from re               import escape
+from scipy.stats      import kstest, truncnorm
 from syrupy.assertion import SnapshotAssertion
-from torch            import Tensor, arange, as_tensor, cat, equal, manual_seed, zeros
+from torch            import Tensor, arange, as_tensor, cat, equal, full_like, manual_seed, zeros
+from torch.linalg     import svdvals
 from torch.nn         import LayerNorm, Module
 from torch.testing    import assert_close
 
 from squirtl.agent.networks      import ActorCritic, ChannelNorm, QNetwork, acting_network, tensors
 from squirtl.agent.schemas       import Algorithm
 from squirtl.environment.schemas import Entry
+
+# `ENTRY_LAYERS` maps each layer of the `space` fixture's entries to its fan-in.
+ENTRY_LAYERS = {
+    "encoder.encoders.flags.1"  : 4,
+    "encoder.encoders.frames.0" : 4 * 8 * 8,
+    "encoder.encoders.frames.3" : 32 * 4 * 4,
+    "encoder.encoders.frames.6" : 64 * 3 * 3,
+    "encoder.encoders.grid.0"   : 8 * 8,
+    "encoder.encoders.grid.3"   : 32 * 4 * 4,
+    "encoder.encoders.grid.6"   : 64 * 3 * 3
+}
 
 
 def draw(batch: int, space: Dict) -> dict[str, Tensor]:
@@ -82,16 +98,13 @@ def test_a_channel_norm_normalizes_each_position_over_its_channels():
 
 
 @mark.parametrize(
-    "network",
-    [
-        param(lambda space: QNetwork(7, space, normalized=True), id="pqn"),
-        param(lambda space: ActorCritic(7, space),               id="ppo")
-    ]
+    "algorithm",
+    [param(Algorithm.PQN, id="pqn"), param(Algorithm.PPO, id="ppo")]
 )
 def test_each_agents_network_carries_the_layers_its_source_sets(
-    network  : Callable[[Dict], Module],
-    snapshot : SnapshotAssertion,
-    space    : Dict
+    algorithm : Algorithm,
+    snapshot  : SnapshotAssertion,
+    space     : Dict
 ):
     """
     Asserts that PQN's network normalizes each position's channels after
@@ -100,7 +113,7 @@ def test_each_agents_network_carries_the_layers_its_source_sets(
     nothing and projects the encodings before a body of 512 units and its
     two heads, as Pleines et al. describe.
     """
-    assert str(network(space)) == snapshot
+    assert str(acting_network(7, algorithm, space)) == snapshot
 
 
 def test_a_normalized_network_values_an_observation_alike_alone_or_batched(space: Dict):
@@ -110,7 +123,7 @@ def test_a_normalized_network_values_an_observation_alike_alone_or_batched(space
     observation of the batch.
     """
     manual_seed(0)
-    network      = QNetwork(7, space, normalized=True)
+    network      = QNetwork.pqn(7, space)
     observations = draw(5, space)
 
     assert_close(
@@ -135,6 +148,111 @@ def test_ppos_network_reads_its_logits_and_its_values_from_one_pass(space: Dict)
     assert equal(values, network.critic(network.encoder(observations))[:, 0])
 
 
+@mark.parametrize(
+    ("gain", "layer"),
+    [
+        *[param(sqrt(2), layer, id=layer) for layer in ENTRY_LAYERS],
+        param(sqrt(2),    "encoder.layers.0", id="the-projection"),
+        param(sqrt(2),    "encoder.layers.3", id="the-body"),
+        param(sqrt(0.01), "policy",           id="the-policy-head"),
+        param(1,          "critic",           id="the-value-head")
+    ]
+)
+def test_each_layer_of_ppos_network_is_orthogonal_at_the_gain_its_source_sets(
+    gain  : float,
+    layer : str,
+    space : Dict
+):
+    """
+    Asserts that every singular value of a layer's weights, flattened to one
+    row per output, is the gain neroRL's `poke_red` branch sets there, which
+    holds only for an orthogonal matrix at that gain.
+    """
+    module = acting_network(7, Algorithm.PPO, space).get_submodule(layer)
+    values = svdvals(module.weight.flatten(1))
+
+    assert_close(values, full_like(values, gain), atol=1e-4, rtol=0)
+
+
+@mark.parametrize(
+    ("fan_in", "layer", "scale"),
+    [
+        *[param(fan_in, layer, 2, id=layer) for layer, fan_in in ENTRY_LAYERS.items()],
+        param(64 + 64 * 5 * 6 + 64 * 2 * 2, "encoder.layers.0", 2, id="the-projection"),
+        param(512,                          "head",             1, id="the-head")
+    ]
+)
+def test_each_layer_of_pqns_network_draws_the_truncated_normal_its_source_sets(
+    fan_in : int,
+    layer  : str,
+    scale  : float,
+    space  : Dict
+):
+    """
+    Asserts that a layer's weights stay inside two standard deviations of
+    the normal JAX's `variance_scaling` truncates and follow the truncated
+    distribution, which an untruncated draw would not. That distribution's
+    variance is `scale` over `fan_in`, He normal's 2 beneath the head and
+    LeCun normal's 1 on it.
+    """
+    manual_seed(0)
+    module    = acting_network(7, Algorithm.PQN, space).get_submodule(layer)
+    deviation = sqrt(scale / fan_in) / truncnorm.std(-2, 2)
+    draws     = module.weight.numpy(force=True).ravel()
+
+    assert abs(draws).max() <= 2 * deviation
+    assert kstest(draws, truncnorm(-2, 2, scale=deviation).cdf).pvalue > 1e-3
+
+
+@mark.parametrize(
+    ("algorithm", "layer"),
+    [
+        *[
+            param(algorithm, layer, id=f"{algorithm}-{layer}")
+            for algorithm in (Algorithm.PPO, Algorithm.PQN)
+            for layer in ENTRY_LAYERS
+        ],
+        param(Algorithm.PQN, "encoder.layers.0", id="pqn-the-hidden-layer"),
+        param(Algorithm.PQN, "head",             id="pqn-the-head")
+    ]
+)
+def test_each_bias_a_source_sets_is_zero(algorithm: Algorithm, layer: str, space: Dict):
+    """
+    Asserts that the biases of each entry's encoder are zero for PPO, as
+    neroRL's `layer_init` sets them, and that PQN's are zero on every layer,
+    Flax's default.
+    """
+    assert not acting_network(7, algorithm, space).get_submodule(layer).bias.any()
+
+
+@mark.parametrize("layer", ["encoder.layers.0", "encoder.layers.3", "policy", "critic"])
+def test_ppos_fully_connected_biases_keep_pytorchs_default(layer: str, space: Dict):
+    """
+    Asserts that the biases neroRL's `poke_red` branch leaves alone hold
+    PyTorch's draw, which is not zero and stays inside the reciprocal of the
+    square root of the number of its inputs.
+    """
+    module = acting_network(7, Algorithm.PPO, space).get_submodule(layer)
+
+    assert 0 < module.bias.abs().max() <= 1 / sqrt(module.in_features)
+
+
+def test_pqns_layer_normalization_keeps_its_own_parameters(space: Dict):
+    """
+    Asserts that setting PQN's weights leaves every layer norm with a scale
+    of one and a bias of zero, which `torch.nn.LayerNorm` and Flax's both
+    start from.
+    """
+    norms = [
+        layer
+        for layer in acting_network(7, Algorithm.PQN, space).modules()
+        if isinstance(layer, LayerNorm)
+    ]
+
+    assert norms
+    assert all(norm.weight.eq(1).all() and not norm.bias.any() for norm in norms)
+
+
 def test_tensors_moves_each_entry_onto_the_device_it_names():
     """
     Asserts that `tensors` moves each entry onto the device it names,
@@ -145,6 +263,25 @@ def test_tensors_moves_each_entry_onto_the_device_it_names():
 
     assert {entry.device.type for entry in moved.values()} == {"meta"}
     assert moved["frames"].shape == (2, 3)
+
+
+def test_the_deep_q_networks_parameters_under_a_seed_stay_pytorchs_defaults(
+    snapshot : SnapshotAssertion,
+    space    : Dict
+):
+    """
+    Pins the sum of each of the deep Q-network's parameters under seed 0,
+    which any other initialization or order of draws changes. Each sum runs
+    in `float64` to three decimals, which absorbs the rounding a platform's
+    `float32` arithmetic adds.
+    """
+    manual_seed(0)
+    network = acting_network(7, Algorithm.DQN, space)
+
+    assert "\n".join(
+        f"{name} {parameter.double().sum():.3f}"
+        for name, parameter in network.named_parameters()
+    ) == snapshot
 
 
 def test_the_network_carries_the_layers_mnih_et_al_set(
