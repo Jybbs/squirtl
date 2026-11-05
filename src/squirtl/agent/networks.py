@@ -26,13 +26,13 @@ from squirtl.agent.schemas import AgentSettings, Algorithm
 class ActorCritic(Module):
     """
     The network PPO trains, whose `Encoder` reads each observation through
-    two fully connected layers, the projection of the encodings and the
-    body Pleines et al. describe, before a head of the policy's logits and a
-    head of the value, sharing every layer beneath them as theirs does. Its
-    weights are orthogonal, as the `poke_red` branch of neroRL sets them, at
-    a gain of √2 beneath the heads, √0.01 on the policy's head, and 1 on the
-    value's. The biases of each entry's encoder are zero, and every other
-    bias keeps PyTorch's default, as that branch leaves them.
+    two fully connected layers, the projection of the encodings and the body
+    Pleines et al. describe, before a head of the policy's logits and a head
+    of the value, sharing every layer beneath them as their paper describes.
+    Its weights are orthogonal, as the `poke_red` branch of neroRL sets
+    them, at a gain of √2 beneath the heads, √0.01 on the policy's head, and
+    1 on the value's. The biases of each entry's encoder are zero, and every
+    other bias keeps PyTorch's default, as that branch leaves them.
     """
 
     def __init__(self, actions: int, space: Dict):

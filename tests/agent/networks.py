@@ -190,9 +190,10 @@ def test_each_layer_of_pqns_network_draws_the_truncated_normal_its_source_sets(
 ):
     """
     Asserts that a layer's weights stay inside two standard deviations of
-    the normal JAX's `variance_scaling` truncates at `scale` over `fan_in`,
-    He normal's 2 beneath the head and LeCun normal's 1 on it, and follow
-    that truncated distribution, which an untruncated draw would not.
+    the normal JAX's `variance_scaling` truncates and follow the truncated
+    distribution, which an untruncated draw would not. That distribution's
+    variance is `scale` over `fan_in`, He normal's 2 beneath the head and
+    LeCun normal's 1 on it.
     """
     manual_seed(0)
     module    = acting_network(7, Algorithm.PQN, space).get_submodule(layer)
