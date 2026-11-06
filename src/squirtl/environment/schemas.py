@@ -8,13 +8,11 @@ Defines the records the environment reads and writes:
   plays to the same frames again
 """
 
-from compression.zstd    import compress, decompress
-from enum                import StrEnum, auto
-from functools           import partial
-from pyboy.api.constants import COLS, ROWS
-from pyboy.utils         import CLOCK_RATE, FRAME_CYCLES
-from pydantic            import AfterValidator, Field, PlainSerializer, PositiveInt, ValidationInfo, model_validator
-from typing              import Annotated, Self
+from compression.zstd import compress, decompress
+from enum             import StrEnum, auto
+from functools        import partial
+from pydantic         import AfterValidator, Field, PlainSerializer, PositiveInt, ValidationInfo, model_validator
+from typing           import Annotated, Self
 
 from squirtl.emulator.schemas import Record
 from squirtl.reward.schemas   import Term
@@ -89,25 +87,27 @@ class EnvironmentSettings(Record):
     @property
     def steps_per_second(self) -> float:
         """
-        Divides the frames a Game Boy draws a second at its own speed,
-        `CLOCK_RATE` over `FRAME_CYCLES`, by `frames_per_step`.
+        Divides the frames a Game Boy draws a second at its own speed by
+        `frames_per_step`.
         """
-        return CLOCK_RATE / FRAME_CYCLES / self.frames_per_step
+        # Pan Docs gives a 4,194,304 Hz clock and a frame of 70,224 dots, one tick each.
+        return 4_194_304 / 70_224 / self.frames_per_step
 
     @model_validator(mode="after")
     def verify(self) -> Self:
         """
-        Refuses a `frame_shape` not dividing the screen's `ROWS` by `COLS`
-        pixels, since `ShrinkObservation` averages whole blocks.
+        Refuses a `frame_shape` not dividing the screen's 144 by 160 pixels,
+        since `ShrinkObservation` averages whole blocks.
 
         Raises:
             ValueError: Where either side does not, which Pydantic raises as
                         a `ValidationError`.
         """
-        if ROWS % self.frame_shape[0] or COLS % self.frame_shape[1]:
+        # Pan Docs gives the screen as 160 pixels wide and 144 high.
+        if 144 % self.frame_shape[0] or 160 % self.frame_shape[1]:
             raise ValueError(
                 f"a frame shape of {self.frame_shape} does not divide the "
-                f"{ROWS} by {COLS} screen evenly"
+                "144 by 160 screen evenly"
             )
 
         return self

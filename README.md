@@ -38,15 +38,17 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise audit` | *Fails on each pin, label, workflow, and layout rule a file departs from, printing each finding as an annotation on the file and line it concerns* |
 | `mise labels` | *Writes each label `.github/labels.toml` declares that GitHub lacks or carries under another color or description once you confirm it, and lists each live label the registry leaves out* |
 | `mise rulesets` | *Applies the rulesets under `.github/rulesets/`, then the repository settings `.github/settings.toml` declares, once you confirm them* |
+| `mise lift` | *Reports every pin lagging its newest release beside the open Dependabot alerts a lift clears, tries the lift in a scratch clone under `--try`, and writes it into every home of each pin under `--write`, leaving each pin `.mise/holds.toml` or `--hold` names where it stands, beside each pin paired with one, stopping the write with every file as it stood where another lift would move a held package, and leaving `min_version` where it stands while the running mise is older than its newest release* |
 | `mise bump` | *Moves the version to the next minor release, or to the next patch release under `mise bump patch`, in `pyproject.toml`, `uv.lock`, and `CITATION.cff`* |
 | `mise ci` | *Runs the lockfile check, the workflow audit, the repository audit, the formatter's check, the suite under coverage, and every check of the docs site in one sweep* |
 
 ## Training
 
-`squirtl train` trains the agent headless for `--steps` environment steps, 2,500,000 by default, ten of the 250,000-step iterations Dopamine's DQN evaluates after, logging a line per episode above a progress bar and printing the run's directory once the run ends. Every setting is a flag (*`squirtl train --help` lists each one beside its default, and a setting on by default turns off as `--agent.double-q=false` does*) or a key under `[tool.squirtl]` in `pyproject.toml`, and `--emulator.open-window` draws the game in a window:
+`squirtl train` trains the agent headless for `--steps` environment steps, 2,500,000 by default, ten of the 250,000-step iterations Dopamine's DQN evaluates after, logging a line per episode above a progress bar and printing the run's directory once the run ends. `--agent.algorithm` chooses the agent, where the default `dqn` learns from one environment and replay memory, whereas `pqn`, the Q-learning agent Gallici et al. set out,[^gallici2025] and `ppo`, the clipped objective of Schulman et al.[^schulman2017] under the settings Pleines et al. train with other than their 32 workers,[^pleines2025] keep no replay memory and collect each rollout across the `--agent.environments` environments running in parallel, 8 by default, going on to the end of the rollout that reaches `--steps`. Every setting is a flag (*`squirtl train --help` lists each one beside its default, and a setting on by default turns off as `--agent.double-q=false` does*) or a key under `[tool.squirtl]` in `pyproject.toml`, and `--emulator.open-window` draws the game in a window:
 
 ```bash
 squirtl train --steps 1000000
+squirtl train --agent.algorithm pqn
 squirtl stop data/runs/<run>
 squirtl train --resume data/runs/<run>
 squirtl watch data/runs/<run> --episode 12
@@ -57,16 +59,16 @@ Each run writes into a directory of its own under `data/runs/`, named for the in
 | **File** | **What It Holds** |
 |---|---|
 | `run.json` | *The settings the run read, the commit and the digest of `uv.lock` it ran on, the SHA-256 digest of the state the game's intro leaves the console in, the instant it started, and the run it resumes* |
-| `episodes.jsonl` | *One line per episode, holding its return, length, and wall time, whether it reached the starter, each reward term's total, the positions it reached, $`\varepsilon`$, the mean loss and value over its updates, and the presses it played, compressed with zstd, beside the `timer_div` its reset wrote, since a reset at one `timer_div` always leaves the console in one state* |
+| `episodes.jsonl` | *One line per episode, holding its return, length, and wall time, whether it reached the starter, each reward term's total, the positions it reached, the measures of the agent that played it, meaning $`\varepsilon`$ and the mean loss and value over its updates or, for PPO, the mean of each of its own measures over them, and the presses it played, compressed with zstd, beside the `timer_div` its reset wrote, since a reset at one `timer_div` always leaves the console in one state* |
 | `evaluations.jsonl` | *One line per evaluation of the agent, while the run trains or under `squirtl evaluate`, holding the step it read the agent at and what each of its episodes reached* |
 | `baseline.json` | *The random baseline's evaluation under the run's evaluation seeds, written at the run's first evaluation* |
-| `checkpoint.npz` | *The networks, Adam's state, the generators, and replay memory, written at the first episode end reaching each multiple of `--checkpoint-steps` and at the run's end, each write flushed to disk after `episodes.jsonl` and taking the file's name only once whole* |
+| `checkpoint.npz` | *The networks, the optimizer's state, and the generators, beside replay memory for the deep Q-network and, for PQN and PPO, each environment's unfinished recording and the statistics `NormalizeReward` scales each reward by, written at the first episode end, or for PQN and PPO the first update's end, reaching each multiple of `--checkpoint-steps` and at the run's end, each write flushed to disk after `episodes.jsonl` and taking the file's name only once whole* |
 
-An interrupt, a termination signal, or `squirtl stop` from another shell ends a run at the end of its episode with a checkpoint, and a second interrupt ends it at once on the last checkpoint. `squirtl train --resume` continues a stopped run in a new directory under the settings that run recorded and ends with the weights it would have reached had it never stopped, refusing before it makes any directory a checkpoint that is damaged, already holds the run's steps, or runs past the episodes the log recorded. `squirtl watch` plays a recorded episode back through the emulator's window to the return the run recorded for it, once the state the intro leaves matches the digest the run recorded.
+An interrupt, a termination signal, or `squirtl stop` from another shell ends a run with a checkpoint, at the end of its episode for the deep Q-network and once a rollout's update ends for PQN and PPO, and a second interrupt ends it at once on the last checkpoint. `squirtl train --resume` continues a stopped run in a new directory under the settings that run recorded and ends with the weights it would have reached had it never stopped, refusing before it makes any directory a checkpoint that is damaged, already holds the run's steps, or runs past the episodes the log recorded. `squirtl watch` plays a recorded episode back through the emulator's window to the return the run recorded for it, once the state the intro leaves matches the digest the run recorded.
 
 ## Evaluation
 
-`squirtl evaluate` plays evaluation episodes of each run's agent from its last checkpoint, at the $`\varepsilon`$ of 0.05 and over the 30 episodes Mnih et al. evaluate with,[^mnih2015] beside a random baseline under the same seeds, across the worker processes `gymnasium.make_vec` runs in parallel. Each evaluation lands in the run's directory, so a second call reads it rather than playing it again, and a run also evaluates its agent while it trains, at the first episode end reaching each multiple of `--evaluation-steps`:
+`squirtl evaluate` plays evaluation episodes of each run's agent from its last checkpoint, at the $`\varepsilon`$ of 0.05 and over the 30 episodes Mnih et al. evaluate with,[^mnih2015] PPO instead taking its most likely action, beside a random baseline under the same seeds, across the worker processes `gymnasium.make_vec` runs in parallel. Each evaluation lands in the run's directory, so a second call reads it rather than playing it again, and a run also evaluates its agent while it trains, at the first episode end, or for PQN and PPO the first update's end, reaching each multiple of `--evaluation-steps`:
 
 ```bash
 squirtl evaluate data/runs/<run> data/runs/<other run>
@@ -190,16 +192,16 @@ The code lives in the `squirtl` package under `src/squirtl/`, one subpackage per
 
 | **Subpackage** | **What It Holds** |
 |---|---|
-| `squirtl.agent` | *The deep Q-network agent, meaning the Q-network reading each entry of an observation through an encoder of its own, replay memory holding each element of each entry once with each binary entry packed eight cells to a byte, the update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from, replay memory included* |
+| `squirtl.agent` | *The deep Q-network, PQN, and PPO, meaning the networks reading each entry of an observation through an encoder of its own, the deep Q-network's replay memory holding each element of each entry once with each binary entry packed eight cells to a byte, the rollout PQN and PPO collect across their environments and the $`\lambda`$-returns one backward pass computes over it, each agent's update and the schedules it counts in environment steps, and the checkpoint a resumed run continues training from, replay memory included where the agent keeps one* |
 | `squirtl.cli` | *The `squirtl` command and its `cite`, `evaluate`, `stop`, `train`, `watch`, and `write docs` subcommands* |
 | `squirtl.docs` | *The inventory of every file `squirtl write docs` writes into the docs site from a declaration in the package, meaning the identity, the theme's sheet, the event flags, and the default of each setting a run reads, beside the bibliography each footnote's definition is written from* |
 | `squirtl.emulator` | *The cartridge a run reads, refused unless its SHA-1 is the one pret/pokered lists for the English Pokémon Blue, and `GameBoy` running it headless through PyBoy with no save beside it, beside the buttons a step presses and the addresses in the game's memory the package reads* |
-| `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Blue's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, the time limit truncating an episode, the outcome each episode's last step reports, and the recording of each episode's `timer_div` and presses* |
+| `squirtl.environment` | *`Overworld`, the Gymnasium environment an episode plays from Blue's bedroom to the starter at one press a step, its observation four stacked grayscale frames beside the grid of squares the episode has reached and the flags of each milestone, the time limit truncating an episode, the outcome each episode's last step reports, the recording of each episode's `timer_div` and presses, and the worker each environment runs in where several run in parallel* |
 | `squirtl.evaluation` | *The evaluation of an agent, meaning the episodes it plays across worker processes from a seed per episode number, the random baseline under the same seeds, the measures a reader judges a policy by, and the interquartile mean, the percentile bootstrap interval, and the probability of improvement compared across runs* |
 | `squirtl.identity` | *The docs site's visual identity as `identity.toml` declares it, meaning its faces, palette, lengths, and timing, beside the marks drawn from the display face's dots and from the pixels of Pokémon Blue* |
-| `squirtl.repo` | *The records read from the label, ruleset, and settings registries under `.github/`, the `gh` commands `mise labels` and `mise rulesets` send once you confirm them, and the checks `mise audit` runs* |
+| `squirtl.repo` | *The records read from the label, ruleset, and settings registries under `.github/`, the `gh` commands `mise labels` and `mise rulesets` send once you confirm them, the checks `mise audit` runs, and the lift of each pin `mise lift` reports* |
 | `squirtl.reward` | *The reward each step earns, meaning a novelty for each map position an episode reaches for the first time, a milestone for each event flag on the way to the starter, and the starter, which ends the episode, with every step's reward held within 1 and each term's share reported beside it* |
-| `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, the training loop driving the environment and the agent, and the directory under `data/runs/` recording each run's settings, its commit, the digest of `uv.lock`, its episodes, its evaluations, and its checkpoint* |
+| `squirtl.runs` | *The settings a run reads, the seed each stream of random draws starts from, the training loop driving the environments and the agent, and the directory under `data/runs/` recording each run's settings, its commit, the digest of `uv.lock`, its episodes, its evaluations, and its checkpoint* |
 
 ## Metrics & Analysis
 
@@ -337,10 +339,14 @@ This project was developed under the supervision and thoughtful direction of [Pr
 
 I also would be remiss if I didn't thank **Sean Sullivan** for constantly helping me contextualize my thoughts and for his advocacy of my work and capabilities in all things technology. Thank you, Wes and Sean!
 
+[^gallici2025]: Gallici et al. 2025. "Simplifying Deep Temporal Difference Learning." *International Conference on Learning Representations* 2025: 78148–78190. <https://proceedings.iclr.cc/paper_files/paper/2025/hash/c23f3852601f6dd7f0b39223d031806f-Abstract-Conference.html>
+
+[^schulman2017]: Schulman et al. 2017. "Proximal Policy Optimization Algorithms." arXiv:1707.06347. <https://arxiv.org/abs/1707.06347>
+
+[^pleines2025]: Pleines et al. 2025. "Pokémon Red via Reinforcement Learning." *2025 IEEE Conference on Games (CoG)*: 1–8. <https://doi.org/10.1109/cog64752.2025.11114399>
+
 [^mnih2015]: Mnih et al. 2015. "Human-level control through deep reinforcement learning." *Nature* 518(7540): 529–533. <https://doi.org/10.1038/nature14236>
 
 [^agarwal2021]: Agarwal et al. 2021. "Deep Reinforcement Learning at the Edge of the Statistical Precipice." *Advances in Neural Information Processing Systems* 34: 29304–29320. <https://proceedings.neurips.cc/paper/2021/hash/f514cec81cb148559cf475e7426eed5e-Abstract.html>
-
-[^pleines2025]: Pleines et al. 2025. "Pokémon Red via Reinforcement Learning." *2025 IEEE Conference on Games (CoG)*: 1–8. <https://doi.org/10.1109/cog64752.2025.11114399>
 
 [^vanhasselt2016]: van Hasselt et al. 2016. "Deep Reinforcement Learning with Double Q-Learning." *Proceedings of the AAAI Conference on Artificial Intelligence* 30(1). <https://doi.org/10.1609/aaai.v30i1.10295>

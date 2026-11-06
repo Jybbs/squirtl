@@ -6,14 +6,20 @@ own, covering:
   frame small enough to average by hand, and the cells it shrinks a frame
   of PyBoy to at each block shape, which a reshape into blocks summed
   over each block also gives
-- The `Outcome` `RecordOutcome` reports at an episode's last step alone,
-  whether `TimeLimit` truncates the episode or the starter ends it
+- The `Outcome` and the `Recording` `RecordOutcome` reports at an episode's
+  last step alone, whether `TimeLimit` truncates the episode or the starter
+  ends it
+- The unfinished episode `ReplayRecording` plays back at the next reset alone,
+  which leaves the wrappers beneath it where the recording's last step left
+  them
 """
 
+from collections.abc    import Callable
 from common.console     import set_event
 from gymnasium          import Env
 from gymnasium.wrappers import RecordEpisodeStatistics, TimeLimit
 from numpy              import array, uint8, unique
+from numpy.random       import default_rng
 from numpy.testing      import assert_array_equal
 from pytest             import fixture, mark, param
 
@@ -115,6 +121,11 @@ def test_a_truncated_episode_reports_its_outcome_at_its_last_step_alone(recorded
     infos = [recorded.step(0)[4] for _ in range(3)]
 
     assert ["outcome" in info for info in infos] == [False, False, True]
+    assert ["recording" in info for info in infos] == [False, False, True]
+    assert (infos[-1]["recording"].presses, infos[-1]["recording"].timer_div) == (
+        bytes([0, 0, 0]),
+        recorded.get_wrapper_attr("recording").timer_div
+    )
     assert infos[-1]["outcome"] == Outcome(
         length     = 3,
         positions  = 4,
@@ -123,6 +134,50 @@ def test_a_truncated_episode_reports_its_outcome_at_its_last_step_alone(recorded
         shares     = {Term.MILESTONE: 0.0, Term.NOVELTY: 0.1875, Term.STARTER: 0.0},
         terminated = False
     )
+
+
+def test_a_reset_plays_a_recording_back_through_every_wrapper_beneath_it(
+    made: Callable[..., Env]
+):
+    """
+    Asserts that an environment on PyBoy given the recording of three
+    steps of an unfinished episode observes at its next reset what a copy
+    that played those steps observes, then truncates when that copy does,
+    its time limit counting the replayed steps, with its outcome and its
+    recording reporting the whole episode, and that the reset after it plays
+    nothing back.
+    """
+    played, replaying = made(max_episode_steps=5), made(max_episode_steps=5)
+    played.reset(seed=0)
+    actions = default_rng(0).integers(played.action_space.n, size=5).tolist()
+
+    for action in actions[:3]:
+        observed, *_ = played.step(action)
+
+    replaying.reset(seed=1)
+    replaying.set_wrapper_attr("resumed", played.get_wrapper_attr("recording"))
+    replayed, info = replaying.reset()
+
+    assert info == {}
+    assert replaying.get_wrapper_attr("resumed") is None
+    assert_array_equal(replayed["frames"], observed["frames"])
+    assert_array_equal(replayed["flags"], observed["flags"])
+
+    endings = [
+        (
+            env.step(actions[3])[3:],
+            env.step(actions[4])[3:]
+        ) for env in (played, replaying)
+    ]
+
+    assert endings[0][0][0] is endings[1][0][0] is False
+    assert endings[0][1][0] is endings[1][1][0] is True
+    assert endings[0][1][1]["recording"] == endings[1][1][1]["recording"]
+    assert endings[1][1][1]["outcome"].length == 5
+
+    replaying.reset(seed=1)
+
+    assert replaying.get_wrapper_attr("recording").presses == b""
 
 
 def test_an_episode_reaching_the_starter_reports_its_termination(

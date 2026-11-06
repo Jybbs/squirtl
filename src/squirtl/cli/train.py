@@ -12,8 +12,8 @@ from typing        import Annotated
 
 from squirtl.cli.logs         import listen, refusing
 from squirtl.emulator.schemas import Cartridge
-from squirtl.runs.schemas     import Handover, Run, RunSettings
-from squirtl.runs.trainer     import Trainer
+from squirtl.runs.schemas     import Run, RunSettings
+from squirtl.runs.trainer     import Handover, Trainer
 
 
 def train(
@@ -33,18 +33,18 @@ def train(
     ] = False
 ) -> str:
     """
-    Trains the agent for the run's `--steps` environment steps, headless
-    unless `--emulator.open-window` is set, logging a line per episode above
-    a progress bar.
+    Trains the agent `--agent.algorithm` names for the run's `--steps`
+    environment steps, headless unless `--emulator.open-window` is set,
+    logging a line per episode above a progress bar.
 
     A setting on by default turns off as `--agent.double-q=false` does.
 
     The run writes its record, a line per episode, and a checkpoint into a
     directory of its own under `data/runs/`, which the command prints once
     the run ends. An interrupt, a termination signal, or `squirtl stop` ends
-    the run at the end of its episode with a checkpoint and exits 0, and a
-    second interrupt ends it at once on the last checkpoint and exits
-    130.
+    the run with a checkpoint and exits 0, at the end of its episode for the
+    deep Q-network and once a rollout's update ends for PQN and PPO, and a
+    second interrupt ends it at once on the last checkpoint and exits 130.
 
     Each of these exits 1 before any directory is made:
 
@@ -62,7 +62,7 @@ def train(
         handover  = previous and Handover.from_run(previous)
         settings  = previous.settings if previous else settings or RunSettings()
         cartridge = Cartridge.read(settings.emulator.cartridge)
-        trainer   = Trainer(cartridge, settings, datetime.now(UTC), handover)
+        trainer   = Trainer.start(cartridge, settings, datetime.now(UTC), handover)
 
     with trainer:
         with Progress(console=console) as progress:

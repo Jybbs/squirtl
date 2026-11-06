@@ -8,6 +8,7 @@ Pins what `squirtl evaluate` does, covering:
 - A directory holding no run, a run missing its checkpoint or its
   cartridge, and a damaged checkpoint, each exiting 1, and a damaged
   member of replay memory, which it never reads
+- A run of PQN or PPO, whose network it builds from the agent the run names
 """
 
 from collections.abc   import Callable
@@ -101,6 +102,22 @@ def test_a_run_holding_a_damaged_checkpoint_exits_1_naming_it(
     )
 
 
+def test_a_run_of_pqn_or_ppo_plays_its_evaluation_across_worker_processes(
+    invoke : Invoker,
+    rolled : Path
+):
+    """
+    Asserts that evaluating a run of either agent exits zero, writing
+    the evaluation of its last checkpoint and printing its report, on the
+    network the run's agent builds from those weights.
+    """
+    invocation = invoke(["evaluate", str(rolled)])
+    run        = Run.read(rolled)
+
+    assert (invocation.code, [played.step for played in run.evaluated]) == (0, [16])
+    assert rolled.name in invocation.output
+
+
 def test_a_second_evaluation_reads_what_the_first_wrote(
     evaluators : list[EvaluatorStandIn],
     invoke     : Invoker,
@@ -135,6 +152,22 @@ def test_an_evaluation_reads_the_agent_member_of_the_checkpoint_alone(
         archive.writestr("actions.npy", b"\x93NUMPY\x01\x00")
 
     assert invoke(["evaluate", str(trained)]).code == 0
+
+
+@mark.usefixtures("evaluators")
+def test_an_evaluation_reports_the_agent_apart_from_its_baseline(
+    invoke  : Invoker,
+    trained : Path
+):
+    """
+    Asserts that the stand-in agent's return of 0.01 at step 10, below its
+    baseline's 0.125, prints a probability of 0 that the agent beats its
+    baseline, rather than the 1 the two swapped would print.
+    """
+    assert (
+        "The agent beats its baseline with a probability of 0 over 1 and 1 runs"
+        in invoke(["evaluate", str(trained)]).output
+    )
 
 
 def test_an_evaluation_writes_its_episodes_and_prints_the_report(

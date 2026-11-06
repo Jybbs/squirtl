@@ -1,0 +1,2 @@
+squirtl
+squirtl.cli

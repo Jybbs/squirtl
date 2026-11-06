@@ -9,10 +9,11 @@ from numpy.random    import default_rng
 from pathlib         import Path
 from typing          import Annotated
 
-from squirtl.agent.schemas     import Weights
+from squirtl.agent.checkpoint  import Weights
 from squirtl.cli.logs          import listen, refusing
 from squirtl.emulator.schemas  import Cartridge
 from squirtl.evaluation.report import Pairs, Report
+from squirtl.runs.benchmark    import Benchmark
 from squirtl.runs.schemas      import Run
 
 
@@ -35,10 +36,12 @@ def evaluate(
     ] = None
 ):
     """
-    Evaluates the agent of each run at its last checkpoint, at the epsilon
-    and over the episodes the run's settings record, beside the random
-    baseline under the same seeds, and writes each evaluation into its run's
-    directory, reading in place of playing any the run already holds.
+    Evaluates the agent of each run at its last checkpoint, over the
+    episodes the run's settings record, beside the random baseline under the
+    same seeds, and writes each evaluation into its run's directory, reading
+    in place of playing any the run already holds. The deep Q-network and
+    PQN play at the epsilon those settings record, and PPO takes its most
+    likely action at every step.
 
     Prints as Markdown each run's measures, then each measure's
     interquartile mean across the runs with its 95% percentile bootstrap
@@ -83,6 +86,7 @@ def evaluated(runs: Iterable[Run]) -> Pairs:
             weights   = Weights.from_path(run.checkpoint)
             cartridge = Cartridge.read(run.settings.emulator.cartridge)
 
-        pairs[run.name] = run.evaluate(cartridge, weights)
+        benchmark       = Benchmark.from_run(cartridge, run, weights)
+        pairs[run.name] = benchmark.agent, benchmark.baseline
 
     return pairs

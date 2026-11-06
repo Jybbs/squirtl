@@ -31,7 +31,7 @@ from sys            import executable
 from torch          import equal
 from torch.nn.utils import parameters_to_vector
 
-from squirtl.agent.learner         import Agent
+from squirtl.agent.learner         import DQN
 from squirtl.agent.schemas         import AgentSettings
 from squirtl.emulator.schemas      import Button
 from squirtl.environment.overworld import Overworld
@@ -150,7 +150,7 @@ def test_an_agent_learns_from_the_observations_the_environment_makes(
     that changes its online network.
     """
     env   = made()
-    agent = Agent(
+    agent = DQN(
         actions  = env.action_space.n,
         seed     = 0,
         settings = AgentSettings(
@@ -277,7 +277,7 @@ def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
         "squirtl/Overworld-v0", 10_240,
         [
             "ShrinkObservation", "FrameStackObservation", "ProgressObservation",
-            "RecordEpisodeStatistics", "RecordOutcome"
+            "RecordEpisodeStatistics", "RecordOutcome", "ReplayRecording"
         ]
     )
 
