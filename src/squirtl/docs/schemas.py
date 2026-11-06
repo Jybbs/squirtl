@@ -20,7 +20,8 @@ from mdit_py_plugins.footnote import footnote_plugin
 from operator                 import attrgetter
 from pathlib import Path
 from pydantic            import (
-    BeforeValidator, ConfigDict, Field, ValidationError, model_validator
+    BeforeValidator, ConfigDict, Field, StringConstraints, ValidationError,
+    model_validator
 )
 from re          import fullmatch, sub
 from subprocess  import check_output
@@ -29,12 +30,15 @@ from unicodedata import normalize
 
 from squirtl.emulator.schemas import Record
 
+type Address = Annotated[str, StringConstraints(pattern=r"^[^\s\\]+$")]
+
 
 class Source(Record, ABC):
     """
     One entry of `docs/references.bib`, whose kind sets how its definition
     names its venue and links its address, a blank field failing as a
-    missing one does.
+    missing one does and an address failing on any whitespace or backslash
+    it holds, since the definition writes an address as the entry holds it.
     """
 
     model_config = ConfigDict(str_min_length=1, str_strip_whitespace=True)
@@ -116,12 +120,12 @@ class Published(Source):
     page.
     """
 
-    doi: str | None = None
+    doi: Address | None = None
     """
     The DOI, where one exists.
     """
 
-    url: str | None = None
+    url: Address | None = None
     """
     The publisher's page, for a source with no DOI.
     """
@@ -233,7 +237,7 @@ class Preprint(Source):
     A preprint on arXiv, under its identifier.
     """
 
-    eprint: str
+    eprint: Address
     """
     The arXiv identifier, carrying a version where a citation rests on one.
     """

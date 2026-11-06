@@ -281,6 +281,20 @@ def test_a_source_writes_its_definition(
             "eprint",
             id = "whitespace-field"
         ),
+        *(
+            param(
+                entry("smith2020", kind, **{**PREPRINT, **venue, field: value}),
+                1,
+                f"{field} String should match pattern",
+                id = f"{field}-holding-{holding}"
+            )
+            for field, kind, venue in (
+                ("doi", "inproceedings", {"booktitle": "B", "eprint": None}),
+                ("eprint", "misc", {}),
+                ("url", "inproceedings", {"booktitle": "B", "eprint": None})
+            )
+            for holding, value in (("backslash", r"1\_2"), ("line-break", "1\n  2"))
+        ),
         param(
             "@misc{smith2020, author = {}, title = {T}, year = {2020}, eprint = {1}}",
             1,
@@ -336,9 +350,10 @@ def test_a_bibliography_refuses_an_entry_at_its_line(
     read    : Reader
 ):
     """
-    Pins that a missing or blank field, a key disagreeing with its entry, a
-    duplicate key, a broken block, and a kind no record takes each fail the
-    read at the line the entry opens on.
+    Pins that a missing or blank field, an address holding a backslash or a
+    line break, a key disagreeing with its entry, a duplicate key, a broken
+    block, and a kind no record takes each fail the read at the line the
+    entry opens on.
     """
     with raises(SyntaxError, match=message) as raised:
         read(entries)
