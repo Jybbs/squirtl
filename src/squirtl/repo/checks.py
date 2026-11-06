@@ -315,8 +315,9 @@ class Footnotes(Check):
     def read(cls, documents: Callable[[type], Record]) -> Self:
         """
         Builds the check as `Check.read` does, raising `Unreadable` on
-        `docs/references.bib` where it fails to read or git cannot list the
-        Markdown files.
+        `docs/references.bib` where it fails to read, git cannot list the
+        Markdown files, or one of them fails to decode, the message naming
+        that file.
         """
         with Finding.reading(Bibliography.path):
             return super().read(documents)

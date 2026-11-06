@@ -11,12 +11,10 @@
   vertical-align : baseline;
 }
 
-.vp-doc .footnote-anchor { position: absolute; }
-
 .vp-doc .footnote-ref a,
 .vp-doc .footnote-backref { text-decoration: none; }
 
-.vp-doc .footnote-ref a:first-child {
+.vp-doc .footnote-ref a {
   display        : inline-block;
   line-height    : 0;
   margin-block   : calc(var(--spacing-footnote-above) * -1) calc(var(--spacing-footnote-below) * -1);
@@ -24,7 +22,7 @@
   vertical-align : var(--spacing-footnote-rise);
 }
 
-.footnote-ref a:first-child::after {
+.footnote-ref a::after {
   content  : "";
   inset    : calc(var(--spacing-1) * -1) calc(var(--border-width-hairline) * -1);
   position : absolute;
@@ -113,7 +111,7 @@
 }
 
 .footnote-ref a:is(:hover, :focus-visible) .footnote-cell .footnote-screen,
-.footnote-ref:is(.footnote-hit, .footnote-left, :has(.footnote-anchor:target)) .footnote-cell .footnote-screen {
+.footnote-ref:is(.footnote-hit, .footnote-left, :has(a:target)) .footnote-cell .footnote-screen {
   background : var(--color-citation-fill);
   color      : var(--color-citation-white);
 }
@@ -129,7 +127,10 @@
   transition : fill var(--default-transition-duration);
 }
 
-.footnote-shine { fill: var(--color-citation-white); }
+.footnote-shine {
+  fill    : var(--color-citation-white);
+  opacity : 0.85;
+}
 
 .footnote-bolt {
   fill       : var(--footnote-shell, var(--color-citation-shell));
@@ -138,9 +139,9 @@
 
 .footnote-camera-two { fill: var(--color-citation-camera); }
 
-.footnote-ref a:first-child:is(:hover, :focus-visible),
-.footnote-ref:is(.footnote-hit, .footnote-left, :has(.footnote-anchor:target)),
-.footnote-run:has(a:is(:hover, :focus-visible), .footnote-hit, .footnote-left, .footnote-anchor:target) { --footnote-shell: var(--color-citation-press); }
+.footnote-ref a:is(:hover, :focus-visible),
+.footnote-ref:is(.footnote-hit, .footnote-left, :has(a:target)),
+.footnote-run:has(a:is(:hover, :focus-visible), .footnote-hit, .footnote-left, a:target) { --footnote-shell: var(--color-citation-press); }
 
 .footnote-item:is(.footnote-hit, :target) .footnote-lens,
 .footnotes:has(.footnote-hit, .footnote-item:target) .footnote-phone-art .footnote-lens { fill: var(--color-citation-lit); }
@@ -320,7 +321,7 @@
 
 .vp-doc .footnote-item .footnote-backref[aria-current] {
   background    : var(--color-citation-white);
-  border-radius : var(--radius-swatch);
+  border-radius : var(--radius-footnote-current);
   color         : var(--color-citation-fill);
 }
 

@@ -26,11 +26,11 @@ describe('the markers', () => {
   it('anchors a footnote by its key and numbers every marker of one source alike', async () => {
     const html = await rendered(`One.[^pardo2018] Two.[^mnih2015] Three.[^pardo2018]\n\n${MNIH}\n\n${PARDO}\n`)
 
-    expect(count(html, '<a aria-label="Source 1" href="#footnote-pardo2018">')).toBe(2)
-    expect(html).toContain('<a aria-label="Source 2" href="#footnote-mnih2015">')
+    expect(count(html, '<a aria-label="Source 1" href="#footnote-pardo2018"')).toBe(2)
+    expect(html).toContain('<a aria-label="Source 2" href="#footnote-mnih2015"')
     expect(html).toContain('id="footnote-pardo2018"')
-    expect(html).toContain('id="footnote-ref-pardo2018"')
-    expect(html).toContain('id="footnote-ref-pardo2018:1"')
+    expect(html).toContain('href="#footnote-pardo2018" id="footnote-ref-pardo2018">')
+    expect(html).toContain('href="#footnote-pardo2018" id="footnote-ref-pardo2018:1">')
     expect(html).not.toContain('[1:1]')
     expect(html).toContain('<a aria-label="Back to citation 2 of source 1" class="footnote-backref" href="#footnote-ref-pardo2018:1">')
   })
@@ -89,18 +89,10 @@ describe('the definitions', () => {
     expect(html).toContain('>The page</a>')
   })
 
-  it('leaves a definition holding no year as written, under its own label', async () => {
-    const html = await rendered('One.[^note] Two.^[Inline.]\n\n[^note]: A note.\n')
-
-    expect(html).toContain('href="#footnote-note"')
-    expect(html).toContain('href="#footnote-2"')
-    expect(html).toContain('<p>A note.')
-    expect(html).not.toContain('footnote-name')
-  })
-
   it('holds the list on the phone, with its art hidden from the accessibility tree', async () => {
     const html = await rendered(`One.[^mnih2015]\n\n${MNIH}\n`)
 
+    expect(html).toContain('<hr class="footnotes-sep">')
     expect(html).toMatch(/<section class="footnotes footnote-snap">.*<div aria-hidden="true" class="footnote-phone-art">.*<ol class="footnotes-list">/su)
     expect(html).toContain('</ol></div></div></div></section>')
   })
@@ -110,5 +102,31 @@ describe('the definitions', () => {
 
     expect(html).toContain('<strong class="footnote-name">Mnih 2015.</strong>')
     expect(html).toContain('<p>More.')
+  })
+})
+
+describe('a footnote under another label', () => {
+  it('leaves a definition holding no year as written, under its own label', async () => {
+    const html = await rendered('One.[^note] Two.^[Inline.]\n\n[^note]: A note.\n')
+
+    expect(html).toContain('href="#footnote-note"')
+    expect(html).toContain('href="#footnote-2"')
+    expect(html).toContain('<p>A note.')
+    expect(html).not.toContain('footnote-name')
+  })
+
+  it('escapes a label holding a quote in each attribute it lands in', async () => {
+    const html = await rendered('One.[^a"b]\n\n[^a"b]: A note.\n')
+
+    expect(html).toContain('href="#footnote-a&quot;b" id="footnote-ref-a&quot;b"')
+    expect(html).toContain('id="footnote-a&quot;b"')
+    expect(html).toContain('href="#footnote-ref-a&quot;b"')
+  })
+
+  it('leaves a footnote under another label as written, a year inside it or not', async () => {
+    const html = await rendered('One.[^note]\n\n[^note]: A note from 2020. Stands as written.\n')
+
+    expect(html).toContain('<p>A note from 2020. Stands as written.')
+    expect(html).not.toContain('footnote-name')
   })
 })

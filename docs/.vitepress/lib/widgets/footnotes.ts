@@ -14,7 +14,7 @@ function offset(written: string): number {
  * `pushState` leaves `:target` where it was. The entry or the marker landed on
  * takes `footnote-hit` and the end left takes `footnote-left`, and the way back
  * to the marker pressed takes `aria-current`, each a change of color alone, so
- * no word moves.
+ * no word moves. The router's own scroll focuses the end landed on.
  */
 export function followFootnotes(root: Document) {
   const clear = () => {
@@ -24,7 +24,7 @@ export function followFootnotes(root: Document) {
 
   root.addEventListener('click', event => {
     const link   = (event.target as Element).closest<HTMLAnchorElement>('.footnote-ref a[href], .footnote-backref')
-    const target = link && root.querySelector<HTMLElement>(`[id="${decodeURIComponent(link.hash.slice(1))}"]`)
+    const target = link && root.querySelector<HTMLElement>(`#${CSS.escape(decodeURIComponent(link.hash.slice(1)))}`)
     if (!target) return
 
     clear()
@@ -34,14 +34,10 @@ export function followFootnotes(root: Document) {
     if (marker) {
       target.classList.add('footnote-hit')
       marker.classList.add('footnote-left')
-      target.querySelector(`.footnote-backref[href="#${marker.querySelector('.footnote-anchor')!.id}"]`)?.setAttribute('aria-current', 'location')
-      target.setAttribute('tabindex', '-1')
-      target.focus({ preventScroll: true })
+      target.querySelector(`.footnote-backref[href="#${CSS.escape(link.id)}"]`)?.setAttribute('aria-current', 'location')
     } else {
-      const landed = target.closest('sup.footnote-ref')!
-      landed.classList.add('footnote-hit')
+      target.closest('sup.footnote-ref')!.classList.add('footnote-hit')
       link.closest('.footnote-item')!.classList.add('footnote-left')
-      landed.querySelector('a')!.focus({ preventScroll: true })
     }
   })
 }
@@ -81,11 +77,17 @@ export function watchFootnotes(router: Pick<Router, 'onAfterRouteChange'>, root:
   const view  = root.defaultView!
   const after = router.onAfterRouteChange
   const snap  = () => snapFootnotes(root)
+  const watchRatio = () => {
+    view.matchMedia(`(resolution: ${view.devicePixelRatio || 1}dppx)`).addEventListener('change', () => {
+      snap()
+      watchRatio()
+    }, { once: true })
+  }
 
   followFootnotes(root)
   new view.ResizeObserver(snap).observe(root.documentElement)
   root.fonts?.addEventListener('loadingdone', snap)
-  view.matchMedia(`(resolution: ${view.devicePixelRatio || 1}dppx)`).addEventListener('change', snap)
+  watchRatio()
 
   router.onAfterRouteChange = async to => {
     await after?.(to)

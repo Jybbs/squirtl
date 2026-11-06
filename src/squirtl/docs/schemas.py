@@ -9,16 +9,18 @@ Defines the records `squirtl cite` and `squirtl write docs` read:
 
 from abc          import ABC, abstractmethod
 from bibtexparser import parse_string
+from bibtexparser.library import Library
 from bibtexparser.middlewares import (
     LatexDecodingMiddleware, SeparateCoAuthors, SplitNameParts
 )
+from bibtexparser.model       import Block, Entry
 from collections.abc          import Iterator
 from markdown_it              import MarkdownIt
 from mdit_py_plugins.footnote import footnote_plugin
 from operator                 import attrgetter
 from pathlib import Path
 from pydantic            import (
-    BeforeValidator, Field, ValidationError, model_validator
+    BeforeValidator, ConfigDict, Field, ValidationError, model_validator
 )
 from re          import fullmatch, sub
 from subprocess  import check_output
@@ -31,8 +33,11 @@ from squirtl.emulator.schemas import Record
 class Source(Record, ABC):
     """
     One entry of `docs/references.bib`, whose kind sets how its definition
-    names its venue and links its address.
+    names its venue and links its address, a blank field failing as a
+    missing one does.
     """
+
+    model_config = ConfigDict(str_min_length=1)
 
     authors: Annotated[
         tuple[str, ...],
@@ -253,6 +258,22 @@ class Preprint(Source):
         return f"arXiv:{self.eprint}."
 
 
+class Fault(Record):
+    """
+    One way a Markdown file diverges from what `docs:write` writes into it.
+    """
+
+    line: int
+    """
+    The line the divergence sits on, counting from 1.
+    """
+
+    message: str
+    """
+    What diverges, as one sentence.
+    """
+
+
 class Bibliography(Record):
     """
     Every source `docs/references.bib` declares.
@@ -285,8 +306,9 @@ class Bibliography(Record):
     @classmethod
     def read(cls) -> Self:
         """
-        Reads `path` through `bibtexparser`, decoding its LaTeX and
-        splitting each author's name into its parts.
+        Reads `path` through `bibtexparser`, decoding the LaTeX of every
+        field but an address and splitting each author's name into its
+        parts.
 
         Raises:
             SyntaxError: Where a block fails to parse, repeats a key, or
@@ -296,7 +318,7 @@ class Bibliography(Record):
         library = parse_string(
             cls.path.read_text(encoding="utf-8"),
             append_middleware = [
-                LatexDecodingMiddleware(),
+                ProseDecoding(),
                 SeparateCoAuthors(),
                 SplitNameParts()
             ]
@@ -331,22 +353,6 @@ class Bibliography(Record):
             ) from error
 
 
-class Fault(Record):
-    """
-    One way a Markdown file diverges from what `docs:write` writes into it.
-    """
-
-    line: int
-    """
-    The line the divergence sits on, counting from 1.
-    """
-
-    message: str
-    """
-    What diverges, as one sentence.
-    """
-
-
 class Marker(Record):
     """
     One footnote labeled by a key, where a Markdown file cites or defines
@@ -369,6 +375,28 @@ class Marker(Record):
         Writes the sentence reporting that the key names no source.
         """
         return f"`[^{self.key}]` names no entry of `{Bibliography.path}`"
+
+
+class ProseDecoding(LatexDecodingMiddleware):
+    """
+    Decodes the LaTeX of every field but an address, where `%`, `~`, and `&`
+    stand for themselves rather than a comment, a space, and a column.
+    """
+
+    addresses: ClassVar[frozenset[str]] = frozenset({"doi", "eprint", "url"})
+
+    def transform_entry(self, entry: Entry, library: Library) -> Block:
+        """
+        Holds each address aside while the rest of `entry` decodes.
+        """
+        held = [field for field in entry.fields if field.key in self.addresses]
+
+        entry.fields = [field for field in entry.fields if field not in held]
+
+        try:
+            return super().transform_entry(entry, library)
+        finally:
+            entry.fields = [*entry.fields, *held]
 
 
 class Definition(Marker):
@@ -545,8 +573,18 @@ class Manuscript(Record):
         under which a marker with no definition still reads as a marker and
         a marker inside code reads as code, leaving out a marker inside a
         definition labeled by a key, which a write replaces.
+
+        Raises:
+            SyntaxError: Where the file does not decode as UTF-8, naming it.
         """
-        text   = path.read_text(encoding="utf-8")
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as error:
+            raise SyntaxError(
+                f"`{path}` fails to decode with {error}",
+                (str(path), None, None, None)
+            ) from error
+
         tokens = MarkdownIt("commonmark").use(
             footnote_plugin,
             always_match_refs = True,
@@ -567,17 +605,17 @@ class Manuscript(Record):
         markers = []
 
         for token in filter(attrgetter("children"), tokens):
-            line = token.map[0] + 1
+            place = 0
 
             for child in token.children:
-                line += child.type in ("hardbreak", "softbreak")
+                if child.type == "footnote_ref" and cls.keyed(child.meta["label"]):
+                    place = token.content.index(f"[^{child.meta['label']}]", place)
+                    line  = token.map[0] + 1 + token.content.count("\n", 0, place)
 
-                if (
-                    child.type == "footnote_ref"
-                    and cls.keyed(child.meta["label"])
-                    and line not in written
-                ):
-                    markers.append(Marker(key=child.meta["label"], line=line))
+                    if line not in written:
+                        markers.append(Marker(key=child.meta["label"], line=line))
+
+                    place += 1
 
         return cls(
             definitions = definitions,

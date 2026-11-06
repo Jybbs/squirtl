@@ -227,6 +227,19 @@ def manuscript(checkout: Callable[[Mapping[str, str]], None]) -> Writer:
             },
             '[^muller2020]: Müller 2020. "Pé." arXiv:1. <https://arxiv.org/abs/1>',
             id = "latex"
+        ),
+        param(
+            "inproceedings",
+            "smith2020",
+            {
+                "author"    : "Smith, A.",
+                "booktitle" : "B",
+                "title"     : "T",
+                "url"       : "https://a.org/~s/a%20b?x=1&y=2",
+                "year"      : "2020"
+            },
+            '[^smith2020]: Smith 2020. "T." *B*. <https://a.org/~s/a%20b?x=1&y=2>',
+            id = "address-holding-latex-marks"
         )
     ]
 )
@@ -253,6 +266,19 @@ def test_a_source_writes_its_definition(
             3,
             "title",
             id = "missing-field"
+        ),
+        param(
+            "@misc{smith2020, author = {Smith, A.}, title = {T}, year = {2020}, "
+            "eprint = {}}",
+            1,
+            "eprint",
+            id = "blank-field"
+        ),
+        param(
+            "@misc{smith2020, author = {}, title = {T}, year = {2020}, eprint = {1}}",
+            1,
+            "author",
+            id = "no-author"
         ),
         param(
             "\n" + entry(
@@ -303,9 +329,9 @@ def test_a_bibliography_refuses_an_entry_at_its_line(
     read    : Reader
 ):
     """
-    Pins that a missing field, a key disagreeing with its entry, a duplicate
-    key, a broken block, and a kind no record takes each fail the read at
-    the line the entry opens on.
+    Pins that a missing or blank field, a key disagreeing with its entry, a
+    duplicate key, a broken block, and a kind no record takes each fail the
+    read at the line the entry opens on.
     """
     with raises(SyntaxError, match=message) as raised:
         read(entries)
@@ -357,6 +383,45 @@ def test_a_manuscript_reads_each_marker_and_definition_at_its_line(manuscript: W
         (definition.key, definition.line, definition.end)
         for definition in read.definitions
     ] == [("smith2020", 13, 14)]
+
+
+@mark.parametrize(
+    ("text", "lines"),
+    [
+        param("One `a\nb` two\nthree[^smith2020]\n", [3], id="code-span"),
+        param(
+            'One <span\nclass="a"> two\nthree[^smith2020]\n',
+            [3],
+            id = "inline-html"
+        ),
+        param("One[^smith2020]\ntwo[^smith2020]\n", [1, 2], id="repeated-key")
+    ]
+)
+def test_a_manuscript_counts_each_newline_a_paragraph_holds(
+    lines      : list[int],
+    manuscript : Writer,
+    text       : str
+):
+    """
+    Pins a marker's line past a newline that no line break token carries,
+    and each repeat of a key at a line of its own.
+    """
+    assert [marker.line for marker in manuscript(text).markers] == lines
+
+
+def test_a_manuscript_refuses_a_file_that_does_not_decode_naming_it(tmp_path: Path):
+    """
+    Pins that a tracked file holding anything but UTF-8 fails its read under
+    its own name.
+    """
+    path = tmp_path / "bad.md"
+
+    path.write_bytes(b"caf\xe9\n")
+
+    with raises(SyntaxError, match=r"bad\.md` fails to decode") as raised:
+        Manuscript.read(path)
+
+    assert raised.value.filename == str(path)
 
 
 @mark.parametrize(
@@ -475,6 +540,21 @@ def test_a_manuscript_refuses_an_unknown_key_at_its_file_and_line(
             f"One.[^smith2020]\n\n{SMITH}",
             [(3, "The file ends on something other")],
             id = "no-newline"
+        ),
+        param(
+            "One.[^nobody1999]\n\nTwo.[^nobody1999]\n",
+            [(1, "`[^nobody1999]` names no entry")],
+            id = "unknown-at-its-first-marker"
+        ),
+        param(
+            f"One.[^smith2020]\n\n{SMITH}\n\n    By hand.\n",
+            [(3, "`[^smith2020]` differs")],
+            id = "hand-typed-continuation"
+        ),
+        param(
+            f"One.[^smith2020] Two.[^jones2021]\n\n{JONES}\n",
+            [(1, "`[^smith2020]` has no definition")],
+            id = "missing-beside-one-in-its-place"
         )
     ]
 )

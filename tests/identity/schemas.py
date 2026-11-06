@@ -221,6 +221,7 @@ def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
         "  --border-width-bar: 3px;", "  --spacing-4: 1rem;",
         "  --text-label: 0.6875rem;"
     } <= {*lines}
+    assert "--color-citation-shell" in names
 
 
 @mark.parametrize(

@@ -5,6 +5,7 @@ import { BACK_ARROW, PHONE_ART, cell, lone, opener } from '../drawing/phone.ts'
 type RuleState = Parameters<Parameters<MarkdownRenderer['core']['ruler']['push']>[1]>[0]
 type Token     = RuleState['tokens'][number]
 
+const SOURCE_KEY  = /^[a-z]+\d{4}[a-z]?$/u
 const WORD_JOINER = '⁠'
 
 /**
@@ -18,10 +19,11 @@ function raw(state: RuleState, type: 'html_block' | 'html_inline', content: stri
 
 /**
  * Writes the id part naming a footnote's definition and its markers by the
- * key its label holds, or by its number where it has no label.
+ * key its label holds, escaped for the attribute it lands in, or by its number
+ * where it has no label.
  */
-function anchored({ meta }: Token): string {
-  return `-${meta.label ?? meta.id + 1}`
+function anchored(md: MarkdownRenderer, { meta }: Token): string {
+  return `-${md.utils.escapeHtml(meta.label ?? String(meta.id + 1))}`
 }
 
 /**
@@ -81,9 +83,9 @@ function breakAddresses(state: RuleState, inline: Token) {
 }
 
 /**
- * Splits the authors and the year out of a definition's opening text into a
- * name line ahead of its paragraph, leaving a definition of another form as
- * written.
+ * Splits the authors and the year out of the opening text of a definition
+ * labeled by a key into a name line ahead of its paragraph, any other footnote
+ * standing as written.
  *
  * Returns:
  *   The name line, or nothing where the opening text holds no year.
@@ -105,11 +107,13 @@ function nameLine(state: RuleState, inline?: Token): Token[] {
  */
 function entries(state: RuleState) {
   const tokens: Token[] = []
+  let   keyed  = false
   let   opened: Token[] | null = null
 
   for (const token of state.tokens) {
     if (token.type === 'footnote_open') {
       tokens.push(token, raw(state, 'html_block', opener(token.meta.id + 1)))
+      keyed  = SOURCE_KEY.test(token.meta.label ?? '')
       opened = []
     } else if (token.type === 'footnote_close') {
       const held    = opened!
@@ -120,7 +124,7 @@ function entries(state: RuleState) {
       for (const inline of inlines) breakAddresses(state, inline)
 
       tokens.push(
-        ...nameLine(state, inlines[0]),
+        ...(keyed ? nameLine(state, inlines[0]) : []),
         ...blocks,
         raw(state, 'html_block', '<span class="footnote-backs">'),
         ...backs,
@@ -144,21 +148,21 @@ function entries(state: RuleState) {
 export function footnotes(md: MarkdownRenderer) {
   const { rules } = md.renderer
 
-  rules.footnote_anchor_name = (tokens, index) => anchored(tokens[index]!)
+  rules.footnote_anchor_name = (tokens, index) => anchored(md, tokens[index]!)
 
   rules.footnote_ref = (tokens, index) => {
     const token  = tokens[index]!
     const { id, run } = token.meta
     const number = id + 1
     const mark   = run?.numbers.length > 1 ? cell(number, run.numbers, run.position) : lone(number)
-    const name   = anchored(token)
-    return `<sup class="footnote-ref"><a aria-label="Source ${number}" href="#footnote${name}">${mark}</a><a class="footnote-anchor" id="footnote-ref${name}${repeat(token)}"></a></sup>`
+    const name   = anchored(md, token)
+    return `<sup class="footnote-ref"><a aria-label="Source ${number}" href="#footnote${name}" id="footnote-ref${name}${repeat(token)}">${mark}</a></sup>`
   }
 
   rules.footnote_anchor = (tokens, index) => {
     const token = tokens[index]!
     const { id, subId } = token.meta
-    return `<a aria-label="Back to citation ${subId + 1} of source ${id + 1}" class="footnote-backref" href="#footnote-ref${anchored(token)}${repeat(token)}">${BACK_ARROW}</a>`
+    return `<a aria-label="Back to citation ${subId + 1} of source ${id + 1}" class="footnote-backref" href="#footnote-ref${anchored(md, token)}${repeat(token)}">${BACK_ARROW}</a>`
   }
 
   rules.footnote_block_open = () => `<hr class="footnotes-sep"><section class="footnotes footnote-snap"><div class="footnote-phone"><div aria-hidden="true" class="footnote-phone-art">${PHONE_ART}</div><div class="footnote-phone-body"><div class="footnote-phone-glass"><ol class="footnotes-list">\n`

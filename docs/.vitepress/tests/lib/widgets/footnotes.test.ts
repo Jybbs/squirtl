@@ -7,8 +7,7 @@ const PAGE = `
   <p>
     <span class="footnote-run">
       <sup class="footnote-ref" id="marker">
-        <a id="press" href="#footnote-mnih2015"><span class="footnote-tile"></span></a>
-        <a class="footnote-anchor" id="footnote-ref-mnih2015"></a>
+        <a id="footnote-ref-mnih2015" href="#footnote-mnih2015"><span class="footnote-tile"></span></a>
       </sup>
     </span>
     <a id="other" href="#elsewhere">Other</a>
@@ -46,19 +45,17 @@ beforeEach(() => {
 describe('followFootnotes', () => {
   it('marks the entry landed on, the marker left, and the way back to that marker', () => {
     followFootnotes(document)
-    press('press')
+    press('footnote-ref-mnih2015')
 
     expect(document.querySelector('#footnote-mnih2015')!.classList).toContain('footnote-hit')
     expect(document.querySelector('#marker')!.classList).toContain('footnote-left')
     expect(document.querySelector('#back')!.getAttribute('aria-current')).toBe('location')
     expect(document.querySelector('#back-two')!.hasAttribute('aria-current')).toBe(false)
-    expect(document.querySelector('#footnote-mnih2015')!.getAttribute('tabindex')).toBe('-1')
-    expect(document.activeElement).toBe(document.querySelector('#footnote-mnih2015'))
   })
 
   it('marks the marker landed on and the entry left on the way back, clearing the jump before it', () => {
     followFootnotes(document)
-    press('press')
+    press('footnote-ref-mnih2015')
     press('back')
 
     expect(document.querySelector('#marker')!.classList).toContain('footnote-hit')
@@ -66,7 +63,6 @@ describe('followFootnotes', () => {
     expect(document.querySelector('#footnote-mnih2015')!.classList).toContain('footnote-left')
     expect(document.querySelector('#footnote-mnih2015')!.classList).not.toContain('footnote-hit')
     expect(document.querySelector('[aria-current]')).toBeNull()
-    expect(document.activeElement).toBe(document.querySelector('#press'))
   })
 
   it.each([
@@ -74,10 +70,42 @@ describe('followFootnotes', () => {
     ['a way back to no marker', 'gone']
   ])('leaves the marks alone on %s', (_, id) => {
     followFootnotes(document)
-    press('press')
+    press('footnote-ref-mnih2015')
     press(id)
 
     expect(document.querySelector('#footnote-mnih2015')!.classList).toContain('footnote-hit')
+  })
+})
+
+describe('followFootnotes through a repeated marker and an encoded label', () => {
+  it('marks the way back to a repeated marker rather than the first', () => {
+    const marker = document.querySelector<HTMLElement>('.footnote-ref a')!
+
+    marker.id = 'footnote-ref-mnih2015:1'
+    followFootnotes(document)
+    marker.click()
+
+    expect(document.querySelector('#back')!.hasAttribute('aria-current')).toBe(false)
+    expect(document.querySelector('#back-two')!.getAttribute('aria-current')).toBe('location')
+  })
+
+  it('finds a repeated marker from its way back, whose id holds a colon', () => {
+    const marker = document.querySelector<HTMLElement>('.footnote-ref a')!
+
+    marker.id = 'footnote-ref-mnih2015:1'
+    followFootnotes(document)
+    press('back-two')
+
+    expect(document.querySelector('#marker')!.classList).toContain('footnote-hit')
+  })
+
+  it('decodes the address of a label outside ASCII', () => {
+    document.body.innerHTML = '<sup class="footnote-ref"><a href="#footnote-m%C3%BCller" id="footnote-ref-a"></a></sup><ol><li id="footnote-müller"></li></ol>'
+    document.querySelector('a')!.addEventListener('click', event => event.preventDefault())
+    followFootnotes(document)
+    document.querySelector('a')!.click()
+
+    expect(document.querySelector('li')!.classList).toContain('footnote-hit')
   })
 })
 
@@ -101,10 +129,12 @@ describe('snapFootnotes', () => {
   it('adds a move to the offset the piece already holds', () => {
     boxAt('.footnote-tile', 3.25, 4)
     document.querySelector<HTMLElement>('.footnote-run')!.style.left = '1px'
+    document.querySelector<HTMLElement>('.footnote-run')!.style.top = '1px'
 
     snapFootnotes(document)
 
     expect(document.querySelector<HTMLElement>('.footnote-run')!.style.left).toBe('0.75px')
+    expect(document.querySelector<HTMLElement>('.footnote-run')!.style.top).toBe('1px')
   })
 
   it('leaves a piece with no box or no art where it stands', () => {
@@ -189,9 +219,29 @@ describe('watchFootnotes', () => {
     const router = { onAfterRouteChange: undefined as ((to: string) => void) | undefined }
 
     watchFootnotes(router, document)
-    press('press')
+    press('footnote-ref-mnih2015')
     await router.onAfterRouteChange!('/next')
 
     expect(document.querySelector('#footnote-mnih2015')!.classList).toContain('footnote-hit')
+  })
+})
+
+describe('watchFootnotes across changes of the ratio', () => {
+  it('watches the ratio it reaches after a change of device pixel ratio', () => {
+    const view      = document.defaultView!
+    const listeners: (() => void)[] = []
+
+    vi.spyOn(view, 'ResizeObserver').mockImplementation(function observer() {
+      return { observe: vi.fn<() => void>() } as unknown as ResizeObserver
+    })
+    const media = vi.spyOn(view, 'matchMedia').mockImplementation(() => ({
+      addEventListener: (_: string, listener: () => void) => listeners.push(listener)
+    }) as unknown as MediaQueryList)
+
+    watchFootnotes({ onAfterRouteChange: undefined }, document)
+    listeners[0]!()
+
+    expect(media).toHaveBeenCalledTimes(2)
+    expect(listeners).toHaveLength(2)
   })
 })
