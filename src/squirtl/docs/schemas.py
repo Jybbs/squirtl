@@ -37,7 +37,7 @@ class Source(Record, ABC):
     missing one does.
     """
 
-    model_config = ConfigDict(str_min_length=1)
+    model_config = ConfigDict(str_min_length=1, str_strip_whitespace=True)
 
     authors: Annotated[
         tuple[str, ...],

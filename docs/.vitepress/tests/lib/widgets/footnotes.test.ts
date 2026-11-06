@@ -51,6 +51,7 @@ describe('followFootnotes', () => {
     expect(document.querySelector('#marker')!.classList).toContain('footnote-left')
     expect(document.querySelector('#back')!.getAttribute('aria-current')).toBe('location')
     expect(document.querySelector('#back-two')!.hasAttribute('aria-current')).toBe(false)
+    expect(document.querySelector('#footnote-mnih2015')!.hasAttribute('tabindex')).toBe(false)
   })
 
   it('marks the marker landed on and the entry left on the way back, clearing the jump before it', () => {
@@ -243,5 +244,21 @@ describe('watchFootnotes across changes of the ratio', () => {
 
     expect(media).toHaveBeenCalledTimes(2)
     expect(listeners).toHaveLength(2)
+  })
+
+  it('listens to each ratio once', () => {
+    const view = document.defaultView!
+    const options: unknown[] = []
+
+    vi.spyOn(view, 'ResizeObserver').mockImplementation(function observer() {
+      return { observe: vi.fn<() => void>() } as unknown as ResizeObserver
+    })
+    vi.spyOn(view, 'matchMedia').mockReturnValue({
+      addEventListener: (_: string, __: () => void, option: unknown) => options.push(option)
+    } as unknown as MediaQueryList)
+
+    watchFootnotes({ onAfterRouteChange: undefined }, document)
+
+    expect(options).toStrictEqual([{ once: true }])
   })
 })

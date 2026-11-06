@@ -275,6 +275,13 @@ def test_a_source_writes_its_definition(
             id = "blank-field"
         ),
         param(
+            "@misc{smith2020, author = {Smith, A.}, title = {T}, year = {2020}, "
+            "eprint = { }}",
+            1,
+            "eprint",
+            id = "whitespace-field"
+        ),
+        param(
             "@misc{smith2020, author = {}, title = {T}, year = {2020}, eprint = {1}}",
             1,
             "author",
