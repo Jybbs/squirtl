@@ -19,6 +19,7 @@ from re     import fullmatch
 from typing import ClassVar, Self
 
 from squirtl.docs.outputs     import Inventory
+from squirtl.docs.schemas     import Bibliography, Manuscripts
 from squirtl.emulator.schemas import Record
 from squirtl.repo.schemas import (
     Actions, Citation, Finding, Labels, License, Lockfile, Manifest, MiseConfig,
@@ -296,6 +297,39 @@ class Docstrings(Check):
                         line    = node.lineno,
                         message = f"`{node.name}` in `{file}` carries no docstring"
                     )
+
+
+class Footnotes(Check):
+    """
+    Holds each footnote labeled by a key in every Markdown file git tracks
+    to what `docs/references.bib` writes, so an unknown key, a hand-typed
+    or stale definition, a misplaced one, and an uncited one each fail the
+    audit.
+    """
+
+    bibliography: Bibliography
+
+    manuscripts: Manuscripts
+
+    @classmethod
+    def read(cls, documents: Callable[[type], Record]) -> Self:
+        """
+        Builds the check as `Check.read` does, raising `Unreadable` on
+        `docs/references.bib` where it fails to read, git cannot list the
+        Markdown files, or one of them fails to decode, the message naming
+        that file.
+        """
+        with Finding.reading(Bibliography.path):
+            return super().read(documents)
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding at the line of each way a Markdown file diverges
+        from what `squirtl write docs` writes into it.
+        """
+        for file in self.manuscripts.files:
+            for fault in file.faults(self.bibliography):
+                yield Finding(file=file.path, line=fault.line, message=fault.message)
 
 
 class Gates(Check):
@@ -710,9 +744,9 @@ class Pins(Check):
 
 class Rendered(Check):
     """
-    Holds each file `squirtl write docs` writes to the declaration it is
-    written from, so a hand edit and a declaration changed without `mise
-    write` each fail the audit.
+    Holds each file the inventory lists to the declaration it is written
+    from, so a hand edit and a declaration changed without `mise write` each
+    fail the audit.
     """
 
     identity: ClassVar[Path] = Path("src/squirtl/identity/identity.toml")

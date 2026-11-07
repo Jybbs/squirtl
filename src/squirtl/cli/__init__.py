@@ -44,6 +44,7 @@ app = App(
     name              = "squirtl"
 )
 
+register(app, "squirtl.cli.cite:cite")
 register(app, "squirtl.cli.evaluate:evaluate")
 register(app, "squirtl.cli.stop:stop")
 register(

@@ -169,6 +169,52 @@
       "name": "Earth"
     }
   ],
+  "citation": {
+    "bolt": {
+      "dark": "#ffd84a",
+      "light": "#ffd84a"
+    },
+    "camera": {
+      "dark": "#59606e",
+      "light": "#59606e"
+    },
+    "fill": {
+      "dark": "#b5431f",
+      "light": "#b5431f"
+    },
+    "lens": {
+      "dark": "#2f9fdc",
+      "light": "#2f9fdc"
+    },
+    "lit": {
+      "dark": "#9bebff",
+      "light": "#9bebff"
+    },
+    "pane": {
+      "dark": "#dde9f0",
+      "light": "#dde9f0"
+    },
+    "press": {
+      "dark": "#e8694a",
+      "light": "#b5431f"
+    },
+    "ring": {
+      "dark": "#2a2f3a",
+      "light": "#2a2f3a"
+    },
+    "shell": {
+      "dark": "#d05a35",
+      "light": "#d05a35"
+    },
+    "text": {
+      "dark": "#f0a080",
+      "light": "#a43a17"
+    },
+    "white": {
+      "dark": "#ffffff",
+      "light": "#ffffff"
+    }
+  },
   "colors": {
     "accent-1": {
       "hex": "#c08597",
@@ -872,35 +918,64 @@
       "1": 4,
       "2": 8,
       "3": 12,
+      "footnote-current": 3,
+      "footnote-glass": 16,
+      "footnote-phone": 22,
       "swatch": 2
     },
     "sizes": {
-      "chip-block": 6,
-      "chip-end": 10,
-      "hero-flight": 544,
-      "key-mark": 18,
-      "mark": 22,
-      "mark-art": 14,
-      "missing-page": 1024,
-      "missing-screen": 480,
-      "race-plot": 226,
-      "reward-climb": 288,
-      "ribbon": 54,
-      "ribbon-circle": 38,
-      "ribbon-circle-narrow": 32,
-      "ribbon-long": 148,
-      "ribbon-narrow": 44,
-      "ribbon-room": 72,
-      "ribbon-short": 112,
-      "ribbon-tail": 30,
-      "ribbon-tail-narrow": 22,
-      "sees-seam": 2,
-      "story-between": 88,
-      "story-foot": 36,
-      "story-number": 56,
-      "story-side": 40,
-      "story-widget": 34,
-      "swatch": 10
+      "chip-block": 6.0,
+      "chip-end": 10.0,
+      "footnote-above": 12.0,
+      "footnote-alone": 17.0,
+      "footnote-alone-screen": 13.0,
+      "footnote-band": 26.0,
+      "footnote-below": 6.0,
+      "footnote-bezel": 7.0,
+      "footnote-bolt": 26.0,
+      "footnote-camera-top": 17.0,
+      "footnote-cell": 11.0,
+      "footnote-cell-wide": 18.0,
+      "footnote-corner": 5.0,
+      "footnote-foot": 20.0,
+      "footnote-glass-top": 22.0,
+      "footnote-lead": 13.0,
+      "footnote-line": 22.0,
+      "footnote-opener": 36.0,
+      "footnote-opener-height": 54.0,
+      "footnote-opener-left": 19.0,
+      "footnote-opener-line": 18.0,
+      "footnote-opener-top": 21.0,
+      "footnote-phone-top": 34.0,
+      "footnote-rise": 6.5,
+      "footnote-screen": 9.0,
+      "footnote-screen-height": 11.0,
+      "footnote-shell": 3.0,
+      "footnote-tile": 14.0,
+      "hero-flight": 544.0,
+      "key-mark": 18.0,
+      "mark": 22.0,
+      "mark-art": 14.0,
+      "missing-page": 1024.0,
+      "missing-screen": 480.0,
+      "race-plot": 226.0,
+      "reward-climb": 288.0,
+      "ribbon": 54.0,
+      "ribbon-circle": 38.0,
+      "ribbon-circle-narrow": 32.0,
+      "ribbon-long": 148.0,
+      "ribbon-narrow": 44.0,
+      "ribbon-room": 72.0,
+      "ribbon-short": 112.0,
+      "ribbon-tail": 30.0,
+      "ribbon-tail-narrow": 22.0,
+      "sees-seam": 2.0,
+      "story-between": 88.0,
+      "story-foot": 36.0,
+      "story-number": 56.0,
+      "story-side": 40.0,
+      "story-widget": 34.0,
+      "swatch": 10.0
     },
     "spacing": {
       "0": 0,
@@ -919,6 +994,8 @@
     },
     "text": {
       "body": 16,
+      "citation": 12,
+      "citation-opener": 16,
       "figure": 20,
       "hero": 44,
       "label": 11,

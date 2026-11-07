@@ -5,7 +5,7 @@ Pins what the `squirtl` command itself defines, covering:
   docstring, beside the version the package metadata carries
 - The script `[project.scripts]` points at the app
 - The modules `squirtl --help` and `squirtl stop` import, which leave out
-  `torch`, SciPy, and `pyboy`
+  `torch`, SciPy, `pyboy`, and the packages reading `docs/references.bib`
 - How a command reads its settings:
 
    - Each setting comes from its flag, then the `[tool.squirtl]` table of
@@ -243,6 +243,7 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
     "command",
     [
         param([],           id="the-app"),
+        param(["cite"],     id="cite"),
         param(["evaluate"], id="evaluate"),
         param(["stop"],     id="stop"),
         param(["train"],    id="train"),
@@ -306,9 +307,9 @@ def test_help_and_stop_import_neither_torch_nor_scipy_nor_pyboy(
     """
     Asserts that `squirtl --help` and `squirtl stop` on a run's directory,
     each started in an interpreter of its own whose `-v` flag logs every
-    module it imports, exit zero with none of `torch`, SciPy, or `pyboy`
-    among those modules and only the modules of the package their fixture
-    file holds.
+    module it imports, exit zero with none of `torch`, SciPy, `pyboy`,
+    `bibtexparser`, `mdit_py_plugins`, or `pylatexenc` among those modules
+    and only the modules of the package their fixture file holds.
     """
     finished = run(
         [
@@ -322,7 +323,7 @@ def test_help_and_stop_import_neither_torch_nor_scipy_nor_pyboy(
     modules = findall(r"^import '(.+?)'", finished.stderr, MULTILINE)
 
     assert {module.partition(".")[0] for module in modules}.isdisjoint(
-        {"pyboy", "scipy", "torch"}
+        {"bibtexparser", "mdit_py_plugins", "pyboy", "pylatexenc", "scipy", "torch"}
     )
     assert "\n".join(
         sorted(module for module in modules if module.startswith("squirtl"))

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createApp, reactive, ref } from 'vue'
 
 vi.mock('vitepress/theme-without-fonts', () => ({ default: {} }))
+vi.mock('vitepress', async original => ({ ...await original<object>(), inBrowser: true }))
 
 const { default: theme }        = await import('../../theme/index.ts')
 const { default: DefaultTheme } = await import('vitepress/theme-without-fonts')
@@ -34,5 +35,14 @@ describe('the theme', () => {
     router.onAfterRouteChange!()
 
     expect(router.route.data).toStrictEqual({ description: 'Plays.', isNotFound: true, title: 'Page Not Found' })
+  })
+
+  it('follows a footnote’s jump in the document', () => {
+    enhanced({ isNotFound: false })
+    document.body.innerHTML = '<sup class="footnote-ref"><a href="#footnote-a" id="footnote-ref-a"></a></sup><ol><li id="footnote-a"></li></ol>'
+    document.querySelector('a')!.addEventListener('click', event => event.preventDefault())
+    document.querySelector('a')!.click()
+
+    expect(document.querySelector('#footnote-a')!.classList).toContain('footnote-hit')
   })
 })

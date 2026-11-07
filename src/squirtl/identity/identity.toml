@@ -29,6 +29,19 @@ indigo   = { hex = "#5d05a4", name = "Indigo" }
 primary  = { hex = "#3d6fd0", name = "Denim" }
 warning  = { hex = "#e8c840", name = "Eureka" }
 
+[citation]
+bolt   = { dark = "#ffd84a", light = "#ffd84a" }
+camera = { dark = "#59606e", light = "#59606e" }
+fill   = { dark = "#b5431f", light = "#b5431f" }
+lens   = { dark = "#2f9fdc", light = "#2f9fdc" }
+lit    = { dark = "#9bebff", light = "#9bebff" }
+pane   = { dark = "#dde9f0", light = "#dde9f0" }
+press  = { dark = "#e8694a", light = "#b5431f" }
+ring   = { dark = "#2a2f3a", light = "#2a2f3a" }
+shell  = { dark = "#d05a35", light = "#d05a35" }
+text   = { dark = "#f0a080", light = "#a43a17" }
+white  = { dark = "#ffffff", light = "#ffffff" }
+
 [neutrals]
 dark        = { hex = "#121722", name = "Mirage" }
 dark-lift   = { hex = "#181e2b", name = "Mirage Lift" }
@@ -120,11 +133,11 @@ borders     = { bar = 3, hairline = 1, ring = 2 }
 breakpoints = { lg = 960, md = 768, sm = 640 }
 leading     = { none = 1, normal = 1.5, snug = 1.3, tight = 1.15 }
 plate       = 688
-radii       = { 1 = 4, 2 = 8, 3 = 12, swatch = 2 }
-sizes       = { chip-block = 6, chip-end = 10, hero-flight = 544, key-mark = 18, mark = 22, mark-art = 14, missing-page = 1024, missing-screen = 480, race-plot = 226, reward-climb = 288, ribbon = 54, ribbon-circle = 38, ribbon-circle-narrow = 32, ribbon-long = 148, ribbon-narrow = 44, ribbon-room = 72, ribbon-short = 112, ribbon-tail = 30, ribbon-tail-narrow = 22, sees-seam = 2, story-between = 88, story-foot = 36, story-number = 56, story-side = 40, story-widget = 34, swatch = 10 }
+radii       = { 1 = 4, 2 = 8, 3 = 12, footnote-current = 3, footnote-glass = 16, footnote-phone = 22, swatch = 2 }
+sizes       = { chip-block = 6, chip-end = 10, footnote-above = 12, footnote-alone = 17, footnote-alone-screen = 13, footnote-band = 26, footnote-below = 6, footnote-bezel = 7, footnote-bolt = 26, footnote-camera-top = 17, footnote-cell = 11, footnote-cell-wide = 18, footnote-corner = 5, footnote-foot = 20, footnote-glass-top = 22, footnote-lead = 13, footnote-line = 22, footnote-opener = 36, footnote-opener-height = 54, footnote-opener-left = 19, footnote-opener-line = 18, footnote-opener-top = 21, footnote-phone-top = 34, footnote-rise = 6.5, footnote-screen = 9, footnote-screen-height = 11, footnote-shell = 3, footnote-tile = 14, hero-flight = 544, key-mark = 18, mark = 22, mark-art = 14, missing-page = 1024, missing-screen = 480, race-plot = 226, reward-climb = 288, ribbon = 54, ribbon-circle = 38, ribbon-circle-narrow = 32, ribbon-long = 148, ribbon-narrow = 44, ribbon-room = 72, ribbon-short = 112, ribbon-tail = 30, ribbon-tail-narrow = 22, sees-seam = 2, story-between = 88, story-foot = 36, story-number = 56, story-side = 40, story-widget = 34, swatch = 10 }
 spacing     = { 0 = 0, 1 = 4, 2 = 8, 3 = 12, 4 = 16, 5 = 24, 6 = 32, 7 = 48 }
 strokes     = { axis = 1, line = 2, reference = 1 }
-text        = { body = 16, figure = 20, hero = 44, label = 11, note = 14, say = 18, small = 13, title = 28 }
+text        = { body = 16, citation = 12, citation-opener = 16, figure = 20, hero = 44, label = 11, note = 14, say = 18, small = 13, title = 28 }
 track       = 0.08
 weights     = { bold = 700, medium = 500, normal = 400, semibold = 600 }
 

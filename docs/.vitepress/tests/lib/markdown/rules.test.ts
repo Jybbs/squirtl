@@ -13,4 +13,11 @@ describe('markdownRules', () => {
     expect([html.includes('<h1'), html.includes('<section class="story">'), html.includes('<mjx-container')])
       .toStrictEqual([false, true, true])
   })
+
+  it('renders a footnote as the site’s phones', async () => {
+    const md   = await createMarkdownRenderer(process.cwd(), { config: markdownRules, math: true })
+    const html = await md.renderAsync('One.[^mnih2015]\n\n[^mnih2015]: Mnih 2015. "T."\n', { relativePath: 'a.md' })
+
+    expect(html).toContain('class="footnote-run"')
+  })
 })
