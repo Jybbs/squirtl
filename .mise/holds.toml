@@ -1,1 +1,2 @@
 [holds]
+markdown-it-mathjax3 = "VitePress declares a peer range of ^4 on it, and 5.2.0 renders each math span under a generated id that differs between renders"

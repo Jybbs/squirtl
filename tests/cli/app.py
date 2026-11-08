@@ -266,7 +266,7 @@ def test_help_text(
     and an evaluation to four environments here, whatever accelerator and
     CPUs the machine running the suite reports.
     """
-    monkeypatch.setattr("torch.accelerator.current_accelerator", lambda **_: None)
+    monkeypatch.setattr("squirtl.agent.schemas.current_accelerator", lambda **_: None)
     monkeypatch.setattr("squirtl.evaluation.schemas.process_cpu_count", lambda: 4)
     invocation = invoke([*command, "--help"])
 

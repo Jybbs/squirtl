@@ -43,7 +43,7 @@ jobs:
         run  : "mise run site:press ::: site:links"
 
       - name : Upload the built site
-        uses : actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses : actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with : { name: site, path: "${{ env.SITE }}", retention-days: 1 }
 
   deploy:
@@ -68,7 +68,7 @@ jobs:
           accountId       : ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           apiToken        : ${{ secrets.CLOUDFLARE_TOKEN }}
           command         : pages deploy ${{ env.SITE }} --project-name=squirtl --branch=main
-          wranglerVersion : 4.151.3
+          wranglerVersion : 4.158.0
 
   brief:
     name            : 🎒 Brief

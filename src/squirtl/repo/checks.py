@@ -1157,26 +1157,31 @@ class Warming(Check):
         Yields a finding for each file a cache key is built from that the
         push filter of a workflow saving the cache leaves out, meaning the
         workflow file, the manifest of each action of this repository a
-        saving job runs, and each file of the checkout `hashed` matches.
+        saving job runs, and each file of the checkout that `hashed` or a
+        `hashFiles` call in such a manifest matches.
         """
         manifests = self.actions.manifests
-        hashed    = {
-            file
-            for file in self.tree.files
-            if any(file.full_match(pattern) for pattern in self.hashed)
-        }
 
         for workflow in self.workflows.workflows:
             saving = [job for job in workflow.jobs if job.cache_mode == "write"]
             on     = workflow.root.at("on") or workflow.root
-            built  = {
+            run    = [
+                manifests[step.local]
+                for job in saving
+                for step in job.steps
+                if step.local in manifests
+            ]
+            globs = [
+                *self.hashed,
+                *chain.from_iterable(manifest.hashed for manifest in run)
+            ]
+            built = {
                 workflow.path,
-                *hashed,
+                *(manifest.path for manifest in run),
                 *(
-                    manifests[step.local].path
-                    for job in saving
-                    for step in job.steps
-                    if step.local in manifests
+                    file
+                    for file in self.tree.files
+                    if any(file.full_match(glob) for glob in globs)
                 )
             }
 

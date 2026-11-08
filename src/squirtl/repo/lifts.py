@@ -29,7 +29,7 @@ from subprocess   import CalledProcessError, check_output, run
 from sysconfig    import get_path
 from tempfile     import TemporaryDirectory
 from tomllib      import loads
-from typing       import ClassVar, Self
+from typing       import ClassVar, Self, TypeForm
 
 from squirtl.emulator.schemas import Record
 from squirtl.repo.checks      import SitePins
@@ -52,7 +52,7 @@ def concurrently[T, R](items: Iterable[T], work: Callable[[T], R]) -> list[R]:
         return list(pool.map(work, items))
 
 
-def parsed[T](shape: type[T], *command: str, cwd: Path | None = None) -> T:
+def parsed[T](shape: TypeForm[T], *command: str, cwd: Path | None = None) -> T:
     """
     Runs `command`, in `cwd` where it names a folder, and validates what it
     prints to standard output as JSON against `shape`.
@@ -864,7 +864,7 @@ class SiteLifts(Manager):
         )
 
     @classmethod
-    def info[T](cls, field: str, name: str, shape: type[T]) -> T:
+    def info[T](cls, field: str, name: str, shape: TypeForm[T]) -> T:
         """
         Reads `field` of the package `name` through `bun info`, as `shape`.
         """
