@@ -24,11 +24,11 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
     """
     Starts each episode at a step of `demonstration` drawn from the `starts`
     the trainer sets, or in Blue's bedroom where it sets none, as Mhammedi
-    and Cohan's Appendix B starts each episode after Salimans and Chen.
-    It plays the demonstration once as it wraps the environment, keeping
-    at each step the state PyBoy saves compressed through zstd, the frames
-    the observation stacks, and the terms earned so far, and splits it
-    into segments, each ending at the step that first sets one of the flags
+    and Cohan's Appendix B starts each episode after Salimans and Chen. It
+    plays the demonstration once as it wraps the environment, keeping at
+    each step the console's state compressed through zstd, the frames the
+    observation stacks, and the terms earned so far, and splits it into
+    segments, each ending at the step that first sets one of the flags
     `Event` names.
 
     An episode from a start succeeds once the reward for the flags it sets

@@ -13,15 +13,17 @@ own, covering:
   which leaves the wrappers beneath it where the recording's last step left
   them
 - The segments `FollowDemonstration` splits a demonstration into at each
-  flag and never at a new position alone, the demonstration it refuses, the
-  start each reset draws from the windows it is given and the frames it
-  observes there, the success and the limit that truncate an episode from
-  a start, and the takeover a resumed run plays back
+  flag and never at a new position alone, the state it keeps at each step
+  compressed through zstd, the demonstration it refuses, the start each
+  reset draws from the windows it is given and the frames it observes
+  there, the success and the limit that truncate an episode from a start,
+  and the takeover a resumed run plays back
 """
 
 from collections        import Counter
 from collections.abc    import Callable
 from common.console     import set_event
+from compression.zstd   import decompress
 from gymnasium          import Env
 from gymnasium.wrappers import RecordEpisodeStatistics, TimeLimit
 from numpy              import array, uint8, unique
@@ -161,6 +163,21 @@ def start(
     env.set_wrapper_attr("starts", Starts(limit=limit, windows=[window]))
 
     return env.reset(seed=0)[0]
+
+
+def test_a_demonstration_keeps_each_state_compressed_through_zstd(
+    following: Callable[..., Env]
+):
+    """
+    Asserts that each state the demonstration keeps decompresses to one the
+    size of the console's own, at under a tenth of that size.
+    """
+    env    = following()
+    states = env.get_wrapper_attr("states")
+    sizes  = {len(decompress(state)) for state in states}
+
+    assert sizes == {len(env.get_wrapper_attr("game_boy").state)}
+    assert max(map(len, states)) < min(sizes) // 10
 
 
 def test_a_demonstration_splits_into_a_segment_at_each_flag_it_sets(
