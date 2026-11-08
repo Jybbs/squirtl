@@ -7,9 +7,9 @@ the program it was asked to run. A package's own imports load eagerly where
 
 A lift of a package `EAGER` names rechecks its entry under a filter leaving
 the entry out, and removes the entry once its error no longer reproduces.
-The recheck loads the package through `importlib.import_module`, since an
-`import` statement under the lazy mode loads nothing until a name it binds
-is read, or runs `mise test` for `_pytest`.
+The recheck runs `mise test` for `_pytest` and loads any other package
+through `importlib.import_module`, since an `import` statement under the
+lazy mode loads nothing until a name it binds is read.
 """
 
 from sys import set_lazy_imports, set_lazy_imports_filter
