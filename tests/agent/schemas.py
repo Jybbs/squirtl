@@ -38,7 +38,7 @@ def test_the_device_defaults_to_the_accelerator_torch_reports(
     available, and to the CPU where it reports none.
     """
     monkeypatch.setattr(
-        "torch.accelerator.current_accelerator",
+        "squirtl.agent.schemas.current_accelerator",
         lambda check_available: accelerator if check_available else device("cuda")
     )
 

@@ -11,6 +11,7 @@ on:
       - .github/workflows/warm.yml
       - .mise/config.toml
       - .mise/mise.lock
+      - uv.lock
 
   workflow_dispatch:
 
@@ -29,7 +30,12 @@ jobs:
       fail-fast: false
 
       matrix:
-        tools: [&package python uv, bun lychee node, bun python uv, zizmor]
+        include:
+          - caches : uv
+            tools  : &package python uv
+          - tools: bun lychee node
+          - tools: bun python uv
+          - tools: zizmor
 
     steps:
       - &checkout
@@ -39,7 +45,14 @@ jobs:
 
       - name : Install the subset and save its archive
         uses : $/.github/actions/provision
-        with : { tools: "${{ matrix.tools }}" }
+        with : { caches: "${{ matrix.caches }}", tools: "${{ matrix.tools }}" }
+
+      - name : Build each wheel `uv.lock` resolves from source and leave only those wheels and the index responses in uv's cache
+        if   : matrix.caches == 'uv'
+        run  : |
+          mise x -- uv sync --locked
+          mise x -- uv cache prune --ci
+          find "$(mise x -- uv cache dir)" -path '*/sdists-v*/*' -type d -name src -prune -exec rm -rf {} +
 
   prune:
     name            : ✂️ Prune

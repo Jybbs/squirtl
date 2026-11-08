@@ -554,8 +554,9 @@ class Manuscript(Record):
         yield from self.citing(bibliography)
         yield from self.defining(bibliography)
 
-        if (self.markers or self.definitions) and (
-            self.text != self.text.rstrip("\n") + "\n"
+        if (
+            (self.markers or self.definitions)
+            and self.text != self.text.rstrip("\n") + "\n"
         ):
             yield Fault(
                 line    = self.text.count("\n") + 1,

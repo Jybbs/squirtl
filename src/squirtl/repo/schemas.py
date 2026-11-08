@@ -34,7 +34,7 @@ from pydantic            import (
     AliasPath, BeforeValidator, Field, HttpUrl, InstanceOf, JsonValue,
     StringConstraints, TypeAdapter, ValidationError
 )
-from re         import escape, finditer, fullmatch, search, sub
+from re         import escape, findall, finditer, fullmatch, search, sub
 from shlex      import shlex, split
 from stat       import S_IXUSR
 from subprocess import SubprocessError, check_output, run
@@ -1979,6 +1979,17 @@ class Action(StepFile):
     """
 
     directory: ClassVar[Path] = Path(".github/actions")
+
+    @property
+    def hashed(self) -> list[str]:
+        """
+        Reads each glob a `hashFiles` call in the manifest names.
+        """
+        return [
+            glob
+            for call in findall(r"hashFiles\(([^)]*)\)", self.text)
+            for glob in findall(r"'([^']+)'", call)
+        ]
 
     @property
     def inputs(self) -> list[str]:

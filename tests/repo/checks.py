@@ -1925,6 +1925,62 @@ def test_site_pins_hold_the_pins_that_move_together(
     assert findings == [("docs/package.json", line, message) for line, message in found]
 
 
+@mark.parametrize(
+    ("globs", "paths", "found"),
+    [
+        param("'uv.lock'", "[.github/**, uv.lock]", [], id="the-push-reaches-the-file"),
+        param("'uv.lock'", "[.github/**]", ["uv.lock"], id="the-push-leaves-it-out"),
+        param(
+            "'other.lock', 'uv.lock'",
+            "[.github/**]",
+            ["other.lock", "uv.lock"],
+            id = "every-glob-of-one-call"
+        )
+    ]
+)
+def test_warming_reports_a_file_a_hash_files_call_names_that_no_push_reaches(
+    found : list[str],
+    globs : str,
+    paths : str,
+    scan  : Scan
+):
+    """
+    Pins that the warming check holds the push filter to each file a
+    `hashFiles` call names in the manifest a saving job runs, whereas the
+    same file outside every glob of that call is not one the key is built
+    from.
+    """
+    findings = scan(
+        Warming,
+        {
+            ".github/actions/provision/action.yml": (
+                "runs:\n  using: composite\n  steps:\n"
+                "    - uses: actions/cache@0\n"
+                f'      with: {{ key: "uv-${{{{ hashFiles({globs}) }}}}" }}\n'
+            ),
+
+            ".github/workflows/warm.yml": (
+                f"\non:\n  push:\n    paths: {paths}\n\n"
+                "jobs:\n  kit:\n    cache-mode: write\n    steps:\n"
+                "      - uses: ./.github/actions/provision\n"
+            ),
+
+            "other.lock" : "",
+            "uv.lock"    : ""
+        },
+        Tree(files=[Path("other.lock"), Path("uv.lock")])
+    )
+
+    assert findings == [
+        (
+            ".github/workflows/warm.yml", 4,
+            f"`.github/workflows/warm.yml` saves a cache keyed on `{file}`, which "
+            "its push filter leaves out"
+        )
+        for file in found
+    ]
+
+
 def test_warming_reads_no_workflow_that_saves_no_cache(
     provision : str,
     scan      : Scan,

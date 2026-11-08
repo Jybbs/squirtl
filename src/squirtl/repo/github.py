@@ -13,7 +13,7 @@ from json            import dumps
 from pydantic        import JsonValue, TypeAdapter
 from shlex           import join, quote
 from subprocess      import check_output
-from typing          import Self
+from typing          import Self, TypeForm
 
 from squirtl.emulator.schemas import Record
 
@@ -97,7 +97,7 @@ class Command(Record):
         """
         return check_output(self.argv, encoding="utf-8", input=self.stdin)
 
-    def parsed[T](self, shape: type[T]) -> T:
+    def parsed[T](self, shape: TypeForm[T]) -> T:
         """
         Runs the command and validates what it prints to standard output as
         JSON against `shape`.

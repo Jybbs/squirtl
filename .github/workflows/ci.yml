@@ -27,16 +27,19 @@ jobs:
 
       matrix:
         include:
-          - name  : 🗺️ Audit
-            task  : repo:audit
-            tools : &package python uv
+          - name   : 🗺️ Audit
+            caches : uv
+            task   : repo:audit
+            tools  : &package python uv
           - name  : 📦 Lockfile
             task  : lock:check
             tools : bun python uv
-          - name  : 🪻 Prose
-            task  : py:lint
-            tools : *package
+          - name   : 🪻 Prose
+            caches : uv
+            task   : py:lint
+            tools  : *package
           - name   : 🏟️ Suite
+            caches : uv
             report : { name: coverage, path: .cache/coverage/html }
             task   : py:coverage
             tools  : *package
@@ -72,9 +75,9 @@ jobs:
         uses : actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with : { persist-credentials: false }
 
-      - name : Provision the tools the task reads
+      - name : Provision the tools and the caches the task reads
         uses : $/.github/actions/provision
-        with : { tools: "${{ matrix.tools }}" }
+        with : { caches: "${{ matrix.caches }}", tools: "${{ matrix.tools }}" }
 
       - name : mise run ${{ matrix.task }}
         env  : { TASK: "${{ matrix.task }}" }
@@ -83,7 +86,7 @@ jobs:
       - name : Attach the coverage report
         id   : attach
         if   : ${{ !cancelled() && matrix.report }}
-        uses : actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses : actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with : { name: "${{ matrix.report.name }}", path: "${{ matrix.report.path }}", retention-days: 14 }
 
   brief:

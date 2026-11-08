@@ -29,7 +29,7 @@ from subprocess   import CalledProcessError, check_output, run
 from sysconfig    import get_path
 from tempfile     import TemporaryDirectory
 from tomllib      import loads
-from typing       import ClassVar, Self
+from typing       import ClassVar, Self, TypeForm
 
 from squirtl.emulator.schemas import Record
 from squirtl.repo.checks      import SitePins
@@ -52,7 +52,7 @@ def concurrently[T, R](items: Iterable[T], work: Callable[[T], R]) -> list[R]:
         return list(pool.map(work, items))
 
 
-def parsed[T](shape: type[T], *command: str, cwd: Path | None = None) -> T:
+def parsed[T](shape: TypeForm[T], *command: str, cwd: Path | None = None) -> T:
     """
     Runs `command`, in `cwd` where it names a folder, and validates what it
     prints to standard output as JSON against `shape`.
@@ -741,9 +741,9 @@ class RequirementLifts(Manager):
     @classmethod
     def read(cls) -> Self:
         """
-        Resolves the build requirements, against which the build constraints
-        are read too, and each script's dependencies, naming a lift for each
-        exact pin the resolution moves past.
+        Resolves the build requirements beside the build constraints, and
+        each script's dependencies, naming a lift for each exact pin the
+        resolution moves past.
         """
         manifest = Manifest.read()
         groups   = [
@@ -767,15 +767,17 @@ class RequirementLifts(Manager):
     def resolved(
         home        : Path,
         requested   : Collection[Requirement],
-        constraints : Iterable[Requirement] = ()
+        constraints : Collection[Requirement] = ()
     ) -> list[Lift]:
         """
-        Resolves the newest release of each package `requested` names, and
-        names a lift for each pin of `requested` and `constraints` holding
+        Resolves the newest release of each package `requested` or
+        `constraints` names, and names a lift for each pin of either holding
         one exact version that the resolution moves past, dated by that
         release's first upload.
         """
-        locked = Pylock.compiled(requirement.name for requirement in requested).named
+        locked = Pylock.compiled(
+            requirement.name for requirement in chain(requested, constraints)
+        ).named
 
         return [
             Lift(
@@ -864,7 +866,7 @@ class SiteLifts(Manager):
         )
 
     @classmethod
-    def info[T](cls, field: str, name: str, shape: type[T]) -> T:
+    def info[T](cls, field: str, name: str, shape: TypeForm[T]) -> T:
         """
         Reads `field` of the package `name` through `bun info`, as `shape`.
         """

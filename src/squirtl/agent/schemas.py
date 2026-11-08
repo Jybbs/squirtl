@@ -11,11 +11,12 @@ which writes a file through the drive's cache.
 
 import fcntl
 
-from collections.abc import Iterable
-from enum            import StrEnum, auto
-from os              import fsync
-from pydantic        import Field, PositiveFloat, PositiveInt, model_validator
-from typing          import Annotated, Self
+from collections.abc   import Iterable
+from enum              import StrEnum, auto
+from os                import fsync
+from pydantic          import Field, PositiveFloat, PositiveInt, model_validator
+from torch.accelerator import current_accelerator
+from typing            import Annotated, Self
 
 from squirtl.emulator.schemas import Record, UnitInterval
 
@@ -25,11 +26,9 @@ type Fraction = Annotated[float, Field(gt=0, le=1)]
 def accelerator() -> str:
     """
     Names the accelerator torch reports as available, or the CPU where it
-    reports none. It imports torch only on this call, and reading a run's
-    record draws no default, since the record holds its device.
+    reports none. Torch loads on this call alone under the lazy mode, and
+    reading a run's record makes no call, since the record holds its device.
     """
-    from torch.accelerator import current_accelerator
-
     return str(current_accelerator(check_available=True) or "cpu")
 
 
