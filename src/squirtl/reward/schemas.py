@@ -141,6 +141,13 @@ class RewardSettings(Record):
 
         return fsum(self.shares(earned).values())
 
+    def goal(self, earned: Mapping[Term, int]) -> float:
+        """
+        Totals the shares of every term `earned` counts but `NOVELTY`,
+        meaning what an episode earns for the flags it sets.
+        """
+        return fsum(self.shares({**earned, Term.NOVELTY: 0}).values())
+
     def pay(self, term: Term) -> float:
         """
         Reads what `term` pays a step.

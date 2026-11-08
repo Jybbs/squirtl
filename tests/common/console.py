@@ -38,10 +38,14 @@ class StandIn:
     @property
     def game_wrapper(self) -> SimpleNamespace:
         """
-        Builds a stand-in for the game wrapper, whose `start_game` and
-        `reset_game` each record their call beside the `timer_div` it took.
+        Builds a stand-in for the game wrapper, whose `start_game`,
+        `reset_game`, and `_set_timer_div` each record their call beside the
+        `timer_div` it took.
         """
         return SimpleNamespace(
+            _set_timer_div = lambda timer_div: self.calls.append(
+                ("_set_timer_div", timer_div)
+            ),
             reset_game = lambda timer_div: self.calls.append(("reset_game", timer_div)),
             start_game = lambda timer_div: self.calls.append(("start_game", timer_div))
         )
@@ -65,6 +69,13 @@ class StandIn:
         `delay` holds it for.
         """
         self.calls.append(("button", input, delay))
+
+    def load_state(self, file_like_object: BinaryIO):
+        """
+        Records a load and reads the memory back from `file_like_object`.
+        """
+        self.calls.append(("load_state",))
+        self.memory[:] = file_like_object.read()
 
     def save_state(self, file_like_object: BinaryIO):
         """

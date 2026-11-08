@@ -3,10 +3,10 @@ Defines the fixtures the suite shares, each described where it is defined.
 
 The autouse `environment` fixture isolates every test from the machine
 running it, and the collection hook lets a test open a network connection
-only when it carries the `network` mark. The `rom`, `cartridge`, and
-`settings` fixtures serve the tests of the emulator, the reward, and the
-environment, so none needs the user's own ROM, `clone` serves every test
-starting a run, which reads the clone it runs in, `outside` every test
+only when it carries the `network` mark. The `rom`, `cartridge`, `timed`,
+and `settings` fixtures serve the tests of the emulator, the reward, and
+the environment, so none needs the user's own ROM, `clone` serves every
+test starting a run, which reads the clone it runs in, `outside` every test
 reading a working directory no clone holds, and `evaluators` every test of a
 run's evaluation that starts no worker process.
 """
@@ -156,11 +156,51 @@ def rom(tmp_path: Path) -> Path:
     data[0x14D]       = -sum(byte + 1 for byte in data[0x134:0x14D]) % 256
 
     path = tmp_path / EmulatorSettings().cartridge
-    path.parent.mkdir()
+    path.parent.mkdir(exist_ok=True)
     path.write_bytes(data)
     Path(f"{path}.ram").write_bytes(b"\xab" * 0x8000)
 
     return path
+
+
+@fixture
+def timed(rom: Path) -> Cartridge:
+    """
+    Rewrites the cartridge `rom` writes to count each frame in the
+    16 bits at `0xC000` and set flags of `wEventFlags` as the count's
+    high byte passes each value, whatever the buttons pressed, so every
+    episode reaches the starter after the same frames, as Pan Docs gives
+    each instruction:
+
+    - `EVENT_OAK_APPEARED_IN_PALLET` once the count reaches 256
+    - `EVENT_FOLLOWED_OAK_INTO_LAB` once it reaches 512
+    - `EVENT_GOT_STARTER` once it reaches 768
+
+    Returns:
+        The record of the cartridge, built as `cartridge` builds it.
+    """
+    program = b"".join(
+        bytes.fromhex(instruction) for instruction in (
+            "F0 44 FE 90 20 FA",  # Waits for LY at `0xFF44` to reach 144
+            "21 00 C0 34 20 02",  # Adds 1 to the count's low byte
+            "23 34",              # Adds 1 to its high byte where the low wrapped to 0
+            "FA 01 C0",           # Loads the high byte into A
+            "FE 01 38 05",        # Skips the next set while A is under 1
+            "21 4B D7 CB FE",     # Sets bit 7 of `0xD74B`, byte 4 of `wEventFlags`
+            "FE 02 38 05",        # Skips the next set while A is under 2
+            "21 47 D7 CB C6",     # Sets bit 0 of `0xD747`, byte 0
+            "FE 03 38 05",        # Skips the next set while A is under 3
+            "21 4B D7 CB D6",     # Sets bit 2 of `0xD74B`
+            "F0 44 FE 90 28 FA",  # Waits for LY to leave 144
+            "18 CC"               # Jumps back to the first wait at `0x150`
+        )
+    )
+    data              = bytearray(rom.read_bytes())
+    data[0x100:0x104] = bytes.fromhex("00 C3 50 01")  # `nop`, `jp $0150`
+    data[0x150 : 0x150 + len(program)] = program
+    rom.write_bytes(data)
+
+    return Cartridge.model_construct(data=bytes(data), path=rom)
 
 
 @fixture

@@ -1,9 +1,9 @@
 """
 Defines the fixtures the tests of `squirtl.runs` request, meaning the
 stand-in records a test reading no clone builds on, the record of one
-episode, a writer of a run's episodes, the settings of a short run beside
-factories of trainers starting one, and the messages loguru logs during
-a test.
+episode, a writer of a run's episodes, a run holding a demonstration, the
+settings of a short run beside factories of trainers starting one, and the
+messages loguru logs during a test.
 """
 
 from collections.abc import Callable, Iterator, Mapping
@@ -44,6 +44,35 @@ def run(revision: Revision) -> Run:
         settings = RunSettings(),
         started  = datetime(2026, 10, 4, tzinfo=UTC)
     )
+
+
+@fixture
+def demonstrated(clone: Path) -> Path:
+    """
+    Starts a run in `clone` the day before every run `trainer` starts, whose
+    one episode reaches the starter of the cartridge `timed` writes after 13
+    idle presses at a `timer_div` of 0, each advancing 64 frames.
+
+    Returns:
+        The run's directory.
+    """
+    run = Run.start("0", RunSettings(), datetime(2026, 10, 3, tzinfo=UTC))
+    run.append(
+        run.episodes,
+        Episode(
+            epsilon    = None,
+            length     = 13,
+            positions  = 1,
+            recording  = Recording(presses=bytes(13), timer_div=0),
+            reward     = 0.8,
+            seconds    = 1.0,
+            shares     = {Term.MILESTONE: 0.2, Term.NOVELTY: 0.0, Term.STARTER: 0.6},
+            terminated = True,
+            update     = None
+        )
+    )
+
+    return run.directory
 
 
 @fixture
@@ -96,10 +125,16 @@ def trainer(cartridge: Cartridge, short: RunSettings) -> Callable[..., Trainer]:
     """
     seconds = count()
 
-    def build(resumes: Run | None = None, **fields: object) -> Trainer:
+    def build(
+        resumes   : Run | None = None,
+        *,
+        cartridge : Cartridge  = cartridge,
+        **fields  : object
+    ) -> Trainer:
         """
-        Builds the trainer of the run `fields` describe, which continues the
-        run `resumes` from its checkpoint where it is one.
+        Builds the trainer of the run `fields` describe on `cartridge`,
+        which continues the run `resumes` from its checkpoint where it is
+        one.
         """
         return Trainer.start(
             cartridge,

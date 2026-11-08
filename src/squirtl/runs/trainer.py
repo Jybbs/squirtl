@@ -7,13 +7,14 @@ resumed run reads:
 
 - `Handover`, what it takes over from the stopped run it continues
 - `Moments`, `Slot`, and `VectorCheckpoint`, everything it continues from
-  where the run trains PQN or PPO
+  where the run trains PQN or PPO, its `Curriculum` included
 """
 
 from abc             import ABC, abstractmethod
 from collections.abc import Iterator, Mapping
 from contextlib      import AbstractContextManager
 from datetime        import datetime
+from functools       import cached_property
 from gymnasium       import Env, make_vec
 from gymnasium.envs.registration import EnvSpec
 from gymnasium.vector            import AutoresetMode, VectorEnv
@@ -36,6 +37,7 @@ from squirtl.environment.schemas   import Outcome, Recording
 from squirtl.environment.workers   import ignore_interrupts
 from squirtl.evaluation.schemas    import Evaluation
 from squirtl.runs.benchmark        import Benchmark
+from squirtl.runs.curriculum       import Curriculum, Syllabus
 from squirtl.runs.schemas          import Episode, Run, RunSettings, Stream
 
 
@@ -154,14 +156,22 @@ class VectorCheckpoint(RolloutCheckpoint):
     Each environment, in the order the run steps them.
     """
 
+    syllabus: Syllabus | None = None
+    """
+    The curriculum moving each start along the demonstration, or `None`
+    where the run follows none.
+    """
+
     @property
     def contents(self) -> dict[str, object]:
         """
-        Gathers every field as `Checkpoint.contents` does, the moments
-        and each slot as plain values, which `torch.load` reads under
-        `weights_only=True`.
+        Gathers every field as `Checkpoint.contents` does, the moments, each
+        slot, and the syllabus as plain values, which `torch.load` reads
+        under `weights_only=True`.
         """
-        return super().contents | self.model_dump(include={"moments", "slots"})
+        return super().contents | self.model_dump(
+            include = {"moments", "slots", "syllabus"}
+        )
 
 
 class Handover(Record):
@@ -314,8 +324,10 @@ class Trainer(AbstractContextManager, ABC):
 
         Raises:
             ValueError: Where the checkpoint `handover` carries differs from
-                        the agent, as the agent's `restore` raises, beside
-                        each error `Run.start` raises.
+                        the agent, as the agent's `restore` raises, or from
+                        the demonstration's segments, as the curriculum's
+                        `restore` raises, beside each error `Run.start`
+                        raises.
         """
         self.cartridge = cartridge
         self.settings  = settings
@@ -378,6 +390,23 @@ class Trainer(AbstractContextManager, ABC):
         Gathers everything a resumed run continues training from.
         """
 
+    @cached_property
+    def demonstration(self) -> Recording | None:
+        """
+        Reads the recording of the demonstration the curriculum's settings
+        name, as `Run.demonstration` reads it, or `None` where they name
+        none.
+
+        Raises:
+            FileNotFoundError : Where the directory they name holds no run.
+            ValueError        : Where its run holds no episode reaching the
+                                starter from Blue's bedroom.
+        """
+        if directory := self.settings.curriculum.demonstration:
+            return Run.read(directory).demonstration
+
+        return None
+
     @property
     @abstractmethod
     def digest(self) -> str:
@@ -389,13 +418,18 @@ class Trainer(AbstractContextManager, ABC):
     @property
     def specification(self) -> EnvSpec:
         """
-        Reads the specification of the environment the run plays.
+        Reads the specification of the environment the run plays, along
+        `demonstration` where there is one.
         """
+        settings = self.settings
+
         return Overworld.specification(
             self.cartridge,
-            self.settings.emulator,
-            self.settings.environment,
-            self.settings.reward
+            settings.emulator,
+            settings.environment,
+            settings.reward,
+            self.demonstration,
+            settings.curriculum.tolerance
         )
 
     @property
@@ -710,6 +744,7 @@ class RolloutTrainer(Trainer):
         super().__init__(cartridge, settings, started, handover)
 
         if handover is None:
+            self.offer()
             self.observations, _ = self.env.reset(seed=self.seeds)
 
     @property
@@ -742,7 +777,24 @@ class RolloutTrainer(Trainer):
                     self.tally.totals.tolist(),
                     strict = True
                 )
-            ]
+            ],
+            syllabus = self.curriculum and self.curriculum.syllabus
+        )
+
+    @cached_property
+    def curriculum(self) -> Curriculum | None:
+        """
+        Builds the curriculum along the demonstration from the ends of
+        its segments the first environment lists, seeded from the window's
+        stream, or `None` where the run follows no demonstration.
+        """
+        if self.demonstration is None:
+            return None
+
+        return Curriculum(
+            self.env.unwrapped.get_attr("ends")[0],
+            self.settings.seeds[Stream.WINDOW],
+            self.settings.curriculum
         )
 
     @property
@@ -830,15 +882,27 @@ class RolloutTrainer(Trainer):
             gamma = agent.discount
         )
 
+    def offer(self):
+        """
+        Sets on every environment the starts the curriculum's windows give,
+        from which each of its next resets draws, where the run follows
+        a demonstration.
+        """
+        if self.curriculum:
+            self.env.unwrapped.set_attr("starts", self.curriculum.starts)
+
     def play(self) -> Iterator[int]:
         """
         Collects one rollout in every environment, of the `rollout_steps`
-        steps the agent's own settings name, the agent choosing each batch
-        of actions and remembering each batch of outcomes, then updates the
-        agent on it. It records each episode an environment ends as that
-        step returns, its measures averaged over the updates taken while
-        it played.
+        steps the agent's own settings name, from the starts `offer` sets,
+        the agent choosing each batch of actions and remembering each batch
+        of outcomes, then updates the agent on it. It records each episode
+        an environment ends as that step returns, its measures averaged over
+        the updates taken while it played, and has the curriculum take in
+        each one started along the demonstration.
         """
+        self.offer()
+
         for _ in range(self.settings.agent.hyperparameters.rollout_steps):
             self.observations, rewards, terminated, truncated, info = self.env.step(
                 self.agent.act(self.observations)
@@ -852,11 +916,18 @@ class RolloutTrainer(Trainer):
             )
 
             for slot in flatnonzero(terminated | truncated):
-                self.record(
-                    info["final_info"]["outcome"][slot],
-                    info["final_info"]["recording"][slot],
-                    self.tally.take(slot)
-                )
+                final     = info["final_info"]
+                outcome   = final["outcome"][slot]
+                recording = final["recording"][slot]
+
+                if takeover := recording.takeover:
+                    self.curriculum.attempted(
+                        length    = outcome.length,
+                        succeeded = final["succeeded"][slot].item(),
+                        takeover  = takeover
+                    )
+
+                self.record(outcome, recording, self.tally.take(slot))
 
             yield self.agent.step
 
@@ -867,10 +938,14 @@ class RolloutTrainer(Trainer):
         Restores the agent from `checkpoint`, then sets each environment's
         generator, plays each unfinished recording back through that
         environment's wrappers at a reset, and sets `NormalizeReward`'s
-        statistics and running returns and each environment's tally to what
-        the checkpoint holds, so the run goes on as an unbroken one would.
+        statistics and running returns, each environment's tally, and the
+        curriculum to what the checkpoint holds, so the run goes on as an
+        unbroken one would.
         """
         super().restore(checkpoint)
+
+        if checkpoint.syllabus:
+            self.curriculum.restore(checkpoint.syllabus)
 
         vector = self.env.unwrapped
         vector.set_attr(

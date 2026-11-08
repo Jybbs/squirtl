@@ -49,8 +49,13 @@ def train(
     Each of these exits 1 before any directory is made:
 
     - A `--resume` directory holding no run or no checkpoint
+    - A `--curriculum.demonstration` directory holding no run, or no episode
+      reaching the starter from Blue's bedroom, or one whose presses no
+      longer reach the starter on replay
     - A checkpoint damaged, already holding the run's steps, or differing
       from the agent the run's settings build
+    - A checkpoint whose segments end at other steps than the segments of
+      its demonstration now do
     - An episode log ending short of that checkpoint
     - A cartridge the emulator refuses
     - A working directory no git clone holds

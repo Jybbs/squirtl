@@ -39,6 +39,25 @@
     "warmup_steps": 50000
   },
   "checkpoint_steps": 250000,
+  "curriculum": {
+    "back": [
+      0.25,
+      0.75
+    ],
+    "buffer": 500,
+    "completion": 0.95,
+    "demonstration": null,
+    "forward": [
+      0.5,
+      1.0
+    ],
+    "multiplier": 2.0,
+    "recent": 32,
+    "required": 0.2,
+    "smoothing": 0.9,
+    "tolerance": 0.0,
+    "window": 25
+  },
   "emulator": {
     "cartridge": "data/rom.gb",
     "hold": 2,

@@ -5,13 +5,17 @@ Defines the records the environment reads and writes:
 - `EnvironmentSettings`, the settings it reads
 - `Outcome`, what one episode reached, which its last step reports
 - `Recording`, the `timer_div` and the presses of one episode, which the emulator
-  plays to the same frames again
+  plays to the same frames again, beside the `Takeover` of an episode starting
+  along a demonstration
+- `Starts` and `Window`, the steps of a demonstration each episode may start
+  from
 """
 
 from compression.zstd import compress, decompress
 from enum             import StrEnum, auto
 from functools        import partial
-from pydantic         import AfterValidator, Field, PlainSerializer, PositiveInt, ValidationInfo, model_validator
+from pydantic         import AfterValidator, Field, NonNegativeInt, PlainSerializer, PositiveInt, ValidationInfo
+from pydantic         import model_validator
 from typing           import Annotated, Self
 
 from squirtl.emulator.schemas import Record
@@ -22,6 +26,8 @@ type Compressed = Annotated[
     AfterValidator(validate_compressed),
     PlainSerializer(partial(compress, level=19), return_type=bytes, when_used="json")
 ]
+
+type TimerDiv = Annotated[int, Field(ge=0, le=255)]
 
 
 def validate_compressed(value: bytes, info: ValidationInfo) -> bytes:  # prose: ignore[unsorted-positionals]
@@ -148,7 +154,41 @@ class Outcome(Record):
     terminated: bool
     """
     Whether the episode ended at the starter, where otherwise `TimeLimit`
-    truncated it.
+    or, along a demonstration, `FollowDemonstration` truncated it.
+    """
+
+
+class Takeover(Record):
+    """
+    Where an episode starting along a demonstration took over from it, which
+    its `Recording` holds beside the demonstration's presses up to that
+    point.
+    """
+
+    limit: PositiveInt
+    """
+    The steps after which the episode truncates, set when it started.
+    """
+
+    segment: NonNegativeInt
+    """
+    The segment of the demonstration whose window the start was drawn from.
+    """
+
+    step: NonNegativeInt
+    """
+    The step of the demonstration at which the episode's own steps start.
+    """
+
+    timer_div: TimerDiv
+    """
+    The value the start wrote into DIV.
+    """
+
+    moves: NonNegativeInt = 0
+    """
+    The moves the segment's window had taken when the start was drawn from
+    it.
     """
 
 
@@ -156,9 +196,10 @@ class Recording(Record, ser_json_bytes="base64", val_json_bytes="base64"):
     """
     One episode as the `timer_div` its reset wrote into DIV and the action
     each step took, which the emulator plays to the same frames again, since
-    a reset at one `timer_div` always leaves the console in one state. JSON
-    holds the presses as the URL-safe base64 of their zstd compression at
-    level 19.
+    a reset at one `timer_div` always leaves the console in one state. An
+    episode starting along a demonstration holds the demonstration's presses
+    up to its `takeover` ahead of its own. JSON holds the presses as the
+    URL-safe base64 of their zstd compression at level 19.
     """
 
     presses: Compressed
@@ -166,7 +207,74 @@ class Recording(Record, ser_json_bytes="base64", val_json_bytes="base64"):
     The action each step took, one byte a step.
     """
 
-    timer_div: Annotated[int, Field(ge=0, le=255)]
+    timer_div: TimerDiv
     """
     The value the episode's reset wrote into DIV.
+    """
+
+    takeover: Takeover | None = None
+    """
+    Where the episode took over from the demonstration it started along, or
+    `None` for an episode starting in the bedroom.
+    """
+
+    @property
+    def demonstrated(self) -> bytes:
+        """
+        Slices the presses the demonstration made before the episode took
+        over, none for an episode starting in the bedroom.
+        """
+        return self.presses[: self.takeover.step] if self.takeover else b""
+
+    @property
+    def played(self) -> bytes:
+        """
+        Slices the presses the episode's own steps made.
+        """
+        return self.presses[len(self.demonstrated) :]
+
+
+class Window(Record):
+    """
+    The steps of a demonstration an episode may start from to reach the end
+    of one segment.
+    """
+
+    earliest: NonNegativeInt
+    """
+    The first step a start may be drawn at.
+    """
+
+    latest: NonNegativeInt
+    """
+    The last step a start may be drawn at.
+    """
+
+    segment: NonNegativeInt
+    """
+    The segment whose end an episode from the window aims for.
+    """
+
+    moves: NonNegativeInt = 0
+    """
+    The moves the segment's window has taken, which each start drawn from it
+    carries in its takeover.
+    """
+
+
+class Starts(Record):
+    """
+    The windows the next episodes of an environment draw their starts from,
+    beside the steps after which each truncates.
+    """
+
+    limit: PositiveInt
+    """
+    The steps after which an episode from any window truncates.
+    """
+
+    windows: list[Window]
+    """
+    The window of each segment not yet solved, from which a start draws one
+    segment uniformly.
     """

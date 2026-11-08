@@ -5,7 +5,8 @@ Pins what `squirtl train` does, covering:
 - The cartridge, the `--resume` directory, and the working directory outside
   a clone it refuses before making any directory, among them a run holding
   no checkpoint or one already holding its steps, a damaged checkpoint, a
-  log short of its checkpoint, and replay memory of another shape
+  log short of its checkpoint, replay memory of another shape, and a
+  demonstration directory holding no run
 - A resume into a new directory under the settings the stopped run recorded
 - The line each episode logs and the line each step logs under `--verbose`
 - The emulator's window `--emulator.open-window` opens
@@ -327,3 +328,21 @@ def test_a_stopped_run_of_pqn_or_ppo_resumes_in_a_new_directory(
         len(list(resumed.recorded)),
         VectorCheckpoint.from_path(resumed.checkpoint).step
     ) == (2, 4, 16)
+
+
+@mark.usefixtures("accepted", "clone", "rom")
+def test_a_demonstration_directory_holding_no_run_exits_1_before_making_any_directory(
+    invoke  : Invoker,
+    rolling : Callable[[str], list[str]]
+):
+    """
+    Asserts that a run of PPO along a directory holding no run exits
+    1, logging that directory's record, and makes no directory under
+    `data/runs/`.
+    """
+    invocation = invoke(
+        ["train", *rolling("ppo"), "--curriculum.demonstration", "data/runs/none"]
+    )
+
+    assert (invocation.code, "data/runs/none/run.json" in invocation.log) == (1, True)
+    assert not Path("data/runs").exists()

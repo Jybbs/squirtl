@@ -1,18 +1,210 @@
 """
 Defines the wrappers `Overworld.specification` names beside Gymnasium's
 own, `ProgressObservation` and `ShrinkObservation`, which shape the
-observation, `RecordOutcome`, which reports what each episode reached, and
+observation, `FollowDemonstration`, which starts each episode along a
+demonstration, `RecordOutcome`, which reports what each episode reached, and
 `ReplayRecording`, which plays an unfinished episode back at a reset.
 """
 
+from collections      import Counter
+from compression.zstd import compress, decompress
+from functools        import cached_property
 from gymnasium        import Env, ObservationWrapper, Wrapper
 from gymnasium.spaces import Box, Dict, MultiBinary
-from gymnasium.utils  import RecordConstructorArgs
+from gymnasium.utils  import RecordConstructorArgs, seeding
+from itertools        import pairwise
 from numpy            import full, ndarray, ndindex, uint32, uint8
 from typing           import Any
 
-from squirtl.environment.schemas import Entry, Outcome, Recording
-from squirtl.reward.schemas      import Event
+from squirtl.environment.schemas import Entry, Outcome, Recording, Starts, Takeover
+from squirtl.reward.schemas      import Event, Term
+
+
+class FollowDemonstration(Wrapper, RecordConstructorArgs):
+    """
+    Starts each episode at a step of `demonstration` drawn from the `starts`
+    the trainer sets, or in Blue's bedroom where it sets none, as Mhammedi
+    and Cohan's Appendix B starts each episode after Salimans and Chen. It
+    plays the demonstration once as it wraps the environment, keeping at
+    each step the console's state compressed through zstd, the frames the
+    observation stacks, and the terms earned so far, and splits it into
+    segments, each ending at the step that first sets one of the flags
+    `Event` names.
+
+    An episode from a start succeeds once the reward for the flags it sets
+    reaches what the demonstration earned for them from the same step to its
+    segment's end, less `tolerance`, which truncates it, as do the `limit`
+    steps its start allows.
+    """
+
+    def __init__(self, env: Env, *, demonstration: Recording, tolerance: float):
+        """
+        Wraps `env`, which `ProgressObservation` wraps, and plays
+        `demonstration` through it.
+
+        Raises:
+            ValueError: Where `demonstration` no longer reaches the starter
+                        at its last press.
+        """
+        RecordConstructorArgs.__init__(
+            self,
+            demonstration = demonstration,
+            tolerance     = tolerance
+        )
+        Wrapper.__init__(self, env)
+
+        self.demonstration = demonstration
+        self.earned   : list[Counter[Term]] = []
+        self.stacks   : list[ndarray]       = []
+        self.starts   : Starts | None       = None
+        self.states   : list[bytes]         = []
+        self.takeover : Takeover | None     = None
+        self.tolerance = tolerance
+
+        self.follow()
+
+    @cached_property
+    def ends(self) -> list[int]:
+        """
+        Lists the step of the demonstration whose press first sets each
+        flag, in the order the demonstration sets them, each the end of
+        one segment.
+        """
+        return [
+            step for step, (before, after) in enumerate(pairwise(self.earned))
+            if (after - before).keys() - {Term.NOVELTY}
+        ]
+
+    def draw(self, starts: Starts) -> Takeover:
+        """
+        Draws a takeover from `starts` through the environment's generator,
+        a segment uniformly among its windows, a step uniformly within that
+        window, and a `timer_div` uniformly among DIV's 256 values.
+        """
+        window = starts.windows[self.np_random.integers(len(starts.windows))]
+
+        return Takeover(
+            limit   = starts.limit,
+            moves   = window.moves,
+            segment = window.segment,
+            step    = int(self.np_random.integers(window.earliest, window.latest + 1)),
+            timer_div = int(self.np_random.integers(256))
+        )
+
+    def follow(self):
+        """
+        Plays the demonstration from Blue's bedroom, keeping before each
+        press the console's state compressed through zstd, the observation's
+        stacked frames, and the terms earned so far, and after the last
+        press the terms earned.
+
+        Raises:
+            ValueError: Where an episode ends before the last press, or the
+                        last press does not reach the starter.
+        """
+        presses        = self.demonstration.presses
+        observation, _ = self.env.reset(
+            options = {
+                "recording": Recording(
+                    presses   = b"",
+                    timer_div = self.demonstration.timer_div
+                )
+            }
+        )
+        terminated = truncated = False
+
+        for action in presses:
+            if terminated or truncated:
+                break
+
+            self.earned.append(Counter(self.get_wrapper_attr("progress").earned))
+            self.stacks.append(observation[Entry.FRAMES])
+            self.states.append(compress(self.get_wrapper_attr("game_boy").state))
+
+            observation, _, terminated, truncated, _ = self.env.step(action)
+
+        self.earned.append(Counter(self.get_wrapper_attr("progress").earned))
+
+        if not terminated or len(self.states) < len(presses):
+            raise ValueError(
+                f"the demonstration's {len(presses):,} presses no longer reach the "
+                f"starter at the last of them"
+            )
+
+    def reset(
+        self,
+        *,
+        options : dict[str, Any] | None = None,
+        seed    : int | None            = None
+    ) -> tuple[Any, dict[str, Any]]:
+        """
+        Starts the episode at the first of these that applies:
+
+        - The takeover of the `Recording` that `options` holds under
+          `recording`, as a resumed run plays one back
+        - A takeover `draw` takes from `starts`, once `seed` reseeds the
+          environment's generator where one is given
+        - Blue's bedroom, the wrapped environment's own reset
+
+        Returns:
+            The observation at the start, whose stacked frames are those the
+            demonstration's observation stacked there, beside the info dict
+            of the wrapped environment's reset.
+        """
+        match options:
+            case {"recording": Recording(takeover=Takeover() as takeover) as recording}:
+                pass
+            case _ if self.starts:
+                if seed is not None:
+                    self.np_random, _ = seeding.np_random(seed)
+
+                takeover  = self.draw(self.starts)
+                recording = Recording(
+                    presses   = self.demonstration.presses[: takeover.step],
+                    takeover  = takeover,
+                    timer_div = self.demonstration.timer_div
+                )
+            case _:
+                self.takeover = None
+
+                return self.env.reset(options=options, seed=seed)
+
+        stack         = self.stacks[takeover.step]
+        self.steps    = 0
+        self.takeover = takeover
+        self.target   = self.get_wrapper_attr("reward").goal(
+            self.earned[self.ends[takeover.segment] + 1] - self.earned[takeover.step]
+        ) - self.tolerance
+
+        observation, info = self.env.reset(
+            options = {
+                "recording" : recording,
+                "state"     : decompress(self.states[takeover.step])
+            }
+        )
+        self.get_wrapper_attr("obs_queue").extend(stack)
+
+        return observation | {Entry.FRAMES: stack.copy()}, info
+
+    def step(self, action: int) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+        """
+        Steps the wrapped environment, and for an episode started along the
+        demonstration, truncates it once it succeeds or takes the `limit`
+        steps its start allows, reporting at its last step whether it
+        succeeded under `succeeded` in the info dict.
+        """
+        observation, reward, terminated, truncated, info = self.env.step(action)
+
+        if takeover := self.takeover:
+            self.steps += 1
+            earned      = self.get_wrapper_attr("progress").earned
+            succeeded   = self.get_wrapper_attr("reward").goal(earned) >= self.target
+            truncated  |= not terminated and (succeeded or self.steps >= takeover.limit)
+
+            if terminated or truncated:
+                info["succeeded"] = succeeded
+
+        return observation, reward, terminated, truncated, info
 
 
 class ProgressObservation(ObservationWrapper, RecordConstructorArgs):
@@ -136,7 +328,7 @@ class ReplayRecording(Wrapper, RecordConstructorArgs):
         self.resumed   = None
         observation, _ = self.env.reset(options={"recording": recording})
 
-        for action in recording.presses:
+        for action in recording.played:
             observation, *_ = self.env.step(action)
 
         return observation, {}
