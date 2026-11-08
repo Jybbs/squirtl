@@ -52,10 +52,6 @@ jobs:
         run  : |
           mise x -- uv sync --locked
           mise x -- uv cache prune --ci
-
-          # `uv cache prune --ci` keeps the unpacked `src` tree beside a wheel uv caches under a
-          # subdirectory keyed on its build settings, as PyBoy's `extra-build-dependencies` place it,
-          # so this deletes each sdist's `src` tree and leaves every built wheel in place.
           find "$(mise x -- uv cache dir)" -path '*/sdists-v*/*' -type d -name src -prune -exec rm -rf {} +
 
   prune:
