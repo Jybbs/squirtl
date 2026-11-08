@@ -33,7 +33,8 @@ Pins the training loop of one run on the CPU, covering:
   taking in each episode at its length, its segment, and its success, the
   windows moving back, the steps counting the agent's own presses alone,
   each line playing back to its return, a resume ending as a run that never
-  stopped, and a demonstration refused before any directory is made
+  stopped, and a demonstration, or a resume whose checkpoint's segments
+  end elsewhere, refused before any directory is made
 """
 
 from collections.abc   import Callable
@@ -316,25 +317,55 @@ def test_a_resume_drops_the_lines_past_the_checkpoint_it_continues_from(
     )
 
 
-def test_a_resumed_run_writes_its_checkpoints_where_a_run_that_never_stopped_does(
-    monkeypatch : MonkeyPatch,
-    trainer     : Callable[..., Trainer]
+def test_a_resume_whose_demonstration_ends_elsewhere_is_refused_before_any_directory(
+    demonstrated : Path,
+    rolling      : Callable[..., Trainer],
+    timed        : Cartridge
 ):
     """
-    Asserts that a run stopped on step 12 writes a checkpoint there and its
-    resumption one at step 20, the steps the same run taken through in one
-    go writes them at, the resumed run counting its next interval on from
-    step 12.
+    Asserts that resuming a run along a demonstration whose checkpoint
+    holds segments ending at other steps than the demonstration's now do
+    is refused, naming both lists of ends, before it makes a directory of
+    its own.
     """
-    unbroken, stopped = trainer(), trainer()
-    steps = [checkpoints(monkeypatch, built) for built in (unbroken, stopped)]
-    finish(unbroken)
-    finish(stopped, stop_at_eight)
-    resumed = trainer(resumes=stopped.run)
-    steps.append(checkpoints(monkeypatch, resumed))
-    finish(resumed)
+    stopped = finish(
+        trainer = along(
+            algorithm    = Algorithm.PPO,
+            demonstrated = demonstrated,
+            rolling      = rolling,
+            timed        = timed
+        ),
+        stop = lambda step, trainer: step == 14 and trainer.run.stop.touch()
+    )
+    checkpoint = VectorCheckpoint.from_path(stopped.checkpoint)
+    syllabus   = checkpoint.syllabus
+    checkpoint.model_copy(
+        update = {
+            "syllabus": syllabus.model_copy(
+                update = {
+                    "segments": [
+                        segment.model_copy(update={"end": segment.end + 1})
+                        for segment in syllabus.segments
+                    ]
+                }
+            )
+        }
+    ).save(stopped.checkpoint)
+    runs = sorted(stopped.directory.parent.iterdir())
 
-    assert steps == [[12, 20], [12], [20]]
+    with raises(
+        ValueError,
+        match = r"end at steps \[5, 9, 13\], .* end at steps \[4, 8, 12\]"
+    ):
+        along(
+            algorithm    = Algorithm.PPO,
+            demonstrated = demonstrated,
+            resumes      = stopped,
+            rolling      = rolling,
+            timed        = timed
+        )
+
+    assert sorted(stopped.directory.parent.iterdir()) == runs
 
 
 @mark.parametrize(
@@ -357,6 +388,27 @@ def test_each_finished_episode_writes_a_line_and_the_cut_one_none(
     ] == [(6, False, 6)] * 3
 
 
+def test_a_resumed_run_writes_its_checkpoints_where_a_run_that_never_stopped_does(
+    monkeypatch : MonkeyPatch,
+    trainer     : Callable[..., Trainer]
+):
+    """
+    Asserts that a run stopped on step 12 writes a checkpoint there and its
+    resumption one at step 20, the steps the same run taken through in one
+    go writes them at, the resumed run counting its next interval on from
+    step 12.
+    """
+    unbroken, stopped = trainer(), trainer()
+    steps = [checkpoints(monkeypatch, built) for built in (unbroken, stopped)]
+    finish(unbroken)
+    finish(stopped, stop_at_eight)
+    resumed = trainer(resumes=stopped.run)
+    steps.append(checkpoints(monkeypatch, resumed))
+    finish(resumed)
+
+    assert steps == [[12, 20], [12], [20]]
+
+
 def test_a_rollout_run_ending_unraised_lets_each_worker_close_its_environment(
     rolling: Callable[..., Trainer]
 ):
@@ -369,18 +421,6 @@ def test_a_rollout_run_ending_unraised_lets_each_worker_close_its_environment(
         list(trainer)
 
     assert {process.exitcode for process in trainer.env.unwrapped.processes} == {0}
-
-
-def test_a_rollout_run_goes_on_to_the_end_of_the_rollout_reaching_its_steps(
-    rolling: Callable[..., Trainer]
-):
-    """
-    Asserts that a run of 9 steps across rollouts of 8 samples plays its
-    second rollout whole, its last checkpoint landing at step 16.
-    """
-    run = finish(rolling(Algorithm.PQN, steps=9))
-
-    assert VectorCheckpoint.from_path(run.checkpoint).step == 16
 
 
 @mark.parametrize(
@@ -408,6 +448,18 @@ def test_a_rollout_takes_the_steps_of_the_settings_of_its_own_agent(
         assert run.tally.counts.tolist() == [1, 1]
 
 
+def test_a_rollout_run_goes_on_to_the_end_of_the_rollout_reaching_its_steps(
+    rolling: Callable[..., Trainer]
+):
+    """
+    Asserts that a run of 9 steps across rollouts of 8 samples plays its
+    second rollout whole, its last checkpoint landing at step 16.
+    """
+    run = finish(rolling(Algorithm.PQN, steps=9))
+
+    assert VectorCheckpoint.from_path(run.checkpoint).step == 16
+
+
 def test_a_rollout_run_makes_the_environments_its_settings_name(
     rolling: Callable[..., Trainer]
 ):
@@ -425,27 +477,6 @@ def test_a_rollout_run_makes_the_environments_its_settings_name(
             run.env.gamma, vector.autoreset_mode,
             vector.max_concurrency, vector.num_envs
         ) == (0.9, AutoresetMode.SAME_STEP, 1, 2)
-
-
-def test_a_rollout_run_of_one_environment_writes_a_line_for_each_episode(
-    rolling: Callable[..., Trainer]
-):
-    """
-    Asserts that a run of one environment, which counts a step at a time,
-    reaches its last step and writes a line for each of the two episodes it
-    truncates by then.
-    """
-    run = finish(
-        trainer = rolling(
-            Algorithm.PPO,
-            agent       = {"environments": 1},
-            environment = EnvironmentSettings(max_episode_steps=3),
-            steps       = 8
-        )
-    )
-
-    assert VectorCheckpoint.from_path(run.checkpoint).step == 8
-    assert len(list(run.recorded)) == 2
 
 
 @mark.parametrize(
@@ -491,6 +522,27 @@ def test_an_evaluation_logs_how_often_each_policy_reached_the_starter(
         "for a mean return of 0.0120, and the random baseline in 0% for 0.1250",
         "Evaluating the agent at step 12"
     } <= set(logged)
+
+
+def test_a_rollout_run_of_one_environment_writes_a_line_for_each_episode(
+    rolling: Callable[..., Trainer]
+):
+    """
+    Asserts that a run of one environment, which counts a step at a time,
+    reaches its last step and writes a line for each of the two episodes it
+    truncates by then.
+    """
+    run = finish(
+        trainer = rolling(
+            Algorithm.PPO,
+            agent       = {"environments": 1},
+            environment = EnvironmentSettings(max_episode_steps=3),
+            steps       = 8
+        )
+    )
+
+    assert VectorCheckpoint.from_path(run.checkpoint).step == 8
+    assert len(list(run.recorded)) == 2
 
 
 def test_a_rollout_run_resuming_a_checkpoint_of_another_agent_is_refused(
@@ -546,41 +598,6 @@ def test_a_run_remembers_the_value_of_a_final_observation_at_the_step_truncating
     )] + [idle] * 2
 
 
-def test_a_run_stopped_halfway_and_resumed_ends_as_a_run_that_never_stopped(
-    trainer: Callable[..., Trainer]
-):
-    """
-    Asserts that a run stopped at the end of its episode on step 12 and
-    resumed to step 20 ends with the networks, Adam's state, replay memory,
-    and generators of the same run taken through in one go, and records the
-    same episodes, every `timer_div` and press included, apart from the wall
-    time each took.
-    """
-    unbroken = finish(trainer())
-    resumed  = trainer(resumes=finish(trainer(), stop_at_eight))
-    finish(resumed)
-
-    first, second = (
-        ReplayCheckpoint.from_path(run.checkpoint) for run in (unbroken, resumed.run)
-    )
-
-    assert_close(
-        [first.online, first.target, first.optimizer, first.replay],
-        [second.online, second.target, second.optimizer, second.replay],
-        atol = 0,
-        rtol = 0
-    )
-    assert (first.exploration, first.sampling, first.step) == (
-        second.exploration, second.sampling, second.step
-    )
-    unbroken_lines, resumed_lines = (
-        [episode.model_dump(exclude={"seconds"}) for episode in run.recorded]
-        for run in (unbroken, resumed.run)
-    )
-
-    assert unbroken_lines == resumed_lines
-
-
 @mark.filterwarnings("ignore:.*pending call to .step")
 def test_a_second_interrupt_partway_through_a_step_ends_each_worker(
     rolling: Callable[..., Trainer]
@@ -633,18 +650,39 @@ def test_the_settings_start_the_training_loop_of_the_agent_they_name(
     assert type(Trainer.start(cartridge, settings, datetime.now(UTC))) is kind
 
 
-def test_a_second_interrupt_ends_the_run_at_once(trainer: Callable[..., Trainer]):
+def test_a_run_stopped_halfway_and_resumed_ends_as_a_run_that_never_stopped(
+    trainer: Callable[..., Trainer]
+):
     """
-    Asserts that a second interrupt raises `KeyboardInterrupt` on the step
-    it lands on, ending the run before its first episode ends and writing
-    no checkpoint.
+    Asserts that a run stopped at the end of its episode on step 12 and
+    resumed to step 20 ends with the networks, Adam's state, replay memory,
+    and generators of the same run taken through in one go, and records the
+    same episodes, every `timer_div` and press included, apart from the wall
+    time each took.
     """
-    built = trainer()
+    unbroken = finish(trainer())
+    resumed  = trainer(resumes=finish(trainer(), stop_at_eight))
+    finish(resumed)
 
-    with raises(KeyboardInterrupt):
-        finish(built, lambda *_: raise_signal(SIGINT))
+    first, second = (
+        ReplayCheckpoint.from_path(run.checkpoint) for run in (unbroken, resumed.run)
+    )
 
-    assert (built.agent.step, built.run.checkpoint.exists()) == (2, False)
+    assert_close(
+        [first.online, first.target, first.optimizer, first.replay],
+        [second.online, second.target, second.optimizer, second.replay],
+        atol = 0,
+        rtol = 0
+    )
+    assert (first.exploration, first.sampling, first.step) == (
+        second.exploration, second.sampling, second.step
+    )
+    unbroken_lines, resumed_lines = (
+        [episode.model_dump(exclude={"seconds"}) for episode in run.recorded]
+        for run in (unbroken, resumed.run)
+    )
+
+    assert unbroken_lines == resumed_lines
 
 
 @each_agent
@@ -699,22 +737,18 @@ def test_an_episodes_line_averages_the_updates_taken_while_it_played(
     assert [line.update and line.update.loss for line in lines[::2]] == means
 
 
-def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
-    logged  : list[str],
-    trainer : Callable[..., Trainer]
-):
+def test_a_second_interrupt_ends_the_run_at_once(trainer: Callable[..., Trainer]):
     """
-    Asserts that a `stop` file written on step 8 ends the run at the end of
-    its episode on step 12, with that episode's line and a checkpoint there,
-    and logs the file it found.
+    Asserts that a second interrupt raises `KeyboardInterrupt` on the step
+    it lands on, ending the run before its first episode ends and writing
+    no checkpoint.
     """
-    run = finish(trainer(), stop_at_eight)
+    built = trainer()
 
-    assert (
-        len(list(run.recorded)),
-        ReplayCheckpoint.from_path(run.checkpoint).step
-    ) == (2, 12)
-    assert f"Stopping at step 12 after 2 episodes on finding {run.stop}" in logged
+    with raises(KeyboardInterrupt):
+        finish(built, lambda *_: raise_signal(SIGINT))
+
+    assert (built.agent.step, built.run.checkpoint.exists()) == (2, False)
 
 
 @mark.parametrize(
@@ -761,23 +795,22 @@ def test_a_step_values_the_final_observation_of_each_episode_it_truncated(
     ).tolist() == values
 
 
-def test_a_tally_averages_each_environments_updates_until_its_episode_ends():
+def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
+    logged  : list[str],
+    trainer : Callable[..., Trainer]
+):
     """
-    Asserts that a tally reads the mean of each measure of the updates added
-    since the environment's last episode ended, and `None` where none was,
-    each environment on its own count.
+    Asserts that a `stop` file written on step 8 ends the run at the end of
+    its episode on step 12, with that episode's line and a checkpoint there,
+    and logs the file it found.
     """
-    tally = Tally(2, Update)
-    tally.add(Update(loss=1.0, value=2.0))
-    tally.add(Update(loss=3.0, value=4.0))
+    run = finish(trainer(), stop_at_eight)
 
-    assert tally.take(0) == Update(loss=2.0, value=3.0)
-    assert tally.take(0) is None
-
-    tally.add(Update(loss=8.0, value=9.0))
-
-    assert tally.take(0) == Update(loss=8.0, value=9.0)
-    assert tally.take(1) == Update(loss=4.0, value=5.0)
+    assert (
+        len(list(run.recorded)),
+        ReplayCheckpoint.from_path(run.checkpoint).step
+    ) == (2, 12)
+    assert f"Stopping at step 12 after 2 episodes on finding {run.stop}" in logged
 
 
 @mark.parametrize(
@@ -823,20 +856,23 @@ def test_a_stop_within_a_rollout_ends_the_run_once_its_update_ends(
     assert any(line.startswith(message) for line in logged)
 
 
-def test_a_vector_checkpoint_of_a_recording_of_no_presses_reads_back(tmp_path: Path):
+def test_a_tally_averages_each_environments_updates_until_its_episode_ends():
     """
-    Asserts that a slot whose recording holds no presses reads back as
-    written, whose empty `bytes` `torch.save` pickles through the `bytes`
-    global, and that the read allows that global for its own `torch.load`
-    alone.
+    Asserts that a tally reads the mean of each measure of the updates added
+    since the environment's last episode ended, and `None` where none was,
+    each environment on its own count.
     """
-    written = vector_checkpoint(2, 16, presses=b"")
-    written.save(tmp_path / "checkpoint.npz")
+    tally = Tally(2, Update)
+    tally.add(Update(loss=1.0, value=2.0))
+    tally.add(Update(loss=3.0, value=4.0))
 
-    assert VectorCheckpoint.from_path(
-        tmp_path / "checkpoint.npz"
-    ).slots == written.slots
-    assert bytes not in get_safe_globals()
+    assert tally.take(0) == Update(loss=2.0, value=3.0)
+    assert tally.take(0) is None
+
+    tally.add(Update(loss=8.0, value=9.0))
+
+    assert tally.take(0) == Update(loss=8.0, value=9.0)
+    assert tally.take(1) == Update(loss=4.0, value=5.0)
 
 
 @each_agent
@@ -930,6 +966,22 @@ def test_a_rollout_run_stopped_before_its_first_step_resumes_as_one_never_stoppe
         resumed  = finish(rewarding(rolling(algorithm, resumes=stopped))),
         unbroken = finish(rewarding(rolling(algorithm)))
     )
+
+
+def test_a_vector_checkpoint_of_a_recording_of_no_presses_reads_back(tmp_path: Path):
+    """
+    Asserts that a slot whose recording holds no presses reads back as
+    written, whose empty `bytes` `torch.save` pickles through the `bytes`
+    global, and that the read allows that global for its own `torch.load`
+    alone.
+    """
+    written = vector_checkpoint(2, 16, presses=b"")
+    written.save(tmp_path / "checkpoint.npz")
+
+    assert VectorCheckpoint.from_path(
+        tmp_path / "checkpoint.npz"
+    ).slots == written.slots
+    assert bytes not in get_safe_globals()
 
 
 def test_a_vector_checkpoint_reads_back_as_written(tmp_path: Path):
@@ -1055,6 +1107,24 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
     ]
 
 
+@mark.parametrize(
+    ("last", "steps"),
+    [param(8, 1, id="within-the-first-rollout"), param(16, 10, id="within-the-second")]
+)
+def test_a_run_whose_steps_fall_within_a_rollout_plays_that_rollout_out(
+    last    : int,
+    rolling : Callable[..., Trainer],
+    steps   : int
+):
+    """
+    Asserts that a run ends on the last step of the rollout its `steps` fall
+    within, since every update reads a full rollout.
+    """
+    run = finish(rolling(Algorithm.PQN, steps=steps))
+
+    assert VectorCheckpoint.from_path(run.checkpoint).step == last
+
+
 def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
     trainer: Callable[..., Trainer]
 ):
@@ -1096,24 +1166,6 @@ def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
     assert Evaluation.model_validate_json(
         evaluated.baseline.read_text(encoding="utf-8")
     ).step is None
-
-
-@mark.parametrize(
-    ("last", "steps"),
-    [param(8, 1, id="within-the-first-rollout"), param(16, 10, id="within-the-second")]
-)
-def test_a_run_whose_steps_fall_within_a_rollout_plays_that_rollout_out(
-    last    : int,
-    rolling : Callable[..., Trainer],
-    steps   : int
-):
-    """
-    Asserts that a run ends on the last step of the rollout its `steps` fall
-    within, since every update reads a full rollout.
-    """
-    run = finish(rolling(Algorithm.PQN, steps=steps))
-
-    assert VectorCheckpoint.from_path(run.checkpoint).step == last
 
 
 def test_an_interrupt_reaching_each_worker_leaves_the_rollout_stepping(
@@ -1158,19 +1210,6 @@ def test_each_checkpoint_follows_the_episodes_written_through_to_disk(
     assert events == ["episodes.jsonl", "checkpoint.npz"] * 2
 
 
-def test_each_environment_starts_from_a_reset_of_its_own(
-    rolling: Callable[..., Trainer]
-):
-    """
-    Asserts that each environment takes a seed of its own at its first
-    reset, which leaves the two at different values of `timer_div`.
-    """
-    with rolling(Algorithm.PQN) as trainer:
-        first, second = trainer.env.unwrapped.get_attr("recording")
-
-    assert first.timer_div != second.timer_div
-
-
 @each_agent
 def test_a_handover_of_pqn_or_ppo_takes_the_episodes_its_checkpoint_counts(
     algorithm : Algorithm,
@@ -1192,6 +1231,19 @@ def test_a_handover_of_pqn_or_ppo_takes_the_episodes_its_checkpoint_counts(
         type(handover.checkpoint),
         handover.episodes
     ) == (VectorCheckpoint, lines[:1])
+
+
+def test_each_environment_starts_from_a_reset_of_its_own(
+    rolling: Callable[..., Trainer]
+):
+    """
+    Asserts that each environment takes a seed of its own at its first
+    reset, which leaves the two at different values of `timer_div`.
+    """
+    with rolling(Algorithm.PQN) as trainer:
+        first, second = trainer.env.unwrapped.get_attr("recording")
+
+    assert first.timer_div != second.timer_div
 
 
 def test_ppos_episode_logs_no_epsilon_beside_its_measures(
@@ -1237,37 +1289,6 @@ def test_the_run_puts_each_signals_handler_back_once_it_ends(
     finish(trainer())
 
     assert [getsignal(number) for number in (SIGINT, SIGTERM)] == handlers
-
-
-def vector_checkpoint(
-    episodes : int,
-    step     : int,
-    presses  : bytes = bytes([1, 4, 4])
-) -> VectorCheckpoint:
-    """
-    Builds the checkpoint of a run of PQN or PPO at `step` after `episodes`
-    episodes, one environment `presses` into its next, by default three.
-    """
-    return VectorCheckpoint(
-        episodes  = episodes,
-        generator = {"bit_generator": "PCG64", "state": {"inc": 1, "state": 2**100}},
-        moments   = Moments(count=8.0001, mean=0.25, var=2.0),
-        online    = {"weight": tensor([1.0, 2.0])},
-        optimizer = {"param_groups": [{"lr": 1e-4, "params": [0]}], "state": {}},
-        slots     = [
-            Slot(
-                count     = 1,
-                generator = {
-                    "bit_generator" : "PCG64",
-                    "state"         : {"inc": 3, "state": 2**70}
-                },
-                recording = Recording(presses=presses, timer_div=9),
-                returned  = -0.5,
-                totals    = [1.0, 2.0]
-            )
-        ],
-        step = step
-    )
 
 
 @each_agent
@@ -1348,8 +1369,8 @@ def test_a_rollout_run_has_its_curriculum_take_in_each_episode_it_records(
         if takeover := line.recording.takeover:
             curriculum.attempted(
                 length    = line.length,
-                number    = takeover.segment,
-                succeeded = line.length == ends[takeover.segment] - takeover.step + 1
+                succeeded = line.length == ends[takeover.segment] - takeover.step + 1,
+                takeover  = takeover
             )
 
     assert VectorCheckpoint.from_path(run.checkpoint).syllabus == curriculum.syllabus
@@ -1396,6 +1417,37 @@ def test_a_rollout_run_along_a_demonstration_resumes_as_one_never_stopped(
 
     assert VectorCheckpoint.from_path(stopped.checkpoint).syllabus.average is not None
     assert_ended_alike(resumed, unbroken)
+
+
+def vector_checkpoint(
+    episodes : int,
+    step     : int,
+    presses  : bytes = bytes([1, 4, 4])
+) -> VectorCheckpoint:
+    """
+    Builds the checkpoint of a run of PQN or PPO at `step` after `episodes`
+    episodes, one environment `presses` into its next, by default three.
+    """
+    return VectorCheckpoint(
+        episodes  = episodes,
+        generator = {"bit_generator": "PCG64", "state": {"inc": 1, "state": 2**100}},
+        moments   = Moments(count=8.0001, mean=0.25, var=2.0),
+        online    = {"weight": tensor([1.0, 2.0])},
+        optimizer = {"param_groups": [{"lr": 1e-4, "params": [0]}], "state": {}},
+        slots     = [
+            Slot(
+                count     = 1,
+                generator = {
+                    "bit_generator" : "PCG64",
+                    "state"         : {"inc": 3, "state": 2**70}
+                },
+                recording = Recording(presses=presses, timer_div=9),
+                returned  = -0.5,
+                totals    = [1.0, 2.0]
+            )
+        ],
+        step = step
+    )
 
 
 @mark.parametrize(

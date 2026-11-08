@@ -54,6 +54,8 @@ def train(
       longer reach the starter on replay
     - A checkpoint damaged, already holding the run's steps, or differing
       from the agent the run's settings build
+    - A checkpoint whose segments end at other steps than the segments of
+      its demonstration now do
     - An episode log ending short of that checkpoint
     - A cartridge the emulator refuses
     - A working directory no git clone holds

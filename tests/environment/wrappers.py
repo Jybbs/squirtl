@@ -437,12 +437,22 @@ def test_each_start_draws_its_segment_step_and_div_from_the_windows(
     Asserts that resets with no seed after a seeded one draw each start's
     segment among the windows set, its step within that segment's window,
     and its `timer_div` from the environment's generator, the seed repeating
-    the draws.
+    the draws, and that each start carries its window's moves.
     """
     env     = following()
     windows = [
-        Window(earliest=0, latest=3, segment=0),
-        Window(earliest=9, latest=11, segment=2)
+        Window(
+            earliest = 0,
+            latest   = 3,
+            moves    = 1,
+            segment  = 0
+        ),
+        Window(
+            earliest = 9,
+            latest   = 11,
+            moves    = 4,
+            segment  = 2
+        )
     ]
     env.set_wrapper_attr("starts", Starts(limit=50, windows=windows))
     drawn = []
@@ -453,12 +463,12 @@ def test_each_start_draws_its_segment_step_and_div_from_the_windows(
 
     assert drawn[0] == drawn[-1]
     assert {(
-        takeover.segment,
+        takeover.segment, takeover.moves,
         takeover.step in range(
             windows[takeover.segment // 2].earliest,
             windows[takeover.segment // 2].latest + 1
         )
-    ) for takeover in drawn} == {(0, True), (2, True)}
+    ) for takeover in drawn} == {(0, 1, True), (2, 4, True)}
     assert len({takeover.timer_div for takeover in drawn}) > 1
 
 

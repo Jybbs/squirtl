@@ -185,6 +185,12 @@ class Takeover(Record):
     The value the start wrote into DIV.
     """
 
+    moves: NonNegativeInt = 0
+    """
+    The moves the segment's window had taken when the start was drawn from
+    it.
+    """
+
 
 class Recording(Record, ser_json_bytes="base64", val_json_bytes="base64"):
     """
@@ -247,6 +253,12 @@ class Window(Record):
     segment: NonNegativeInt
     """
     The segment whose end an episode from the window aims for.
+    """
+
+    moves: NonNegativeInt = 0
+    """
+    The moves the segment's window has taken, which each start drawn from it
+    carries in its takeover.
     """
 
 

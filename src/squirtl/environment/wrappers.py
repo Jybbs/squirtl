@@ -85,6 +85,7 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
 
         return Takeover(
             limit   = starts.limit,
+            moves   = window.moves,
             segment = window.segment,
             step    = int(self.np_random.integers(window.earliest, window.latest + 1)),
             timer_div = int(self.np_random.integers(256))

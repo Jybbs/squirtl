@@ -10,26 +10,32 @@ demonstration, covering:
   each move
 - A segment solved at the bedroom once its share reaches the completion
   share, leaving the windows of the rest, and no window once every one is
+- An episode drawn before its window's last move left out of the share
 - The line logged at each move, the moving average of successful lengths,
-  and a curriculum restored from its syllabus drawing as the one it was
-  taken from
+  a curriculum restored from its syllabus drawing as the one it was taken
+  from, and a syllabus whose segments end elsewhere refused
 """
 
 from numpy.random import default_rng
-from pytest       import approx, mark, param
+from pytest       import approx, mark, param, raises
 
-from squirtl.environment.schemas import Starts, Window
+from squirtl.environment.schemas import Starts, Takeover, Window
 from squirtl.runs.curriculum     import Curriculum, Segment
 from squirtl.runs.schemas        import CurriculumSettings
 
 
 def attempt(curriculum: Curriculum, number: int, *outcomes: bool, length: int = 10):
     """
-    Has `curriculum` take in an episode of `length` steps from the window of
-    segment `number` for each of `outcomes`, each whether it succeeded.
+    Has `curriculum` take in an episode of `length` steps drawn from the
+    window of segment `number` as it stands for each of `outcomes`, each
+    whether it succeeded.
     """
     for succeeded in outcomes:
-        curriculum.attempted(length=length, number=number, succeeded=succeeded)
+        curriculum.attempted(
+            length    = length,
+            succeeded = succeeded,
+            takeover  = taken(curriculum, number)
+        )
 
 
 def build(**fields: object) -> Curriculum:
@@ -42,6 +48,20 @@ def build(**fields: object) -> Curriculum:
         [40, 90],
         0,
         CurriculumSettings.model_validate({"recent": 4} | fields)
+    )
+
+
+def taken(curriculum: Curriculum, number: int) -> Takeover:
+    """
+    Builds a takeover at the bedroom from the window of segment `number` as
+    it stands, carrying the moves that window has taken.
+    """
+    return Takeover(
+        limit     = curriculum.limit,
+        moves     = curriculum.segments[number].moves,
+        segment   = number,
+        step      = 0,
+        timer_div = 0
     )
 
 
@@ -93,6 +113,7 @@ def test_a_window_moves_once_its_recent_episodes_fill(
     assert curriculum.segments[0] == Segment(
         end    = 40,
         latest = latest,
+        moves  = 1,
         recent = [],
         solved = False
     )
@@ -114,20 +135,18 @@ def test_a_curriculum_with_every_segment_solved_gives_no_starts():
     assert (curriculum.starts, curriculum.segments[0].recent) == (None, [])
 
 
-def test_a_window_moves_by_a_multiple_of_the_window_between_its_bounds():
+def test_a_syllabus_whose_segments_end_elsewhere_is_refused():
     """
-    Asserts that each move draws its size uniformly between the bounds the
-    settings give, times the window, so bounds of one move by exactly the
-    window, back from the end and then forward again.
+    Asserts that restoring a syllabus whose segments end at other steps than
+    the curriculum's raises, naming both lists of ends.
     """
-    curriculum = build(back=(1.0, 1.0), forward=(1.0, 1.0), window=10)
-    latest     = []
+    taken_from = Curriculum([40, 91], 0, CurriculumSettings())
 
-    for outcome in (True, True, False):
-        attempt(curriculum, 1, *[outcome] * 4)
-        latest.append(curriculum.segments[1].latest)
-
-    assert latest == [80, 70, 80]
+    with raises(
+        ValueError,
+        match = r"end at steps \[40, 91\], .* end at steps \[40, 90\]"
+    ):
+        build().restore(taken_from.syllabus)
 
 
 @mark.parametrize(
@@ -156,6 +175,22 @@ def test_a_segment_at_the_bedroom_is_solved_at_the_completion_share(
     assert [window.segment for window in curriculum.starts.windows] == windows
 
 
+def test_a_window_moves_by_a_multiple_of_the_window_between_its_bounds():
+    """
+    Asserts that each move draws its size uniformly between the bounds the
+    settings give, times the window, so bounds of one move by exactly the
+    window, back from the end and then forward again.
+    """
+    curriculum = build(back=(1.0, 1.0), forward=(1.0, 1.0), window=10)
+    latest     = []
+
+    for outcome in (True, True, False):
+        attempt(curriculum, 1, *[outcome] * 4)
+        latest.append(curriculum.segments[1].latest)
+
+    assert latest == [80, 70, 80]
+
+
 def test_a_window_moving_back_stops_at_the_bedroom():
     """
     Asserts that a window moving back by more than the steps left before it
@@ -168,6 +203,29 @@ def test_a_window_moving_back_stops_at_the_bedroom():
         curriculum.segments[0].latest,
         curriculum.starts.windows[0].earliest
     ) == (0, 0)
+
+
+def test_an_episode_drawn_before_its_windows_last_move_stays_out_of_its_share():
+    """
+    Asserts that once a window moves, the starts it gives carry its new
+    count of moves, and that an episode drawn before the move leaves its
+    share as it stood while one drawn after it counts.
+    """
+    curriculum = build()
+    attempt(curriculum, 0, *[True] * 4)
+
+    shares = []
+
+    for moves in (0, 1):
+        curriculum.attempted(
+            length    = 10,
+            succeeded = True,
+            takeover  = taken(curriculum, 0).model_copy(update={"moves": moves})
+        )
+        shares.append(curriculum.segments[0].recent)
+
+    assert curriculum.starts.windows[0].moves == 1
+    assert shares == [[], [True]]
 
 
 def test_each_move_logs_where_the_window_starts_and_the_share_behind_it(
@@ -205,12 +263,16 @@ def test_each_window_starts_at_its_segments_end_spanning_the_window_steps():
 def test_the_limit_follows_the_moving_average_of_successful_lengths():
     """
     Asserts that the moving average starts at the first successful length,
-    takes each later one in at a weight of a tenth, and leaves out each
+    gives each later one the smoothing weight of 0.9, and leaves out each
     failed episode, the limit being twice it plus the buffer.
     """
     curriculum = build()
-    curriculum.attempted(length=20, number=0, succeeded=True)
-    curriculum.attempted(length=900, number=0, succeeded=False)
-    curriculum.attempted(length=30, number=0, succeeded=True)
 
-    assert (curriculum.average, curriculum.limit) == (approx(21), 542)
+    for length, succeeded in ((20, True), (900, False), (30, True)):
+        curriculum.attempted(
+            length    = length,
+            succeeded = succeeded,
+            takeover  = taken(curriculum, 0)
+        )
+
+    assert (curriculum.average, curriculum.limit) == (approx(29), 558)

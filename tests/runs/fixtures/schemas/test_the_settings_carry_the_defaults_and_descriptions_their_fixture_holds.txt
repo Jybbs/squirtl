@@ -240,7 +240,7 @@
         "smoothing": {
           "$ref": "#/$defs/UnitInterval",
           "default": 0.9,
-          "description": "The weight the moving average of successful lengths keeps on its last\nvalue as it takes in each new length, whose default is the smoothing\nfactor of Mhammedi and Cohan's Table 8."
+          "description": "The weight the moving average of successful lengths gives each new\nlength, the smoothing constant of single exponential smoothing in\nsection 6.4.3.1 of the NIST/SEMATECH e-Handbook of Statistical Methods,\nwhose default is the smoothing factor of Mhammedi and Cohan's Table 8."
         },
         "tolerance": {
           "default": 0.0,

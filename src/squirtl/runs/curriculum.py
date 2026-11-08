@@ -10,7 +10,7 @@ from numpy.random import default_rng
 from statistics   import fmean
 
 from squirtl.emulator.schemas    import Record
-from squirtl.environment.schemas import Starts, Window
+from squirtl.environment.schemas import Starts, Takeover, Window
 from squirtl.runs.schemas        import CurriculumSettings
 
 
@@ -33,10 +33,16 @@ class Segment(Record):
     back to 0.
     """
 
+    moves: int = 0
+    """
+    The times the window has moved, which each start drawn from it carries,
+    so an episode drawn before the last move stays out of `recent`.
+    """
+
     recent: list[bool] = []
     """
-    Whether each episode from the window succeeded since its share was last
-    taken.
+    Whether each episode drawn from the window since its last move
+    succeeded.
     """
 
     solved: bool = False
@@ -114,6 +120,7 @@ class Curriculum:
             Window(
                 earliest = max(0, segment.latest - self.settings.window),
                 latest   = segment.latest,
+                moves    = segment.moves,
                 segment  = number
             )
             for number, segment in enumerate(self.segments) if not segment.solved
@@ -133,22 +140,27 @@ class Curriculum:
             segments  = self.segments
         )
 
-    def attempted(self, length: int, number: int, succeeded: bool):
+    def attempted(self, length: int, succeeded: bool, takeover: Takeover):
         """
-        Takes in an episode of `length` steps from segment `number`'s
-        window, adding its length to the moving average where it succeeded.
+        Takes in an episode of `length` steps started at `takeover`, adding
+        its length to the moving average where it succeeded, and counting
+        it toward its segment's share where its window has not moved since.
         Once `recent` episodes accumulate, it solves the segment, moves its
         window back, or moves it forward, then starts the count again.
+
+        The average starts at the first successful length and gives each
+        later one the weight `smoothing`, the rest staying on the average.
         """
         settings = self.settings
 
         if succeeded:
             last         = length if self.average is None else self.average
-            self.average = settings.smoothing * last + (1 - settings.smoothing) * length
+            self.average = settings.smoothing * length + (1 - settings.smoothing) * last
 
+        number  = takeover.segment
         segment = self.segments[number]
 
-        if segment.solved:
+        if segment.solved or takeover.moves != segment.moves:
             return
 
         recent = [*segment.recent, succeeded]
@@ -172,6 +184,7 @@ class Curriculum:
         self.segments[number] = Segment(
             end    = segment.end,
             latest = latest,
+            moves  = segment.moves + 1,
             solved = solved
         )
 
@@ -187,7 +200,22 @@ class Curriculum:
         """
         Sets the moving average, the generator, and each segment to what
         `syllabus` holds.
+
+        Raises:
+            ValueError: Where the segments of `syllabus` end at other steps
+                        than the demonstration's do now.
         """
+        ends, taken = (
+            [segment.end for segment in segments]
+            for segments in (self.segments, syllabus.segments)
+        )
+
+        if taken != ends:
+            raise ValueError(
+                f"the checkpoint's segments end at steps {taken}, whereas the "
+                f"demonstration's now end at steps {ends}"
+            )
+
         self.average = syllabus.average
         self.generator.bit_generator.state = syllabus.generator
         self.segments = list(syllabus.segments)

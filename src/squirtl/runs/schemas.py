@@ -106,9 +106,10 @@ class CurriculumSettings(Record):
 
     smoothing: UnitInterval = 0.9
     """
-    The weight the moving average of successful lengths keeps on its last
-    value as it takes in each new length, whose default is the smoothing
-    factor of Mhammedi and Cohan's Table 8.
+    The weight the moving average of successful lengths gives each new
+    length, the smoothing constant of single exponential smoothing in
+    section 6.4.3.1 of the NIST/SEMATECH e-Handbook of Statistical Methods,
+    whose default is the smoothing factor of Mhammedi and Cohan's Table 8.
     """
 
     tolerance: NonNegativeFloat = 0.0

@@ -21,6 +21,8 @@ Each of these exits 1 before any directory is made:
    starter on replay                                                            
  • A checkpoint damaged, already holding the run's steps, or differing from the 
    agent the run's settings build                                               
+ • A checkpoint whose segments end at other steps than the segments of its      
+   demonstration now do                                                         
  • An episode log ending short of that checkpoint                               
  • A cartridge the emulator refuses                                             
  • A working directory no git clone holds
@@ -222,10 +224,12 @@ Each of these exits 1 before any directory is made:
 │                               default is the required success rate of        │
 │                               Mhammedi and Cohan's Table 8. [default: 0.2]   │
 │ --curriculum.smoothing FLOAT  The weight the moving average of successful    │
-│                               lengths keeps on its last value as it takes in │
-│                               each new length, whose default is the          │
-│                               smoothing factor of Mhammedi and Cohan's Table │
-│                               8. [default: 0.9]                              │
+│                               lengths gives each new length, the smoothing   │
+│                               constant of single exponential smoothing in    │
+│                               section 6.4.3.1 of the NIST/SEMATECH           │
+│                               e-Handbook of Statistical Methods, whose       │
+│                               default is the smoothing factor of Mhammedi    │
+│                               and Cohan's Table 8. [default: 0.9]            │
 │ --curriculum.tolerance FLOAT  The reward an episode from a start may fall    │
 │                               short of the demonstration's from the same     │
 │                               step and still succeed, whose default is the   │

@@ -324,8 +324,10 @@ class Trainer(AbstractContextManager, ABC):
 
         Raises:
             ValueError: Where the checkpoint `handover` carries differs from
-                        the agent, as the agent's `restore` raises, beside
-                        each error `Run.start` raises.
+                        the agent, as the agent's `restore` raises, or from
+                        the demonstration's segments, as the curriculum's
+                        `restore` raises, beside each error `Run.start`
+                        raises.
         """
         self.cartridge = cartridge
         self.settings  = settings
@@ -921,8 +923,8 @@ class RolloutTrainer(Trainer):
                 if takeover := recording.takeover:
                     self.curriculum.attempted(
                         length    = outcome.length,
-                        number    = takeover.segment,
-                        succeeded = final["succeeded"][slot].item()
+                        succeeded = final["succeeded"][slot].item(),
+                        takeover  = takeover
                     )
 
                 self.record(outcome, recording, self.tally.take(slot))
