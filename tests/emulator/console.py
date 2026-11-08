@@ -9,11 +9,14 @@ Pins how `GameBoy` runs a cartridge through PyBoy, covering:
 - The byte each symbol reads, the digest of the state a reset leaves, the
   stop a close makes, the intro a start plays, and the state and DIV a
   reset returns to
+- The state a load returns to, the frame it last rendered included, and the
+  DIV a write sets, leaving the rest of the state as it was
 """
 
 from collections.abc import Callable, Iterator
 from common.console  import StandIn
 from functools       import partial
+from itertools       import batched
 from numpy           import arange, ndarray, shares_memory, tile, uint8
 from numpy.random    import default_rng
 from numpy.testing   import assert_array_equal
@@ -141,6 +144,42 @@ def test_a_press_sends_any_button_then_ticks_before_reading_the_screen(
     assert game_boy.emulator.calls == [*pressed, ("tick", 24), ("screen",)]
 
 
+def test_a_div_write_sets_div_alone(game_boy: GameBoy):
+    """
+    Asserts that a DIV write on PyBoy after a reset at 0 leaves 77 in the
+    register at `0xFF04`, which a write to that address would clear, and the
+    console in the state a reset at 77 leaves.
+    """
+    game_boy.start()
+    reached = []
+
+    for writes in ([game_boy.reset, 77], [game_boy.reset, 0, game_boy.set_div, 77]):
+        for write, timer_div in batched(writes, 2):
+            write(timer_div)
+
+        reached.append((game_boy.emulator.memory[0xFF04], game_boy.digest))
+
+    assert reached == [(77, reached[0][1])] * 2
+
+
+def test_a_load_returns_to_the_state_saved_and_the_frame_it_rendered(game_boy: GameBoy):
+    """
+    Asserts that loading a state the console saved undoes the frames and the
+    write to the game's memory taken since, leaving the same state and the
+    same gray frame.
+    """
+    game_boy.start()
+    game_boy.press(None, 120)
+    state, frame = game_boy.state, game_boy.grayscale
+    game_boy.emulator.memory[Symbol.W_CUR_MAP] = 9
+    game_boy.press(None, 30)
+    game_boy.load(state)
+
+    assert game_boy.read(Symbol.W_CUR_MAP) == 0
+    assert game_boy.state == state
+    assert_array_equal(game_boy.grayscale, frame, strict=True)
+
+
 def test_a_press_holding_its_button_past_its_frames_is_refused(boot: Boot):
     """
     Asserts that a press advancing fewer frames than its settings hold the
@@ -165,6 +204,27 @@ def test_a_read_past_a_symbol_reads_the_byte_at_its_offset(game_boy: GameBoy):
     game_boy.emulator.memory[Symbol.W_EVENT_FLAGS + 4] = 0x5A
 
     assert game_boy.read(Symbol.W_EVENT_FLAGS, 4) == 0x5A
+
+
+@mark.parametrize("button", Button, ids=attrgetter("name"))
+def test_each_button_names_one_pyboy_presses(button: Button, game_boy: GameBoy):
+    """
+    Asserts that PyBoy takes the value of each button as the name of a
+    button it presses, where it raises `PyBoyInvalidInputException` on a
+    name it does not know, held for exactly the frames the press advances.
+    """
+    game_boy.press(button, game_boy.settings.hold)
+
+
+@mark.parametrize("symbol", Symbol, ids=attrgetter("name"))
+def test_each_symbol_reads_the_byte_at_its_address(game_boy: GameBoy, symbol: Symbol):
+    """
+    Asserts that reading a symbol returns the byte written at the address
+    its member holds.
+    """
+    game_boy.emulator.memory[symbol] = 0x5A
+
+    assert game_boy.read(symbol) == 0x5A
 
 
 def test_a_reset_at_one_timer_div_leaves_a_state_of_one_digest(game_boy: GameBoy):
@@ -195,27 +255,6 @@ def test_a_start_leaves_pythons_global_generator_undrawn(game_boy: GameBoy):
     assert after == before
 
 
-@mark.parametrize("button", Button, ids=attrgetter("name"))
-def test_each_button_names_one_pyboy_presses(button: Button, game_boy: GameBoy):
-    """
-    Asserts that PyBoy takes the value of each button as the name of a
-    button it presses, where it raises `PyBoyInvalidInputException` on a
-    name it does not know, held for exactly the frames the press advances.
-    """
-    game_boy.press(button, game_boy.settings.hold)
-
-
-@mark.parametrize("symbol", Symbol, ids=attrgetter("name"))
-def test_each_symbol_reads_the_byte_at_its_address(game_boy: GameBoy, symbol: Symbol):
-    """
-    Asserts that reading a symbol returns the byte written at the address
-    its member holds.
-    """
-    game_boy.emulator.memory[symbol] = 0x5A
-
-    assert game_boy.read(symbol) == 0x5A
-
-
 def test_a_start_plays_the_intro_through_the_game_wrapper(boot: Boot):
     """
     Asserts that a start hands PyBoy's game wrapper a `timer_div` of 0 in
@@ -240,41 +279,6 @@ def test_a_window_the_setting_opens_is_one_pyboy_runs(
 
     with GameBoy.boot(cartridge, EmulatorSettings(open_window=True)) as game_boy:
         assert game_boy.emulator.tick(1)
-
-
-def test_the_frame_a_press_returns_holds_the_red_channel_alone(boot: Boot):
-    """
-    Asserts that the frame a press returns is a `(144, 160)` array of
-    `uint8` holding the red channel of PyBoy's RGBA frame alone, read from a
-    stand-in frame of bytes a generator seeded at 0 draws, whose red channel
-    no reduction across the channels gives.
-    """
-    game_boy                = boot(EmulatorSettings())
-    game_boy.emulator.frame = default_rng(0).integers(
-        256,
-        dtype = uint8,
-        size  = (144, 160, 4)
-    )
-
-    assert_array_equal(
-        game_boy.press(None, 1),
-        game_boy.emulator.frame[..., 0],
-        strict = True
-    )
-
-
-def test_the_screen_holds_the_rgb_channels_alone(boot: Boot):
-    """
-    Asserts that the screen is a `(144, 160, 3)` array of `uint8` holding
-    the red, green, and blue channels of PyBoy's RGBA frame in that order,
-    read from a stand-in frame whose every pixel holds each channel's index
-    in that channel.
-    """
-    assert_array_equal(
-        boot(EmulatorSettings()).screen,
-        tile(arange(3, dtype=uint8), (144, 160, 1)),
-        strict = True
-    )
 
 
 @mark.parametrize(
@@ -314,4 +318,39 @@ def test_a_reset_returns_to_the_start_with_its_timer_div_in_div(
 
     assert (game_boy.read(Symbol.W_CUR_MAP), game_boy.emulator.memory[0xFF04]) == (
         0, timer_div
+    )
+
+
+def test_the_frame_a_press_returns_holds_the_red_channel_alone(boot: Boot):
+    """
+    Asserts that the frame a press returns is a `(144, 160)` array of
+    `uint8` holding the red channel of PyBoy's RGBA frame alone, read from a
+    stand-in frame of bytes a generator seeded at 0 draws, whose red channel
+    no reduction across the channels gives.
+    """
+    game_boy                = boot(EmulatorSettings())
+    game_boy.emulator.frame = default_rng(0).integers(
+        256,
+        dtype = uint8,
+        size  = (144, 160, 4)
+    )
+
+    assert_array_equal(
+        game_boy.press(None, 1),
+        game_boy.emulator.frame[..., 0],
+        strict = True
+    )
+
+
+def test_the_screen_holds_the_rgb_channels_alone(boot: Boot):
+    """
+    Asserts that the screen is a `(144, 160, 3)` array of `uint8` holding
+    the red, green, and blue channels of PyBoy's RGBA frame in that order,
+    read from a stand-in frame whose every pixel holds each channel's index
+    in that channel.
+    """
+    assert_array_equal(
+        boot(EmulatorSettings()).screen,
+        tile(arange(3, dtype=uint8), (144, 160, 1)),
+        strict = True
     )

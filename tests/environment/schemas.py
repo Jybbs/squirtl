@@ -8,6 +8,9 @@ Pins the records the environment reads and writes, covering:
 - A recording's presses held as given in Python and written in JSON as the
   URL-safe base64 of their zstd compression at level 19, and the
   `timer_div` it refuses
+- A recording's split into the presses a demonstration made before its
+  takeover and the episode's own, and the line of a recording holding no
+  takeover read back as one starting in the bedroom
 """
 
 from base64              import urlsafe_b64decode
@@ -19,7 +22,7 @@ from pydantic            import ValidationError
 from pytest              import mark, param, raises
 from re import escape
 
-from squirtl.environment.schemas import EnvironmentSettings, Recording
+from squirtl.environment.schemas import EnvironmentSettings, Recording, Takeover
 
 
 @mark.parametrize(
@@ -61,6 +64,28 @@ def test_the_settings_keep_a_frame_shape_that_divides_the_screen(
     assert EnvironmentSettings(frame_shape=frame_shape).frame_shape == frame_shape
 
 
+def test_a_recording_reads_back_its_takeover_and_none_from_a_line_holding_none():
+    """
+    Asserts that a recording holding a takeover reads back as written,
+    and that a line holding only presses and a `timer_div` reads back as a
+    recording starting in the bedroom.
+    """
+    recording = Recording(
+        presses  = b"\x01",
+        takeover = Takeover(
+            limit     = 9,
+            segment   = 1,
+            step      = 1,
+            timer_div = 3
+        ),
+        timer_div = 0
+    )
+    bare = recording.model_dump_json(exclude={"takeover"})
+
+    assert Recording.model_validate_json(recording.model_dump_json()) == recording
+    assert Recording.model_validate_json(bare).takeover is None
+
+
 def test_a_recording_writes_its_presses_as_the_base64_of_their_zstd_compression():
     """
     Asserts that a recording holds the presses it is built with, writes them
@@ -75,21 +100,6 @@ def test_a_recording_writes_its_presses_as_the_base64_of_their_zstd_compression(
         recording.presses
     )
     assert Recording.model_validate_json(recording.model_dump_json()) == recording
-
-
-def test_the_settings_read_the_screen_and_the_clock_pyboy_declares():
-    """
-    Asserts that the settings keep a frame shape of PyBoy's `ROWS`
-    by `COLS`, refuse one a row taller naming that screen, and divide
-    `CLOCK_RATE` over `FRAME_CYCLES` by `frames_per_step`, so the literals
-    the record holds in place of importing `pyboy` stay PyBoy's own.
-    """
-    settings = EnvironmentSettings(frame_shape=(ROWS, COLS), frames_per_step=2)
-
-    assert settings.steps_per_second == CLOCK_RATE / FRAME_CYCLES / 2
-
-    with raises(ValidationError, match=f"{ROWS} by {COLS} screen"):
-        EnvironmentSettings(frame_shape=(ROWS + 1, COLS))
 
 
 @mark.parametrize(
@@ -122,3 +132,50 @@ def test_a_recording_refuses_a_timer_div_outside_the_eight_bits_of_div(timer_div
     """
     with raises(ValidationError):
         Recording(presses=b"", timer_div=timer_div)
+
+
+@mark.parametrize(
+    ("takeover", "demonstrated", "played"),
+    [
+        param(None, b"", b"\x01\x02\x03", id="from-the-bedroom"),
+        param(
+            Takeover(
+                limit     = 9,
+                segment   = 0,
+                step      = 2,
+                timer_div = 0
+            ),
+            b"\x01\x02",
+            b"\x03",
+            id = "taking-over-at-step-2"
+        )
+    ]
+)
+def test_a_recording_splits_its_presses_at_its_takeover(
+    demonstrated : bytes,
+    played       : bytes,
+    takeover     : Takeover | None
+):
+    """
+    Asserts that a recording splits its presses into the demonstration's, up
+    to its takeover's step, and the episode's own after it, none being the
+    demonstration's where it holds no takeover.
+    """
+    recording = Recording(presses=b"\x01\x02\x03", takeover=takeover, timer_div=0)
+
+    assert (recording.demonstrated, recording.played) == (demonstrated, played)
+
+
+def test_the_settings_read_the_screen_and_the_clock_pyboy_declares():
+    """
+    Asserts that the settings keep a frame shape of PyBoy's `ROWS`
+    by `COLS`, refuse one a row taller naming that screen, and divide
+    `CLOCK_RATE` over `FRAME_CYCLES` by `frames_per_step`, so the literals
+    the record holds in place of importing `pyboy` stay PyBoy's own.
+    """
+    settings = EnvironmentSettings(frame_shape=(ROWS, COLS), frames_per_step=2)
+
+    assert settings.steps_per_second == CLOCK_RATE / FRAME_CYCLES / 2
+
+    with raises(ValidationError, match=f"{ROWS} by {COLS} screen"):
+        EnvironmentSettings(frame_shape=(ROWS + 1, COLS))

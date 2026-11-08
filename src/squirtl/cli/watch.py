@@ -30,6 +30,10 @@ def watch(
     from the reset at the `timer_div` the run recorded for it to the return
     the run recorded, at the sixty steps a second the window paces.
 
+    An episode that started along a demonstration plays the demonstration's
+    presses up to its start first, and its return counts its own steps
+    alone.
+
     A directory holding no run, an episode the run never recorded, or a
     cartridge the emulator refuses exits 1 before the window opens, and
     a console whose intro leaves a state of another digest than the run's

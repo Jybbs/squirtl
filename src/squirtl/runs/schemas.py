@@ -1,7 +1,7 @@
 """
 Defines the records one run reads and writes:
 
-- `RunSettings`, every setting the run reads
+- `RunSettings`, every setting the run reads, `CurriculumSettings` among them
 - `Revision`, the code the run ran on
 - `Run`, the directory under `data/runs/` recording both, each episode, each
   evaluation, and the checkpoint
@@ -19,14 +19,16 @@ from json            import loads
 from loguru          import logger
 from numpy           import uint64
 from numpy.random    import SeedSequence
+from operator        import attrgetter
 from os              import SEEK_END, pread
 from pathlib         import Path
-from pydantic        import AwareDatetime, Field, NonNegativeInt, PositiveInt, PrivateAttr, StringConstraints
+from pydantic        import AwareDatetime, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt
+from pydantic        import PrivateAttr, StringConstraints, model_validator
 from subprocess      import check_output
 from typing          import Annotated, Self
 
-from squirtl.agent.schemas       import AgentSettings, PolicyUpdate, Update, flush
-from squirtl.emulator.schemas    import EmulatorSettings, Record
+from squirtl.agent.schemas       import AgentSettings, Algorithm, PolicyUpdate, Update, flush
+from squirtl.emulator.schemas    import EmulatorSettings, Record, UnitInterval
 from squirtl.environment.schemas import EnvironmentSettings, Outcome, Recording
 from squirtl.evaluation.schemas  import Evaluation, EvaluationSettings
 from squirtl.reward.schemas      import RewardSettings
@@ -34,6 +36,118 @@ from squirtl.reward.schemas      import RewardSettings
 type Hexadecimal = Annotated[
     str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
 ]
+
+
+class CurriculumSettings(Record):
+    """
+    The settings of the curriculum that starts each training episode
+    along a demonstration and moves the start back toward Blue's
+    bedroom, each a field of `RunSettings.curriculum` and a key under
+    `[tool.squirtl.curriculum]` in `pyproject.toml`. Every default but
+    `demonstration` is the one Mhammedi and Cohan's Table 8 sets for the
+    backward algorithm of their Appendix B.
+    """
+
+    back: tuple[PositiveFloat, PositiveFloat] = (0.25, 0.75)
+    """
+    The least and the most a window moves back, each a multiple of `window`,
+    between which each move draws uniformly, whose default is the decrease
+    multipliers of Mhammedi and Cohan's Table 8.
+    """
+
+    buffer: PositiveInt = 500
+    """
+    The steps an episode from a start takes beyond `multiplier` times the
+    moving average of successful lengths before it truncates, whose default
+    is the rollout length buffer of Mhammedi and Cohan's Table 8.
+    """
+
+    completion: UnitInterval = 0.95
+    """
+    The share of the recent episodes from a window reaching Blue's bedroom
+    that have to succeed before its segment counts as solved, whose default
+    is the completion threshold of Mhammedi and Cohan's Table 8.
+    """
+
+    demonstration: Path | None = None
+    """
+    The directory of the run whose shortest episode reaching the starter
+    each training episode starts along, or `None` to start every episode in
+    Blue's bedroom.
+    """
+
+    forward: tuple[PositiveFloat, PositiveFloat] = (0.5, 1.0)
+    """
+    The least and the most a window moves forward, each a multiple of
+    `window`, between which each move draws uniformly, whose default is the
+    increase multipliers of Mhammedi and Cohan's Table 8.
+    """
+
+    multiplier: PositiveFloat = 2.0
+    """
+    The multiple of the moving average of successful lengths an episode
+    from a start takes before `buffer` and then truncates, whose default is
+    the early termination multiplier of Mhammedi and Cohan's Table 8.
+    """
+
+    recent: PositiveInt = 32
+    """
+    The episodes from a window whose share of successes moves it, after
+    which the count starts again, whose default is the minimum rollouts for
+    an update of Mhammedi and Cohan's Table 8.
+    """
+
+    required: UnitInterval = 0.2
+    """
+    The share of the recent episodes from a window that have to succeed for
+    it to move back, where a smaller share moves it forward, whose default
+    is the required success rate of Mhammedi and Cohan's Table 8.
+    """
+
+    smoothing: UnitInterval = 0.9
+    """
+    The weight the moving average of successful lengths keeps on its last
+    value as it takes in each new length, whose default is the smoothing
+    factor of Mhammedi and Cohan's Table 8.
+    """
+
+    tolerance: NonNegativeFloat = 0.0
+    """
+    The reward an episode from a start may fall short of the
+    demonstration's from the same step and still succeed, whose default is
+    the failure reward tolerance of Mhammedi and Cohan's Table 8.
+    """
+
+    window: PositiveInt = 25
+    """
+    The steps of the demonstration each segment's window spans back from
+    its latest start, whose default is the start delta window of Mhammedi
+    and Cohan's Table 8.
+    """
+
+    @model_validator(mode="after")
+    def verify(self) -> Self:
+        """
+        Refuses a `back` or a `forward` whose least move passes its most,
+        and a `required` share above `completion`.
+
+        Raises:
+            ValueError: Where either holds, which Pydantic raises as a
+                        `ValidationError`.
+        """
+        for name in ("back", "forward"):
+            if (moves := getattr(self, name))[0] > moves[1]:
+                raise ValueError(
+                    f"the least {name} move of {moves[0]} passes the most of {moves[1]}"
+                )
+
+        if self.required > self.completion:
+            raise ValueError(
+                f"a required share of {self.required} passes the completion share "
+                f"of {self.completion}"
+            )
+
+        return self
 
 
 class Revision(Record):
@@ -93,6 +207,7 @@ class Stream(StrEnum):
     AGENT       = auto()
     ENVIRONMENT = auto()
     EVALUATION  = auto()
+    WINDOW      = auto()
 
 
 class RunSettings(Record):
@@ -118,6 +233,12 @@ class RunSettings(Record):
     episode end, or the end of a rollout's update for PQN and PPO, reaching
     a multiple of them, whose default is the 250,000 steps of each iteration
     Dopamine's DQN checkpoints after.
+    """
+
+    curriculum: CurriculumSettings = Field(default_factory=CurriculumSettings)
+    """
+    The settings of the curriculum starting each training episode along a
+    demonstration.
     """
 
     emulator: EmulatorSettings = Field(default_factory=EmulatorSettings)
@@ -177,6 +298,24 @@ class RunSettings(Record):
             for stream, child in zip(Stream, SeedSequence(self.seed).spawn(len(Stream)))
         }
 
+    @model_validator(mode="after")
+    def verify(self) -> Self:
+        """
+        Refuses a demonstration for the deep Q-network, whose episodes start
+        in Blue's bedroom alone.
+
+        Raises:
+            ValueError: Where the settings name both, which Pydantic raises
+                        as a `ValidationError`.
+        """
+        if self.curriculum.demonstration and self.agent.algorithm is Algorithm.DQN:
+            raise ValueError(
+                f"the deep Q-network starts every episode in Blue's bedroom, so it "
+                f"takes no demonstration such as {self.curriculum.demonstration}"
+            )
+
+        return self
+
 
 class Run(Record):
     """
@@ -235,6 +374,28 @@ class Run(Record):
         which a resumed run continues training from.
         """
         return self.directory / "checkpoint.npz"
+
+    @property
+    def demonstration(self) -> Recording:
+        """
+        Reads the recording of the shortest episode `episodes` holds that
+        started in Blue's bedroom and reached the starter, the first of
+        those sharing its length.
+
+        Raises:
+            ValueError: Where `episodes` holds none.
+        """
+        reached = (
+            episode for episode in self.recorded
+            if episode.terminated and episode.recording.takeover is None
+        )
+
+        if shortest := min(reached, default=None, key=attrgetter("length")):
+            return shortest.recording
+
+        raise ValueError(
+            f"{self.episodes} holds no episode reaching the starter from the bedroom"
+        )
 
     @property
     def directory(self) -> Path:

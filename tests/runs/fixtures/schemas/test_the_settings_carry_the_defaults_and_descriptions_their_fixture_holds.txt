@@ -146,6 +146,120 @@
       "title": "Algorithm",
       "type": "string"
     },
+    "CurriculumSettings": {
+      "additionalProperties": false,
+      "description": "The settings of the curriculum that starts each training episode\nalong a demonstration and moves the start back toward Blue's\nbedroom, each a field of `RunSettings.curriculum` and a key under\n`[tool.squirtl.curriculum]` in `pyproject.toml`. Every default but\n`demonstration` is the one Mhammedi and Cohan's Table 8 sets for the\nbackward algorithm of their Appendix B.",
+      "properties": {
+        "back": {
+          "default": [
+            0.25,
+            0.75
+          ],
+          "description": "The least and the most a window moves back, each a multiple of `window`,\nbetween which each move draws uniformly, whose default is the decrease\nmultipliers of Mhammedi and Cohan's Table 8.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Back",
+          "type": "array"
+        },
+        "buffer": {
+          "default": 500,
+          "description": "The steps an episode from a start takes beyond `multiplier` times the\nmoving average of successful lengths before it truncates, whose default\nis the rollout length buffer of Mhammedi and Cohan's Table 8.",
+          "exclusiveMinimum": 0,
+          "title": "Buffer",
+          "type": "integer"
+        },
+        "completion": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.95,
+          "description": "The share of the recent episodes from a window reaching Blue's bedroom\nthat have to succeed before its segment counts as solved, whose default\nis the completion threshold of Mhammedi and Cohan's Table 8."
+        },
+        "demonstration": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The directory of the run whose shortest episode reaching the starter\neach training episode starts along, or `None` to start every episode in\nBlue's bedroom.",
+          "title": "Demonstration"
+        },
+        "forward": {
+          "default": [
+            0.5,
+            1.0
+          ],
+          "description": "The least and the most a window moves forward, each a multiple of\n`window`, between which each move draws uniformly, whose default is the\nincrease multipliers of Mhammedi and Cohan's Table 8.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Forward",
+          "type": "array"
+        },
+        "multiplier": {
+          "default": 2.0,
+          "description": "The multiple of the moving average of successful lengths an episode\nfrom a start takes before `buffer` and then truncates, whose default is\nthe early termination multiplier of Mhammedi and Cohan's Table 8.",
+          "exclusiveMinimum": 0,
+          "title": "Multiplier",
+          "type": "number"
+        },
+        "recent": {
+          "default": 32,
+          "description": "The episodes from a window whose share of successes moves it, after\nwhich the count starts again, whose default is the minimum rollouts for\nan update of Mhammedi and Cohan's Table 8.",
+          "exclusiveMinimum": 0,
+          "title": "Recent",
+          "type": "integer"
+        },
+        "required": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.2,
+          "description": "The share of the recent episodes from a window that have to succeed for\nit to move back, where a smaller share moves it forward, whose default\nis the required success rate of Mhammedi and Cohan's Table 8."
+        },
+        "smoothing": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.9,
+          "description": "The weight the moving average of successful lengths keeps on its last\nvalue as it takes in each new length, whose default is the smoothing\nfactor of Mhammedi and Cohan's Table 8."
+        },
+        "tolerance": {
+          "default": 0.0,
+          "description": "The reward an episode from a start may fall short of the\ndemonstration's from the same step and still succeed, whose default is\nthe failure reward tolerance of Mhammedi and Cohan's Table 8.",
+          "minimum": 0,
+          "title": "Tolerance",
+          "type": "number"
+        },
+        "window": {
+          "default": 25,
+          "description": "The steps of the demonstration each segment's window spans back from\nits latest start, whose default is the start delta window of Mhammedi\nand Cohan's Table 8.",
+          "exclusiveMinimum": 0,
+          "title": "Window",
+          "type": "integer"
+        }
+      },
+      "title": "CurriculumSettings",
+      "type": "object"
+    },
     "EmulatorSettings": {
       "additionalProperties": false,
       "description": "The settings the emulator reads, each a field of `RunSettings.emulator`\nand a key under `[tool.squirtl.emulator]` in `pyproject.toml`.",
@@ -429,6 +543,10 @@
       "exclusiveMinimum": 0,
       "title": "Checkpoint Steps",
       "type": "integer"
+    },
+    "curriculum": {
+      "$ref": "#/$defs/CurriculumSettings",
+      "description": "The settings of the curriculum starting each training episode along a\ndemonstration."
     },
     "emulator": {
       "$ref": "#/$defs/EmulatorSettings",

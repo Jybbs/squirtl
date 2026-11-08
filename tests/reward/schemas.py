@@ -4,8 +4,8 @@ Pins the records the reward reads and writes, covering:
 - The index each event holds against pret/pokered, the bit each one reads,
   and the term each one earns
 - The position read from the symbols holding the map and the coordinates
-- The term each of the reward's settings pays, the ceiling they price,
-  and the settings they refuse
+- The term each of the reward's settings pays, the ceiling they price, the
+  reward for the flags a count of terms holds, and the settings they refuse
 - The total of a score's shares
 """
 
@@ -135,12 +135,12 @@ def test_each_setting_refuses_a_value_outside_zero_to_one(
         RewardSettings(**{field: value})
 
 
-def test_the_settings_accept_a_starter_paying_more_than_every_other_term():
+def test_the_goal_totals_every_term_but_the_novelty(settings: RewardSettings):
     """
-    Asserts that a starter paying half again the milestone is accepted, so
-    the starter has only to pay more than every other term.
+    Asserts that the reward for the flags a count of terms holds pays two
+    milestones and the starter, leaving out the novelty it also counts.
     """
-    assert RewardSettings(milestone=0.125, starter=0.1875).starter == 0.1875
+    assert settings.goal({Term.MILESTONE: 2, Term.NOVELTY: 5, Term.STARTER: 1}) == 0.75
 
 
 @mark.parametrize(
@@ -207,3 +207,11 @@ def test_the_settings_refuse_terms_one_step_could_sum_past_one(
     """
     with raises(ValidationError, match=f"earns {past} more than the 1 Mnih et al."):
         RewardSettings(**settings)
+
+
+def test_the_settings_accept_a_starter_paying_more_than_every_other_term():
+    """
+    Asserts that a starter paying half again the milestone is accepted, so
+    the starter has only to pay more than every other term.
+    """
+    assert RewardSettings(milestone=0.125, starter=0.1875).starter == 0.1875

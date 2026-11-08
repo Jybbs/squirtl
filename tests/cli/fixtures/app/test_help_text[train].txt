@@ -179,6 +179,59 @@ Each of these exits 1 before any directory is made:
 │                               reaching a multiple of them, whose default is  │
 │                               the 250,000 steps of each iteration Dopamine's │
 │                               DQN checkpoints after. [default: 250000]       │
+│ --curriculum.back FLOAT       The least and the most a window moves back,    │
+│   FLOAT                       each a multiple of window, between which each  │
+│                               move draws uniformly, whose default is the     │
+│                               decrease multipliers of Mhammedi and Cohan's   │
+│                               Table 8. [default: (0.25, 0.75)]               │
+│ --curriculum.buffer INT       The steps an episode from a start takes beyond │
+│                               multiplier times the moving average of         │
+│                               successful lengths before it truncates, whose  │
+│                               default is the rollout length buffer of        │
+│                               Mhammedi and Cohan's Table 8. [default: 500]   │
+│ --curriculum.completion       The share of the recent episodes from a window │
+│   FLOAT                       reaching Blue's bedroom that have to succeed   │
+│                               before its segment counts as solved, whose     │
+│                               default is the completion threshold of         │
+│                               Mhammedi and Cohan's Table 8. [default: 0.95]  │
+│ --curriculum.demonstration    The directory of the run whose shortest        │
+│   PATH                        episode reaching the starter each training     │
+│                               episode starts along, or None to start every   │
+│                               episode in Blue's bedroom.                     │
+│ --curriculum.forward FLOAT    The least and the most a window moves forward, │
+│   FLOAT                       each a multiple of window, between which each  │
+│                               move draws uniformly, whose default is the     │
+│                               increase multipliers of Mhammedi and Cohan's   │
+│                               Table 8. [default: (0.5, 1.0)]                 │
+│ --curriculum.multiplier       The multiple of the moving average of          │
+│   FLOAT                       successful lengths an episode from a start     │
+│                               takes before buffer and then truncates, whose  │
+│                               default is the early termination multiplier of │
+│                               Mhammedi and Cohan's Table 8. [default: 2.0]   │
+│ --curriculum.recent INT       The episodes from a window whose share of      │
+│                               successes moves it, after which the count      │
+│                               starts again, whose default is the minimum     │
+│                               rollouts for an update of Mhammedi and Cohan's │
+│                               Table 8. [default: 32]                         │
+│ --curriculum.required FLOAT   The share of the recent episodes from a window │
+│                               that have to succeed for it to move back,      │
+│                               where a smaller share moves it forward, whose  │
+│                               default is the required success rate of        │
+│                               Mhammedi and Cohan's Table 8. [default: 0.2]   │
+│ --curriculum.smoothing FLOAT  The weight the moving average of successful    │
+│                               lengths keeps on its last value as it takes in │
+│                               each new length, whose default is the          │
+│                               smoothing factor of Mhammedi and Cohan's Table │
+│                               8. [default: 0.9]                              │
+│ --curriculum.tolerance FLOAT  The reward an episode from a start may fall    │
+│                               short of the demonstration's from the same     │
+│                               step and still succeed, whose default is the   │
+│                               failure reward tolerance of Mhammedi and       │
+│                               Cohan's Table 8. [default: 0.0]                │
+│ --curriculum.window INT       The steps of the demonstration each segment's  │
+│                               window spans back from its latest start, whose │
+│                               default is the start delta window of Mhammedi  │
+│                               and Cohan's Table 8. [default: 25]             │
 │ --emulator.cartridge PATH     The file holding the user's own ROM of the     │
 │                               English Pokémon Blue, refused unless its SHA-1 │
 │                               is the one pret/pokered lists. [default:       │

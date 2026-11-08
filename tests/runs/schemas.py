@@ -25,6 +25,11 @@ Pins the records one run reads and writes, covering:
   log holding fewer, which is refused
 - The measures and the epsilon of each agent's episode read back from its line
 - A run holding no evaluations
+- The demonstration a run's episodes give, the shortest reaching the starter
+  from the bedroom, and a log holding none, which is refused
+- The curriculum's settings refusing moves whose least passes their most and
+  a required share above the completion share, and a run's settings refusing
+  a demonstration for the deep Q-network
 """
 
 from collections.abc   import Callable, Mapping
@@ -42,10 +47,11 @@ from shutil            import copytree
 from subprocess        import CalledProcessError, check_output
 from syrupy.assertion  import SnapshotAssertion
 
-from squirtl.agent.schemas      import Measures, PolicyUpdate, Update
-from squirtl.emulator.schemas   import Record
-from squirtl.evaluation.schemas import Evaluation
-from squirtl.runs.schemas       import Episode, Revision, Run, RunSettings, Stream
+from squirtl.agent.schemas       import AgentSettings, Algorithm, Measures, PolicyUpdate, Update
+from squirtl.emulator.schemas    import Record
+from squirtl.environment.schemas import Recording, Takeover
+from squirtl.evaluation.schemas  import Evaluation
+from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunSettings, Stream
 
 
 def test_a_checkpoint_at_the_runs_last_step_may_land_within_an_episode(
@@ -161,24 +167,25 @@ def test_a_revision_is_dirty_wherever_git_reports_a_change(
     assert Revision.checked_out().dirty is dirty
 
 
+def test_a_run_holding_no_episode_reaching_the_starter_gives_no_demonstration(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
+    """
+    Asserts that a run whose every episode truncated gives no demonstration.
+    """
+    run = holding(f"{episode.model_dump_json()}\n")
+
+    with raises(ValueError, match="holds no episode reaching the starter"):
+        run.demonstration
+
+
 def test_a_run_holding_no_evaluations_reads_none(run: Run):
     """
     Asserts that a run whose directory holds no `evaluations`, as a run that
     has played none leaves it, reads no evaluation rather than raising.
     """
     assert list(run.evaluated) == []
-
-
-def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
-    """
-    Asserts that starting a run where no clone holds the working directory
-    raises the error git exits with before creating any directory, since the
-    run reads its revision first.
-    """
-    with raises(CalledProcessError):
-        Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
-
-    assert not (outside / "data").exists()
 
 
 @mark.parametrize(
@@ -199,6 +206,18 @@ def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
     )
 
 
+def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
+    """
+    Asserts that starting a run where no clone holds the working directory
+    raises the error git exits with before creating any directory, since the
+    run reads its revision first.
+    """
+    with raises(CalledProcessError):
+        Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
+
+    assert not (outside / "data").exists()
+
+
 def test_a_run_reads_an_episode_validating_its_line_alone(
     episode : Episode,
     holding : Callable[[str], Run]
@@ -210,23 +229,6 @@ def test_a_run_reads_an_episode_validating_its_line_alone(
     run = holding(f'{{"length": 3}}\n{episode.model_dump_json()}\n')
 
     assert run.episode(2) == episode
-
-
-def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path):
-    """
-    Asserts that reading the directory a run started in returns that run,
-    whether the directory is named relative to the working directory or
-    absolutely, each read keeping its paths in the directory it names.
-    """
-    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
-
-    assert [
-        (read.model_dump(), read.directory)
-        for read in map(Run.read, (run.directory, clone / run.directory))
-    ] == [
-        (run.model_dump(), run.directory),
-        (run.model_dump(), clone / run.directory)
-    ]
 
 
 @mark.parametrize(
@@ -262,6 +264,23 @@ def test_a_run_name_reads_back_as_the_instant_it_started(
     assert datetime.fromisoformat(name) == started
 
 
+def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path):
+    """
+    Asserts that reading the directory a run started in returns that run,
+    whether the directory is named relative to the working directory or
+    absolutely, each read keeping its paths in the directory it names.
+    """
+    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
+
+    assert [
+        (read.model_dump(), read.directory)
+        for read in map(Run.read, (run.directory, clone / run.directory))
+    ] == [
+        (run.model_dump(), run.directory),
+        (run.model_dump(), clone / run.directory)
+    ]
+
+
 def test_a_run_reads_the_lines_of_its_first_episodes_reading_no_further(
     holding : Callable[[str], Run],
     logged  : list[str]
@@ -275,16 +294,6 @@ def test_a_run_reads_the_lines_of_its_first_episodes_reading_no_further(
     run   = holding(f'{lines[0]}{lines[1]}{{"length": ')
 
     assert (run.first(2), logged) == (lines, [])
-
-
-def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
-    """
-    Asserts that the JSON a run writes into its directory validates back
-    into a record equal to the run that wrote it.
-    """
-    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
-
-    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
 
 
 @mark.usefixtures("clone")
@@ -302,6 +311,32 @@ def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
     checkout({"notes.md": "changed\n"})
 
     assert Revision.checked_out().dirty
+
+
+def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
+    """
+    Asserts that the JSON a run writes into its directory validates back
+    into a record equal to the run that wrote it.
+    """
+    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
+
+    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
+
+
+@mark.parametrize(
+    "commit",
+    [
+        param("fatal: not a git repository", id="an-error-message"),
+        param("",                            id="nothing-at-all")
+    ]
+)
+def test_a_revision_refuses_output_that_holds_no_hash(commit: str):
+    """
+    Asserts that a commit that is empty or holds any character other than a
+    lowercase hexadecimal digit is refused.
+    """
+    with raises(ValidationError):
+        Revision(commit=commit, dirty=False, lockfile="0")
 
 
 def test_a_run_records_its_settings_revision_and_start(clone: Path):
@@ -325,31 +360,6 @@ def test_a_run_records_its_settings_revision_and_start(clone: Path):
         "started"  : "2026-10-04T12:30:05.123456Z",
         "settings" : settings.model_dump(mode="json")
     }
-
-
-@mark.parametrize(
-    "commit",
-    [
-        param("fatal: not a git repository", id="an-error-message"),
-        param("",                            id="nothing-at-all")
-    ]
-)
-def test_a_revision_refuses_output_that_holds_no_hash(commit: str):
-    """
-    Asserts that a commit that is empty or holds any character other than a
-    lowercase hexadecimal digit is refused.
-    """
-    with raises(ValidationError):
-        Revision(commit=commit, dirty=False, lockfile="0")
-
-
-def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
-    """
-    Asserts that a run built on an instant carrying no UTC offset raises
-    rather than reading that instant as the machine's local time.
-    """
-    with raises(ValidationError, match="timezone info"):
-        Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
 
 
 @mark.parametrize(
@@ -460,6 +470,15 @@ def test_a_run_read_from_outside_the_clone_keeps_its_files_where_it_was_read(
     ]
 
 
+def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
+    """
+    Asserts that a run built on an instant carrying no UTC offset raises
+    rather than reading that instant as the machine's local time.
+    """
+    with raises(ValidationError, match="timezone info"):
+        Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
+
+
 def test_a_run_skips_an_unfinished_last_line_with_a_warning(
     episode : Episode,
     holding : Callable[[str], Run],
@@ -492,21 +511,6 @@ def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path
         Run.start("0", RunSettings(seed=2), started)
 
     assert first.record.read_text(encoding="utf-8") == record
-
-
-def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
-    """
-    Asserts that starting a run creates its directory under `data/runs/` and
-    the record inside it, and creates or removes no other file or directory
-    outside the clone's own git metadata.
-    """
-    changed  = set(clone.rglob("*"))
-    run      = Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
-    changed ^= set(clone.rglob("*"))
-
-    assert {
-        path.relative_to(clone) for path in changed if ".git" not in path.parts
-    } == {Path("data"), Path("data/runs"), run.directory, run.record}
 
 
 @mark.parametrize(
@@ -636,6 +640,65 @@ def test_an_append_cuts_an_unfinished_last_line_alone(
     ) == ([12] * kept + [20], [f"Cutting the unfinished last line of {path}"] * cut)
 
 
+def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
+    """
+    Asserts that starting a run creates its directory under `data/runs/` and
+    the record inside it, and creates or removes no other file or directory
+    outside the clone's own git metadata.
+    """
+    changed  = set(clone.rglob("*"))
+    run      = Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
+    changed ^= set(clone.rglob("*"))
+
+    assert {
+        path.relative_to(clone) for path in changed if ".git" not in path.parts
+    } == {Path("data"), Path("data/runs"), run.directory, run.record}
+
+
+def test_a_runs_demonstration_is_its_shortest_episode_reaching_the_starter(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
+    """
+    Asserts that a run's demonstration is the recording of the first of its
+    shortest episodes reaching the starter from the bedroom, passing over a
+    shorter one that truncated and a shorter one that took over from another
+    demonstration.
+    """
+    lines = [
+        episode.model_copy(update=fields) for fields in (
+            {"length": 1},
+            {
+                "length"     : 3,
+                "recording"  : Recording(presses=b"\x05", timer_div=1),
+                "terminated" : True
+            },
+            {
+                "length"     : 2,
+                "recording"  : Recording(
+                    presses  = b"\x05",
+                    takeover = Takeover(
+                        limit     = 9,
+                        segment   = 0,
+                        step      = 0,
+                        timer_div = 0
+                    ),
+                    timer_div = 2
+                ),
+                "terminated" : True
+            },
+            {
+                "length"     : 3,
+                "recording"  : Recording(presses=b"\x06", timer_div=3),
+                "terminated" : True
+            }
+        )
+    ]
+    run = holding("".join(f"{line.model_dump_json()}\n" for line in lines))
+
+    assert run.demonstration == Recording(presses=b"\x05", timer_div=1)
+
+
 def test_a_runs_episodes_read_back_in_the_order_written(
     episode : Episode,
     holding : Callable[[str], Run]
@@ -720,31 +783,6 @@ def test_the_default_warmup_ends_inside_an_anneal_outlasting_a_random_walk():
     assert settings.agent.warmup_steps < anneal and anneal >= 37_000
 
 
-def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
-    snapshot: SnapshotAssertion
-):
-    """
-    Asserts that the run's settings, and each subject's settings they
-    hold, carry the default and the bounds each field declares beside the
-    description written beneath it, which cyclopts renders as the help of
-    that field's flag, so a change to any of them is reviewed as a diff.
-    """
-    assert dumps(
-        RunSettings.model_json_schema(),
-        ensure_ascii = False,
-        indent       = 2
-    ) == snapshot
-
-
-def test_the_settings_refuse_a_negative_seed():
-    """
-    Asserts that a negative seed is refused, since `SeedSequence` takes a
-    non-negative integer as its entropy.
-    """
-    with raises(ValidationError, match="greater than or equal to 0"):
-        RunSettings(seed=-1)
-
-
 @mark.parametrize(
     ("epsilon", "update"),
     [
@@ -775,3 +813,71 @@ def test_an_episode_reads_back_the_measures_of_the_agent_that_played_it(
     written = episode.model_copy(update={"epsilon": epsilon, "update": update})
 
     assert Episode.model_validate_json(written.model_dump_json()) == written
+
+
+def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
+    snapshot: SnapshotAssertion
+):
+    """
+    Asserts that the run's settings, and each subject's settings they
+    hold, carry the default and the bounds each field declares beside the
+    description written beneath it, which cyclopts renders as the help of
+    that field's flag, so a change to any of them is reviewed as a diff.
+    """
+    assert dumps(
+        RunSettings.model_json_schema(),
+        ensure_ascii = False,
+        indent       = 2
+    ) == snapshot
+
+
+def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():
+    """
+    Asserts that the settings refuse a demonstration beside the deep
+    Q-network, which starts every episode in the bedroom.
+    """
+    with raises(ValidationError, match="takes no demonstration"):
+        RunSettings(curriculum=CurriculumSettings(demonstration=Path("data/runs/a")))
+
+
+@mark.parametrize(
+    ("fields", "message"),
+    [
+        param({"back": (0.8, 0.5)}, "least back move", id="back"),
+        param({"forward": (1.5, 1.0)}, "least forward move", id="forward"),
+        param({"required": 0.96}, "passes the completion share", id="required")
+    ]
+)
+def test_the_curriculums_settings_refuse_bounds_out_of_order(
+    fields  : Mapping[str, object],
+    message : str
+):
+    """
+    Asserts that the curriculum's settings refuse a least move passing the
+    most and a required share passing the completion share.
+    """
+    with raises(ValidationError, match=message):
+        CurriculumSettings.model_validate(fields)
+
+
+@mark.parametrize(
+    "algorithm",
+    [param(Algorithm.PPO, id="ppo"), param(Algorithm.PQN, id="pqn")]
+)
+def test_the_settings_take_a_demonstration_for_pqn_and_ppo(algorithm: Algorithm):
+    """
+    Asserts that the settings take a demonstration for PQN and PPO.
+    """
+    RunSettings(
+        agent      = AgentSettings(algorithm=algorithm),
+        curriculum = CurriculumSettings(demonstration=Path("data/runs/a"))
+    )
+
+
+def test_the_settings_refuse_a_negative_seed():
+    """
+    Asserts that a negative seed is refused, since `SeedSequence` takes a
+    non-negative integer as its entropy.
+    """
+    with raises(ValidationError, match="greater than or equal to 0"):
+        RunSettings(seed=-1)
