@@ -154,7 +154,7 @@ class Outcome(Record):
     terminated: bool
     """
     Whether the episode ended at the starter, where otherwise `TimeLimit`
-    truncated it.
+    or, along a demonstration, `FollowDemonstration` truncated it.
     """
 
 
@@ -263,5 +263,6 @@ class Starts(Record):
 
     windows: list[Window]
     """
-    Each segment's window, from which a start draws one segment uniformly.
+    The window of each segment not yet solved, from which a start draws one
+    segment uniformly.
     """

@@ -35,7 +35,8 @@ class Segment(Record):
 
     recent: list[bool] = []
     """
-    Whether each episode from the window since it last moved succeeded.
+    Whether each episode from the window succeeded since its share was last
+    taken.
     """
 
     solved: bool = False

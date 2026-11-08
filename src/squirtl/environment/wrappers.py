@@ -7,6 +7,7 @@ demonstration, `RecordOutcome`, which reports what each episode reached, and
 """
 
 from collections      import Counter
+from compression.zstd import compress, decompress
 from functools        import cached_property
 from gymnasium        import Env, ObservationWrapper, Wrapper
 from gymnasium.spaces import Box, Dict, MultiBinary
@@ -23,11 +24,12 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
     """
     Starts each episode at a step of `demonstration` drawn from the `starts`
     the trainer sets, or in Blue's bedroom where it sets none, as Mhammedi
-    and Cohan's Appendix B starts each of Salimans and Chen's episodes. It
-    plays the demonstration once as it wraps the environment, keeping at
-    each step the state PyBoy saves, the frames the observation stacks, and
-    the terms earned so far, and splits it into segments, each ending at the
-    step that first sets one of the flags `Event` names.
+    and Cohan's Appendix B starts each episode after Salimans and Chen.
+    It plays the demonstration once as it wraps the environment, keeping
+    at each step the state PyBoy saves compressed through zstd, the frames
+    the observation stacks, and the terms earned so far, and splits it
+    into segments, each ending at the step that first sets one of the flags
+    `Event` names.
 
     An episode from a start succeeds once the reward for the flags it sets
     reaches what the demonstration earned for them from the same step to its
@@ -91,8 +93,9 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
     def follow(self):
         """
         Plays the demonstration from Blue's bedroom, keeping before each
-        press the console's state, the observation's stacked frames, and the
-        terms earned so far, and after the last press the terms earned.
+        press the console's state compressed through zstd, the observation's
+        stacked frames, and the terms earned so far, and after the last
+        press the terms earned.
 
         Raises:
             ValueError: Where an episode ends before the last press, or the
@@ -115,7 +118,7 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
 
             self.earned.append(Counter(self.get_wrapper_attr("progress").earned))
             self.stacks.append(observation[Entry.FRAMES])
-            self.states.append(self.get_wrapper_attr("game_boy").state)
+            self.states.append(compress(self.get_wrapper_attr("game_boy").state))
 
             observation, _, terminated, truncated, _ = self.env.step(action)
 
@@ -173,7 +176,10 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
         ) - self.tolerance
 
         observation, info = self.env.reset(
-            options = {"recording": recording, "state": self.states[takeover.step]}
+            options = {
+                "recording" : recording,
+                "state"     : decompress(self.states[takeover.step])
+            }
         )
         self.get_wrapper_attr("obs_queue").extend(stack)
 

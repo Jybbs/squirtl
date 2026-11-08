@@ -13,12 +13,13 @@ own, covering:
   which leaves the wrappers beneath it where the recording's last step left
   them
 - The segments `FollowDemonstration` splits a demonstration into at each
-  flag, the demonstration it refuses, the start each reset draws from the
-  windows it is given and the frames it observes there, the success and the
-  limit that truncate an episode from a start, and the takeover a resumed
-  run plays back
+  flag and never at a new position alone, the demonstration it refuses, the
+  start each reset draws from the windows it is given and the frames it
+  observes there, the success and the limit that truncate an episode from
+  a start, and the takeover a resumed run plays back
 """
 
+from collections        import Counter
 from collections.abc    import Callable
 from common.console     import set_event
 from gymnasium          import Env
@@ -245,6 +246,21 @@ def test_a_reset_with_no_starts_begins_in_the_bedroom(following: Callable[..., E
         *_, terminated, truncated, info = env.step(0)
 
     assert (terminated, "succeeded" in info) == (True, False)
+
+
+def test_a_segment_ends_at_a_flag_and_never_at_a_new_position_alone():
+    """
+    Asserts that a press earning the novelty alone ends no segment, whereas
+    a press setting a flag beside a novelty ends one.
+    """
+    following        = FollowDemonstration.__new__(FollowDemonstration)
+    following.earned = [
+        Counter(),
+        Counter({Term.NOVELTY: 1}),
+        Counter({Term.MILESTONE: 1, Term.NOVELTY: 2})
+    ]
+
+    assert following.ends == [1]
 
 
 @mark.parametrize(

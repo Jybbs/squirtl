@@ -197,8 +197,8 @@ class GameBoy(AbstractContextManager):
 
     def load(self, state: bytes):
         """
-        Loads `state`, one that `state` saved, the frame it last rendered
-        included.
+        Loads `state`, which the `state` property saved, the frame it last
+        rendered included.
         """
         with BytesIO(state) as saved:
             self.emulator.load_state(saved)

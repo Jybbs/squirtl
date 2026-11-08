@@ -29,10 +29,11 @@ Pins the training loop of one run on the CPU, covering:
 - A checkpoint of PQN or PPO read back as written, a slot holding a recording
   of no presses among them, and the episodes a handover of each takes
 - PQN's and PPO's run along a demonstration, each episode starting from the
-  window its segment gives and recording its takeover, the windows moving
-  back, the steps counting the agent's own presses alone, each line playing
-  back to its return, a resume ending as a run that never stopped, and a
-  demonstration refused before any directory is made
+  window its segment gives and recording its takeover, the curriculum
+  taking in each episode at its length, its segment, and its success, the
+  windows moving back, the steps counting the agent's own presses alone,
+  each line playing back to its return, a resume ending as a run that never
+  stopped, and a demonstration refused before any directory is made
 """
 
 from collections.abc   import Callable
@@ -60,7 +61,8 @@ from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Recording
 from squirtl.evaluation.schemas    import Evaluation, EvaluationSettings
 from squirtl.reward.schemas        import Event, Position, RewardSettings, Term
-from squirtl.runs.schemas          import CurriculumSettings, Run, RunSettings
+from squirtl.runs.curriculum       import Curriculum
+from squirtl.runs.schemas          import CurriculumSettings, Run, RunSettings, Stream
 from squirtl.runs.trainer          import EpisodeTrainer, Handover, Moments, RolloutTrainer, Slot, Tally, Trainer
 from squirtl.runs.trainer          import VectorCheckpoint
 
@@ -1309,6 +1311,48 @@ def test_a_rollout_run_along_a_demonstration_starts_each_episode_from_a_window(
         assert [overworld.play(line.recording) for line in lines] == [
             line.reward for line in lines
         ]
+
+
+@each_agent
+def test_a_rollout_run_has_its_curriculum_take_in_each_episode_it_records(
+    algorithm    : Algorithm,
+    demonstrated : Path,
+    rolling      : Callable[..., Trainer],
+    timed        : Cartridge
+):
+    """
+    Asserts that a run along a demonstration checkpoints the syllabus a
+    curriculum reaches taking in each episode it records, in order, at
+    that episode's length and segment, and succeeding where it reached its
+    segment's end within the limit, which a buffer of two steps cuts short
+    from the earlier starts.
+    """
+    settings = CurriculumSettings(
+        buffer        = 2,
+        demonstration = demonstrated,
+        recent        = 2,
+        window        = 2
+    )
+    run = finish(
+        trainer = rolling(
+            algorithm,
+            cartridge   = timed,
+            curriculum  = settings,
+            environment = EnvironmentSettings(frames_per_step=64, max_episode_steps=32)
+        )
+    )
+    ends       = [4, 8, 12]
+    curriculum = Curriculum(ends, run.settings.seeds[Stream.WINDOW], settings)
+
+    for line in run.recorded:
+        if takeover := line.recording.takeover:
+            curriculum.attempted(
+                length    = line.length,
+                number    = takeover.segment,
+                succeeded = line.length == ends[takeover.segment] - takeover.step + 1
+            )
+
+    assert VectorCheckpoint.from_path(run.checkpoint).syllabus == curriculum.syllabus
 
 
 @each_agent
