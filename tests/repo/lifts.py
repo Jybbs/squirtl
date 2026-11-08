@@ -2271,7 +2271,9 @@ def test_the_exact_pins_lag_the_resolution_of_each_group(
     Pins the build requirement, the build constraint resolved beside it, and
     a script's dependency each reading as a lift in the file declaring it,
     each dated by the release's first upload, in the order of their groups.
-    A script declaring no dependency resolves nothing.
+    Each group's compile receives the name of every pin it declares, a
+    build constraint included, and a script declaring no dependency resolves
+    nothing.
     """
     scripts = QUIET | {".mise/tasks/repo/tool.py": SCRIPT}
 
@@ -2280,10 +2282,13 @@ def test_the_exact_pins_lag_the_resolution_of_each_group(
     for script in scripts:
         (tmp_path / script).chmod(0o755)
 
+    received = []
+
     fp.register(
         [*COMPILE, "-"],
-        occurrences = 2,
-        stdout      = pylock_of(
+        occurrences    = 2,
+        stdin_callable = received.append,
+        stdout         = pylock_of(
             ("hatchling", "1.33.0"),
             ("packaging", "26.4"),
             ("pyyaml", "6.0.3")
@@ -2292,6 +2297,7 @@ def test_the_exact_pins_lag_the_resolution_of_each_group(
 
     lifts = RequirementLifts.read().lifts
 
+    assert sorted(received) == ["hatchling\npackaging", "pyyaml"]
     assert [(lift.home, lift.name, lift.current, lift.newest) for lift in lifts] == [
         (Path("pyproject.toml"), "hatchling", "1.32.4", "1.33.0"),
         (Path("pyproject.toml"), "packaging", "26.3", "26.4"),

@@ -1,12 +1,15 @@
 """
-Loads imports lazily in each process of the environment, through the
-`squirtl.start` file the wheel installs, which names `start` as the callable
-the interpreter runs before the program it was asked to run. A package's own
-imports load eagerly where `EAGER` names the package.
+Loads imports lazily in each interpreter of the virtual environment
+the package is installed in, through the `squirtl.start` file the wheel
+installs, which names `start` as the callable the interpreter runs before
+the program it was asked to run. A package's own imports load eagerly where
+`EAGER` names the package.
 
-A lift of a package `EAGER` names rechecks its entry by importing the
-package, or by running `mise test` for `_pytest`, under a filter leaving the
-entry out, and removes the entry once its error no longer reproduces.
+A lift of a package `EAGER` names rechecks its entry under a filter leaving
+the entry out, and removes the entry once its error no longer reproduces.
+The recheck loads the package through `importlib.import_module`, since an
+`import` statement under the lazy mode loads nothing until a name it binds
+is read, or runs `mise test` for `_pytest`.
 """
 
 from sys import set_lazy_imports, set_lazy_imports_filter

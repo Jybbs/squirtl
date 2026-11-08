@@ -741,9 +741,9 @@ class RequirementLifts(Manager):
     @classmethod
     def read(cls) -> Self:
         """
-        Resolves the build requirements, against which the build constraints
-        are read too, and each script's dependencies, naming a lift for each
-        exact pin the resolution moves past.
+        Resolves the build requirements beside the build constraints, and
+        each script's dependencies, naming a lift for each exact pin the
+        resolution moves past.
         """
         manifest = Manifest.read()
         groups   = [
@@ -767,15 +767,17 @@ class RequirementLifts(Manager):
     def resolved(
         home        : Path,
         requested   : Collection[Requirement],
-        constraints : Iterable[Requirement] = ()
+        constraints : Collection[Requirement] = ()
     ) -> list[Lift]:
         """
-        Resolves the newest release of each package `requested` names, and
-        names a lift for each pin of `requested` and `constraints` holding
+        Resolves the newest release of each package `requested` or
+        `constraints` names, and names a lift for each pin of either holding
         one exact version that the resolution moves past, dated by that
         release's first upload.
         """
-        locked = Pylock.compiled(requirement.name for requirement in requested).named
+        locked = Pylock.compiled(
+            requirement.name for requirement in chain(requested, constraints)
+        ).named
 
         return [
             Lift(

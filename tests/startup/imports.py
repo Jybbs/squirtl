@@ -1,10 +1,11 @@
 """
-Pins how each process of the environment loads its imports, covering:
+Pins how each interpreter of the virtual environment loads its
+imports, covering:
 
 - The filter's verdict on an importer inside and outside `EAGER`
 - The mode and the filter `start` sets
-- The mode and the filter an interpreter of the environment starts under,
-  and the normal mode one started without `site` keeps
+- The mode and the filter an interpreter of the virtual environment starts
+  under, and the normal mode one started without `site` keeps
 """
 
 from importlib  import reload
@@ -44,14 +45,15 @@ def test_start_sets_the_mode_and_the_filter():
         param(("-S",), "normal None", id="without-site")
     ]
 )
-def test_an_interpreter_of_the_environment_starts_under_the_start_file(
+def test_an_interpreter_of_the_virtual_environment_starts_under_the_start_file(
     flags    : tuple[str, ...],
     expected : str
 ):
     """
-    Asserts that an interpreter started from an empty environment takes the
-    mode and the filter from the installed start file, and that `-S`, which
-    leaves out the site directory holding that file, keeps the normal mode.
+    Asserts that an interpreter started with no environment variables takes
+    the mode and the filter from the installed start file, and that `-S`,
+    which skips the `site` module that reads that file, keeps the normal
+    mode.
     """
     assert check_output(
         [executable, *flags, "-c", PROBE],
