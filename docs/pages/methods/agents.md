@@ -14,7 +14,7 @@ The deep Q-network values each press in each state, choosing the press its onlin
 \epsilon_t = \epsilon_0 + \min\left(\frac{t}{T}, 1\right)(\epsilon_{\min} - \epsilon_0)
 ```
 
-Every step it takes goes into replay memory, and once 50,000 steps fill it, the network trains on every fourth step on a batch of 32 transitions drawn uniformly from it, the replay start size and the update frequency Mnih et al. set. Each update minimizes the Huber loss $`\ell`$ on the gap between each target and the value the online network gives:
+Every step it takes goes into replay memory, and once it holds 50,000 steps, the network trains on every fourth step on a batch of 32 transitions drawn uniformly from it, the replay start size and the update frequency Mnih et al. set. Each update minimizes the Huber loss $`\ell`$ on the gap between each target and the value the online network gives:
 
 ```math
 L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} \left[ \ell\left(y - Q(s, a; \theta)\right) \right]
@@ -42,9 +42,11 @@ The agents differ first in where their experience comes from. The deep Q-network
 
 ## The Reach of an Update
 
-The agents differ next in how far back along a walk one update carries the worth of what the walk reached. The deep Q-network's target reads the target network, so the worth of reaching a milestone moves one press further back each time the target network takes its copy. PQN's λ-returns run backward through the whole rollout, so one update carries the worth along the whole walk at once, discounted and weighted by λ at each press. PPO's advantages run backward the same way, while the clip holds how far each update moves the odds of a press, so the worth spreads along the whole walk in small steps.
+The agents differ next in how far back along a walk one update carries the worth of what the walk reached. The deep Q-network's target reads the target network, so the worth of reaching a milestone moves one press further back each time the target network takes its copy. PQN's λ-returns run backward through each rollout, so one update carries the worth of a milestone back many presses at once, each press further back multiplying its weight by $`\gamma\lambda`$, so the weight falls under 1% within 11 presses at the default λ of 0.65. PPO's advantages run backward the same way, while the clip holds how far each update moves the odds of a press, so the worth spreads along the whole walk in small steps.
 
 ## Settings
+
+The table below is written from the help `squirtl train` prints for each `--agent.` setting, and `mise write` rewrites it.
 
 <!-- settings:agent -->
 

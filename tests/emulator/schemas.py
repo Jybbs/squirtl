@@ -105,6 +105,16 @@ def test_each_symbol_holds_the_address_pret_pokered_gives_its_label():
     }
 
 
+def test_each_symbol_spells_its_label():
+    """
+    Asserts that each symbol spells the `ram/wram.asm` label it is named
+    for.
+    """
+    assert [symbol.label for symbol in Symbol] == [
+        "wCurMap", "wEventFlags", "wXCoord", "wYCoord"
+    ]
+
+
 def test_the_repr_of_a_cartridge_names_its_path_and_leaves_out_its_bytes(
     cartridge: Cartridge
 ):

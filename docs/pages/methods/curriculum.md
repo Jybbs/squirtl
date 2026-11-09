@@ -1,6 +1,6 @@
 # Curriculum
 
-A run can learn the walk to the starter backward, starting its training episodes partway along a demonstration, an earlier run's shortest episode reaching the starter, and moving each start back toward Blue's bedroom as the agent succeeds from it. Salimans and Chen[^salimans2018] learn Montezuma's Revenge from a single demonstration this way, and the windows each start is drawn from move as Appendix B of Mhammedi and Cohan[^mhammedi2026] moves them. Every training episode starts in Blue's bedroom unless `--curriculum.demonstration` names a run, and every evaluation episode starts there whatever the training did.
+A run of PQN or PPO can learn the walk to the starter backward, starting its training episodes partway along a demonstration, an earlier run's shortest episode reaching the starter, and moving each start back toward Blue's bedroom as the agent succeeds from it. Salimans and Chen[^salimans2018] learn Montezuma's Revenge from a single demonstration this way, and the windows each start is drawn from move as Appendix B of Mhammedi and Cohan[^mhammedi2026] moves them. Every training episode starts in Blue's bedroom unless `--curriculum.demonstration` names a run, and every evaluation episode starts there whatever the training did.
 
 ## The Segments
 
@@ -15,13 +15,15 @@ An episode from a start succeeds once the reward for the flags it sets reaches w
 
 A segment counts as solved once its window has reached Blue's bedroom and 95% of the recent episodes from there succeed, after which no episode starts from it. An episode from a start also truncates after twice the moving average of the lengths of the episodes that succeeded, plus 500 steps.
 
-The drawing below plays a run made up for it over a recorded walk to the starter, in which a seeded model of an agent improving with training decides whether each episode succeeds, so it shows how the windows move rather than how fast a real run moves them. The press that brings Blue into the lab behind Oak also sets the flag for Oak asking him to choose in that recording, which leaves it three segments, each lane holding one episode of the batch at its start.
+The drawing below plays a run made up for it over the site's model of the walk to the starter, in which a seeded model of an agent improving with training decides whether each episode succeeds, so it shows how the windows move rather than how fast a real run moves them. The model sets the flag for Oak asking Blue to choose on the press that brings him into the lab behind Oak, where the game sets it only after four text boxes, which leaves the drawing three segments, each lane holding one episode of the batch at its start.
 
 ## Playing Back a Start
 
 `squirtl watch` plays an episode that started along a demonstration from the bedroom, playing the demonstration's presses up to its start before the episode's own, while the return it reports counts the episode's own steps alone.
 
 ## Settings
+
+The table below is written from the help `squirtl train` prints for each `--curriculum.` setting, and `mise write` rewrites it.
 
 <!-- settings:curriculum -->
 

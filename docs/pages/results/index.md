@@ -12,6 +12,6 @@ Each line follows one run's share of evaluation episodes reaching the starter at
 
 ## Against Random Presses
 
-Each agent's runs, trained with and without the curriculum, sit beside the random baseline's at each run's last evaluation, with the probability that a run of the agent beats a run of random presses on mean return.
+Each agent's runs, PQN's and PPO's trained with and without the curriculum, sit beside the random baseline's at each run's last evaluation, with the probability that a run of the agent beats a run of random presses on mean return.
 
 [^agarwal2021]: Agarwal et al. 2021. "Deep Reinforcement Learning at the Edge of the Statistical Precipice." *Advances in Neural Information Processing Systems* 34: 29304–29320. <https://proceedings.neurips.cc/paper/2021/hash/f514cec81cb148559cf475e7426eed5e-Abstract.html>

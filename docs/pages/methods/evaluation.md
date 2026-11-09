@@ -12,6 +12,8 @@ Each evaluation averages over each player's episodes the share reaching the star
 
 ## Settings
 
+The table below is written from the help `squirtl train` prints for each `--evaluation.` setting, and `mise write` rewrites it.
+
 <!-- settings:evaluation -->
 
 | **Flag** | **Default** | **What It Sets** |

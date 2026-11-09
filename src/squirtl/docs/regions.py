@@ -1,8 +1,9 @@
 """
-Defines `Region`, a page under `docs/pages/` carrying the table of the
-settings one subject of a run reads, which `squirtl write docs` writes
-between a pair of HTML comments named for the subject, from the help
-`squirtl train` prints for each of those settings.
+Defines `Region`, a page under `docs/pages/` carrying a table written from
+a declaration in the package, which `squirtl write docs` writes between a
+pair of HTML comments named for the table: the settings one subject of a run
+reads, from the help `squirtl train` prints for each, the addresses `Symbol`
+declares, or the flags `Event` declares.
 """
 
 from collections.abc import Iterable, Iterator
@@ -12,17 +13,21 @@ from re              import Match, Pattern, compile
 from typing          import ClassVar, Self
 
 from squirtl.docs.commands    import Command
-from squirtl.emulator.schemas import Record
+from squirtl.emulator.schemas import Record, Symbol
+from squirtl.reward.schemas   import Event
 
 
 class Region(Record):
     """
     A page under `docs/pages/` holding one or more pairs of comments, each
-    `<!-- settings:<subject> -->` opening the table of the settings under
-    `--<subject>.` and `<!-- /settings:<subject> -->` closing it.
+    `<!-- <name> -->` opening the table `table` lays out for its name and
+    `<!-- /<name> -->` closing it, where the name is `settings:<subject>`,
+    `symbols`, or `events`.
     """
 
-    marker: ClassVar[Pattern[str]] = compile(r"<!-- (/?)settings:([a-z]+) -->")
+    marker: ClassVar[Pattern[str]] = compile(
+        r"<!-- (/?)(settings:[a-z]+|symbols|events) -->"
+    )
 
     path: Path
     """
@@ -57,21 +62,22 @@ class Region(Record):
     ) -> Iterable[str]:
         """
         Yields the page's text outside each pair of markers, and each pair
-        holding the table of its subject's settings.
+        holding the table its name gives.
         """
         last = 0
 
         for opening, closing in pairs:
             yield self.text[last:opening.end()]
-            yield "\n\n" + train.table(f"--{opening[2]}.") + "\n\n"
+            yield "\n\n" + table(opening[2], train) + "\n\n"
             last = closing.start()
 
         yield self.text[last:]
 
     def written(self, train: Command) -> str:
         """
-        Writes the table of each subject's settings `train` takes between
-        its pair of markers, leaving the rest of the page as it stands.
+        Writes the table each pair of markers names between them, a
+        subject's settings read from those `train` takes, leaving the rest
+        of the page as it stands.
 
         Raises:
             SyntaxError: Where a marker is not one opening followed by its
@@ -92,3 +98,31 @@ class Region(Record):
                     )
 
         return "".join(self.pieces(pairs, train))
+
+
+def table(name: str, train: Command) -> str:
+    """
+    Lays out the Markdown table a pair of markers named `name` holds:
+
+    - For `settings:<subject>`, each setting under `--<subject>.` that
+      `train` takes
+    - For `symbols`, each address `Symbol` declares beside its label, in
+      the order of the address
+    - For `events`, each flag `Event` declares beside its index and the
+      setting holding what its first step pays, in the order of the index
+    """
+    match name.split(":"):
+        case ["settings", subject]: return train.table(f"--{subject}.")
+        case ["symbols"]:
+            header = "| **Address** | **Label** |", "|---|---|"
+            rows   = (f"| `0x{symbol:04X}` | `{symbol.label}` |" for symbol in sorted(
+                Symbol
+            ))
+        case _:
+            header = "| **Event** | **Index** | **Pays** |", "|---|---|---|"
+            rows   = (
+                f"| `{event.name}` | `0x{event:02X}` | `--reward.{event.term}` |"
+                for event in sorted(Event)
+            )
+
+    return "\n".join((*header, *rows))

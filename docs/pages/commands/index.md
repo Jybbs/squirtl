@@ -1,6 +1,6 @@
 # Commands
 
-*SquiRtL* runs as the `squirtl` command, which trains an agent, stops a run, plays an episode back in the emulator's window, evaluates a trained agent against random presses, prints a source's citation, and writes the files the docs site reads from the package. Each page in this section is written from the help its command prints, so every setting below carries the default and the description `squirtl <command> --help` shows.
+*SquiRtL* runs as the `squirtl` command, which trains an agent, stops a run, plays an episode back in the emulator's window, evaluates a trained agent against random presses, prints a source's citation, and writes the files the docs site reads from the package. Each page in this section is written from the help its command prints, so every setting below carries the default and the description `squirtl <command> --help` shows, or *the machine's* where the default follows the machine.
 
 ## At the Terminal
 

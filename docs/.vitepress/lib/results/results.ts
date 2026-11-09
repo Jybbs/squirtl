@@ -100,6 +100,11 @@ export const PLOTTING = {
   row    : IDENTITY.lengths.spacing['7'],
   shares : [0, 0.25, 0.5, 0.75, 1],
   split  : IDENTITY.lengths.spacing['2'],
+  title  : IDENTITY.lengths.spacing['5'],
+  titles : {
+    reached : 'Episodes reaching the starter (%)',
+    steps   : 'Environment steps'
+  },
   box    : {
     bottom : IDENTITY.lengths.spacing['7'],
     left   : IDENTITY.lengths.spacing['7'],
@@ -153,7 +158,7 @@ export function keyOf(group: Group): KeyEntry[] {
  * the bottom up to the run that trained longest.
  */
 export function curvesOf(group: Group, height: number, width: number): Curves {
-  const frame = frameOf(PLOTTING.box, height, width)
+  const frame = frameOf({ ...PLOTTING.box, top: PLOTTING.box.top + PLOTTING.title }, height, width)
   const last  = Math.max(...group.runs.flatMap(run => run.scores.map(score => score.step)))
   const point = (score: Score) => `${frame.x(score.step, last)},${frame.y(score.reached, 1)}`
   const left  = frame.x(0, 1)
@@ -168,6 +173,10 @@ export function curvesOf(group: Group, height: number, width: number): Curves {
       ...PLOTTING.shares.map(share => shareLabel(share, left - PLOTTING.gap, frame.y(share, 1) + PLOTTING.gap / 2, 'end')),
       { anchor: 'start', text: '0', x: left, y: frame.floor + PLOTTING.drop },
       { anchor: 'end', text: count(last), x: frame.end, y: frame.floor + PLOTTING.drop }
+    ],
+    titles : [
+      { anchor: 'middle', text: PLOTTING.titles.steps, x: round((left + frame.end) / 2), y: frame.floor + PLOTTING.drop },
+      { anchor: 'start', text: PLOTTING.titles.reached, x: 0, y: PLOTTING.box.top + PLOTTING.gap }
     ]
   }
 }
@@ -195,6 +204,7 @@ export function comparisonOf(groups: readonly Group[], width: number): Strip {
     grid   : PLOTTING.shares.map(share => `M${x(share)},${top}V${frame.floor}`).join(''),
     height : height,
     labels : PLOTTING.shares.map(share => shareLabel(share, x(share), frame.floor + PLOTTING.drop, 'middle')),
+    title  : { anchor: 'middle', text: PLOTTING.titles.reached, x: x(0.5), y: frame.floor + 2 * PLOTTING.drop },
     rows   : groups.map((group, n) => {
       const middle = top + (n + 0.5) * PLOTTING.row
       return {
@@ -217,8 +227,8 @@ function shareLabel(share: number, x: number, y: number, anchor: PlotLabel['anch
 /**
  * The learning curves of one group laid out in a plot: the plot's frame, the
  * height of the baseline's level line, the gridlines at each labeled share,
- * the last step the plot reaches, the path of each run's line, and the labels
- * along both axes.
+ * the last step the plot reaches, the path of each run's line, the labels
+ * along both axes, and the title of each axis.
  */
 export interface Curves {
   baseline : number
@@ -227,6 +237,7 @@ export interface Curves {
   labels   : readonly PlotLabel[]
   last     : number
   lines    : readonly string[]
+  titles   : readonly PlotLabel[]
 }
 
 /**
@@ -243,8 +254,9 @@ export interface Sample {
 
 /**
  * The comparison laid out: the floor, the gridlines at each labeled share, the
- * strip's height and width, the labels along the bottom, and each group's row,
- * its name beside the agent's sample and the random baseline's.
+ * strip's height and width, the labels along the bottom and the title beneath
+ * them, and each group's row, its name beside the agent's sample and the random
+ * baseline's.
  */
 export interface Strip {
   floor  : number
@@ -252,5 +264,6 @@ export interface Strip {
   height : number
   labels : readonly PlotLabel[]
   rows   : readonly { agent: Sample, name: PlotLabel, random: Sample }[]
+  title  : PlotLabel
   width  : number
 }

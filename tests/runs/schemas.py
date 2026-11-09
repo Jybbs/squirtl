@@ -450,6 +450,21 @@ def test_each_file_a_run_writes_sits_in_its_directory(
 
 
 @mark.usefixtures("clone")
+def test_a_run_reads_its_baseline_only_once_it_has_played_one(run: Run):
+    """
+    Asserts that a run holding no baseline reads `None`, and that once its
+    baseline is written it reads back the evaluation written.
+    """
+    assert run.baselined is None
+
+    baseline = played([0.25], None)
+    run.directory.mkdir(parents=True)
+    run.baseline.write_text(baseline.model_dump_json(), encoding="utf-8")
+
+    assert run.baselined == baseline
+
+
+@mark.usefixtures("clone")
 def test_a_run_read_from_outside_the_clone_keeps_its_files_where_it_was_read(
     monkeypatch      : MonkeyPatch,
     tmp_path_factory : TempPathFactory

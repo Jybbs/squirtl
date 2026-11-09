@@ -26,6 +26,8 @@ An episode terminates once Blue receives his starter, and it truncates after 10,
 
 ## Settings
 
+The table below is written from the help `squirtl train` prints for each `--environment.` setting, and `mise write` rewrites it.
+
 <!-- settings:environment -->
 
 | **Flag** | **Default** | **What It Sets** |
@@ -37,6 +39,8 @@ An episode terminates once Blue receives his starter, and it truncates after 10,
 | `--environment.max-episode-steps` | `10240` | *The steps after which `TimeLimit` truncates an episode, by default the budget Pleines et al. start each episode with.* |
 
 <!-- /settings:environment -->
+
+The table below is written from the help `squirtl train` prints for each `--emulator.` setting, and `mise write` rewrites it.
 
 <!-- settings:emulator -->
 

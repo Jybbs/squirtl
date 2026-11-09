@@ -48,6 +48,7 @@ export const ResultsComparison = defineComponent({
         <svg aria-hidden="true" class="block h-auto w-full overflow-visible" viewBox={`0 0 ${strip.value.width} ${strip.value.height}`}>
           {plots.drawAxis(strip.value.grid)}
           {strip.value.labels.map(label => plots.drawLabel(label))}
+          {plots.drawLabel(strip.value.title, plots.TITLE)}
           {strip.value.rows.map(row => [
             plots.drawLabel(row.name, plots.TITLE),
             drawSample(row.agent, 'agent'),

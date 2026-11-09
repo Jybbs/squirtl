@@ -45,6 +45,7 @@ export const ResultsCurves = defineComponent({
           <svg {...plots.SVG} viewBox={`0 0 ${width.value} ${results.PLOTTING.height}`}>
             {plots.drawAxis(curves.value.grid)}
             {curves.value.labels.map(label => plots.drawLabel(label))}
+            {curves.value.titles.map(title => plots.drawLabel(title, plots.TITLE))}
             <path
               class={['fill-none', ROLES.random.stroke]}
               d={`M${curves.value.frame.x(0, 1)},${curves.value.baseline}H${curves.value.frame.end}`}

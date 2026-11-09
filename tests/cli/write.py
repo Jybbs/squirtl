@@ -2,8 +2,9 @@
 Pins what `squirtl write docs` does, covering the files it writes into a
 checkout missing them, the definitions it closes each tracked Markdown file
 on, the path of each it prints, a second run printing nothing once every
-file matches its declaration, and the unknown key that fails before any file
-is written.
+file matches its declaration, the unknown key that fails before any file
+is written, and the unpaired marker that fails before any file but the
+footnotes is written.
 """
 
 from collections.abc   import Callable, Mapping
@@ -26,22 +27,30 @@ ENTRY = """
 """
 
 
-def test_writing_docs_where_git_fails_exits_1_and_writes_nothing(
+def test_writing_docs_over_an_unpaired_marker_exits_1_and_writes_nothing_else(
     checkout : Callable[[Mapping[str, str]], None],
-    fp       : FakeProcess,
+    clone    : Path,
     invoke   : Invoker
 ):
     """
-    Asserts that a `git ls-files` exiting nonzero exits 1 and leaves the
-    inventory's files unwritten.
+    Asserts that a page under `docs/pages/` holding an unpaired marker exits
+    1 without a traceback and leaves every other file the inventory lists
+    unwritten.
     """
-    checkout({"docs/references.bib": ENTRY})
-    fp.register(["git", "ls-files", "-z", "--", "*.md"], returncode=128)
+    checkout(
+        {
+            "docs/pages/page.md"  : "<!-- settings:reward -->\n",
+            "docs/references.bib" : ENTRY
+        }
+    )
 
     invocation = invoke(["write", "docs"])
 
-    assert (invocation.code, invocation.output) == (1, "")
-    assert not any(output.path.exists() for output in Inventory.read().outputs)
+    assert (invocation.code, invocation.output, invocation.messages) == (
+        1, "",
+        ["docs/pages/page.md:1: an unpaired marker"]
+    )
+    assert not (clone / "docs/.vitepress/lib/rendered/identity.json").exists()
 
 
 @mark.parametrize(
@@ -79,6 +88,24 @@ def test_writing_docs_it_cannot_write_exits_1_and_writes_nothing(
 
     assert (invocation.code, invocation.output) == (1, "")
     assert (clone / "a.md").read_text(encoding="utf-8") == files["a.md"]
+    assert not any(output.path.exists() for output in Inventory.read().outputs)
+
+
+def test_writing_docs_where_git_fails_exits_1_and_writes_nothing(
+    checkout : Callable[[Mapping[str, str]], None],
+    fp       : FakeProcess,
+    invoke   : Invoker
+):
+    """
+    Asserts that a `git ls-files` exiting nonzero exits 1 and leaves the
+    inventory's files unwritten.
+    """
+    checkout({"docs/references.bib": ENTRY})
+    fp.register(["git", "ls-files", "-z", "--", "*.md"], returncode=128)
+
+    invocation = invoke(["write", "docs"])
+
+    assert (invocation.code, invocation.output) == (1, "")
     assert not any(output.path.exists() for output in Inventory.read().outputs)
 
 

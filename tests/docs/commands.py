@@ -4,16 +4,17 @@ registers, covering:
 
 - The commands it finds, each word of a group's command after the group's
 - A page's heading, help without the `Args` section, usage, and table of
-  settings
+  settings, which leaves out a setting the help hides
 - How a setting spells its flag and its default, whether the default
   follows the machine, no default exists, or the default is a boolean, an
   enumeration, a pair, `None`, or a number
 - A paragraph's lines joined into one, a list keeping its items
 """
 
-from cyclopts import App
+from cyclopts import App, Parameter
 from enum     import StrEnum
 from pytest   import mark, param
+from typing   import Annotated
 
 from squirtl.cli           import app
 from squirtl.docs.commands import Command, spelled, unwrapped
@@ -52,6 +53,27 @@ def test_a_default_following_the_machine_is_named_so():
     rows = Command.read(app, ("train",)).table("--agent.device")
 
     assert "| `--agent.device` | *the machine's* |" in rows
+
+
+def test_a_hidden_setting_takes_no_row():
+    """
+    Asserts that a setting cyclopts hides from the help is left out of the
+    page's table while the setting beside it is kept.
+    """
+    stand_in = App(name="stand-in")
+
+    @stand_in.command
+    def paint(secret: Annotated[int, Parameter(show=False)] = 0, shade: Shade = Shade.LIGHT):
+        """
+        Paints.
+
+        Args:
+            shade: The shade to paint in.
+        """
+
+    settings = Command.read(stand_in, ("paint",)).settings
+
+    assert [setting.name for setting in settings] == ["--shade"]
 
 
 def test_a_page_carries_the_description_without_the_args_section():

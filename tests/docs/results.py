@@ -6,7 +6,8 @@ Pins what `Results` reads from the run directories under
   and curriculum across its runs
 - A missing folder, which holds no run
 - A run reading another cartridge than the default path, or holding no
-  evaluation, which `Trained.read` refuses
+  evaluation of the agent or of the random baseline, which `Trained.read`
+  refuses
 """
 
 from collections.abc   import Callable, Iterable, Mapping
@@ -62,6 +63,20 @@ def test_a_missing_folder_holds_no_run(checkout: Callable[[Mapping[str, str]], N
     checkout({})
 
     assert Results.read() == Results(comparisons=(), runs=())
+
+
+def test_a_run_holding_no_baseline_is_refused(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that a run whose directory holds no baseline is refused, since each
+    run is drawn beside its baseline.
+    """
+    folder = recorded(checkout, [0.75], 1)
+    (folder / "baseline.json").rename(folder / "moved.json")
+
+    with raises(ValueError, match="holds no baseline"):
+        Trained.read(folder)
 
 
 def test_a_run_holding_no_evaluation_is_refused(

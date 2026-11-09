@@ -379,6 +379,16 @@ class Run(Record):
         return self.directory / "baseline.json"
 
     @property
+    def baselined(self) -> Evaluation | None:
+        """
+        Reads the random baseline's evaluation `baseline` holds, or `None`
+        where the run has played none.
+        """
+        return Evaluation.model_validate_json(
+            self.baseline.read_bytes()
+        ) if self.baseline.exists() else None
+
+    @property
     def checkpoint(self) -> Path:
         """
         Locates the checkpoint a run writes at each interval and at its end,

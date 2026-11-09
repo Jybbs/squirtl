@@ -181,10 +181,10 @@ class Handover(Record):
     it leaves no directory behind.
     """
 
-    baseline: str | None
+    baseline: Evaluation | None
     """
-    The random baseline's evaluation as the stopped run's `baseline` holds
-    it, or `None` where it played none.
+    The random baseline's evaluation the stopped run's `baseline` holds, or
+    `None` where it played none.
     """
 
     checkpoint: ReplayCheckpoint | VectorCheckpoint
@@ -243,9 +243,7 @@ class Handover(Record):
             )
 
         return cls(
-            baseline = previous.baseline.read_text(
-                encoding = "utf-8"
-            ) if previous.baseline.exists() else None,
+            baseline   = previous.baselined,
             checkpoint = checkpoint,
             episodes   = previous.ended_by(
                 checkpoint.step
@@ -266,7 +264,7 @@ class Handover(Record):
         run.append(run.evaluations, *self.evaluations)
 
         if self.baseline is not None:
-            run.baseline.write_text(self.baseline, encoding="utf-8")
+            run.baseline.write_text(self.baseline.model_dump_json(), encoding="utf-8")
 
 
 class Trainer(AbstractContextManager, ABC):

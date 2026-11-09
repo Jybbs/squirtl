@@ -100,7 +100,8 @@ class Trained(Record):
         Raises:
             ValueError: Where the run read a cartridge other than the
                         default path, which would carry a local path into
-                        the checkout, or holds no evaluation.
+                        the checkout, or holds no evaluation of the agent or
+                        of the random baseline.
         """
         run = Run.read(directory)
 
@@ -112,11 +113,12 @@ class Trained(Record):
         if not (scores := tuple(map(Score.of, run.evaluated))):
             raise ValueError(f"{directory} holds no evaluation")
 
+        if (baseline := run.baselined) is None:
+            raise ValueError(f"{directory} holds no baseline")
+
         return cls(
-            agent    = run.settings.agent.algorithm,
-            baseline = Score.of(
-                Evaluation.model_validate_json(run.baseline.read_text(encoding="utf-8"))
-            ),
+            agent      = run.settings.agent.algorithm,
+            baseline   = Score.of(baseline),
             curriculum = run.settings.curriculum.demonstration is not None,
             name       = run.name,
             scores     = scores,

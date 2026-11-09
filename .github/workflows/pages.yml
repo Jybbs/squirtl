@@ -11,7 +11,9 @@ on:
       - .github/actions/provision/action.yml
       - .github/workflows/pages.yml
       - .mise/config.toml
+      - .mise/bin/pytest
       - .mise/mise.lock
+      - .mise/tasks/py/coverage
       - .mise/tasks/site/**
       - docs/**
       - pyproject.toml

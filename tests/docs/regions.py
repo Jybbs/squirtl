@@ -1,7 +1,7 @@
 """
-Pins how `Region` writes each subject's table of settings into a page,
-covering the pages it finds, a table written between its pair of markers in
-place of what the pair held, and a marker left unpaired.
+Pins how `Region` writes each table into a page, covering the pages it
+finds, a table written between its pair of markers in place of what the pair
+held, the tables of the addresses and the flags, and a marker left unpaired.
 """
 
 from collections.abc import Callable, Mapping
@@ -10,12 +10,59 @@ from pytest          import mark, param, raises
 
 from squirtl.cli           import app
 from squirtl.docs.commands import Command
-from squirtl.docs.regions  import Region
+from squirtl.docs.regions  import Region, table
 
 TRAIN = Command.read(app, ("train",))
 """
 The page of `squirtl train`, whose settings each table lists.
 """
+
+
+def test_a_pair_of_symbols_markers_takes_the_table_of_the_addresses():
+    """
+    Asserts that a page's pair of `symbols` markers holds the table of the
+    addresses once written.
+    """
+    region = Region(path=Path("page.md"), text="<!-- symbols -->\n<!-- /symbols -->\n")
+
+    assert region.written(TRAIN) == (
+        "<!-- symbols -->\n\n" + table("symbols", TRAIN) + "\n\n<!-- /symbols -->\n"
+    )
+
+
+@mark.parametrize(
+    ("name", "rows"),
+    [
+        param(
+            "symbols",
+            [
+                "| `0xD35E` | `wCurMap` |", "| `0xD361` | `wYCoord` |",
+                "| `0xD362` | `wXCoord` |", "| `0xD747` | `wEventFlags` |"
+            ],
+            id = "symbols"
+        ),
+        param(
+            "events",
+            [
+                "| `EVENT_FOLLOWED_OAK_INTO_LAB` | `0x00` | `--reward.milestone` |",
+                "| `EVENT_OAK_ASKED_TO_CHOOSE_MON` | `0x21` | `--reward.milestone` |",
+                "| `EVENT_GOT_STARTER` | `0x22` | `--reward.starter` |",
+                "| `EVENT_OAK_APPEARED_IN_PALLET` | `0x27` | `--reward.milestone` |"
+            ],
+            id = "events"
+        )
+    ]
+)
+def test_the_addresses_and_the_flags_are_tabled_in_the_order_of_their_values(
+    name : str,
+    rows : list[str]
+):
+    """
+    Pins the rows of the table of the addresses `Symbol` declares, each
+    beside its label, and of the flags `Event` declares, each beside its
+    index and the setting holding what it pays.
+    """
+    assert table(name, TRAIN).splitlines()[2:] == rows
 
 
 def test_each_pair_takes_its_subjects_table_in_place_of_what_it_held():
@@ -48,9 +95,9 @@ def test_only_a_page_holding_a_marker_is_a_region(
     """
     checkout(
         {
-            "docs/pages/a/a.md": "<!-- settings:seed -->\n<!-- /settings:seed -->\n",
-            "docs/pages/b.md": "<!-- settings:reward -->\n<!-- /settings:reward -->\n",
-            "docs/pages/plain.md": "# Plain\n"
+            "docs/pages/a/a.md"   : "<!-- settings:seed -->\n<!-- /settings:seed -->\n",
+            "docs/pages/b.md"     : "<!-- events -->\n<!-- /events -->\n",
+            "docs/pages/plain.md" : "# Plain\n"
         }
     )
 
@@ -73,6 +120,12 @@ def test_only_a_page_holding_a_marker_is_a_region(
             2,
             id = "closed-first"
         ),
+        param(
+            "<!-- /settings:reward -->\n<!-- /settings:reward -->\n",
+            2,
+            id = "closed-twice"
+        ),
+        param("<!-- symbols -->\n<!-- /events -->\n", 2, id="another-table"),
         param("x\n<!-- settings:reward -->\n", 2, id="never-closed"),
         param(
             "<!-- settings:reward -->\n<!-- settings:reward -->\n",

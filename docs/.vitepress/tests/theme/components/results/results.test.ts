@@ -52,7 +52,9 @@ describe('ResultsCurves', () => {
     const wrapper = mount(ResultsCurves)
     const picked  = () => wrapper.findAll('[aria-pressed="true"]').map(entry => entry.text())
 
-    expect([picked(), wrapper.findAll('path').length]).toStrictEqual([['Deep Q-network'], 3])
+    expect([picked(), wrapper.findAll('path').length, wrapper.find('svg').text()]).toStrictEqual([
+      ['Deep Q-network'], 3, '0%25%50%75%100%0100Environment stepsEpisodes reaching the starter (%)'
+    ])
 
     await wrapper.findAll('button')[1]!.trigger('click')
     await nextTick()
@@ -67,7 +69,7 @@ describe('ResultsComparison', () => {
     const wrapper = mount(ResultsComparison)
 
     expect([wrapper.findAll('circle').length, wrapper.findAll('path').length, wrapper.text()]).toStrictEqual([
-      4, 7, '0%25%50%75%100%Deep Q-networkPQN, curriculum'
+      4, 7, '0%25%50%75%100%Episodes reaching the starter (%)Deep Q-networkPQN, curriculum'
     ])
   })
 })
