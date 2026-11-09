@@ -144,10 +144,24 @@ export class Gait {
   }
 
   /**
-   * Runs the `n`th step of an episode frame by frame, `held` pressed for the
+   * Plays the `n`th step of an episode frame by frame, `held` pressed for the
    * step's hold and the game reading the pad every second frame from its first
    * or its second as `n` is even or odd, since a step ticks an odd count of
-   * frames, and writes the stance Blue shows on each frame into `stances`.
+   * frames. Yields each frame's count from 1 beside the first frame the pad is
+   * read on, before the pad is read on that frame, so a caller reading the
+   * gait between yields reads what that frame shows.
+   */
+  *frames(n: number, held: rooms.Button | null, blocked: boolean, turn: boolean, step: Step = STEP): Generator<{ f: number, read: number }> {
+    const read = 1 + (n % 2)
+    for (let f = 1; f <= step.frames; f++) {
+      yield { f, read }
+      if (f >= read && (f - read) % 2 === 0) this.pass(f <= step.hold ? held : null, blocked, turn)
+    }
+  }
+
+  /**
+   * Runs the `n`th step of an episode through `frames` and writes the stance
+   * Blue shows on each frame into `stances`.
    *
    * Returns:
    *   The stances, one to each of the step's frames.
@@ -160,12 +174,7 @@ export class Gait {
     stances : Stance[],
     step    : Step = STEP
   ): Stance[] {
-    const read = 1 + (n % 2)
-    for (let frame = 1; frame <= step.frames; frame++) {
-      stances[frame - 1] = this.stance
-      const reads = frame >= read && (frame - read) % 2 === 0
-      if (reads) this.pass(frame <= step.hold ? held : null, blocked, turn)
-    }
+    for (const { f } of this.frames(n, held, blocked, turn, step)) stances[f - 1] = this.stance
     return stances
   }
 }

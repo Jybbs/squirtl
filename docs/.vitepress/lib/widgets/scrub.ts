@@ -32,7 +32,8 @@ export interface Scrub {
 /**
  * What a drawing that serves as its own slider needs, its positions, the name
  * and the description a screen reader reads, the position it shows, and the
- * call that seeks a position.
+ * call that seeks a position, beside the positions Page Up and Page Down move
+ * it by, ten unless given another.
  */
 export interface Scrubbing {
   at       : Ref<number>
@@ -40,6 +41,7 @@ export interface Scrubbing {
   describe : (at: number) => string
   label    : string
   seek     : (at: number) => void
+  page?    : number
 }
 
 /**
@@ -57,13 +59,14 @@ export const fromMouse = (event: PointerEvent): boolean => event.pointerType ===
  * machine sets, so its look comes from its classes alone.
  */
 export function useScrub(target: MaybeElementRef, ticking: Ticking, scrubbing: Scrubbing): Scrub {
-  const { at, count, describe, label, seek } = scrubbing
+  const { at, count, describe, label, page, seek } = scrubbing
   const { hold }                             = useAutoplay(target, ticking)
   const id                                   = useId()
   const service                              = useMachine(slider.machine, computed(() => ({
     'aria-label'     : [label],
     getAriaValueText : ({ value }: slider.ValueTextDetails) => describe(value),
     id               : id,
+    largeStep        : page,
     max              : count - 1,
     min              : 0,
     onFocusChange    : ({ focusedIndex }: slider.FocusChangeDetails) => hold('keys', focusedIndex !== -1),

@@ -1,0 +1,22 @@
+.step-sheet {
+  grid-template-areas   : '. head' 'labels cells';
+  grid-template-columns : var(--spacing-step-label) minmax(0, 1fr);
+}
+
+.step-head { grid-area: head; }
+
+.step-labels { grid-area: labels; }
+
+.step-cells { grid-area: cells; }
+
+.step-pad { height: min(var(--spacing-mark), 100%); }
+
+.step-pad svg { height: 64%; width: 64%; }
+
+.step-key .chip > :nth-child(3) { margin-left: auto; }
+
+.step-key .chip > :last-child { min-width: var(--spacing-step-figure); margin-left: 0; text-align: right; }
+
+@container (width < 30rem) {
+  .step-number:nth-child(even) { visibility: hidden; }
+}

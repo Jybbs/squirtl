@@ -23,7 +23,7 @@ keywords        = [
 license         = "MIT"
 license-files   = ["LICENSE.md"]
 name            = "squirtl"
-readme          = "README.md"
+readme          = ".github/README.md"
 requires-python = ">=3.15"
 version         = "0.2.0"
 
@@ -48,6 +48,9 @@ dev = [
 
 [tool.coverage.html]
 directory = ".cache/coverage/html"
+
+[tool.coverage.json]
+output = ".cache/coverage/coverage.json"
 
 [tool.coverage.report]
 fail_under                 = 95

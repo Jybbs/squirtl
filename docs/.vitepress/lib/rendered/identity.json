@@ -926,6 +926,11 @@
     "sizes": {
       "chip-block": 6.0,
       "chip-end": 10.0,
+      "curriculum-head": 136.0,
+      "curriculum-places": 64.0,
+      "curriculum-screen": 86.0,
+      "curriculum-screen-narrow": 72.0,
+      "experience-chip": 240.0,
       "footnote-above": 12.0,
       "footnote-alone": 17.0,
       "footnote-alone-screen": 13.0,
@@ -956,9 +961,12 @@
       "key-mark": 18.0,
       "mark": 22.0,
       "mark-art": 14.0,
+      "memory-side": 240.0,
       "missing-page": 1024.0,
       "missing-screen": 480.0,
       "race-plot": 226.0,
+      "reach-screens": 512.0,
+      "results-plot": 288.0,
       "reward-climb": 288.0,
       "ribbon": 54.0,
       "ribbon-circle": 38.0,
@@ -970,12 +978,17 @@
       "ribbon-tail": 30.0,
       "ribbon-tail-narrow": 22.0,
       "sees-seam": 2.0,
+      "step-figure": 48.0,
+      "step-label": 28.0,
       "story-between": 88.0,
       "story-foot": 36.0,
       "story-number": 56.0,
       "story-side": 40.0,
       "story-widget": 34.0,
-      "swatch": 10.0
+      "swatch": 10.0,
+      "watch-figure": 56.0,
+      "watch-side": 296.0,
+      "watch-status": 80.0
     },
     "spacing": {
       "0": 0,
@@ -1178,7 +1191,13 @@
       0.0,
       1.0
     ],
-    "duration": 150
+    "duration": 150,
+    "travel": [
+      0.42,
+      0.0,
+      0.58,
+      1.0
+    ]
   },
   "name": "SquiRtL",
   "neutrals": {

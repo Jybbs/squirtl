@@ -1,0 +1,9 @@
+# `squirtl write docs`
+
+Writes each file the site reads from a declaration in the package into `docs/` where it differs from that declaration, the identity's JSON among them, and closes each Markdown file git tracks on the definition of each source it cites, printing the path of each file it wrote.
+
+A marker naming a key `docs/references.bib` does not declare exits 1 before any file is written, naming the file and the line, as does a `docs/references.bib` that fails to read, naming its line.
+
+```console
+squirtl write docs
+```

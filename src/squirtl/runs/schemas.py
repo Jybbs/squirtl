@@ -25,7 +25,7 @@ from pathlib         import Path
 from pydantic        import AwareDatetime, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt
 from pydantic        import PrivateAttr, StringConstraints, model_validator
 from subprocess      import check_output
-from typing          import Annotated, Self
+from typing          import Annotated, ClassVar, Self
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm, PolicyUpdate, Update, flush
 from squirtl.emulator.schemas    import EmulatorSettings, Record, UnitInterval
@@ -221,6 +221,16 @@ class RunSettings(Record):
     (`[tool.squirtl.emulator]`). A bare `*` before the record in the
     command's signature keeps every field keyword-only, so no bare token
     fills one.
+    """
+
+    machine: ClassVar[dict[str, set[str]]] = {
+        "agent"      : {"device"},
+        "evaluation" : {"environments"}
+    }
+    """
+    The fields under each subject whose default follows the machine a run
+    starts on, the agent's device and the environments an evaluation plays
+    across, each left out of the defaults the site's pages state.
     """
 
     agent: AgentSettings = Field(default_factory=AgentSettings)

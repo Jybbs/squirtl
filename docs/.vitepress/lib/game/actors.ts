@@ -46,7 +46,7 @@ const FACING: Readonly<Record<rooms.Direction, readonly [standing: number, walki
  * Where Mom, Oak, and the rival stand as pret/pokered's `data/maps/objects`
  * places them, each facing the way the game first draws them.
  */
-const PEOPLE = {
+export const PEOPLE = {
   mom   : { at: [5, 4], facing: 'left', name: 'mom', stance: 'standing' },
   oak   : { at: [5, 2], facing: 'down', name: 'oak', stance: 'standing' },
   rival : { at: [4, 3], facing: 'down', name: 'rival', stance: 'standing' }
@@ -105,7 +105,7 @@ function posesOf(frames: readonly Grid[], facing: rooms.Direction): Readonly<Rec
  * in the house, Oak at his table in the lab, the rival, the Poké Balls still on
  * the table, and Oak at `leaderAt` in `stance` while he leads Blue there.
  */
-export function actorsOf(episode: Episode, leaderAt?: rooms.Square, stance: Stance = 'standing'): Actor[] {
+export function actorsOf(episode: Pick<Episode, 'chosen' | 'leader' | 'place'>, leaderAt?: rooms.Square, stance: Stance = 'standing'): Actor[] {
   const leader          = episode.leader?.place === episode.place ? episode.leader : null
   const actors: Actor[] = []
   if (episode.place === 'house') actors.push(PEOPLE.mom)

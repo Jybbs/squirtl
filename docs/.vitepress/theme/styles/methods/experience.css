@@ -1,0 +1,14 @@
+.experience-strip { aspect-ratio: 640 / 108; }
+
+.experience-window {
+  transition-duration : calc(4 * var(--default-transition-duration));
+  width               : calc(48 / 640 * 100%);
+}
+
+.experience-tick { transform: translateX(-50%); }
+
+.experience-tick:first-child { transform: none; }
+
+.experience-tick:last-child { transform: translateX(-100%); }
+
+.experience-chips { grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--spacing-experience-chip)), 1fr)); }

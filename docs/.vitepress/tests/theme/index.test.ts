@@ -8,6 +8,7 @@ vi.mock('vitepress', async original => ({ ...await original<object>(), inBrowser
 const { default: theme }        = await import('../../theme/index.ts')
 const { default: DefaultTheme } = await import('vitepress/theme-without-fonts')
 const { STORY }                 = await import('../../lib/markdown/story.ts')
+const { WIDGETS }               = await import('../../lib/markdown/widgets.ts')
 
 /**
  * Sets the theme up on a fresh app with a router standing on `data`, and reads
@@ -27,6 +28,12 @@ describe('the theme', () => {
 
     expect(theme.extends).toBe(DefaultTheme)
     expect(STORY.filter(chapter => !app.component(chapter.name))).toStrictEqual([])
+  })
+
+  it('registers every widget a section’s page places', () => {
+    const { app } = enhanced({ isNotFound: false })
+
+    expect(WIDGETS.filter(placement => !app.component(placement.name)).map(placement => placement.name)).toStrictEqual([])
   })
 
   it('titles a missing address as its own page and describes it by the site’s byline', () => {

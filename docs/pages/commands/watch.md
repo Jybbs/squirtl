@@ -1,0 +1,18 @@
+# `squirtl watch`
+
+Opens the emulator's window and plays back one episode the run recorded, from the reset at the `timer_div` the run recorded for it to the return the run recorded, at the sixty steps a second the window paces.
+
+An episode that started along a demonstration plays the demonstration's presses up to its start first, and its return counts its own steps alone.
+
+A directory holding no run, an episode the run never recorded, or a cartridge the emulator refuses exits 1 before the window opens, and a console whose intro leaves a state of another digest than the run's exits 1 before playing anything. A playback reaching a return other than the one recorded exits 1 once it ends.
+
+```console
+squirtl watch [OPTIONS] DIRECTORY
+```
+
+## Settings
+
+| **Flag** | **Default** | **What It Sets** |
+|---|---|---|
+| `DIRECTORY`, `--directory` | *required* | *The run's directory under `data/runs/`.* |
+| `--episode` | `none` | *The episode to play, counting from 1, or none for the last.* |

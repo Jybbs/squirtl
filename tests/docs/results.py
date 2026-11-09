@@ -1,0 +1,159 @@
+"""
+Pins what `Results` reads from the run directories under
+`docs/runs/`, covering:
+
+- Each run's scores beside its baseline's, and the comparison of each agent
+  and curriculum across its runs
+- A missing folder, which holds no run
+- A run reading another cartridge than the default path, or holding no
+  evaluation, which `Trained.read` refuses
+"""
+
+from collections.abc   import Callable, Iterable, Mapping
+from common.evaluation import played
+from datetime          import UTC, datetime
+from pathlib           import Path
+from pytest            import approx, raises
+
+from squirtl.agent.schemas    import AgentSettings, Algorithm
+from squirtl.docs.results     import Results, Trained
+from squirtl.emulator.schemas import EmulatorSettings
+from squirtl.runs.schemas     import CurriculumSettings, Revision, Run, RunSettings
+
+
+def recorded(
+    checkout : Callable[[Mapping[str, str]], None],
+    rewards  : Iterable[float],
+    second   : int,
+    settings : RunSettings = RunSettings()
+) -> Path:
+    """
+    Writes under `docs/runs/` a run started `second` seconds past midnight
+    UTC on 4 October 2026, holding one evaluation per return in `rewards`,
+    each a single episode reaching the starter where its return passes 0.5,
+    beside a baseline of one truncated episode returning 0.125.
+    """
+    run = Run(
+        digest   = "0",
+        revision = Revision(commit="0", dirty=False, lockfile="0"),
+        settings = settings.model_copy(update={"seed": second}),
+        started  = datetime(2026, 10, 4, 0, 0, second, tzinfo=UTC)
+    )
+    folder = f"docs/runs/{run.name}"
+    checkout(
+        {
+            f"{folder}/baseline.json"     : played([0.125], None).model_dump_json(),
+            f"{folder}/evaluations.jsonl" : "".join(
+                played([reward], step, terminated=reward > 0.5).model_dump_json() + "\n"
+                for step, reward in enumerate(rewards, start=1)
+            ),
+            f"{folder}/run.json"          : run.model_dump_json()
+        }
+    )
+
+    return Path(folder)
+
+
+def test_a_missing_folder_holds_no_run(checkout: Callable[[Mapping[str, str]], None]):
+    """
+    Asserts that results read from a checkout holding no `docs/runs/` hold
+    no run and no comparison.
+    """
+    checkout({})
+
+    assert Results.read() == Results(comparisons=(), runs=())
+
+
+def test_a_run_holding_no_evaluation_is_refused(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that a run whose evaluations hold no line is refused, since the
+    results draw each run from its evaluations.
+    """
+    folder = recorded(checkout, [], 1)
+
+    with raises(ValueError, match="holds no evaluation"):
+        Trained.read(folder)
+
+
+def test_a_run_reading_another_cartridge_is_refused(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that a run trained against a cartridge other than the default path
+    is refused, naming the path, so no local path reaches the site.
+    """
+    folder = recorded(
+        checkout = checkout,
+        rewards  = [0.75],
+        second   = 1,
+        settings = RunSettings(
+            emulator = EmulatorSettings(cartridge=Path("/home/rom.gb"))
+        )
+    )
+
+    with raises(ValueError, match="/home/rom.gb"):
+        Trained.read(folder)
+
+
+def test_comparisons_follow_the_agents_name_and_then_the_curriculum(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that the runs compare in one group for each agent and curriculum,
+    in the order of the agent's name and then without the curriculum before
+    with it, whatever order the runs' names take.
+    """
+    pqn = AgentSettings(algorithm=Algorithm.PQN)
+
+    for second, settings in enumerate(
+        (
+            RunSettings(
+                agent      = pqn,
+                curriculum = CurriculumSettings(demonstration=Path("walk.json"))
+            ),
+            RunSettings(agent=AgentSettings(algorithm=Algorithm.PPO)),
+            RunSettings(agent=pqn)
+        ),
+        start = 1
+    ):
+        recorded(
+            checkout = checkout,
+            rewards  = [0.75],
+            second   = second,
+            settings = settings
+        )
+
+    assert [
+        (comparison.agent, comparison.curriculum)
+        for comparison in Results.read().comparisons
+    ] == [(Algorithm.PPO, False), (Algorithm.PQN, False), (Algorithm.PQN, True)]
+
+
+def test_results_compare_each_agent_and_curriculum_across_its_runs(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that each run reaches the results as its scores beside its
+    baseline's, in the order of its name, and that the runs of one agent
+    compare against their baselines at each run's last evaluation, the
+    agent's runs here reaching the starter every time and beating every
+    baseline run.
+    """
+    for second in (1, 2, 3):
+        recorded(checkout, [0.25, 0.75], second)
+
+    results = Results.read()
+
+    assert [
+        (run.agent, run.curriculum, run.seed, [score.step for score in run.scores])
+        for run in results.runs
+    ] == [(Algorithm.DQN, False, second, [1, 2]) for second in (1, 2, 3)]
+    assert [
+        (
+            comparison.agent, comparison.beats.value, comparison.baseline.value,
+            comparison.reached.value, comparison.reached.runs
+        )
+        for comparison in results.comparisons
+    ] == [(Algorithm.DQN, approx(1.0), approx(0.0), approx(1.0), (3,))]

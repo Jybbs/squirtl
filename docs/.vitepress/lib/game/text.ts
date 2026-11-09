@@ -6,7 +6,7 @@ import { type Painter, paintRuns }     from './screen.ts'
  * A character the game's font draws, a letter or one of the text box's border
  * tiles.
  */
-type Glyph = keyof typeof FONT
+export type Glyph = keyof typeof FONT
 
 /**
  * A text box in the screen's eight-pixel tiles, the column and the row of its
@@ -46,7 +46,7 @@ function gridOf(rows: string): Grid {
 /**
  * Reads the runs `glyph` draws.
  */
-function runsAt(glyph: Glyph): readonly Run[] {
+export function runsAt(glyph: Glyph): readonly Run[] {
   return glyphRuns.get(glyph)!
 }
 

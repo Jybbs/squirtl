@@ -26,7 +26,11 @@ export interface Section {
 /**
  * The sections the site carries, in alphabetical order of their names.
  */
-export const SECTIONS: readonly Section[] = []
+export const SECTIONS: readonly Section[] = [
+  { about: ['Every command and', 'each setting it takes.'], name: 'Commands' },
+  { about: ['What the agent learns,', 'and how.'], name: 'Methods' },
+  { about: ['Each agent against', 'random presses.'], name: 'Results' }
+]
 
 /**
  * Places each of `sections`, giving each the hue the identity declares for its

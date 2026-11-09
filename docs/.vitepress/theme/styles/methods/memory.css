@@ -1,0 +1,44 @@
+.memory {
+  grid-template-areas   : 'plate' 'says' 'side' 'hint';
+  grid-template-columns : minmax(0, 1fr);
+}
+
+.memory-plate { grid-area: plate; }
+
+.memory-side { grid-area: side; }
+
+.memory-says { grid-area: says; }
+
+.memory-hint { grid-area: hint; }
+
+.memory-stage { aspect-ratio: 316 / 312; }
+
+.memory-says > * { grid-area: 1 / 1; }
+
+.memory-code > :nth-child(2) { letter-spacing: 0; text-transform: none; }
+
+.memory-pulse {
+  opacity          : 0;
+  transform-box    : fill-box;
+  transform-origin : center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .memory-pulse { animation: memory-pulse calc(5 * var(--default-transition-duration)) var(--ease-glide) 1; }
+}
+
+@keyframes memory-pulse {
+  from { opacity: .9; transform: scale(1); }
+  to   { opacity: 0; transform: scale(1.6); }
+}
+
+@container (width >= 26rem) and (width < 40rem) {
+  .memory-bytes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@container (width >= 40rem) {
+  .memory {
+    grid-template-areas   : 'plate side' 'says says' 'hint hint';
+    grid-template-columns : minmax(0, 1fr) minmax(0, var(--spacing-memory-side));
+  }
+}

@@ -16,7 +16,7 @@ export type Emote = keyof typeof EMOTES
  * shock bubble being the one the town's script shows over Blue when Oak calls
  * him.
  */
-const EMOTES = {
+export const EMOTES = {
   question: [
     '0001111111111000', '0013333333333100', '0131111111111310', '1311333333331131',
     '1313331111333131', '1313331111333131', '1311111333331131', '1311111331111131',
@@ -34,7 +34,7 @@ const EMOTES = {
 /**
  * Each bubble split into the runs it draws, once as the module loads.
  */
-const emoteRuns: Readonly<Record<Emote, readonly sprites.Run[]>> = {
+export const emoteRuns: Readonly<Record<Emote, readonly sprites.Run[]>> = {
   question : sprites.runsOf(EMOTES.question),
   shock    : sprites.runsOf(EMOTES.shock)
 }

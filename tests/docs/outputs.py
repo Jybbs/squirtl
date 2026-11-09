@@ -10,6 +10,7 @@ from pathlib         import Path
 from pytest          import fixture
 
 from squirtl.docs.outputs     import Inventory, Output
+from squirtl.emulator.schemas import Symbol
 from squirtl.identity.schemas import Face, Identity
 
 
@@ -25,35 +26,44 @@ def written() -> dict[str, str]:
 def test_the_events_follow_the_order_the_network_reads_them_in(written: dict[str, str]):
     """
     Pins that the event flags reach the site in the order `Event` declares
-    them, which is the order the network reads them in, each beside the term
-    the step first setting it pays.
+    them, which is the order the network reads them in, each beside its
+    index in the flag array and the term the step first setting it pays.
     """
     assert [
-        (event["name"], event["term"]) for event in loads(written["events.json"])
+        (event["index"], event["name"], event["term"])
+        for event in loads(written["events.json"])
     ] == [
-        ("EVENT_FOLLOWED_OAK_INTO_LAB", "milestone"),
-        ("EVENT_GOT_STARTER", "starter"),
-        ("EVENT_OAK_APPEARED_IN_PALLET", "milestone"),
-        ("EVENT_OAK_ASKED_TO_CHOOSE_MON", "milestone")
+        (0x00, "EVENT_FOLLOWED_OAK_INTO_LAB", "milestone"),
+        (0x22, "EVENT_GOT_STARTER", "starter"),
+        (0x27, "EVENT_OAK_APPEARED_IN_PALLET", "milestone"),
+        (0x21, "EVENT_OAK_ASKED_TO_CHOOSE_MON", "milestone")
     ]
 
 
-def test_the_inventory_lists_the_events_the_identity_its_sheet_and_the_settings():
+def test_the_inventory_lists_the_rendered_files_and_the_pages_it_writes():
     """
-    Pins the files `squirtl write docs` writes, each under
-    `docs/.vitepress/lib/rendered/`, the identity's JSON carrying every
-    field beside the values the identity derives, which the site reads
-    rather than deriving again.
+    Pins the files `squirtl write docs` writes, the data the site reads
+    under `docs/.vitepress/lib/rendered/`, the identity's JSON carrying
+    every field beside the values the identity derives, which the site
+    reads rather than deriving again, then each command's page under
+    `docs/pages/commands/`, then each page holding a table of settings.
     """
-    outputs = {output.path.name: output for output in Inventory.read().outputs}
+    outputs = {output.path.as_posix(): output for output in Inventory.read().outputs}
+    pages   = [path for path in outputs if path.startswith("docs/pages/")]
 
-    assert [*outputs] == [
-        "events.json", "identity.json", "settings.json", "theme.css"
+    assert [Path(path).name for path in outputs if path not in pages] == [
+        "events.json", "identity.json", "results.json",
+        "settings.json", "symbols.json", "theme.css"
     ]
-    assert {output.path.parent for output in outputs.values()} == {Path(
+    assert {Path(path).parent for path in outputs if path not in pages} == {Path(
         "docs/.vitepress/lib/rendered"
     )}
-    identity = loads(outputs["identity.json"].text)
+    assert [path for path in pages if path.startswith("docs/pages/commands/")] == [
+        f"docs/pages/commands/{name}.md"
+        for name in ("cite", "evaluate", "stop", "train", "watch", "write-docs")
+    ]
+    assert "docs/pages/methods/reward.md" in pages
+    identity = loads(outputs["docs/.vitepress/lib/rendered/identity.json"].text)
 
     assert {*identity} == {*Identity.model_fields, *Identity.model_computed_fields}
     assert {*identity["faces"]["body"]} == {
@@ -77,6 +87,16 @@ def test_the_settings_leave_out_what_the_machine_chooses(written: dict[str, str]
         settings["evaluation"]["episodes"],
         settings["reward"]["starter"]
     ) == (False, False, 30, 0.6)
+
+
+def test_the_symbols_reach_the_site_at_their_addresses(written: dict[str, str]):
+    """
+    Pins that every address `Symbol` declares reaches the site under its
+    name, so a widget reading the game's memory reads the package's own.
+    """
+    assert loads(written["symbols.json"]) == {
+        symbol.name: symbol.value for symbol in Symbol
+    }
 
 
 def test_writing_touches_only_the_files_that_drifted(
