@@ -81,7 +81,7 @@ const VERDICT: readonly KeyEntry[] = [
  * Lists the legend of the figure drawing `groups`, one row a thing its marks
  * decode, each entry the figure's own mark: each agent's hue, the hatching
  * along the curriculum, a cell's shade, the last evaluation, random presses'
- * share `random` across every run, and the verdict's odds, the curriculum's
+ * share `random` across every seed, and the verdict's odds, the curriculum's
  * hatching drawn through the pattern `hatch`.
  */
 export function legendOf(groups: readonly Group[], random: Estimate, hatch: string): LegendRow[] {
@@ -103,7 +103,7 @@ export function legendOf(groups: readonly Group[], random: Estimate, hatch: stri
       head    : 'Share reaching the starter'
     },
     { entries: FINALS, head: 'Last evaluation' },
-    { entries: [{ mark: marked(band), name: 'Across every run', role: 'random', value: percent(random) }], head: 'Random presses' },
+    { entries: [{ mark: marked(band), name: 'Across every seed', role: 'random', value: percent(random) }], head: 'Random presses' },
     { entries: VERDICT, head: 'Verdict' }
   ]
 }

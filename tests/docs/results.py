@@ -3,7 +3,7 @@ Pins what `Results` reads from the run directories under
 `docs/runs/`, covering:
 
 - Each run's scores beside its baseline's, the comparison of each agent and
-  curriculum across its runs, and random presses' share across every run
+  curriculum across its runs, and random presses' share across every seed
 - The curriculum's runs set against the same agent's runs from the bedroom
 - A missing folder, which holds no run
 - A run reading another cartridge than the default path, or holding no
@@ -27,19 +27,23 @@ def recorded(
     checkout : Callable[[Mapping[str, str]], None],
     rewards  : Iterable[float],
     second   : int,
-    settings : RunSettings = RunSettings()
+    settings : RunSettings = RunSettings(),
+    seed     : int | None  = None
 ) -> Path:
     """
     Writes under `docs/runs/` a run started `second` seconds past midnight
-    UTC on 4 October 2026, holding one evaluation per return in `rewards`,
-    each a single episode reaching the starter where its return passes 0.5,
-    beside a baseline of one truncated episode returning 0.125.
+    UTC on 4 October 2026 under the seed `seed`, or `second` where none is
+    given, holding one evaluation per return in `rewards`, each a single
+    episode reaching the starter where its return passes 0.5, beside a
+    baseline of one truncated episode returning 0.125.
     """
     run = Run(
         digest   = "0",
         revision = Revision(commit="0", dirty=False, lockfile="0"),
-        settings = settings.model_copy(update={"seed": second}),
-        started  = datetime(2026, 10, 4, 0, 0, second, tzinfo=UTC)
+        settings = settings.model_copy(
+            update = {"seed": second if seed is None else seed}
+        ),
+        started = datetime(2026, 10, 4, 0, 0, second, tzinfo=UTC)
     )
     folder = f"docs/runs/{run.name}"
     checkout(
@@ -145,6 +149,28 @@ def test_comparisons_follow_the_agents_name_and_then_the_curriculum(
         (comparison.agent, comparison.curriculum)
         for comparison in Results.read().comparisons
     ] == [(Algorithm.PPO, False), (Algorithm.PQN, False), (Algorithm.PQN, True)]
+
+
+def test_random_presses_count_each_seed_once(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that random presses' share across the runs counts each seed's
+    baseline once, however many agents trained under that seed.
+    """
+    ppo = RunSettings(agent=AgentSettings(algorithm=Algorithm.PPO))
+
+    for seed in (1, 2, 3):
+        recorded(checkout, [0.75], seed)
+        recorded(
+            checkout = checkout,
+            rewards  = [0.75],
+            second   = seed + 10,
+            seed     = seed,
+            settings = ppo
+        )
+
+    assert Results.read().random.runs == (3,)
 
 
 def test_results_compare_each_agent_and_curriculum_across_its_runs(

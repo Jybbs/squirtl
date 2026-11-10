@@ -158,7 +158,7 @@ export const ResultsComparison = defineComponent({
     const { drawn, entrance, groups, legend, listeners, width } = useComparison(box, `${id}-key`)
 
     return () => groups.length === 0 ? null : (
-      <div class="grid gap-4">
+      <div class="@container grid gap-4">
         <div class="relative" ref={box}>
           <svg aria-hidden="true" class="block h-auto w-full overflow-visible" viewBox={`0 0 ${width.value} ${drawn.value.height}`}>
             {drawFigure(drawn.value, { bells: entrance.bells.map(each => each.value), id, rows: entrance.rows.map(each => each.value) })}

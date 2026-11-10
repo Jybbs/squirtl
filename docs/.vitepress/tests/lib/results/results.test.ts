@@ -82,6 +82,7 @@ describe('verdictOf', () => {
     [[0, 0.3], 'below'],
     [[0.25, 0.75], 'even'],
     [[0.5, 0.9], 'even'],
+    [[0.1, 0.5], 'even'],
     [null, 'even']
   ] as const)('reads odds across %j as %s', (interval, verdict) => {
     expect(results.verdictOf({ interval, runs: [2, 2], value: 0.5 })).toBe(verdict)

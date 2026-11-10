@@ -135,7 +135,7 @@ function useTraces(groups: readonly Group[], pressed: Ref<ReadonlySet<string>>, 
  * view.
  *
  * Returns:
- *   The curves laid out, the groups, random presses' share across every run,
+ *   The curves laid out, the groups, random presses' share across every seed,
  *   the toggles pressing each group, how far each group's curve has traced
  *   out, and the width drawn at.
  */

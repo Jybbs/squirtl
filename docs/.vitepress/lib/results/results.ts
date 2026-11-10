@@ -52,7 +52,7 @@ export interface Group {
 
 /**
  * Every committed run beside the comparison of each agent's runs against the
- * random baseline and random presses' share across every run, `null` where no
+ * random baseline and random presses' share across every seed, `null` where no
  * run is committed, as `squirtl write docs` writes them.
  */
 export interface Results {
@@ -199,7 +199,7 @@ export function verdictOf(estimate: Estimate): Verdict {
  * while `pressed` holds it and in none otherwise, beside the interquartile mean
  * of its runs' share reaching the starter and the probability that a run of it
  * beats a run of random presses on mean return, then `random`, the share
- * random presses reach across every run.
+ * random presses reach across every seed.
  */
 export function figuresOf(groups: readonly Group[], random: Estimate, pressed: ReadonlySet<string>): KeyEntry[] {
   return [

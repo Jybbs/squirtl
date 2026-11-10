@@ -222,8 +222,8 @@ class Results(Record):
 
     random: Estimate | None
     """
-    The interquartile mean across every run of the baseline's share reaching
-    the starter, or `None` where no run is committed.
+    The interquartile mean across the runs' seeds of the baseline's share
+    reaching the starter, each seed once, or `None` where no run is committed.
     """
 
     runs: tuple[Trained, ...]
@@ -240,8 +240,9 @@ class Results(Record):
             Trained.read(directory)
             for directory in sorted(folder.iterdir() if folder.is_dir() else ())
         )
-        group  = attrgetter("agent", "curriculum")
-        groups = {
+        baselines = {run.seed: run.baseline.reached for run in runs}
+        group     = attrgetter("agent", "curriculum")
+        groups    = {
             key: tuple(members)
             for key, members in groupby(sorted(runs, key=group), key=group)
         }
@@ -252,8 +253,8 @@ class Results(Record):
                 for (agent, _), members in groups.items()
             ),
             random = Estimate.interquartile(
-                array([run.baseline.reached for run in runs]),
-                generator = default_rng(sorted(run.seed for run in runs))
+                array(list(baselines.values())),
+                generator = default_rng(sorted(baselines))
             ) if runs else None,
             runs = runs
         )

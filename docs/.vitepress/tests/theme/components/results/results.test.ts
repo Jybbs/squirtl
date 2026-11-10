@@ -100,6 +100,18 @@ describe('ResultsCurves’s traces', () => {
     expect(traces(wrapper).map(width => width > 100)).toStrictEqual([false, false, false, true, true])
   })
 
+  it('traces a curve pressed under reduced motion out whole at once', async () => {
+    held.runs                = true
+    browser.preference.value = 'reduce'
+    const wrapper            = mount(ResultsCurves)
+
+    await nextTick()
+    await wrapper.findAll('button')[1]!.trigger('click')
+    await nextTick()
+
+    expect(traces(wrapper).map(width => width > 100)).toStrictEqual([false, true, false, true, true])
+  })
+
   it('holds every curve back until the plot first comes into view', async () => {
     held.runs = true
     // Fakes `Date` beside the timers, since `useTransition` times each frame through `Date.now`.
@@ -173,6 +185,20 @@ describe('ResultsComparison', () => {
     ])
   })
 
+  it('stands every seed’s row whole at once under reduced motion', async () => {
+    const wrapper = await mounted()
+
+    expect(wrapper.find('svg').findAll('clipPath rect').every(rect => Number(rect.attributes('width')) > 0)).toBe(true)
+  })
+
+  it('draws a whisker for each verdict whose odds carry an interval', async () => {
+    const wrapper = await mounted()
+    await wrapper.find('[aria-label^="Last evaluation"]').trigger('focus')
+    await flushPromises()
+
+    expect(wrapper.find('svg').findAll('.results-whisker')).toHaveLength(5)
+  })
+
 })
 
 describe('ResultsComparison’s fold', () => {
@@ -228,6 +254,18 @@ describe('ResultsComparison’s fold at rest', () => {
     await flushPromises()
 
     expect([document.activeElement === curves.element, sides(wrapper).slice(0, 2)]).toStrictEqual([false, ['1', '1']])
+  })
+
+  it('returns both sides to rest on blur, each side a tab stop', async () => {
+    const wrapper = await mounted()
+    const finals  = wrapper.find('[aria-label^="Last evaluation"]')
+
+    await finals.trigger('focus')
+    await finals.trigger('blur')
+    await flushPromises()
+
+    expect([wrapper.findAll('[role="group"]').map(side => side.attributes('tabindex')), sides(wrapper).slice(0, 2)])
+      .toStrictEqual([['0', '0'], ['1', '1']])
   })
 
 })
