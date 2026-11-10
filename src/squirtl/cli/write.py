@@ -23,9 +23,10 @@ def docs():
     before any file is written, naming the file and the line, as does a
     `docs/references.bib` that fails to read, naming its line. A marker
     under `docs/pages/` left unpaired, or a run under `docs/runs/` that
-    read another cartridge or holds no evaluation of the agent or the random
-    baseline, exits 1 once the footnotes are written and before any other
-    file is, naming the page and the line or the run.
+    read another cartridge, followed a demonstration at an absolute path,
+    or holds no evaluation of the agent or the random baseline, exits 1 once
+    the footnotes are written and before any other file is, naming the page
+    and the line or the run.
     """
     listen()
 

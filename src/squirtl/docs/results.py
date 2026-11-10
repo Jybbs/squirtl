@@ -99,9 +99,10 @@ class Trained(Record):
 
         Raises:
             ValueError: Where the run read a cartridge other than the
-                        default path, which would carry a local path into
-                        the checkout, or holds no evaluation of the agent or
-                        of the random baseline.
+                        default path or followed a demonstration at an
+                        absolute path, either of which would carry a local
+                        path into the checkout, or holds no evaluation of
+                        the agent or of the random baseline.
         """
         run = Run.read(directory)
 
@@ -109,6 +110,12 @@ class Trained(Record):
             raise ValueError(
                 f"{directory} read the cartridge {run.settings.emulator.cartridge}"
             )
+
+        if (
+            (demonstration := run.settings.curriculum.demonstration)
+            and demonstration.is_absolute()
+        ):
+            raise ValueError(f"{directory} followed the demonstration {demonstration}")
 
         if not (scores := tuple(map(Score.of, run.evaluated))):
             raise ValueError(f"{directory} holds no evaluation")
@@ -124,6 +131,15 @@ class Trained(Record):
             scores     = scores,
             seed       = run.settings.seed
         )
+
+    @classmethod
+    def seeded(cls, runs: Iterable[Self]) -> tuple[Self, ...]:
+        """
+        Orders `runs` by seed, so every estimate over them, and the
+        generator drawing its resamples, holds whatever order the runs'
+        names list in.
+        """
+        return tuple(sorted(runs, key=attrgetter("seed")))
 
 
 class Comparison(Record):
@@ -174,11 +190,11 @@ class Comparison(Record):
         Compares `runs`, all of one agent and one curriculum, against their
         baselines and, where they trained along the curriculum, against the
         same agent's runs from the `bedroom`, each interval over resamples
-        drawn from the runs' seeds.
+        drawn from the runs' seeds, each sample ordered by seed.
         """
-        runs      = tuple(runs)
-        bedroom   = tuple(bedroom)
-        generator = default_rng(sorted(run.seed for run in runs))
+        runs      = Trained.seeded(runs)
+        bedroom   = Trained.seeded(bedroom)
+        generator = default_rng([run.seed for run in runs])
         rewards   = array([run.last.reward for run in runs])
 
         return cls(
@@ -240,7 +256,7 @@ class Results(Record):
             Trained.read(directory)
             for directory in sorted(folder.iterdir() if folder.is_dir() else ())
         )
-        baselines = {run.seed: run.baseline.reached for run in runs}
+        baselines = {run.seed: run.baseline.reached for run in Trained.seeded(runs)}
         group     = attrgetter("agent", "curriculum")
         groups    = {
             key: tuple(members)
@@ -254,7 +270,7 @@ class Results(Record):
             ),
             random = Estimate.interquartile(
                 array(list(baselines.values())),
-                generator = default_rng(sorted(baselines))
+                generator = default_rng(list(baselines))
             ) if runs else None,
             runs = runs
         )
