@@ -1711,7 +1711,7 @@
       ]
     }
   },
-  "tagline": "A deep Q-network that learns the walk to Oak’s lab.",
+  "tagline": "An agent that learns the walk to Oak’s lab.",
   "marks": {
     "amethyst": {
       "dark": "#ba55d3",

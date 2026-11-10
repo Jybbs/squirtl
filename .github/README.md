@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-<p align="center"><em>A deep Q-network that learns the walk to Oak’s lab.</em></p>
+<p align="center"><em>An agent that learns the walk to Oak’s lab.</em></p>
 
 <p align="center">
   <a href="https://www.python.org/"><img alt="Python" src="../docs/assets/badges/python.svg"><img alt="Python 3.15 and later" src="https://img.shields.io/badge/3.15%2B-3d6fd0?style=for-the-badge&label="></a>

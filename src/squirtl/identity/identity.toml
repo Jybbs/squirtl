@@ -1,6 +1,6 @@
 name    = "SquiRtL"
 order   = ["denim", "heath", "fern", "amethyst", "seacaller"]
-tagline = "A deep Q-network that learns the walk to Oak’s lab."
+tagline = "An agent that learns the walk to Oak’s lab."
 
 [faces.body]
 axes     = "ital,opsz,wght@0,7..72,400..700;1,7..72,400..700"

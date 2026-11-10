@@ -48,7 +48,7 @@ describe('pageHead', () => {
       'meta description'       : 'Plays.',
       'meta og:description'    : 'Plays.',
       'meta og:image'          : 'https://squirtl.fyi/cards/site.png',
-      'meta og:image:alt'      : `${IDENTITY.name}, a deep Q-network that learns the walk to Oak’s lab.`,
+      'meta og:image:alt'      : `${IDENTITY.name}, an agent that learns the walk to Oak’s lab.`,
       'meta og:image:height'   : String(CARD.height),
       'meta og:image:type'     : 'image/png',
       'meta og:image:width'    : String(CARD.width),
@@ -58,7 +58,7 @@ describe('pageHead', () => {
       'meta og:url'            : 'https://squirtl.fyi/',
       'meta twitter:card'      : 'summary_large_image',
       'meta twitter:image'     : 'https://squirtl.fyi/cards/site.png',
-      'meta twitter:image:alt' : `${IDENTITY.name}, a deep Q-network that learns the walk to Oak’s lab.`
+      'meta twitter:image:alt' : `${IDENTITY.name}, an agent that learns the walk to Oak’s lab.`
     })
     expect(JSON.parse(meta['script application/ld+json']!)).toStrictEqual({
       '@context'    : 'https://schema.org',
