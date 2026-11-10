@@ -28,8 +28,8 @@ from signal       import SIGINT, SIGTERM, signal
 from types        import FrameType
 from typing       import ClassVar, Self
 
-from squirtl.agent.checkpoint      import ReplayCheckpoint, RolloutCheckpoint
-from squirtl.agent.learner         import DQN, RolloutAgent
+from squirtl.agent.checkpoint      import Checkpoint, ReplayCheckpoint, RolloutCheckpoint
+from squirtl.agent.learner         import DQN, Learner, RolloutAgent
 from squirtl.agent.schemas         import Algorithm, Measures, Update
 from squirtl.emulator.schemas      import Cartridge, Record
 from squirtl.environment.overworld import Overworld
@@ -39,6 +39,95 @@ from squirtl.evaluation.schemas    import Evaluation
 from squirtl.runs.benchmark        import Benchmark
 from squirtl.runs.curriculum       import Curriculum, Syllabus
 from squirtl.runs.schemas          import Episode, Run, RunSettings, Stream
+
+
+class Handover(Record):
+    """
+    What a resumed run takes over from the stopped run it continues, read
+    whole before the new run writes anything, so a resume refused for any of
+    it leaves no directory behind.
+    """
+
+    baseline: Evaluation | None
+    """
+    The random baseline's evaluation the stopped run's `baseline` holds, or
+    `None` where it played none.
+    """
+
+    checkpoint: Checkpoint
+    """
+    The stopped run's last checkpoint, which the run restores.
+    """
+
+    episodes: list[str]
+    """
+    The line of each episode written before the checkpoint, as the stopped
+    run's `episodes` holds it.
+    """
+
+    evaluations: list[Evaluation]
+    """
+    Each evaluation of the agent at the checkpoint's step or before it.
+    """
+
+    name: str
+    """
+    The stopped run's name, which the new run records under `resumes`.
+    """
+
+    @property
+    def evaluated(self) -> int:
+        """
+        Reads the step of the last evaluation carried over, or 0 where none
+        is.
+        """
+        return self.evaluations[-1].step if self.evaluations else 0
+
+    @classmethod
+    def from_run(cls, previous: Run) -> Self:
+        """
+        Reads what `previous` recorded up to its last checkpoint, the
+        checkpoint through the `checkpoint_class` of the trainer `named`
+        reads for its agent and the episodes before it through that
+        trainer's `carried`.
+
+        Raises:
+            FileNotFoundError : Where `previous` holds no checkpoint.
+            ValueError        : Where the checkpoint is damaged or already
+                                holds the run's `steps`, or the episodes
+                                `previous` recorded end short of it, as
+                                `Run.ended_by` and `Run.first` raise.
+        """
+        trainer    = Trainer.named(previous.settings.agent.algorithm)
+        checkpoint = trainer.checkpoint_class.from_path(previous.checkpoint)
+
+        if checkpoint.step >= previous.settings.steps:
+            raise ValueError(
+                f"{previous.checkpoint} already holds the run's "
+                f"{previous.settings.steps:,} steps"
+            )
+
+        return cls(
+            baseline    = previous.baselined,
+            checkpoint  = checkpoint,
+            episodes    = trainer.carried(checkpoint, previous),
+            evaluations = list(previous.evaluated_by(checkpoint.step)),
+            name        = previous.name
+        )
+
+    def write(self, run: Run):
+        """
+        Writes into `run` what the handover carries over, each episode's
+        line as the stopped run wrote it, each evaluation, and the random
+        baseline's where it played one.
+        """
+        with run.episodes.open("a", encoding="utf-8") as lines:
+            lines.writelines(self.episodes)
+
+        run.append(run.evaluations, *self.evaluations)
+
+        if self.baseline is not None:
+            run.baseline.write_text(self.baseline.model_dump_json(), encoding="utf-8")
 
 
 class Moments(Record):
@@ -135,138 +224,6 @@ class Tally:
         return self.measures.averaged(count, totals) if count else None
 
 
-class VectorCheckpoint(RolloutCheckpoint):
-    """
-    Everything a resumed run of PQN or PPO continues training from, the
-    environments' side beside the agent's.
-    """
-
-    episodes: NonNegativeInt
-    """
-    The count of episodes the run had written to its `episodes`.
-    """
-
-    moments: Moments
-    """
-    The statistics `NormalizeReward` scales each reward by.
-    """
-
-    slots: list[Slot]
-    """
-    Each environment, in the order the run steps them.
-    """
-
-    syllabus: Syllabus | None = None
-    """
-    The curriculum moving each start along the demonstration, or `None`
-    where the run follows none.
-    """
-
-    @property
-    def contents(self) -> dict[str, object]:
-        """
-        Gathers every field as `Checkpoint.contents` does, the moments, each
-        slot, and the syllabus as plain values, which `torch.load` reads
-        under `weights_only=True`.
-        """
-        return super().contents | self.model_dump(
-            include = {"moments", "slots", "syllabus"}
-        )
-
-
-class Handover(Record):
-    """
-    What a resumed run takes over from the stopped run it continues, read
-    whole before the new run writes anything, so a resume refused for any of
-    it leaves no directory behind.
-    """
-
-    baseline: Evaluation | None
-    """
-    The random baseline's evaluation the stopped run's `baseline` holds, or
-    `None` where it played none.
-    """
-
-    checkpoint: ReplayCheckpoint | VectorCheckpoint
-    """
-    The stopped run's last checkpoint, which the run restores.
-    """
-
-    episodes: list[str]
-    """
-    The line of each episode written before the checkpoint, as the stopped
-    run's `episodes` holds it.
-    """
-
-    evaluations: list[Evaluation]
-    """
-    Each evaluation of the agent at the checkpoint's step or before it.
-    """
-
-    name: str
-    """
-    The stopped run's name, which the new run records under `resumes`.
-    """
-
-    @property
-    def evaluated(self) -> int:
-        """
-        Reads the step of the last evaluation carried over, or 0 where none
-        is.
-        """
-        return self.evaluations[-1].step if self.evaluations else 0
-
-    @classmethod
-    def from_run(cls, previous: Run) -> Self:
-        """
-        Reads what `previous` recorded up to its last checkpoint, the
-        episodes ending by its step for the deep Q-network, whose checkpoint
-        lands at an episode's end, and the count of episodes it names for
-        PQN and PPO.
-
-        Raises:
-            FileNotFoundError : Where `previous` holds no checkpoint.
-            ValueError        : Where the checkpoint is damaged or already
-                                holds the run's `steps`, or the episodes
-                                `previous` recorded end short of it, as
-                                `Run.ended_by` and `Run.first` raise.
-        """
-        dqn        = previous.settings.agent.algorithm is Algorithm.DQN
-        checkpoint = (ReplayCheckpoint if dqn else VectorCheckpoint).from_path(
-            previous.checkpoint
-        )
-
-        if checkpoint.step >= previous.settings.steps:
-            raise ValueError(
-                f"{previous.checkpoint} already holds the run's "
-                f"{previous.settings.steps:,} steps"
-            )
-
-        return cls(
-            baseline   = previous.baselined,
-            checkpoint = checkpoint,
-            episodes   = previous.ended_by(
-                checkpoint.step
-            ) if dqn else previous.first(checkpoint.episodes),
-            evaluations = list(previous.evaluated_by(checkpoint.step)),
-            name        = previous.name
-        )
-
-    def write(self, run: Run):
-        """
-        Writes into `run` what the handover carries over, each episode's
-        line as the stopped run wrote it, each evaluation, and the random
-        baseline's where it played one.
-        """
-        with run.episodes.open("a", encoding="utf-8") as lines:
-            lines.writelines(self.episodes)
-
-        run.append(run.evaluations, *self.evaluations)
-
-        if self.baseline is not None:
-            run.baseline.write_text(self.baseline.model_dump_json(), encoding="utf-8")
-
-
 class Trainer(AbstractContextManager, ABC):
     """
     The training loop of one run, which plays `Overworld` through the agent
@@ -276,6 +233,11 @@ class Trainer(AbstractContextManager, ABC):
     evaluates the agent where `play` first returns at or past each multiple
     of `evaluation_steps`, and runs until the run takes its `steps` or is
     stopped where `play` returns.
+    """
+
+    checkpoint_class: ClassVar[type[Checkpoint]]
+    """
+    The checkpoint the trainer writes and a resumed run reads back.
     """
 
     pause: ClassVar[str]
@@ -382,11 +344,12 @@ class Trainer(AbstractContextManager, ABC):
             self.checkpoint()
 
     @property
-    @abstractmethod
-    def checkpointed(self) -> ReplayCheckpoint | VectorCheckpoint:
+    def checkpointed(self) -> Checkpoint:
         """
-        Gathers everything a resumed run continues training from.
+        Gathers everything a resumed run continues training from, the
+        agent's checkpoint unless the trainer adds its own side to it.
         """
+        return self.agent.checkpoint
 
     @cached_property
     def demonstration(self) -> Recording | None:
@@ -439,10 +402,18 @@ class Trainer(AbstractContextManager, ABC):
         return self.interrupted or self.run.stop.exists()
 
     @abstractmethod
-    def build(self) -> DQN | RolloutAgent:
+    def build(self) -> Learner:
         """
         Builds the agent the settings name over the environment's spaces,
         seeded from the agent's stream.
+        """
+
+    @staticmethod
+    @abstractmethod
+    def carried(checkpoint: Checkpoint, previous: Run) -> list[str]:
+        """
+        Reads the line of each episode `previous` wrote before `checkpoint`,
+        its last checkpoint, which a resumed run carries over.
         """
 
     def checkpoint(self):
@@ -537,6 +508,15 @@ class Trainer(AbstractContextManager, ABC):
         Makes the environment the settings specify on the cartridge.
         """
 
+    @staticmethod
+    def named(algorithm: Algorithm) -> type[Trainer]:
+        """
+        Reads the class of the training loop of the agent `algorithm` names,
+        `EpisodeTrainer` for the deep Q-network and `RolloutTrainer` for PQN
+        and PPO.
+        """
+        return EpisodeTrainer if algorithm is Algorithm.DQN else RolloutTrainer
+
     @abstractmethod
     def play(self) -> Iterator[int]:
         """
@@ -586,7 +566,7 @@ class Trainer(AbstractContextManager, ABC):
             .item()
         )
 
-    def restore(self, checkpoint: ReplayCheckpoint | VectorCheckpoint):
+    def restore(self, checkpoint: Checkpoint):
         """
         Restores the agent from `checkpoint`.
         """
@@ -600,13 +580,54 @@ class Trainer(AbstractContextManager, ABC):
         handover  : Handover | None = None
     ) -> Trainer:
         """
-        Builds the trainer of the agent the settings name, an
-        `EpisodeTrainer` for the deep Q-network and a `RolloutTrainer` for
-        PQN and PPO, raising what its `__init__` raises.
+        Builds the trainer `named` reads for the agent the settings name,
+        raising what its `__init__` raises.
         """
-        trainer = RolloutTrainer if settings.agent.hyperparameters else EpisodeTrainer
+        return Trainer.named(settings.agent.algorithm)(
+            cartridge,
+            settings,
+            started,
+            handover
+        )
 
-        return trainer(cartridge, settings, started, handover)
+
+class VectorCheckpoint(RolloutCheckpoint):
+    """
+    Everything a resumed run of PQN or PPO continues training from, the
+    environments' side beside the agent's.
+    """
+
+    episodes: NonNegativeInt
+    """
+    The count of episodes the run had written to its `episodes`.
+    """
+
+    moments: Moments
+    """
+    The statistics `NormalizeReward` scales each reward by.
+    """
+
+    slots: list[Slot]
+    """
+    Each environment, in the order the run steps them.
+    """
+
+    syllabus: Syllabus | None = None
+    """
+    The curriculum moving each start along the demonstration, or `None`
+    where the run follows none.
+    """
+
+    @property
+    def contents(self) -> dict[str, object]:
+        """
+        Gathers every field as `Checkpoint.contents` does, the moments, each
+        slot, and the syllabus as plain values, which `torch.load` reads
+        under `weights_only=True`.
+        """
+        return super().contents | self.model_dump(
+            include = {"moments", "slots", "syllabus"}
+        )
 
 
 class EpisodeTrainer(Trainer):
@@ -616,14 +637,8 @@ class EpisodeTrainer(Trainer):
     episode's end.
     """
 
-    pause = "episode"
-
-    @property
-    def checkpointed(self) -> ReplayCheckpoint:
-        """
-        Gathers the agent's checkpoint, replay memory included.
-        """
-        return self.agent.checkpoint
+    checkpoint_class = ReplayCheckpoint
+    pause            = "episode"
 
     @property
     def digest(self) -> str:
@@ -653,6 +668,14 @@ class EpisodeTrainer(Trainer):
             space    = self.env.observation_space,
             steps    = self.settings.steps
         )
+
+    @staticmethod
+    def carried(checkpoint: ReplayCheckpoint, previous: Run) -> list[str]:
+        """
+        Reads the line of each episode `previous` ended by the checkpoint's
+        step, which lands at an episode's end, as `Run.ended_by` reads them.
+        """
+        return previous.ended_by(checkpoint.step)
 
     def make(self) -> Env:
         """
@@ -707,7 +730,8 @@ class RolloutTrainer(Trainer):
     reset follows within that step.
     """
 
-    pause = "rollout's update"
+    checkpoint_class = VectorCheckpoint
+    pause            = "rollout's update"
 
     def __exit__(self, *raised: object):
         """
@@ -846,6 +870,15 @@ class RolloutTrainer(Trainer):
             space        = self.env.single_observation_space,
             steps        = self.settings.steps
         )
+
+    @staticmethod
+    def carried(checkpoint: VectorCheckpoint, previous: Run) -> list[str]:
+        """
+        Reads the line of each of the first episodes `previous` wrote, as
+        many as the checkpoint's `episodes` counts, as `Run.first` reads
+        them.
+        """
+        return previous.first(checkpoint.episodes)
 
     @staticmethod
     def generator(state: Mapping[str, object]) -> Generator:
