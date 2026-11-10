@@ -1,17 +1,24 @@
-import RESULTS                                        from '../rendered/results.json' with { type: 'json' }
-import { type Frame, type PlotLabel, frameOf, round } from '../drawing/plot.ts'
-import { IDENTITY }                                   from '../identity/identity.ts'
-import type { KeyEntry }                              from '../widgets/chips.ts'
-import { count, fixed }                               from '../widgets/numbers.ts'
+import RESULTS                from '../rendered/results.json' with { type: 'json' }
+import { type Hue, IDENTITY } from '../identity/identity.ts'
+import type { KeyEntry }      from '../widgets/chips.ts'
+import { count, fixed }       from '../widgets/numbers.ts'
+import { glyphOf }            from './marks.ts'
+
+/**
+ * An agent a run trains, by the value `squirtl train --agent.algorithm` takes.
+ */
+export type Agent = keyof typeof AGENTS
 
 /**
  * The runs of one agent, trained with or without the curriculum, set against
- * the random baseline under the same seeds at each run's last evaluation, as
+ * the random baseline under the same seeds at each run's last evaluation and,
+ * with the curriculum, against the same agent's runs from the bedroom, as
  * `squirtl.docs.results.Comparison` writes it.
  */
 interface Comparison {
   agent      : Agent
   baseline   : Estimate
+  bedroom    : Estimate | null
   beats      : Estimate
   curriculum : boolean
   reached    : Estimate
@@ -28,23 +35,29 @@ export interface Estimate {
 }
 
 /**
- * The runs of one agent and one curriculum the charts set apart, under the name
- * a reader reads for them.
+ * The runs of one agent and one curriculum the charts set apart: the agent,
+ * the comparison, whether the runs trained along the curriculum, the hue the
+ * agent takes, the key a control names them by, the name a reader reads for
+ * them, and the runs.
  */
 export interface Group {
   agent      : Agent
   comparison : Comparison
   curriculum : boolean
+  hue        : Hue
+  id         : string
   name       : string
   runs       : readonly Trained[]
 }
 
 /**
  * Every committed run beside the comparison of each agent's runs against the
- * random baseline, as `squirtl write docs` writes them.
+ * random baseline and random presses' share across every run, `null` where no
+ * run is committed, as `squirtl write docs` writes them.
  */
 export interface Results {
   comparisons : readonly Comparison[]
+  random      : Estimate | null
   runs        : readonly Trained[]
 }
 
@@ -52,7 +65,7 @@ export interface Results {
  * What one evaluation of the agent measured, the share of its episodes
  * reaching the starter and their mean return, at the step of the run it read.
  */
-interface Score {
+export interface Score {
   reached : number
   reward  : number
   step    : number
@@ -72,46 +85,28 @@ interface Trained {
 }
 
 /**
- * An agent a run trains, by the value `squirtl train --agent.algorithm` takes.
+ * Where an agent stands against what it is compared with: above where the 95%
+ * interval of the probability that it scores higher clears even odds, below
+ * where the interval stays under them, and even where it holds them or no
+ * interval is drawn.
  */
-type Agent = keyof typeof AGENTS
+export type Verdict = 'above' | 'below' | 'even'
 
 /**
- * The name a reader reads for each agent.
+ * The name a reader reads for each agent and its name in the code face's
+ * capitals, in the order the agents take the identity's series hues.
  */
-const AGENTS = { dqn: 'Deep Q-network', ppo: 'PPO', pqn: 'PQN' } as const
+export const AGENTS = {
+  ppo : { name: 'PPO', short: 'PPO' },
+  pqn : { name: 'PQN', short: 'PQN' },
+  dqn : { name: 'Deep Q-network', short: 'DQN' }
+} as const satisfies Record<string, { name: string, short: string }>
 
 /**
- * The runs `docs/runs/` holds, as `squirtl write docs` last wrote them.
+ * The runs `docs/runs/` holds, as `squirtl write docs` last wrote them, read
+ * through `unknown` since a JSON import types each agent as any string.
  */
-export const COMMITTED = RESULTS as Results
-
-/**
- * The room each plot leaves on each side for its labels, in the pixels its
- * view box counts, the drop of an axis's label below the floor and its gap
- * from the axis, the height of the learning curves' plot and of each row of
- * the comparison, the shares of the episodes reaching the starter its axis
- * labels, and the distance of each sample's line from the middle of its row.
- */
-export const PLOTTING = {
-  drop   : 20,
-  gap    : IDENTITY.lengths.spacing['2'],
-  height : IDENTITY.lengths.sizes['results-plot'],
-  row    : IDENTITY.lengths.spacing['7'],
-  shares : [0, 0.25, 0.5, 0.75, 1],
-  split  : IDENTITY.lengths.spacing['2'],
-  title  : IDENTITY.lengths.spacing['5'],
-  titles : {
-    reached : 'Episodes reaching the starter (%)',
-    steps   : 'Environment steps'
-  },
-  box    : {
-    bottom : IDENTITY.lengths.spacing['7'],
-    left   : IDENTITY.lengths.spacing['7'],
-    right  : IDENTITY.lengths.spacing['4'],
-    top    : IDENTITY.lengths.spacing['3']
-  }
-} as const
+export const COMMITTED = RESULTS as unknown as Results
 
 /**
  * Pairs each comparison in `results` with its runs, under its agent's name,
@@ -122,10 +117,49 @@ export function groupsOf(results: Results = COMMITTED): Group[] {
     agent      : comparison.agent,
     comparison : comparison,
     curriculum : comparison.curriculum,
-    name       : `${AGENTS[comparison.agent]}${comparison.curriculum ? ', curriculum' : ''}`,
+    hue        : hueOf(comparison.agent),
+    id         : `${comparison.agent}-${comparison.curriculum ? 'curriculum' : 'bedroom'}`,
+    name       : `${AGENTS[comparison.agent].name}${comparison.curriculum ? ', curriculum' : ''}`,
     runs       : results.runs.filter(run =>
       run.agent === comparison.agent && run.curriculum === comparison.curriculum)
   }))
+}
+
+/**
+ * Reads the series hue `agent` takes, the one at its place in the identity's
+ * categorical order.
+ */
+export function hueOf(agent: Agent): Hue {
+  return IDENTITY.order[Object.keys(AGENTS).indexOf(agent)] as Hue
+}
+
+/**
+ * Takes the interquartile mean of `values` as SciPy's `trim_mean` at 0.25
+ * takes it, the mean of the values left once `⌊n / 4⌋` are cut from each end,
+ * every value where there are fewer than four, the statistic
+ * `squirtl.evaluation` aggregates runs by.
+ */
+export function interquartile(values: readonly number[]): number {
+  const cut  = Math.floor(values.length / 4)
+  const kept = values.toSorted((a, b) => a - b).slice(cut, values.length - cut)
+  return kept.reduce((sum, value) => sum + value, 0) / kept.length
+}
+
+/**
+ * Reads the interquartile mean across the runs of `group` at each evaluation
+ * any of them played, its share reaching the starter at the interquartile mean
+ * of the steps the runs had taken by then.
+ */
+export function meansOf(group: Group): Score[] {
+  const evaluations = Math.max(...group.runs.map(run => run.scores.length))
+  return Array.from({ length: evaluations }, (_, n) => {
+    const scores = group.runs.flatMap(run => run.scores[n] ?? [])
+    return {
+      reached : interquartile(scores.map(score => score.reached)),
+      reward  : interquartile(scores.map(score => score.reward)),
+      step    : interquartile(scores.map(score => score.step))
+    }
+  })
 }
 
 /**
@@ -138,132 +172,44 @@ export function spelled(estimate: Estimate): string {
 }
 
 /**
- * Lists the key of `group`'s comparison, the agent's runs and the random
- * baseline's each with the interquartile mean of the share reaching the
- * starter, and the probability that a run of the agent beats a run of random
- * presses on mean return.
+ * Reads `share` in whole points of a percent.
  */
-export function keyOf(group: Group): KeyEntry[] {
-  const { baseline, beats, reached } = group.comparison
+const points = (share: number) => Math.round(share * 100)
+
+/**
+ * Spells `estimate` of a share as a whole percent, its interval's bounds in
+ * whole points in brackets where it has one.
+ */
+export function percent(estimate: Estimate): string {
+  const bounds = estimate.interval ? ` [${estimate.interval.map(share => points(share)).join(', ')}]` : ''
+  return `${points(estimate.value)}%${bounds}`
+}
+
+/**
+ * Reads where `estimate`, a probability of scoring higher, stands against
+ * even odds by its 95% interval.
+ */
+export function verdictOf(estimate: Estimate): Verdict {
+  const [low, high] = estimate.interval ?? [0, 1]
+  return low > 0.5 ? 'above' : high < 0.5 ? 'below' : 'even'
+}
+
+/**
+ * Lists the figures under the curves, each group's chip in its agent's hue
+ * while `pressed` holds it and in none otherwise, beside the interquartile mean
+ * of its runs' share reaching the starter and the probability that a run of it
+ * beats a run of random presses on mean return, then `random`, the share
+ * random presses reach across every run.
+ */
+export function figuresOf(groups: readonly Group[], random: Estimate, pressed: ReadonlySet<string>): KeyEntry[] {
   return [
-    { figures: [spelled(reached), ''], name: group.name, role: 'agent' },
-    { figures: [spelled(baseline), spelled(beats)], name: 'Random presses', role: 'random' }
+    ...groups.map(group => ({
+      figures : [spelled(group.comparison.reached), spelled(group.comparison.beats)] as const,
+      hue     : pressed.has(group.id) ? group.hue : null,
+      mark    : glyphOf(group),
+      name    : group.name,
+      role    : 'none' as const
+    })),
+    { figures: [spelled(random), ''] as const, name: 'Random presses', role: 'random' }
   ]
-}
-
-/**
- * Lays out the learning curves of `group` at `height` by `width` pixels, each
- * run's share reaching the starter across its evaluations on a line, the
- * random baseline's interquartile mean as a level line, and the steps along
- * the bottom up to the run that trained longest.
- */
-export function curvesOf(group: Group, height: number, width: number): Curves {
-  const frame = frameOf({ ...PLOTTING.box, top: PLOTTING.box.top + PLOTTING.title }, height, width)
-  const last  = Math.max(...group.runs.flatMap(run => run.scores.map(score => score.step)))
-  const point = (score: Score) => `${frame.x(score.step, last)},${frame.y(score.reached, 1)}`
-  const left  = frame.x(0, 1)
-
-  return {
-    baseline : frame.y(group.comparison.baseline.value, 1),
-    frame    : frame,
-    grid     : PLOTTING.shares.map(share => `M${left},${frame.y(share, 1)}H${frame.end}`).join(''),
-    last     : last,
-    lines    : group.runs.map(run => `M${run.scores.map(point).join('L')}`),
-    labels   : [
-      ...PLOTTING.shares.map(share => shareLabel(share, left - PLOTTING.gap, frame.y(share, 1) + PLOTTING.gap / 2, 'end')),
-      { anchor: 'start', text: '0', x: left, y: frame.floor + PLOTTING.drop },
-      { anchor: 'end', text: count(last), x: frame.end, y: frame.floor + PLOTTING.drop }
-    ],
-    titles : [
-      { anchor: 'middle', text: PLOTTING.titles.steps, x: round((left + frame.end) / 2), y: frame.floor + PLOTTING.drop },
-      { anchor: 'start', text: PLOTTING.titles.reached, x: 0, y: PLOTTING.box.top + PLOTTING.gap }
-    ]
-  }
-}
-
-/**
- * The comparison of every group laid out in a strip at `width` pixels, one row
- * a group, each run's share reaching the starter at its last evaluation as a
- * dot beside its baseline's, and each sample's interquartile mean as a tick
- * across its interval.
- */
-export function comparisonOf(groups: readonly Group[], width: number): Strip {
-  const top    = PLOTTING.box.top
-  const height = top + groups.length * PLOTTING.row + PLOTTING.box.bottom
-  const frame  = frameOf({ ...PLOTTING.box, left: PLOTTING.box.left * 3 }, height, width)
-  const x      = (share: number) => frame.x(share, 1)
-  const sample = (estimate: Estimate, shares: readonly number[], y: number): Sample => ({
-    dots     : shares.map(share => x(share)),
-    interval : estimate.interval?.map(share => x(share)) as [number, number] | undefined ?? null,
-    mean     : x(estimate.value),
-    y        : y
-  })
-
-  return {
-    floor  : frame.floor,
-    grid   : PLOTTING.shares.map(share => `M${x(share)},${top}V${frame.floor}`).join(''),
-    height : height,
-    labels : PLOTTING.shares.map(share => shareLabel(share, x(share), frame.floor + PLOTTING.drop, 'middle')),
-    title  : { anchor: 'middle', text: PLOTTING.titles.reached, x: x(0.5), y: frame.floor + 2 * PLOTTING.drop },
-    rows   : groups.map((group, n) => {
-      const middle = top + (n + 0.5) * PLOTTING.row
-      return {
-        agent  : sample(group.comparison.reached, group.runs.map(run => run.scores.at(-1)!.reached), round(middle - PLOTTING.split)),
-        name   : { anchor: 'end', text: group.name, x: x(0) - PLOTTING.gap, y: middle + PLOTTING.gap / 2 },
-        random : sample(group.comparison.baseline, group.runs.map(run => run.baseline.reached), round(middle + PLOTTING.split))
-      }
-    }),
-    width  : width
-  }
-}
-
-/**
- * Labels `share` of the episodes as a percent at the point (`x`, `y`).
- */
-function shareLabel(share: number, x: number, y: number, anchor: PlotLabel['anchor']): PlotLabel {
-  return { anchor, text: `${share * 100}%`, x, y }
-}
-
-/**
- * The learning curves of one group laid out in a plot: the plot's frame, the
- * height of the baseline's level line, the gridlines at each labeled share,
- * the last step the plot reaches, the path of each run's line, the labels
- * along both axes, and the title of each axis.
- */
-export interface Curves {
-  baseline : number
-  frame    : Frame
-  grid     : string
-  labels   : readonly PlotLabel[]
-  last     : number
-  lines    : readonly string[]
-  titles   : readonly PlotLabel[]
-}
-
-/**
- * One sample of a comparison's row, each run's dot along the row, the
- * interval's ends and the interquartile mean's place where it has one, and the
- * height its line sits at.
- */
-export interface Sample {
-  dots     : readonly number[]
-  interval : readonly [number, number] | null
-  mean     : number
-  y        : number
-}
-
-/**
- * The comparison laid out: the floor, the gridlines at each labeled share, the
- * strip's height and width, the labels along the bottom and the title beneath
- * them, and each group's row, its name beside the agent's sample and the random
- * baseline's.
- */
-export interface Strip {
-  floor  : number
-  grid   : string
-  height : number
-  labels : readonly PlotLabel[]
-  rows   : readonly { agent: Sample, name: PlotLabel, random: Sample }[]
-  title  : PlotLabel
-  width  : number
 }

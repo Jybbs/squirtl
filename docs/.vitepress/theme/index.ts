@@ -18,6 +18,7 @@ import './styles/methods/experience.css'
 import './styles/methods/memory.css'
 import './styles/methods/reach.css'
 import './styles/methods/step.css'
+import './styles/results/results.css'
 import './styles/section/ribbon.css'
 
 import { titleNotFound }  from '../lib/missing/page.ts'

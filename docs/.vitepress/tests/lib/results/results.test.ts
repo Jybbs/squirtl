@@ -1,88 +1,60 @@
 import { describe, expect, it } from 'vitest'
 
 import * as results from '../../../lib/results/results.ts'
+import FIXTURE      from './fixtures/results.json' with { type: 'json' }
 
 /**
- * Two runs of PPO trained along the curriculum, one evaluated twice and one
- * once, beside one run of PPO trained without it and one of the deep
- * Q-network.
+ * Seven runs across every agent and both starts, PQN's estimates taking no
+ * interval as a group of one run does, beside random presses' share across
+ * every run.
  */
-const RESULTS: results.Results = {
-  comparisons: [
-    {
-      agent      : 'ppo',
-      baseline   : { interval: [0, 0.25], runs: [2], value: 0.125 },
-      beats      : { interval: [0.5, 1], runs: [2, 2], value: 0.75 },
-      curriculum : true,
-      reached    : { interval: [0.5, 1], runs: [2], value: 0.75 }
-    },
-    {
-      agent      : 'ppo',
-      baseline   : { interval: null, runs: [1], value: 0 },
-      beats      : { interval: null, runs: [1, 1], value: 0.5 },
-      curriculum : false,
-      reached    : { interval: null, runs: [1], value: 0.5 }
-    },
-    {
-      agent      : 'dqn',
-      baseline   : { interval: null, runs: [1], value: 0 },
-      beats      : { interval: null, runs: [1, 1], value: 0.5 },
-      curriculum : false,
-      reached    : { interval: null, runs: [1], value: 0 }
-    }
-  ],
-  runs: [
-    {
-      agent      : 'ppo',
-      baseline   : { reached: 0.25, reward: 1, step: null },
-      curriculum : true,
-      name       : 'ppo-a',
-      scores     : [{ reached: 0.5, reward: 2, step: 500 }, { reached: 1, reward: 4, step: 1000 }],
-      seed       : 0
-    },
-    {
-      agent      : 'ppo',
-      baseline   : { reached: 0, reward: 0, step: null },
-      curriculum : true,
-      name       : 'ppo-b',
-      scores     : [{ reached: 0.5, reward: 3, step: 500 }],
-      seed       : 1
-    },
-    {
-      agent      : 'ppo',
-      baseline   : { reached: 0, reward: 0, step: null },
-      curriculum : false,
-      name       : 'ppo-c',
-      scores     : [{ reached: 0.5, reward: 1, step: 1000 }],
-      seed       : 0
-    },
-    {
-      agent      : 'dqn',
-      baseline   : { reached: 0, reward: 0, step: null },
-      curriculum : false,
-      name       : 'dqn-a',
-      scores     : [{ reached: 0, reward: 0, step: 1000 }],
-      seed       : 0
-    }
-  ]
-}
+const RESULTS = FIXTURE as unknown as results.Results
 
 /**
- * The groups of the results above.
+ * The groups of the runs above, in the order their comparisons stand.
  */
 const GROUPS = results.groupsOf(RESULTS)
 
 describe('groupsOf', () => {
-  it('pairs each comparison with its runs under its agent’s name, naming the curriculum where it trained along one', () => {
-    expect(GROUPS.map(group => [group.name, group.runs.map(run => run.name)])).toStrictEqual([
-      ['PPO, curriculum', ['ppo-a', 'ppo-b']],
-      ['PPO', ['ppo-c']],
-      ['Deep Q-network', ['dqn-a']]
+  it('pairs each comparison with its runs under its agent’s name and hue, naming the curriculum where it trained along one', () => {
+    expect(GROUPS.map(group => [group.id, group.name, group.hue, group.runs.map(run => run.seed)])).toStrictEqual([
+      ['dqn-bedroom', 'Deep Q-network', 'fern', [1]],
+      ['ppo-bedroom', 'PPO', 'denim', [2, 3]],
+      ['ppo-curriculum', 'PPO, curriculum', 'denim', [4, 5]],
+      ['pqn-bedroom', 'PQN', 'heath', [6]],
+      ['pqn-curriculum', 'PQN, curriculum', 'heath', [7]]
     ])
   })
 
   it('reads the runs the repository commits by default', () => {
     expect(results.groupsOf()).toStrictEqual(results.groupsOf(results.COMMITTED))
+  })
+})
+
+describe('interquartile', () => {
+  it.each([
+    [[4, 1, 100, 3, 2], 3],
+    [[0.5, 0.25], 0.375],
+    [[7], 7]
+  ])('takes the mean of %j inside its quartiles as %d', (values, mean) => {
+    expect(results.interquartile(values)).toBe(mean)
+  })
+})
+
+describe('meansOf', () => {
+  it('takes the interquartile mean across a group’s runs at each evaluation', () => {
+    expect(results.meansOf(GROUPS[1]!)).toStrictEqual([
+      { reached: 0.375, reward: 0.75, step: 500_000 },
+      { reached: 0.875, reward: 1.75, step: 1_000_000 },
+      { reached: 1, reward: 2, step: 1_500_000 }
+    ])
+  })
+
+  it('takes each later evaluation across the runs that reached it', () => {
+    const [first, second] = GROUPS[1]!.runs
+    const short           = { ...GROUPS[1]!, runs: [first!, { ...second!, scores: second!.scores.slice(0, 1) }] }
+
+    expect(results.meansOf(short).map(score => score.reached)).toStrictEqual([0.375, 1, 1])
   })
 })
 
@@ -95,58 +67,39 @@ describe('spelled', () => {
   })
 })
 
-describe('keyOf', () => {
-  it('sets the agent’s share reaching the starter beside the baseline’s and the chance a run beats it', () => {
-    expect(results.keyOf(GROUPS[0]!)).toStrictEqual([
-      { figures: ['0.75 [0.50, 1.00] over 2', ''], name: 'PPO, curriculum', role: 'agent' },
-      { figures: ['0.13 [0.00, 0.25] over 2', '0.75 [0.50, 1.00] over 2 and 2'], name: 'Random presses', role: 'random' }
-    ])
+describe('percent', () => {
+  it.each([
+    [{ interval: [0.9, 1], runs: [2], value: 1 }, '100% [90, 100]'],
+    [{ interval: null, runs: [1], value: 0.4 }, '40%']
+  ] as const)('spells %j as %s', (estimate, text) => {
+    expect(results.percent(estimate)).toBe(text)
   })
 })
 
-describe('curvesOf', () => {
-  const curves = results.curvesOf(GROUPS[0]!, 288, 640)
-
-  it('draws each run’s line across the steps up to the run that trained longest', () => {
-    expect([curves.last, curves.lines]).toStrictEqual([1000, ['M336,138L624,36', 'M336,138']])
-  })
-
-  it('sets the baseline’s level line at its interquartile mean', () => {
-    expect(curves.baseline).toBe(214.5)
-  })
-
-  it('labels each share along the side and the first and last step along the bottom', () => {
-    expect(curves.labels.map(label => label.text)).toStrictEqual(['0%', '25%', '50%', '75%', '100%', '0', '1,000'])
-  })
-
-  it('titles the steps beneath the middle of the plot and the share above its side', () => {
-    expect(curves.titles).toStrictEqual([
-      { anchor: 'middle', text: 'Environment steps', x: 336, y: 260 },
-      { anchor: 'start', text: 'Episodes reaching the starter (%)', x: 0, y: 20 }
-    ])
+describe('verdictOf', () => {
+  it.each([
+    [[0.6, 1], 'above'],
+    [[0, 0.3], 'below'],
+    [[0.25, 0.75], 'even'],
+    [[0.5, 0.9], 'even'],
+    [null, 'even']
+  ] as const)('reads odds across %j as %s', (interval, verdict) => {
+    expect(results.verdictOf({ interval, runs: [2, 2], value: 0.5 })).toBe(verdict)
   })
 })
 
-describe('comparisonOf', () => {
-  const strip = results.comparisonOf(GROUPS, 640)
+describe('figuresOf', () => {
+  it('lists each group’s share and odds against random presses, lit in its hue while pressed, above random presses’ share', () => {
+    const entries = results.figuresOf(GROUPS, RESULTS.random!, new Set(['ppo-bedroom']))
 
-  it('takes a row for each group beneath the room the strip leaves at its top and bottom', () => {
-    expect([strip.height, strip.rows.map(row => row.name.text)]).toStrictEqual([204, ['PPO, curriculum', 'PPO', 'Deep Q-network']])
-  })
-
-  it('sets each run’s dot at its share and the mean across its interval', () => {
-    expect(strip.rows[0]!.agent).toStrictEqual({ dots: [624, 384], interval: [384, 624], mean: 504, y: 28 })
-  })
-
-  it('titles the share beneath the labels along the bottom', () => {
-    expect(strip.title).toStrictEqual({ anchor: 'middle', text: 'Episodes reaching the starter (%)', x: 384, y: 196 })
-  })
-
-  it('keeps the runs of one agent with and without the curriculum in rows of their own', () => {
-    expect(strip.rows.map(row => row.agent.dots.length)).toStrictEqual([2, 1, 1])
-  })
-
-  it('draws no interval for a sample of one run', () => {
-    expect(strip.rows[1]!.agent).toStrictEqual({ dots: [384], interval: null, mean: 384, y: 76 })
+    expect(entries.map(entry => [entry.name, entry.figures])).toStrictEqual([
+      ['Deep Q-network', ['0.00 over 1', '0.10 [0.00, 0.30] over 1 and 1']],
+      ['PPO', ['1.00 [0.90, 1.00] over 2', '1.00 [0.75, 1.00] over 2 and 2']],
+      ['PPO, curriculum', ['1.00 [1.00, 1.00] over 2', '0.90 [0.60, 1.00] over 2 and 2']],
+      ['PQN', ['0.40 over 1', '0.50 over 1 and 1']],
+      ['PQN, curriculum', ['0.80 over 1', '0.50 over 1 and 1']],
+      ['Random presses', ['0.10 [0.00, 0.25] over 7', '']]
+    ])
+    expect(entries.map(entry => entry.hue)).toStrictEqual([null, 'denim', null, null, null, undefined])
   })
 })

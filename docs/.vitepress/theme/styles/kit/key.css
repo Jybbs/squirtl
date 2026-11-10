@@ -1,5 +1,9 @@
 .key-figures { grid-template-columns: minmax(0, 1fr) repeat(2, max-content); }
 
+@container (width < 40rem) {
+  .key-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .vp-doc .key-strip {
   list-style : none;
   margin     : 0;

@@ -1,0 +1,388 @@
+{
+  "comparisons": [
+    {
+      "agent": "dqn",
+      "baseline": {
+        "interval": null,
+        "runs": [
+          1
+        ],
+        "value": 0
+      },
+      "bedroom": null,
+      "beats": {
+        "interval": [
+          0,
+          0.3
+        ],
+        "runs": [
+          1,
+          1
+        ],
+        "value": 0.1
+      },
+      "curriculum": false,
+      "reached": {
+        "interval": null,
+        "runs": [
+          1
+        ],
+        "value": 0
+      }
+    },
+    {
+      "agent": "ppo",
+      "baseline": {
+        "interval": [
+          0,
+          0.25
+        ],
+        "runs": [
+          2
+        ],
+        "value": 0.125
+      },
+      "bedroom": null,
+      "beats": {
+        "interval": [
+          0.75,
+          1
+        ],
+        "runs": [
+          2,
+          2
+        ],
+        "value": 1
+      },
+      "curriculum": false,
+      "reached": {
+        "interval": [
+          0.9,
+          1
+        ],
+        "runs": [
+          2
+        ],
+        "value": 1
+      }
+    },
+    {
+      "agent": "ppo",
+      "baseline": {
+        "interval": [
+          0,
+          0.25
+        ],
+        "runs": [
+          2
+        ],
+        "value": 0.125
+      },
+      "bedroom": {
+        "interval": [
+          0.25,
+          0.75
+        ],
+        "runs": [
+          2,
+          2
+        ],
+        "value": 0.5
+      },
+      "beats": {
+        "interval": [
+          0.6,
+          1
+        ],
+        "runs": [
+          2,
+          2
+        ],
+        "value": 0.9
+      },
+      "curriculum": true,
+      "reached": {
+        "interval": [
+          1,
+          1
+        ],
+        "runs": [
+          2
+        ],
+        "value": 1
+      }
+    },
+    {
+      "agent": "pqn",
+      "baseline": {
+        "interval": null,
+        "runs": [
+          1
+        ],
+        "value": 0
+      },
+      "bedroom": null,
+      "beats": {
+        "interval": null,
+        "runs": [
+          1,
+          1
+        ],
+        "value": 0.5
+      },
+      "curriculum": false,
+      "reached": {
+        "interval": null,
+        "runs": [
+          1
+        ],
+        "value": 0.4
+      }
+    },
+    {
+      "agent": "pqn",
+      "baseline": {
+        "interval": null,
+        "runs": [
+          1
+        ],
+        "value": 0
+      },
+      "bedroom": {
+        "interval": [
+          0.1,
+          0.4
+        ],
+        "runs": [
+          1,
+          1
+        ],
+        "value": 0.25
+      },
+      "beats": {
+        "interval": null,
+        "runs": [
+          1,
+          1
+        ],
+        "value": 0.5
+      },
+      "curriculum": true,
+      "reached": {
+        "interval": null,
+        "runs": [
+          1
+        ],
+        "value": 0.8
+      }
+    }
+  ],
+  "random": {
+    "interval": [
+      0,
+      0.25
+    ],
+    "runs": [
+      7
+    ],
+    "value": 0.1
+  },
+  "runs": [
+    {
+      "agent": "dqn",
+      "baseline": {
+        "reached": 0,
+        "reward": 0.5,
+        "step": null
+      },
+      "curriculum": false,
+      "name": "dqn-bedroom-1",
+      "scores": [
+        {
+          "reached": 0,
+          "reward": 0,
+          "step": 500000
+        },
+        {
+          "reached": 0,
+          "reward": 0,
+          "step": 1000000
+        },
+        {
+          "reached": 0,
+          "reward": 0,
+          "step": 1500000
+        }
+      ],
+      "seed": 1
+    },
+    {
+      "agent": "ppo",
+      "baseline": {
+        "reached": 0.25,
+        "reward": 0.5,
+        "step": null
+      },
+      "curriculum": false,
+      "name": "ppo-bedroom-2",
+      "scores": [
+        {
+          "reached": 0.5,
+          "reward": 1.0,
+          "step": 500000
+        },
+        {
+          "reached": 1,
+          "reward": 2,
+          "step": 1000000
+        },
+        {
+          "reached": 1,
+          "reward": 2,
+          "step": 1500000
+        }
+      ],
+      "seed": 2
+    },
+    {
+      "agent": "ppo",
+      "baseline": {
+        "reached": 0,
+        "reward": 0.5,
+        "step": null
+      },
+      "curriculum": false,
+      "name": "ppo-bedroom-3",
+      "scores": [
+        {
+          "reached": 0.25,
+          "reward": 0.5,
+          "step": 500000
+        },
+        {
+          "reached": 0.75,
+          "reward": 1.5,
+          "step": 1000000
+        },
+        {
+          "reached": 1,
+          "reward": 2,
+          "step": 1500000
+        }
+      ],
+      "seed": 3
+    },
+    {
+      "agent": "ppo",
+      "baseline": {
+        "reached": 0.25,
+        "reward": 0.5,
+        "step": null
+      },
+      "curriculum": true,
+      "name": "ppo-curriculum-4",
+      "scores": [
+        {
+          "reached": 0.75,
+          "reward": 1.5,
+          "step": 500000
+        },
+        {
+          "reached": 1,
+          "reward": 2,
+          "step": 1000000
+        },
+        {
+          "reached": 1,
+          "reward": 2,
+          "step": 1500000
+        }
+      ],
+      "seed": 4
+    },
+    {
+      "agent": "ppo",
+      "baseline": {
+        "reached": 0,
+        "reward": 0.5,
+        "step": null
+      },
+      "curriculum": true,
+      "name": "ppo-curriculum-5",
+      "scores": [
+        {
+          "reached": 1,
+          "reward": 2,
+          "step": 500000
+        },
+        {
+          "reached": 1,
+          "reward": 2,
+          "step": 1000000
+        },
+        {
+          "reached": 1,
+          "reward": 2,
+          "step": 1500000
+        }
+      ],
+      "seed": 5
+    },
+    {
+      "agent": "pqn",
+      "baseline": {
+        "reached": 0,
+        "reward": 0.5,
+        "step": null
+      },
+      "curriculum": false,
+      "name": "pqn-bedroom-6",
+      "scores": [
+        {
+          "reached": 0,
+          "reward": 0,
+          "step": 500000
+        },
+        {
+          "reached": 0.2,
+          "reward": 0.4,
+          "step": 1000000
+        },
+        {
+          "reached": 0.4,
+          "reward": 0.8,
+          "step": 1500000
+        }
+      ],
+      "seed": 6
+    },
+    {
+      "agent": "pqn",
+      "baseline": {
+        "reached": 0,
+        "reward": 0.5,
+        "step": null
+      },
+      "curriculum": true,
+      "name": "pqn-curriculum-7",
+      "scores": [
+        {
+          "reached": 0.2,
+          "reward": 0.4,
+          "step": 500000
+        },
+        {
+          "reached": 0.6,
+          "reward": 1.2,
+          "step": 1000000
+        },
+        {
+          "reached": 0.8,
+          "reward": 1.6,
+          "step": 1500000
+        }
+      ],
+      "seed": 7
+    }
+  ]
+}

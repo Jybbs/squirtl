@@ -2,8 +2,9 @@
 Pins what `Results` reads from the run directories under
 `docs/runs/`, covering:
 
-- Each run's scores beside its baseline's, and the comparison of each agent
-  and curriculum across its runs
+- Each run's scores beside its baseline's, the comparison of each agent and
+  curriculum across its runs, and random presses' share across every run
+- The curriculum's runs set against the same agent's runs from the bedroom
 - A missing folder, which holds no run
 - A run reading another cartridge than the default path, or holding no
   evaluation of the agent or of the random baseline, which `Trained.read`
@@ -58,11 +59,11 @@ def recorded(
 def test_a_missing_folder_holds_no_run(checkout: Callable[[Mapping[str, str]], None]):
     """
     Asserts that results read from a checkout holding no `docs/runs/` hold
-    no run and no comparison.
+    no run, no comparison, and no share for random presses.
     """
     checkout({})
 
-    assert Results.read() == Results(comparisons=(), runs=())
+    assert Results.read() == Results(comparisons=(), random=None, runs=())
 
 
 def test_a_run_holding_no_baseline_is_refused(
@@ -172,3 +173,46 @@ def test_results_compare_each_agent_and_curriculum_across_its_runs(
         )
         for comparison in results.comparisons
     ] == [(Algorithm.DQN, approx(1.0), approx(0.0), approx(1.0), (3,))]
+    assert (results.random.value, results.random.runs) == (approx(0.0), (3,))
+
+
+def test_the_curriculum_compares_against_the_same_agents_runs_from_the_bedroom(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that runs trained along the curriculum carry the probability that
+    one beats a run of the same agent from the bedroom on mean return, here
+    every curriculum run returning more, while runs from the bedroom and an
+    agent trained along the curriculum alone carry none.
+    """
+    along = CurriculumSettings(demonstration=Path("walk.json"))
+    pqn   = AgentSettings(algorithm=Algorithm.PQN)
+
+    for second, reward, settings in (
+        (1, 0.75, RunSettings(agent=pqn, curriculum=along)),
+        (2, 0.75, RunSettings(agent=pqn, curriculum=along)),
+        (3, 0.25, RunSettings(agent=pqn)),
+        (4, 0.25, RunSettings(agent=pqn)),
+        (
+            5, 0.75,
+            RunSettings(agent=AgentSettings(algorithm=Algorithm.PPO), curriculum=along)
+        )
+    ):
+        recorded(
+            checkout = checkout,
+            rewards  = [reward],
+            second   = second,
+            settings = settings
+        )
+
+    assert [
+        (
+            comparison.agent, comparison.curriculum,
+            None if comparison.bedroom is None else comparison.bedroom.value
+        )
+        for comparison in Results.read().comparisons
+    ] == [
+        (Algorithm.PPO, True, None),
+        (Algorithm.PQN, False, None),
+        (Algorithm.PQN, True, approx(1.0))
+    ]

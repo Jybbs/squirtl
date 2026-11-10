@@ -150,6 +150,13 @@ class Comparison(Record):
     mean return.
     """
 
+    bedroom: Estimate | None
+    """
+    The probability that a run trained along the curriculum beats a run of
+    the same agent trained from the bedroom on mean return, or `None` for
+    runs trained from the bedroom or an agent with none.
+    """
+
     curriculum: bool
     """
     Whether the runs started their training episodes along a demonstration.
@@ -162,13 +169,17 @@ class Comparison(Record):
     """
 
     @classmethod
-    def across(cls, runs: Iterable[Trained]) -> Self:
+    def across(cls, runs: Iterable[Trained], bedroom: Iterable[Trained] = ()) -> Self:
         """
         Compares `runs`, all of one agent and one curriculum, against their
-        baselines, each interval over resamples drawn from the runs' seeds.
+        baselines and, where they trained along the curriculum, against the
+        same agent's runs from the `bedroom`, each interval over resamples
+        drawn from the runs' seeds.
         """
         runs      = tuple(runs)
+        bedroom   = tuple(bedroom)
         generator = default_rng(sorted(run.seed for run in runs))
+        rewards   = array([run.last.reward for run in runs])
 
         return cls(
             agent    = runs[0].agent,
@@ -176,8 +187,13 @@ class Comparison(Record):
                 array([run.baseline.reached for run in runs]),
                 generator = generator
             ),
+            bedroom = Estimate.improvement(
+                rewards,
+                array([run.last.reward for run in bedroom]),
+                generator = generator
+            ) if runs[0].curriculum and bedroom else None,
             beats = Estimate.improvement(
-                array([run.last.reward for run in runs]),
+                rewards,
                 array([run.baseline.reward for run in runs]),
                 generator = generator
             ),
@@ -204,6 +220,12 @@ class Results(Record):
     it.
     """
 
+    random: Estimate | None
+    """
+    The interquartile mean across every run of the baseline's share reaching
+    the starter, or `None` where no run is committed.
+    """
+
     runs: tuple[Trained, ...]
     """
     Each run, in the order of its name.
@@ -218,12 +240,20 @@ class Results(Record):
             Trained.read(directory)
             for directory in sorted(folder.iterdir() if folder.is_dir() else ())
         )
-        group = attrgetter("agent", "curriculum")
+        group  = attrgetter("agent", "curriculum")
+        groups = {
+            key: tuple(members)
+            for key, members in groupby(sorted(runs, key=group), key=group)
+        }
 
         return cls(
             comparisons = tuple(
-                Comparison.across(members)
-                for _, members in groupby(sorted(runs, key=group), key=group)
+                Comparison.across(members, groups.get((agent, False), ()))
+                for (agent, _), members in groups.items()
             ),
+            random = Estimate.interquartile(
+                array([run.baseline.reached for run in runs]),
+                generator = default_rng(sorted(run.seed for run in runs))
+            ) if runs else None,
             runs = runs
         )

@@ -1,0 +1,69 @@
+.results-toggles { grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--spacing-results-toggle)), 1fr)); }
+
+.results-toggle {
+  box-shadow            : inset 0 0 0 var(--border-width-hairline) var(--color-rule);
+  grid-template-columns : var(--spacing-6) minmax(0, 1fr) var(--spacing-results-figure);
+}
+
+.results-toggle:hover { box-shadow: inset 0 0 0 var(--border-width-hairline) var(--color-quiet); }
+
+.results-toggle[data-state='on'] {
+  background : color-mix(in oklab, currentColor 8%, var(--color-ground));
+  box-shadow : inset 0 0 0 var(--border-width-ring) currentColor;
+}
+
+.results-toggle[data-state='on'] > :last-child { color: var(--color-ink); }
+
+.results-dashed { stroke-dasharray: 6 4; }
+
+.results-solid {
+  fill         : currentColor;
+  stroke       : var(--color-ground);
+  stroke-width : 1.25;
+}
+
+.results-open {
+  fill         : var(--color-ground);
+  stroke       : currentColor;
+  stroke-width : 1.5;
+}
+
+.results-cell-0 { fill: var(--color-rule); }
+
+.results-cell-1 { fill: color-mix(in oklab, currentColor 52%, var(--color-ground)); }
+
+.results-cell-2 { fill: color-mix(in oklab, currentColor 78%, var(--color-ground)); }
+
+.results-cell-3 { fill: currentColor; }
+
+.results-pale {
+  fill    : currentColor;
+  opacity : .12;
+}
+
+.results-mean {
+  stroke         : currentColor;
+  stroke-linecap : round;
+  stroke-width   : 2.5;
+}
+
+.results-even {
+  stroke       : var(--color-ink);
+  stroke-width : 1.5;
+}
+
+.results-whisker {
+  fill         : none;
+  stroke       : var(--color-ink);
+  stroke-width : 1.25;
+}
+
+.results-legend { grid-template-columns: minmax(0, 1fr); }
+
+@container (width >= 40rem) {
+  .results-legend { grid-template-columns: max-content minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .results-toggle { transition: background-color var(--default-transition-duration) var(--ease-travel), box-shadow var(--default-transition-duration) var(--ease-travel), color var(--default-transition-duration) var(--ease-travel); }
+}

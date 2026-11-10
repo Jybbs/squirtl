@@ -1,43 +1,50 @@
 // @vitest-environment happy-dom
-import { enableAutoUnmount, mount }            from '@vue/test-utils'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { nextTick }                            from 'vue'
+import { type VueWrapper, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it, vi }                      from 'vitest'
+import { nextTick }                                                 from 'vue'
 
-import type * as results from '../../../../lib/results/results.ts'
+import * as browser from '../../../common/browser.ts'
 
 /**
- * Whether the stand-in below holds the committed runs, which hold none, or two
- * runs of two groups, beside those two runs, the second group's estimates
- * taking no interval as a group of one run does.
+ * Whether the stand-in below holds the committed runs, which hold none, or the
+ * seven runs the fixture holds.
  */
-const { held, standIn } = vi.hoisted(() => {
-  const estimate = { interval: [0, 1] as const, runs: [1], value: 0.5 }
-  const single   = { ...estimate, interval: null }
-  const trained  = { baseline: { reached: 0, reward: 0, step: null }, scores: [{ reached: 0.5, reward: 0, step: 100 }], seed: 0 }
-  return {
-    held    : { runs: false },
-    standIn : {
-      comparisons : [
-        { agent: 'dqn', baseline: estimate, beats: estimate, curriculum: false, reached: estimate },
-        { agent: 'pqn', baseline: single, beats: single, curriculum: true, reached: single }
-      ],
-      runs : [
-        { ...trained, agent: 'dqn', curriculum: false, name: 'dqn' },
-        { ...trained, agent: 'pqn', curriculum: true, name: 'pqn' }
-      ]
-    } satisfies results.Results
-  }
-})
+const held = vi.hoisted(() => ({ runs: false }))
 
 vi.mock('../../../../lib/results/results.ts', async original => {
-  const module = await original<typeof import('../../../../lib/results/results.ts')>()
-  return { ...module, groupsOf: () => module.groupsOf(held.runs ? standIn : module.COMMITTED) }
+  const module  = await original<typeof import('../../../../lib/results/results.ts')>()
+  const fixture = await import('../../../lib/results/fixtures/results.json')
+  const shown   = () => held.runs ? fixture.default as unknown as typeof module.COMMITTED : module.COMMITTED
+  return {
+    ...module,
+    get COMMITTED() { return shown() },
+    groupsOf: (results = shown()) => module.groupsOf(results)
+  }
 })
 
 const { ResultsComparison } = await import('../../../../theme/components/results/comparison.tsx')
 const { ResultsCurves }     = await import('../../../../theme/components/results/curves.tsx')
 
 enableAutoUnmount(afterEach)
+
+/**
+ * Reads each toggle's name and whether it is pressed.
+ */
+const toggles = (wrapper: VueWrapper) =>
+  wrapper.findAll('button').map(button => [button.find('span:nth-child(2)').text(), button.attributes('aria-pressed')])
+
+/**
+ * Reads how far each group's curve has traced out, as the width its clip
+ * opens across.
+ */
+const traces = (wrapper: VueWrapper) => wrapper.findAll('clipPath rect').map(rect => Number(rect.attributes('width')))
+
+/**
+ * Reads the opacity of each part of the figure each side holds, the curves,
+ * then the last evaluation, then the verdicts and the tabs that open as they
+ * widen and fold.
+ */
+const sides = (wrapper: VueWrapper) => wrapper.findAll('svg > g[opacity]').map(part => part.attributes('opacity'))
 
 describe.each([ResultsComparison, ResultsCurves])('$name', widget => {
   it('draws nothing until a run is committed', () => {
@@ -47,29 +54,200 @@ describe.each([ResultsComparison, ResultsCurves])('$name', widget => {
 })
 
 describe('ResultsCurves', () => {
-  it('draws the group a press on its key picks, its runs’ lines beside the baseline’s level line', async () => {
-    held.runs = true
+  it('presses both PQN groups at first, the rest released, and toggles any group on a press', async () => {
+    held.runs     = true
     const wrapper = mount(ResultsCurves)
-    const picked  = () => wrapper.findAll('[aria-pressed="true"]').map(entry => entry.text())
 
-    expect([picked(), wrapper.findAll('path').length, wrapper.find('svg').text()]).toStrictEqual([
-      ['Deep Q-network'], 3, '0%25%50%75%100%0100Environment stepsEpisodes reaching the starter (%)'
+    expect(toggles(wrapper)).toStrictEqual([
+      ['Deep Q-network', 'false'], ['PPO', 'false'], ['PPO, curriculum', 'false'], ['PQN', 'true'], ['PQN, curriculum', 'true']
     ])
 
     await wrapper.findAll('button')[1]!.trigger('click')
+    await wrapper.findAll('button')[3]!.trigger('click')
+
+    expect(toggles(wrapper).map(([, pressed]) => pressed)).toStrictEqual(['false', 'true', 'false', 'false', 'true'])
+    expect(wrapper.text()).toBePublishedProse()
+  })
+
+  it('moves focus along the toggles on the arrow keys, to either end on Home and End, and wraps past the last', async () => {
+    held.runs     = true
+    const wrapper = mount(ResultsCurves, { attachTo: document.body })
+    const buttons = wrapper.findAll<HTMLButtonElement>('button')
+    const focused = () => buttons.findIndex(button => button.element === document.activeElement)
+    const press   = async (key: string) => {
+      await wrapper.find<HTMLButtonElement>('button:focus').trigger('keydown', { key })
+      await flushPromises()
+      return focused()
+    }
+
+    buttons[0]!.element.focus()
+    await buttons[0]!.trigger('focus')
+
+    expect([await press('ArrowRight'), await press('ArrowRight'), await press('End'), await press('ArrowRight'), await press('ArrowLeft'), await press('Home')])
+      .toStrictEqual([1, 2, 4, 0, 4, 0])
+  })
+
+})
+
+describe('ResultsCurves’s traces', () => {
+  it('stands every pressed curve whole at once under reduced motion, and none released', async () => {
+    held.runs                = true
+    browser.preference.value = 'reduce'
+    const wrapper            = mount(ResultsCurves)
+
     await nextTick()
 
-    expect(picked()).toStrictEqual(['PQN, curriculum'])
+    expect(traces(wrapper).map(width => width > 100)).toStrictEqual([false, false, false, true, true])
+  })
+
+  it('holds every curve back until the plot first comes into view', async () => {
+    held.runs = true
+    // Fakes `Date` beside the timers, since `useTransition` times each frame through `Date.now`.
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame'] })
+    const sight   = browser.stubSight()
+    const wrapper = mount(ResultsCurves, { attachTo: document.body })
+
+    await vi.advanceTimersByTimeAsync(2000)
+    const before = traces(wrapper)
+    sight.show(true)
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect([before.map(width => width > 100), traces(wrapper).map(width => width > 100)]).toStrictEqual([
+      [false, false, false, false, false], [false, false, false, true, true]
+    ])
+  })
+
+})
+
+describe('ResultsCurves’s releases', () => {
+  it('draws a released curve back and traces a newly pressed one out at once, waiting on no earlier press', async () => {
+    held.runs = true
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame'] })
+    const sight   = browser.stubSight()
+    const wrapper = mount(ResultsCurves, { attachTo: document.body })
+
+    await vi.advanceTimersByTimeAsync(0)
+    sight.show(true)
+    await vi.advanceTimersByTimeAsync(2000)
+    await wrapper.findAll('button')[3]!.trigger('click')
+    await wrapper.findAll('button')[0]!.trigger('click')
+    await vi.advanceTimersByTimeAsync(700)
+
+    expect(traces(wrapper).map(width => width > 100)).toStrictEqual([true, false, false, false, true])
   })
 })
 
-describe('ResultsComparison', () => {
-  it('draws a row for each group, a dot for each run beside its baseline, and a whisker only where a bootstrap interval exists', () => {
-    held.runs = true
-    const wrapper = mount(ResultsComparison)
+describe('ResultsCurves’s figures', () => {
+  it('lists each group’s figures in a fixed slot under the plot, random presses last', () => {
+    held.runs     = true
+    const wrapper = mount(ResultsCurves)
 
-    expect([wrapper.findAll('circle').length, wrapper.findAll('path').length, wrapper.text()]).toStrictEqual([
-      4, 7, '0%25%50%75%100%Episodes reaching the starter (%)Deep Q-networkPQN, curriculum'
+    expect(wrapper.text()).toMatch(/Random pressesReached it0\.10 \[0\.00, 0\.25\] over 7$/u)
+  })
+})
+
+/**
+ * Mounts the comparison in a box 688 pixels wide under reduced motion, so
+ * each side widens and folds at once.
+ */
+async function mounted(): Promise<VueWrapper> {
+  held.runs                = true
+  browser.preference.value = 'reduce'
+  const resize             = browser.stubSize()
+  const wrapper            = mount(ResultsComparison, { attachTo: document.body })
+  await nextTick()
+  resize(688, 300)
+  await flushPromises()
+  return wrapper
+}
+
+describe('ResultsComparison', () => {
+  it('draws a lane a group, reading each lane’s verdict as its interval of the odds against random presses falls', async () => {
+    const wrapper = await mounted()
+    const side    = wrapper.find('[aria-label^="Last evaluation"]')
+
+    await side.trigger('focus')
+
+    expect(wrapper.find('svg').text().match(/VS (?:RANDOM|BEDROOM)(?:BEATS|BELOW|NOT CLEAR|WORSE|BETTER)/gu)).toStrictEqual([
+      'VS RANDOMBELOW', 'VS RANDOMBEATS', 'VS RANDOMBEATS', 'VS BEDROOMNOT CLEAR', 'VS RANDOMNOT CLEAR', 'VS RANDOMNOT CLEAR', 'VS BEDROOMWORSE'
     ])
+  })
+
+})
+
+describe('ResultsComparison’s fold', () => {
+  it('widens the side holding focus and folds the other, returning both to rest on blur', async () => {
+    const wrapper = await mounted()
+    const curves  = wrapper.find('[aria-label^="Learning curves"]')
+    const finals  = wrapper.find('[aria-label^="Last evaluation"]')
+    const read    = async () => {
+      await flushPromises()
+      return [sides(wrapper).slice(0, 2), wrapper.find('svg').text().includes('VS RANDOM')]
+    }
+
+    const rest = await read()
+    await finals.trigger('focus')
+    const opened = await read()
+    await finals.trigger('blur')
+    await curves.trigger('focus')
+    const folded = await read()
+
+    expect([rest, opened, folded]).toStrictEqual([
+      [['1', '1'], false],
+      [['0', '1'], true],
+      [['1', '0'], true]
+    ])
+  })
+
+  it('widens the side a mouse rests on over the side holding focus, and focuses a side on a touch', async () => {
+    const wrapper = await mounted()
+    const curves  = wrapper.find<HTMLElement>('[aria-label^="Learning curves"]')
+    const finals  = wrapper.find<HTMLElement>('[aria-label^="Last evaluation"]')
+
+    await finals.trigger('pointerdown', { pointerType: 'touch' })
+    await finals.trigger('focus')
+    await curves.trigger('pointerenter', { pointerType: 'mouse' })
+    await flushPromises()
+    const hovered = sides(wrapper).slice(0, 2)
+    await curves.trigger('pointerleave', { pointerType: 'mouse' })
+    await flushPromises()
+
+    expect([document.activeElement === finals.element, hovered, sides(wrapper).slice(0, 2)]).toStrictEqual([true, ['1', '0'], ['0', '1']])
+  })
+
+})
+
+describe('ResultsComparison’s fold at rest', () => {
+  it('leaves the sides at rest on a touch passing over them or a mouse pressing one', async () => {
+    const wrapper = await mounted()
+    const curves  = wrapper.find<HTMLElement>('[aria-label^="Learning curves"]')
+
+    await curves.trigger('pointerenter', { pointerType: 'touch' })
+    await curves.trigger('pointerdown', { pointerType: 'mouse' })
+    await curves.trigger('pointerleave', { pointerType: 'touch' })
+    await flushPromises()
+
+    expect([document.activeElement === curves.element, sides(wrapper).slice(0, 2)]).toStrictEqual([false, ['1', '1']])
+  })
+
+})
+
+describe('ResultsComparison’s layout', () => {
+  it('stacks the curves above the last evaluation in a narrow box, with no side to widen', async () => {
+    held.runs     = true
+    const resize  = browser.stubSize()
+    const wrapper = mount(ResultsComparison, { attachTo: document.body })
+    await nextTick()
+    resize(390, 300)
+    await flushPromises()
+
+    expect([wrapper.findAll('[role="group"]').length, wrapper.find('svg').text().includes('VS BEDROOM')]).toStrictEqual([0, true])
+  })
+
+  it('decodes each mark under what it marks in the legend', async () => {
+    const wrapper = await mounted()
+
+    expect(wrapper.text()).toContain('Random presses')
+    expect(wrapper.text()).toContain('10% [0, 25]')
   })
 })
