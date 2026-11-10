@@ -9,7 +9,8 @@ Pins the file the agents write at each checkpoint, covering:
   killed one leaves, a file cut short or holding a damaged zstd frame,
   which it refuses naming it, and the archive a save flushes whole before
   the directory
-- The weights read from a checkpoint's `agent.pt` member alone
+- The weights read from a checkpoint's `agent.pt` member alone, and saved
+  alone as a checkpoint of the same bytes each time
 - A checkpoint of PQN or PPO reading back as written with no member beyond
   `agent.pt`
 """
@@ -366,3 +367,21 @@ def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
 
     with raises(ValueError):
         ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz")
+
+
+def test_weights_save_as_a_checkpoint_of_the_same_bytes_each_time(tmp_path: Path):
+    """
+    Asserts that weights saved alone write a checkpoint holding `agent.pt`
+    alone, which reads back as the weights saved, and that saving them again
+    writes the same bytes.
+    """
+    weights = Weights(online={"weight": tensor([1.0, 2.0])}, step=3)
+    weights.save(tmp_path / "first.npz")
+    weights.save(tmp_path / "second.npz")
+    read = Weights.from_path(tmp_path / "first.npz")
+
+    assert ZipFile(tmp_path / "first.npz").namelist() == ["agent.pt"]
+    assert (read.online["weight"].tolist(), read.step) == ([1.0, 2.0], 3)
+    assert len(
+        {(tmp_path / name).read_bytes() for name in ("first.npz", "second.npz")}
+    ) == 1

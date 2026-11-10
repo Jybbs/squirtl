@@ -101,17 +101,18 @@ def test_a_page_carries_the_description_without_the_args_section():
 
 def test_a_page_lays_out_its_heading_help_usage_and_settings():
     """
-    Asserts that the page of `squirtl watch` opens on its name as code,
+    Asserts that the page of `squirtl stop` opens on its name as code,
     carries its help as paragraphs and its usage in a console block, and
-    tables each setting with the positional one named both ways and a
-    required one spelled as such.
+    tables its positional setting named both ways and spelled as required,
+    whereas the page of `squirtl watch` tables an optional one under its
+    default.
     """
-    text = Command.read(app, ("watch",)).text
+    text = Command.read(app, ("stop",)).text
 
-    assert text.startswith("# `squirtl watch`\n\nOpens the emulator's window")
-    assert "```console\nsquirtl watch [OPTIONS] DIRECTORY\n```" in text
+    assert text.startswith("# `squirtl stop`\n\nWrites the stop file")
+    assert "```console\nsquirtl stop DIRECTORY\n```" in text
     assert "| `DIRECTORY`, `--directory` | *required* |" in text
-    assert "| `--episode` | `none` |" in text
+    assert "| `--episode` | `none` |" in Command.read(app, ("watch",)).text
 
 
 def test_a_paragraph_joins_its_lines_and_keeps_each_item_of_a_list():
@@ -187,5 +188,6 @@ def test_every_command_the_package_registers_takes_a_page():
     flags.
     """
     assert [command.path.name for command in Command.every(app)] == [
-        "cite.md", "evaluate.md", "stop.md", "train.md", "watch.md", "write-docs.md"
+        "cite.md", "evaluate.md", "fetch.md", "pack.md",
+        "stop.md", "train.md", "watch.md", "write-docs.md"
     ]

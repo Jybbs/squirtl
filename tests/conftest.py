@@ -7,12 +7,14 @@ only when it carries the `network` mark. The `rom`, `cartridge`, `timed`,
 and `settings` fixtures serve the tests of the emulator, the reward, and
 the environment, so none needs the user's own ROM, `clone` serves every
 test starting a run, which reads the clone it runs in, `outside` every test
-reading a working directory no clone holds, and `evaluators` every test of a
-run's evaluation that starts no worker process.
+reading a working directory no clone holds, `evaluators` every test of a
+run's evaluation that starts no worker process, and `github` every test
+reading a release.
 """
 
 from collections.abc   import Callable, Iterable, Iterator, Mapping
 from common.evaluation import EvaluatorStandIn
+from common.releases   import GitHub
 from io                import StringIO
 from os                import devnull
 from pathlib           import Path
@@ -235,6 +237,17 @@ def evaluators(monkeypatch: MonkeyPatch) -> list[EvaluatorStandIn]:
     monkeypatch.setattr("squirtl.runs.benchmark.Evaluator", build)
 
     return built
+
+
+@fixture
+def github(monkeypatch: MonkeyPatch) -> GitHub:
+    """
+    Makes `urlopen` in `squirtl.releases.schemas` answer through a `GitHub`
+    serving nothing until a case publishes a release.
+    """
+    monkeypatch.setattr("squirtl.releases.schemas.urlopen", github := GitHub())
+
+    return github
 
 
 @fixture

@@ -13,6 +13,13 @@ Trains an agent to play Pokémon Blue from the screen, through PyBoy and PyTorch
 │              already holds. The deep Q-network and PQN play at the epsilon   │
 │              those settings record, and PPO takes its most likely action at  │
 │              every step.                                                     │
+│ fetch        Downloads the runs a release attaches and unpacks each into     │
+│              data/runs/, from the release --release names or else the latest │
+│              one.                                                            │
+│ pack         Writes each run docs/runs/ lists, and each demonstration those  │
+│              runs follow, into dist/runs/ as the Zstandard tar a release     │
+│              attaches, beside the manifest.json listing each tar and its     │
+│              SHA-256 digest.                                                 │
 │ stop         Writes the stop file into a training run's directory from any   │
 │              shell, ending the run with a checkpoint and exit status 0, as a │
 │              first interrupt does, at the end of its episode for the deep    │

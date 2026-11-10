@@ -4,7 +4,7 @@ Each comparison below plays a trained agent from Blue's bedroom beside random pr
 
 ## The Runs
 
-Each run the charts draw sits under `docs/runs/` as the `run.json`, `evaluations.jsonl`, and `baseline.json` it wrote, one directory per run named as the run is, and `mise write` reads them into the data every chart here draws from, so a fresh clone redraws each one. A run enters only once it has trained against the default cartridge path `data/rom.gb` and followed no demonstration at an absolute path, so no local path enters the tree.
+Each run the charts draw sits under `docs/runs/` as the `run.json`, `evaluations.jsonl`, and `baseline.json` it wrote, one directory per run named as the run is, and `mise write` reads them into the data every chart here draws from, so a fresh clone redraws each one. A run enters only once it has trained against the default cartridge path `data/rom.gb` and followed no demonstration at an absolute path, so no local path enters the tree. Each release attaches these runs with the weights of their last checkpoints, as [The Released Runs](../methods/evaluation.md#the-released-runs) sets out.
 
 ## Learning Curves
 

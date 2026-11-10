@@ -46,6 +46,8 @@ app = App(
 
 register(app, "squirtl.cli.cite:cite")
 register(app, "squirtl.cli.evaluate:evaluate")
+register(app, "squirtl.cli.fetch:fetch")
+register(app, "squirtl.cli.pack:pack")
 register(app, "squirtl.cli.stop:stop")
 register(
     group  = app,

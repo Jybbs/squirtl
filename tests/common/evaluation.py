@@ -9,6 +9,7 @@ Defines what the tests of an evaluation build from:
 
 from collections.abc import Iterable
 from contextlib      import AbstractContextManager
+from unittest.mock   import ANY
 
 from squirtl.agent.checkpoint    import Weights
 from squirtl.environment.schemas import Outcome
@@ -23,6 +24,12 @@ class EvaluatorStandIn(AbstractContextManager):
     in the order asked. It answers each with one episode `played` builds,
     the agent's reaching the starter for a return of the step over 1,000,
     whereas the baseline's is truncated at a return of 0.125.
+    """
+
+    digest: object = ANY
+    """
+    The digest the stand-in's intro leaves, `ANY` by default, which equals
+    every digest a run records.
     """
 
     def __exit__(self, *raised: object):

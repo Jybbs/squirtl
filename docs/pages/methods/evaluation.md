@@ -10,6 +10,10 @@ Each evaluation plays 30 episodes of each player, the count Mnih et al.[^mnih201
 
 Each evaluation averages over each player's episodes the share reaching the starter, the steps the episodes reaching it took, the positions reached, the return, and each term's part of that return. Across runs, each measure is reported as its interquartile mean, the mean of the runs left once a quarter is cut from each end, with its 95% percentile bootstrap interval and the count of runs behind it, as Agarwal et al.[^agarwal2021] aggregate a handful of runs. The comparison of one agent against random presses, or against another agent, is the probability that a run of the first beats a run of the second on mean return, which the Mann-Whitney statistic over every pair of runs estimates.
 
+## The Released Runs
+
+Each release attaches every run the [Results](../results/index.md) page measures, each holding its settings, its recorded episodes, and the weights of its last checkpoint, with no optimizer state and no replay memory. `squirtl fetch` unpacks a release's runs under `data/runs/`, and `squirtl evaluate --release <tag>` measures them again on a cartridge at `data/rom.gb`, refusing one whose intro leaves the console in another state than the run recorded. A fetched run holds no evaluation, so every episode plays afresh.
+
 ## Settings
 
 The table below is written from the help `squirtl train` prints for each `--evaluation.` setting, and `mise write` rewrites it.

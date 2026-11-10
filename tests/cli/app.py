@@ -245,6 +245,8 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
         param([],           id="the-app"),
         param(["cite"],     id="cite"),
         param(["evaluate"], id="evaluate"),
+        param(["fetch"],    id="fetch"),
+        param(["pack"],     id="pack"),
         param(["stop"],     id="stop"),
         param(["train"],    id="train"),
         param(["watch"],    id="watch"),
