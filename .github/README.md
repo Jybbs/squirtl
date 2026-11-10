@@ -61,7 +61,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 
 ## 🎒 Results
 
-**[Results](https://squirtl.fyi/results/)** compares each agent against random presses under the same seeds, with each figure's interval and the count of runs behind it.
+**[Results](https://squirtl.fyi/results/)** compares each agent against random presses under the same seeds, where PPO reaches the starter in every evaluation episode over 5 seeds from the bedroom and along the curriculum, PQN along the curriculum in 29% [0, 87] of them, and random presses in 21% [14, 31].
 
 ## 🕹️ Attribution
 
