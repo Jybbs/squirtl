@@ -10,8 +10,8 @@ import { METHODS }   from '../../common/sections.ts'
 const DECLARED = [{ about: ['Each command,', 'and every setting.'], name: 'Commands' }, METHODS] as const
 
 describe('SECTIONS', () => {
-  it('ships no section until a page opens one', () => {
-    expect(sections.SECTIONS).toStrictEqual([])
+  it('carries the Commands, Methods, and Results sections in alphabetical order', () => {
+    expect(sections.SECTIONS.map(section => section.name)).toStrictEqual(['Commands', 'Methods', 'Results'])
   })
 })
 

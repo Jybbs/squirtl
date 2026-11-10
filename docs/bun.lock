@@ -16,6 +16,7 @@
         "@vue/tsconfig": "0.9.1",
         "@vueuse/core": "15.0.0",
         "@zag-js/slider": "1.47.0",
+        "@zag-js/toggle-group": "1.47.0",
         "@zag-js/vue": "1.47.0",
         "happy-dom": "21.0.4",
         "knip": "6.44.2",
@@ -475,6 +476,8 @@
     "@zag-js/slider": ["@zag-js/slider@1.47.0", "", { "dependencies": { "@zag-js/anatomy": "1.47.0", "@zag-js/core": "1.47.0", "@zag-js/dom-query": "1.47.0", "@zag-js/types": "1.47.0", "@zag-js/utils": "1.47.0" } }, "sha512-rQRiQnOQeeuWe7Gy1jtRO7h+ELhspFcBt9NR2+JpxOGN3sSNQcTmRXvmC6SDnI8NGdwLywYQTEdUAic9aDSnZg=="],
 
     "@zag-js/store": ["@zag-js/store@1.47.0", "", { "dependencies": { "proxy-compare": "3.0.1" } }, "sha512-uHkrNEJhtRf5xbBBreTX5vXBGT6RfOfKDcRs02u9yhatk9DJRTgk5DQGLKcqH/X+SIeRU5smzUKH4OPT8wR42A=="],
+
+    "@zag-js/toggle-group": ["@zag-js/toggle-group@1.47.0", "", { "dependencies": { "@zag-js/anatomy": "1.47.0", "@zag-js/core": "1.47.0", "@zag-js/dom-query": "1.47.0", "@zag-js/types": "1.47.0", "@zag-js/utils": "1.47.0" } }, "sha512-OcvDrvOGX3cvPFqLAfnQ5936WN5kyCrXH8oimnry8xdkc8Q4i0IR4yqNWZ2ybBgfI1bKmm6xNhEXRUrIv3pYNA=="],
 
     "@zag-js/types": ["@zag-js/types@1.47.0", "", { "dependencies": { "csstype": "3.2.3" } }, "sha512-3TTiZR+PnODKSLl5PgpzS7QjBTQfB5K+M6q6NHXpr80Z9Rn2UxNoMFK3TA68lec5mryOvvum1P3EIS8Ho9NCGA=="],
 

@@ -22,7 +22,7 @@ describe.each(['dark', 'light'] as const)('drawSiteCard in the %s scheme', schem
   })
 
   it('sets the tagline in two italic lines', () => {
-    expect(svg).toContain('font-style="italic">A deep Q-network that learns</text>')
+    expect(svg).toContain('font-style="italic">An agent that learns</text>')
     expect(svg).toContain('font-style="italic">the walk to Oak’s lab.</text>')
   })
 

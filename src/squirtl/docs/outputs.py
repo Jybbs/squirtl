@@ -11,7 +11,11 @@ from pathlib         import Path
 from pydantic        import TypeAdapter
 from typing          import Self
 
-from squirtl.emulator.schemas import Record
+from squirtl.cli              import app
+from squirtl.docs.commands    import Command
+from squirtl.docs.regions     import Region
+from squirtl.docs.results     import Results
+from squirtl.emulator.schemas import Record, Symbol
 from squirtl.identity.schemas import Identity
 from squirtl.reward.schemas   import Event
 from squirtl.runs.schemas     import RunSettings
@@ -97,31 +101,50 @@ class Inventory(Record):
         Lists every file the package's declarations are written into under
         `docs/.vitepress/lib/rendered/`:
 
-        - The event flags the network reads, in their order, each beside the
-          term it pays
+        - The event flags the network reads, in their order, each beside its
+          index in the flag array and the term it pays
         - The identity's JSON
         - The `@theme` block the site's Tailwind sheet imports
+        - The measured runs committed under `docs/runs/`, which the Results
+          section draws
         - The default of every setting a run reads, which the site's widgets
-          model, leaving out the agent's device and the environments an
-          evaluation plays across, both of which follow the machine a run
-          starts on
+          model, leaving out each field `RunSettings.machine` names
+        - The address of every symbol the package reads in the game's memory
+        - The page of each command under `docs/pages/commands/`
+        - Each page under `docs/pages/` carrying the table of a subject's
+          settings between a pair of markers
         """
+        commands = Command.every(app)
         identity = Identity.read()
         rendered = Path("docs/.vitepress/lib/rendered")
+        train    = next(command for command in commands if command.chain == ("train",))
 
         return cls(
             outputs = (
                 Output.from_value(
                     rendered / "events.json",
-                    [{"name": event.name, "term": event.term} for event in Event]
+                    [
+                        {"index": event.value, "name": event.name, "term": event.term}
+                        for event in Event
+                    ]
                 ),
                 Output.from_value(rendered / "identity.json", identity),
+                Output.from_value(rendered / "results.json", Results.read()),
                 Output.from_value(
                     rendered / "settings.json",
                     RunSettings(),
-                    exclude = {"agent": {"device"}, "evaluation": {"environments"}}
+                    exclude = RunSettings.machine
                 ),
-                Output(path=rendered / "theme.css", text=identity.sheet)
+                Output.from_value(
+                    rendered / "symbols.json",
+                    {symbol.name: symbol.value for symbol in Symbol}
+                ),
+                Output(path=rendered / "theme.css", text=identity.sheet),
+                *(Output(path=command.path, text=command.text) for command in commands),
+                *(
+                    Output(path=region.path, text=region.written(train))
+                    for region in Region.every()
+                )
             )
         )
 

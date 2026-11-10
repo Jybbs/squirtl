@@ -307,12 +307,33 @@ class Motion(Declared):
     The length of a transition, in milliseconds.
     """
 
+    travel: tuple[float, float, float, float]
+    """
+    The control points of the cubic Bézier a mark moving from one place to
+    another eases along, slow at both ends.
+    """
+
     @property
     def easing(self) -> str:
         """
         Writes the curve as a CSS `cubic-bezier()` function.
         """
-        return f"cubic-bezier({', '.join(f'{point:g}' for point in self.curve)})"
+        return self.bezier(self.curve)
+
+    @property
+    def traveling(self) -> str:
+        """
+        Writes the travel curve as a CSS `cubic-bezier()` function.
+        """
+        return self.bezier(self.travel)
+
+    @staticmethod
+    def bezier(points: tuple[float, float, float, float]) -> str:
+        """
+        Writes the control points of a cubic Bézier as a CSS
+        `cubic-bezier()` function, each at its shortest.
+        """
+        return f"cubic-bezier({', '.join(f'{point:g}' for point in points)})"
 
 
 class Ramp(Declared):
@@ -763,6 +784,7 @@ class Identity(Declared):
             "default-transition-duration"        : f"{self.motion.duration}ms",
             "default-transition-timing-function" : self.motion.easing,
             "ease-glide"    : self.motion.easing,
+            "ease-travel"   : self.motion.traveling,
             "tracking-caps" : f"{lengths.track:g}em"
         }
 

@@ -25,7 +25,7 @@ from pathlib         import Path
 from pydantic        import AwareDatetime, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt
 from pydantic        import PrivateAttr, StringConstraints, model_validator
 from subprocess      import check_output
-from typing          import Annotated, Self
+from typing          import Annotated, ClassVar, Self
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm, PolicyUpdate, Update, flush
 from squirtl.emulator.schemas    import EmulatorSettings, Record, UnitInterval
@@ -223,6 +223,16 @@ class RunSettings(Record):
     fills one.
     """
 
+    machine: ClassVar[dict[str, set[str]]] = {
+        "agent"      : {"device"},
+        "evaluation" : {"environments"}
+    }
+    """
+    The fields under each subject whose default follows the machine a run
+    starts on, the agent's device and the environments an evaluation plays
+    across, each left out of the defaults the site's pages state.
+    """
+
     agent: AgentSettings = Field(default_factory=AgentSettings)
     """
     The settings the agent reads.
@@ -367,6 +377,16 @@ class Run(Record):
         writes.
         """
         return self.directory / "baseline.json"
+
+    @property
+    def baselined(self) -> Evaluation | None:
+        """
+        Reads the random baseline's evaluation `baseline` holds, or `None`
+        where the run has played none.
+        """
+        return Evaluation.model_validate_json(
+            self.baseline.read_bytes()
+        ) if self.baseline.exists() else None
 
     @property
     def checkpoint(self) -> Path:

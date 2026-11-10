@@ -28,6 +28,15 @@ export const SCRUB_PARTS = {
 }
 
 /**
+ * The classes of a slider's parts laid over the whole of the drawing it
+ * scrubs, the control taking no text selection as a pointer drags across it.
+ */
+export const COVER = {
+  control : [SCRUB_PARTS.control, 'absolute inset-0 select-none'],
+  thumb   : [SCRUB_PARTS.thumb, 'absolute inset-0']
+}
+
+/**
  * The classes of a swatch, a rounded square in the current color, which a chip
  * or an entry of a key shows where it carries no mark.
  */

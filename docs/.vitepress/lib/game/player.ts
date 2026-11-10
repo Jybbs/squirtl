@@ -125,6 +125,14 @@ export class Player {
     this.reset()
     this.playTo(step)
   }
+
+  /**
+   * Presses until the episode ends, yielding what each press pays as it
+   * lands.
+   */
+  *steps(): Generator<Paid[]> {
+    while (!this.done) yield this.next()
+  }
 }
 
 /**

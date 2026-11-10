@@ -14,6 +14,7 @@
     "@vue/tsconfig": "0.9.1",
     "@vueuse/core": "15.0.0",
     "@zag-js/slider": "1.47.0",
+    "@zag-js/toggle-group": "1.47.0",
     "@zag-js/vue": "1.47.0",
     "happy-dom": "21.0.4",
     "knip": "6.44.2",

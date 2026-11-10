@@ -48,9 +48,7 @@ class Benchmark(Record):
             ),
             None
         )
-        baseline = Evaluation.model_validate_json(
-            run.baseline.read_bytes()
-        ) if run.baseline.exists() else None
+        baseline = run.baselined
 
         if agent is None or baseline is None:
             settings = run.settings

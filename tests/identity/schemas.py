@@ -195,15 +195,20 @@ def test_a_swatch_writes_light_dark_only_where_the_schemes_differ(
     assert swatch.value == value
 
 
-def test_motion_writes_its_curve_as_a_css_function():
+def test_motion_writes_its_curves_as_css_functions():
     """
-    Asserts that the timing's curve reads as the `cubic-bezier()` a
-    transition takes, each control point at its shortest.
+    Asserts that the timing's curve and its travel curve each read as the
+    `cubic-bezier()` a transition takes, each control point at its shortest.
     """
-    assert Motion(
+    motion = Motion(
         curve    = (0.32, 0.72, 0.0, 1.0),
-        duration = 150
-    ).easing == "cubic-bezier(0.32, 0.72, 0, 1)"
+        duration = 150,
+        travel   = (0.42, 0.0, 0.58, 1.0)
+    )
+
+    assert (motion.easing, motion.traveling) == (
+        "cubic-bezier(0.32, 0.72, 0, 1)", "cubic-bezier(0.42, 0, 0.58, 1)"
+    )
 
 
 def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():

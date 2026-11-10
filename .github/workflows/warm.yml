@@ -34,6 +34,7 @@ jobs:
           - caches : uv
             tools  : &package python uv
           - tools: bun lychee node
+          - tools: bun lychee node python uv
           - tools: bun python uv
           - tools: zizmor
 

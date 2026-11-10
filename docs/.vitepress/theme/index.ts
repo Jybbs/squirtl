@@ -1,5 +1,5 @@
 import { type Theme, inBrowser } from 'vitepress'
-import DefaultTheme               from 'vitepress/theme-without-fonts'
+import DefaultTheme              from 'vitepress/theme-without-fonts'
 
 import './styles/site.css'
 import './styles/roles.css'
@@ -12,22 +12,26 @@ import './styles/front/story.css'
 import './styles/front/hero.css'
 import './styles/front/reward.css'
 import './styles/front/sees.css'
+import './styles/commands/watch.css'
+import './styles/methods/curriculum.css'
+import './styles/methods/experience.css'
+import './styles/methods/memory.css'
+import './styles/methods/reach.css'
+import './styles/methods/step.css'
+import './styles/results/results.css'
 import './styles/section/ribbon.css'
 
-import { titleNotFound } from '../lib/missing/page.ts'
+import { titleNotFound }  from '../lib/missing/page.ts'
 import { watchFootnotes } from '../lib/widgets/footnotes.ts'
-import { StoryLearning } from './components/front/learning.tsx'
-import { StoryRace }     from './components/front/race.tsx'
-import { StoryReward }   from './components/front/reward.tsx'
-import { StorySees }     from './components/front/sees.tsx'
-import { Layout }        from './layout.ts'
+import { COMPONENTS }     from './components/widgets.ts'
+import { Layout }         from './layout.ts'
 
 export default {
   Layout  : Layout,
   extends : DefaultTheme,
 
   enhanceApp: ({ app, router, siteData }) => {
-    for (const widget of [StoryLearning, StoryRace, StoryReward, StorySees]) {
+    for (const widget of COMPONENTS) {
       app.component(widget.name!, widget)
     }
     titleNotFound(router, () => siteData.value.description)
