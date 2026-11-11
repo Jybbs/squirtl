@@ -68,13 +68,13 @@ def recorded(checkout: Callable[[Mapping[str, str]], None]) -> Recorder:
         run.append(
             run.episodes,
             Episode(
-                epsilon   = None,
-                length    = 3,
-                positions = 3,
-                recording = Recording(presses=bytes([1, 4, 4]), timer_div=9),
-                reward    = 0.125,
-                seconds   = 0.5,
-                shares = {Term.MILESTONE: 0.0, Term.NOVELTY: 0.125, Term.STARTER: 0.0},
+                epsilon    = None,
+                length     = 3,
+                positions  = 3,
+                recording  = Recording(presses=bytes([1, 4, 4]), timer_div=9),
+                reward     = 0.125,
+                seconds    = 0.5,
+                shares     = dict.fromkeys(Term, 0.0) | {Term.NOVELTY: 0.125},
                 terminated = False,
                 update     = None
             )

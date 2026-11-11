@@ -8,4 +8,4 @@ A run starts from a fresh clone once the ROM sits at `data/rom.gb`, trains for t
 
 ## Every Setting Is a Flag
 
-Each setting of a run is one flag of `squirtl train`, named for the subject it belongs to and the field it sets, such as `--agent.discount` or `--reward.starter`. A setting on by default turns off as `--agent.double-q=false` does, and a pair such as `--environment.frame-shape` takes both its values in turn.
+Each setting of a run is one flag of `squirtl train`, named for the subject it belongs to and the field it sets, such as `--agent.discount` or `--reward.goal`. A setting on by default turns off as `--agent.double-q=false` does, and a pair such as `--environment.frame-shape` takes both its values in turn.

@@ -6,7 +6,7 @@ the table of settings that page carries.
 """
 
 from collections.abc import Iterator
-from cyclopts        import App, Argument
+from cyclopts        import App, Argument, default_name_transform
 from cyclopts.help   import format_doc, format_usage
 from enum            import Enum
 from functools       import reduce
@@ -214,13 +214,13 @@ def commands(app: App, chain: tuple[str, ...] = ()) -> Iterator[tuple[str, ...]]
 def spelled(value: object) -> str:
     """
     Spells a default as the flag takes it, a boolean in lowercase, an
-    enumeration by its value, a pair by its members split by a comma, and
-    `None` as `none`.
+    enumeration by the name cyclopts gives its member, a pair by its members
+    split by a comma, and `None` as `none`.
     """
     match value:
         case None    : return "none"
         case bool()  : return str(value).lower()
-        case Enum()  : return str(value.value)
+        case Enum()  : return default_name_transform(value.name)
         case tuple() : return ", ".join(map(spelled, value))
         case _       : return str(value)
 

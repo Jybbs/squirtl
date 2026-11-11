@@ -78,16 +78,20 @@ def test_the_events_follow_the_order_the_network_reads_them_in(written: dict[str
     """
     Pins that the event flags reach the site in the order `Event` declares
     them, which is the order the network reads them in, each beside its
-    index in the flag array and the term the step first setting it pays.
+    index in the flag array and the term the step first setting it pays an
+    episode ending at the default goal, `None` past it.
     """
     assert [
         (event["index"], event["name"], event["term"])
         for event in loads(written["events.json"])
     ] == [
-        (0x00, "EVENT_FOLLOWED_OAK_INTO_LAB", "milestone"),
-        (0x22, "EVENT_GOT_STARTER", "starter"),
         (0x27, "EVENT_OAK_APPEARED_IN_PALLET", "milestone"),
-        (0x21, "EVENT_OAK_ASKED_TO_CHOOSE_MON", "milestone")
+        (0x00, "EVENT_FOLLOWED_OAK_INTO_LAB", "milestone"),
+        (0x21, "EVENT_OAK_ASKED_TO_CHOOSE_MON", "milestone"),
+        (0x22, "EVENT_GOT_STARTER", "goal"),
+        (0x23, "EVENT_BATTLED_RIVAL_IN_OAKS_LAB", None),
+        (0x39, "EVENT_GOT_OAKS_PARCEL", None),
+        (0x25, "EVENT_GOT_POKEDEX", None)
     ]
 
 
@@ -138,8 +142,9 @@ def test_the_settings_leave_out_what_the_machine_chooses(written: dict[str, str]
         "device" in settings["agent"],
         "environments" in settings["evaluation"],
         settings["evaluation"]["episodes"],
-        settings["reward"]["starter"]
-    ) == (False, False, 30, 0.6)
+        settings["reward"]["goal"],
+        settings["environment"]["goal"]
+    ) == (False, False, 30, 0.35, "EVENT_GOT_STARTER")
 
 
 def test_the_symbols_reach_the_site_at_their_addresses(written: dict[str, str]):

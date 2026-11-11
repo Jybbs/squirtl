@@ -25,7 +25,7 @@ interface Bell {
 
 /**
  * One evaluation of a seed's row, its shade from 0, none of the episodes
- * reaching the starter, to 3, more than two thirds of them, and its span.
+ * reaching the goal, to 3, more than two thirds of them, and its span.
  */
 export interface Cell {
   shade : 0 | 1 | 2 | 3
@@ -163,14 +163,14 @@ export const WORDS: Readonly<Record<Against, Record<Verdict, string>>> = {
 }
 
 /**
- * The share of episodes reaching the starter each shade past the lightest
+ * The share of episodes reaching the goal each shade past the lightest
  * rises above, a cell taking the darkest shade whose edge its share clears.
  */
 export const EDGES = [0, 1 / 3, 2 / 3] as const
 
 /**
- * Reads the shade of a cell where `share` of the episodes reached the
- * starter, one shade for each of `EDGES` the share rises above.
+ * Reads the shade of a cell where `share` of the episodes reached their
+ * goal, one shade for each of `EDGES` the share rises above.
  */
 export function shadeOf(share: number): Cell['shade'] {
   return EDGES.filter(edge => share > edge).length as Cell['shade']

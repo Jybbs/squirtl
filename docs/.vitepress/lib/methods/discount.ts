@@ -113,7 +113,7 @@ export const stopOf = (discount: number): number =>
  * from the start.
  */
 export const weightOf = (discount: number, ahead: number): number =>
-  SETTINGS.reward.starter * discount ** ahead
+  SETTINGS.reward.goal * discount ** ahead
 
 /**
  * Reads the discount the half point at `stop` sets, its half life kept within
@@ -140,7 +140,7 @@ export function weighed(name: string, player: Weighed['player'], wander: number,
       if (term !== 'novelty') arrivals.push({ ahead: episode.steps, term })
     }
   }
-  const starter = arrivals.find(each => each.term === 'starter')?.ahead ?? Infinity
+  const starter = arrivals.find(each => each.term === 'goal')?.ahead ?? Infinity
   const reach   = starter === Infinity ? 'never reaching the starter' : `to the starter in ${count(starter)} steps`
   return { arrivals, name, player, starter, steps: episode.steps, told: `${name} ${reach}` }
 }

@@ -1,22 +1,37 @@
 [
   {
-    "index": 0,
-    "name": "EVENT_FOLLOWED_OAK_INTO_LAB",
+    "index": 39,
+    "name": "EVENT_OAK_APPEARED_IN_PALLET",
     "term": "milestone"
   },
   {
-    "index": 34,
-    "name": "EVENT_GOT_STARTER",
-    "term": "starter"
-  },
-  {
-    "index": 39,
-    "name": "EVENT_OAK_APPEARED_IN_PALLET",
+    "index": 0,
+    "name": "EVENT_FOLLOWED_OAK_INTO_LAB",
     "term": "milestone"
   },
   {
     "index": 33,
     "name": "EVENT_OAK_ASKED_TO_CHOOSE_MON",
     "term": "milestone"
+  },
+  {
+    "index": 34,
+    "name": "EVENT_GOT_STARTER",
+    "term": "goal"
+  },
+  {
+    "index": 35,
+    "name": "EVENT_BATTLED_RIVAL_IN_OAKS_LAB",
+    "term": null
+  },
+  {
+    "index": 57,
+    "name": "EVENT_GOT_OAKS_PARCEL",
+    "term": null
+  },
+  {
+    "index": 37,
+    "name": "EVENT_GOT_POKEDEX",
+    "term": null
   }
 ]

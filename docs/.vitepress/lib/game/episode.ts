@@ -184,7 +184,7 @@ export class Episode {
   }
 
   /**
-   * Sets `flag`, paying the term its event pays the first time, the starter's
+   * Sets `flag`, paying the term its event pays the first time, the goal's
    * flag ending the episode.
    */
   #flag(flag: Flag): Paid[] {
@@ -193,7 +193,7 @@ export class Episode {
     const term = pays[flag]
     const pay  = this.settings.pay[term]
     this.shares[term] += pay
-    if (flag === 'starter') this.terminated = true
+    if (term === 'goal') this.terminated = true
     return [{ pay, term }]
   }
 
@@ -271,7 +271,7 @@ export class Episode {
     this.place      = START.place
     this.pressed    = null
     this.script     = []
-    this.shares     = { milestone: 0, novelty: 0, starter: 0 }
+    this.shares     = { goal: 0, milestone: 0, novelty: 0 }
     this.speech     = 0
     this.steps      = 0
     this.terminated = false

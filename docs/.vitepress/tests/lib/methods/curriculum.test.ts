@@ -8,7 +8,7 @@ describe('the segments', () => {
   it('ends a segment at each press first setting a flag the reward pays, Oak’s speech falling between following him in and his asking', () => {
     expect(curriculum.SEGMENTS.map(each => [each.term, each.tag])).toStrictEqual([
       ['milestone', 'Oak stops Blue'], ['milestone', 'Blue follows Oak in'], ['milestone', 'Oak asks Blue to choose'],
-      ['starter', 'Blue takes a starter']
+      ['goal', 'Blue takes a starter']
     ])
     expect(curriculum.SEGMENTS.every(({ end }) => [...TRACE[end + 1]!.flags].some(flag => !TRACE[end]!.flags.has(flag)))).toBe(true)
   })

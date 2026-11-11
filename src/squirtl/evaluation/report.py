@@ -145,14 +145,16 @@ class Report(Record):
     def listing(self) -> str:
         """
         Lays out a table holding a row of measures for each evaluation, the
-        agent's or the `--against` run's followed by its baseline's.
+        agent's or the `--against` run's followed by its baseline's, each
+        naming the goal its episodes ended at.
         """
         return table(
-            header = ["Run", "Policy", "Step", "Episodes", *self.measures],
+            header = ["Run", "Policy", "Goal", "Step", "Episodes", *self.measures],
             rows   = (
                 [
                     f"`{name}`",
                     policy,
+                    f"`{evaluation.goal.name}`",
                     "" if evaluation.step is None else f"{evaluation.step:,}",
                     str(len(evaluation.outcomes)),
                     *map(figure, evaluation.measures.values())

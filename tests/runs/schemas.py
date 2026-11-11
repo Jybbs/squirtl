@@ -29,7 +29,8 @@ Pins the records one run reads and writes, covering:
   from the bedroom, and a log holding none, which is refused
 - The curriculum's settings refusing moves whose least passes their most and
   a required share above the completion share, and a run's settings refusing
-  a demonstration for the deep Q-network
+  a demonstration for the deep Q-network and terms summing past 1 on the way
+  to the run's goal
 - A run refusing a digest other than the one it recorded, and the listing
   naming it among other runs
 """
@@ -51,8 +52,9 @@ from syrupy.assertion  import SnapshotAssertion
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm, Measures, PolicyUpdate, Update
 from squirtl.emulator.schemas    import Record
-from squirtl.environment.schemas import Recording, Takeover
+from squirtl.environment.schemas import EnvironmentSettings, Recording, Takeover
 from squirtl.evaluation.schemas  import Evaluation
+from squirtl.reward.schemas      import Event, RewardSettings
 from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunListing, RunSettings, Start
 from squirtl.runs.schemas        import Stream
 
@@ -170,16 +172,24 @@ def test_a_revision_is_dirty_wherever_git_reports_a_change(
     assert Revision.checked_out().dirty is dirty
 
 
-def test_a_run_holding_no_episode_reaching_the_starter_gives_no_demonstration(
+def test_a_run_holding_no_episode_reaching_its_goal_gives_no_demonstration(
     episode : Episode,
     holding : Callable[[str], Run]
 ):
     """
-    Asserts that a run whose every episode truncated gives no demonstration.
+    Asserts that a run whose every episode truncated gives no demonstration,
+    naming the goal its settings name, here the Pokédex rather than the
+    default.
     """
-    run = holding(f"{episode.model_dump_json()}\n")
+    run = holding(f"{episode.model_dump_json()}\n").model_copy(
+        update = {
+            "settings": RunSettings(
+                environment = EnvironmentSettings(goal=Event.EVENT_GOT_POKEDEX)
+            )
+        }
+    )
 
-    with raises(ValueError, match="holds no episode reaching the starter"):
+    with raises(ValueError, match="holds no episode reaching EVENT_GOT_POKEDEX"):
         run.demonstration
 
 
@@ -861,6 +871,80 @@ def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
         ensure_ascii = False,
         indent       = 2
     ) == snapshot
+
+
+def test_the_settings_count_no_flag_past_the_goal_toward_the_ceiling():
+    """
+    Asserts that terms summing past 1 over every flag up to the Pokédex are
+    accepted for a run ending at the starter, whose episodes set none of the
+    flags after it.
+    """
+    reward = RewardSettings(milestone=0.15)
+
+    assert RunSettings(reward=reward).reward == reward
+
+
+@mark.parametrize(
+    ("goal", "past", "reward"),
+    [
+        param(
+            Event.EVENT_GOT_STARTER,
+            "0.21",
+            RewardSettings(goal=0.31, milestone=0.3),
+            id = "the-starter"
+        ),
+        param(
+            Event.EVENT_GOT_STARTER,
+            "2.22e-16",
+            RewardSettings(goal=0.343, milestone=0.2, novelty=0.057),
+            id = "by-the-rounding-of-a-share"
+        ),
+        param(
+            Event.EVENT_GOT_POKEDEX,
+            "0.25",
+            RewardSettings(milestone=0.15),
+            id = "the-pokedex"
+        )
+    ]
+)
+def test_the_settings_refuse_terms_one_step_could_sum_past_one_on_the_way_to_the_goal(
+    goal   : Event,
+    past   : str,
+    reward : RewardSettings
+):
+    """
+    Asserts that the settings refuse terms where a step reaching a new
+    position and first setting every flag up to the run's goal at once earns
+    past 1, naming the goal and how far past to three significant digits,
+    whether the terms sum past 1 in decimal or sum to 1 in decimal and round
+    past it once the milestone is counted three times.
+    """
+    with raises(
+        ValidationError,
+        match = f"every flag up to {goal.name} at once earns {past} more than the 1"
+    ):
+        RunSettings(environment=EnvironmentSettings(goal=goal), reward=reward)
+
+
+@mark.parametrize(
+    "reward",
+    [
+        param(
+            RewardSettings(goal=0.5, milestone=0.125, novelty=0.125),
+            id = "powers-of-two"
+        ),
+        param(RewardSettings(goal=0.68, milestone=0.07, novelty=0.11), id="decimals")
+    ]
+)
+def test_the_settings_accept_terms_one_step_sums_to_exactly_one_at_the_goal(
+    reward: RewardSettings
+):
+    """
+    Asserts that the settings accept terms where a step reaching a new
+    position and first setting every flag up to the starter at once earns
+    exactly 1, the most the bound Mnih et al. clip each reward to allows.
+    """
+    assert RunSettings(reward=reward).reward == reward
 
 
 @mark.parametrize(

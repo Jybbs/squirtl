@@ -10,7 +10,7 @@ describe('the sentences', () => {
 
   it('names each flag set with its bit and byte, and the starter ending the episode', () => {
     expect(says.textOf(says.partsOf(says.SAYS[LAST]!, false))).toBe(
-      `Step ${LAST} sets Got the starter (bit 2 of D74B), paying 0.60000, which ends the episode.`
+      `Step ${LAST} sets Got the starter (bit 2 of D74B), paying 0.35000, which ends the episode.`
     )
   })
 

@@ -70,6 +70,7 @@
     ],
     "frame_stack": 4,
     "frames_per_step": 17,
+    "goal": "EVENT_GOT_STARTER",
     "grid_size": 48,
     "max_episode_steps": 10240
   },
@@ -79,9 +80,9 @@
   },
   "evaluation_steps": 250000,
   "reward": {
+    "goal": 0.35,
     "milestone": 0.1,
-    "novelty": 0.00025,
-    "starter": 0.6
+    "novelty": 0.00025
   },
   "seed": 1,
   "steps": 2500000

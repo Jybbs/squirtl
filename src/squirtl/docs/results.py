@@ -17,18 +17,19 @@ from squirtl.agent.schemas      import Algorithm
 from squirtl.emulator.schemas   import EmulatorSettings, Record
 from squirtl.evaluation.report  import Estimate
 from squirtl.evaluation.schemas import Evaluation
+from squirtl.reward.schemas     import Event, Flag
 from squirtl.runs.schemas       import Run, RunListing
 
 
 class Score(Record):
     """
     What one evaluation measured, the share of its episodes reaching the
-    starter and their mean return, at the step of the run it read.
+    run's goal and their mean return, at the step of the run it read.
     """
 
     reached: float
     """
-    The share of the episodes reaching the starter.
+    The share of the episodes reaching the run's goal.
     """
 
     reward: float
@@ -59,6 +60,11 @@ class Trained(RunListing):
     baseline: Score
     """
     The random baseline's score under the run's evaluation seeds.
+    """
+
+    goal: Flag
+    """
+    The flag whose first setting ended the run's episodes.
     """
 
     scores: tuple[Score, ...]
@@ -104,7 +110,12 @@ class Trained(RunListing):
         if (baseline := run.baselined) is None:
             raise ValueError(f"{directory} holds no baseline")
 
-        return cls.of(run, baseline=Score.of(baseline), scores=scores)
+        return cls.of(
+            run,
+            baseline = Score.of(baseline),
+            goal     = run.settings.environment.goal,
+            scores   = scores
+        )
 
     @classmethod
     def seeded(cls, runs: Iterable[Self]) -> tuple[Self, ...]:
@@ -131,7 +142,7 @@ class Comparison(Record):
     baseline: Estimate
     """
     The interquartile mean across the runs of the baseline's share reaching
-    the starter.
+    their goal.
     """
 
     beats: Estimate
@@ -155,7 +166,7 @@ class Comparison(Record):
     reached: Estimate
     """
     The interquartile mean across the runs of the agent's share reaching
-    the starter.
+    their goal.
     """
 
     @classmethod
@@ -213,7 +224,7 @@ class Results(Record):
     random: Estimate | None
     """
     The interquartile mean across the runs' seeds of the baseline's share
-    reaching the starter, each seed once, or `None` where no run is committed.
+    reaching their goal, each seed once, or `None` where no run is committed.
     """
 
     runs: tuple[Trained, ...]
@@ -225,11 +236,17 @@ class Results(Record):
     def read(cls, folder: Path = folder) -> Self:
         """
         Reads every run directory `folder` holds, none where it is missing.
+
+        Raises:
+            ValueError: Where the runs end their episodes at more than one
+                        goal, whose shares no comparison sets side by side.
         """
         runs = tuple(
             Trained.read(directory)
             for directory in sorted(folder.iterdir() if folder.is_dir() else ())
         )
+        Event.check_shared((run.goal for run in runs), f"the runs under {folder}")
+
         baselines = {run.seed: run.baseline.reached for run in Trained.seeded(runs)}
         group     = attrgetter("agent", "curriculum")
         groups    = {

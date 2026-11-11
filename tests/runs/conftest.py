@@ -66,7 +66,7 @@ def demonstrated(clone: Path) -> Path:
             recording  = Recording(presses=bytes(13), timer_div=0),
             reward     = 0.8,
             seconds    = 1.0,
-            shares     = {Term.MILESTONE: 0.2, Term.NOVELTY: 0.0, Term.STARTER: 0.6},
+            shares     = {Term.GOAL: 0.6, Term.MILESTONE: 0.2, Term.NOVELTY: 0.0},
             terminated = True,
             update     = None
         )
@@ -88,7 +88,7 @@ def episode() -> Episode:
         recording  = Recording(presses=bytes([1, 4, 4]), timer_div=9),
         reward     = 0.125,
         seconds    = 0.5,
-        shares     = {Term.MILESTONE: 0.0, Term.NOVELTY: 0.125, Term.STARTER: 0.0},
+        shares     = {Term.GOAL: 0.0, Term.MILESTONE: 0.0, Term.NOVELTY: 0.125},
         terminated = False,
         update     = None
     )

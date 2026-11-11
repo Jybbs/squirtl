@@ -11,7 +11,7 @@ import { Key }           from '../../../../theme/components/kit/key.tsx'
  */
 const ENTRIES: readonly KeyEntry[] = [
   { hue: 'fern', label: 'The first walk', name: 'First', value: '12' },
-  { label: 'The second walk', name: 'Second', note: 'twice', role: 'starter' }
+  { label: 'The second walk', name: 'Second', note: 'twice', role: 'goal' }
 ]
 
 enableAutoUnmount(afterEach)

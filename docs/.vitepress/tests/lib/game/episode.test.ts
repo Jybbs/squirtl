@@ -182,7 +182,7 @@ describe('Episode at its end', () => {
   it('chooses the starter with A facing Squirtle’s Poké Ball, which ends the episode', () => {
     const game = placed('lab', [7, 4], 'up')
 
-    expect(game.press('a')).toStrictEqual([{ pay: PAY.starter, term: 'starter' }])
+    expect(game.press('a')).toStrictEqual([{ pay: PAY.goal, term: 'goal' }])
     expect([game.done, game.terminated, game.chosen, game.flags.has('starter')])
       .toStrictEqual([true, true, [7, 3], true])
     expect(game.press('left')).toStrictEqual([])

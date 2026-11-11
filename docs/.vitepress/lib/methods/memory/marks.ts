@@ -145,7 +145,7 @@ export const KEY = [
     role : 'novelty'
   },
   { mark: siteSvg, name: 'A milestone flag', note: 'Where the game sets a milestone’s flag, dashed until it is set and filled once it is', role: 'milestone' },
-  { mark: siteSvg, name: 'The starter flag', note: 'Where the game sets the starter’s flag, which ends the episode', role: 'starter' },
+  { mark: siteSvg, name: 'The starter flag', note: 'Where the game sets the starter’s flag, which ends the episode', role: 'goal' },
   {
     mark : '<svg viewBox="0 0 16 16"><path d="M8 -1V2M-1 8H2" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3"/><rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
     name : 'The bytes’ square',

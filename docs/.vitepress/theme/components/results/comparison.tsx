@@ -142,7 +142,7 @@ function drawFigure(drawn: Lanes, motion: Motion) {
 /**
  * The comparison of every group in one figure, a lane a group: each seed a row
  * of cells along the steps shaded in its agent's hue by its share of
- * evaluation episodes reaching the starter, hatched along the curriculum, and
+ * evaluation episodes reaching the goal, hatched along the curriculum, and
  * at the right each seed's last evaluation risen from its random share beside
  * the group's interval, with its verdicts against random presses and, along
  * the curriculum, against the bedroom. Pointing at or focusing either side

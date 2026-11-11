@@ -33,7 +33,7 @@ from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Outcome
 from squirtl.evaluation.evaluator  import Evaluator, Policy
 from squirtl.evaluation.schemas    import EvaluationSettings
-from squirtl.reward.schemas        import RewardSettings, Term
+from squirtl.reward.schemas        import Event, RewardSettings, Term
 
 
 class Tally(Env):
@@ -93,13 +93,19 @@ def value_the_last(observations: dict[str, Tensor]) -> Tensor:
 def evaluator(cartridge: Cartridge) -> Callable[..., Evaluator]:
     """
     Builds a factory of evaluators on `cartridge` on the CPU from seed 1,
-    under episodes of three steps and the evaluation settings any keyword
-    sets, playing the deep Q-network unless the call names another agent.
+    under episodes of three steps ending at the starter unless the call
+    names another goal, and the evaluation settings any keyword sets,
+    playing the deep Q-network unless the call names another agent.
     """
 
-    def build(algorithm: Algorithm = Algorithm.DQN, **settings: object) -> Evaluator:
+    def build(
+        algorithm  : Algorithm = Algorithm.DQN,
+        goal       : Event     = Event.EVENT_GOT_STARTER,
+        **settings : object
+    ) -> Evaluator:
         """
-        Starts the evaluator of `algorithm` that `settings` describe.
+        Starts the evaluator of `algorithm` toward `goal` that `settings`
+        describe.
         """
         return Evaluator(
             algorithm,
@@ -109,7 +115,7 @@ def evaluator(cartridge: Cartridge) -> Callable[..., Evaluator]:
             Overworld.specification(
                 cartridge,
                 EmulatorSettings(),
-                EnvironmentSettings(max_episode_steps=3),
+                EnvironmentSettings(goal=goal, max_episode_steps=3),
                 RewardSettings()
             )
         )
@@ -241,6 +247,28 @@ def test_a_worker_plays_on_through_an_interrupt(evaluator: Callable[..., Evaluat
         assert len(started.baseline().outcomes) == 2
 
 
+def test_an_evaluation_refuses_weights_another_agents_network_holds(
+    evaluator: Callable[..., Evaluator]
+):
+    """
+    Asserts that evaluating the deep Q-network on the weights of PPO's
+    network, whose entries differ from its own, raises a `ValueError` naming
+    the difference rather than PyTorch's `RuntimeError`.
+    """
+    with evaluator(environments=1, episodes=1) as started:
+        online = acting_network(
+            started.envs.single_action_space.n,
+            Algorithm.PPO,
+            started.envs.single_observation_space
+        ).state_dict()
+
+        with raises(
+            ValueError,
+            match = "the checkpoint's networks differ from the agent's"
+        ):
+            started.evaluate(Weights(online=online, step=9))
+
+
 @mark.filterwarnings("ignore:.*pending call to .step")
 def test_an_interrupt_partway_through_a_step_ends_each_worker(
     evaluator: Callable[..., Evaluator]
@@ -321,10 +349,11 @@ def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
 ):
     """
     Asserts that two worker processes on PyBoy play the random baseline's
-    three episodes and those of each agent, each truncated after three steps
-    on the blank cartridge, the agent's evaluation recording the step it
-    read and leaving PyTorch's global generator as it found it, and each
-    worker exiting cleanly once the evaluation closes.
+    three episodes and those of each agent, each truncated after three
+    steps on the blank cartridge and each evaluation naming the run's goal,
+    the agent's recording the step it read and leaving PyTorch's global
+    generator as it found it, and each worker exiting cleanly once the
+    evaluation closes.
     """
     with evaluator(algorithm, environments=2, episodes=3) as started:
         online = acting_network(
@@ -338,6 +367,25 @@ def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
     assert equal(get_rng_state(), state)
     assert {process.exitcode for process in started.envs.processes} == {0}
     assert [
-        (evaluation.step, [(o.length, o.terminated) for o in evaluation.outcomes])
+        (
+            evaluation.goal, evaluation.step,
+            [(o.length, o.terminated) for o in evaluation.outcomes]
+        )
         for evaluation in played
-    ] == [(None, [(3, False)] * 3), (9, [(3, False)] * 3)]
+    ] == [
+        (Event.EVENT_GOT_STARTER, None, [(3, False)] * 3),
+        (Event.EVENT_GOT_STARTER, 9, [(3, False)] * 3)
+    ]
+
+
+@mark.usefixtures("tallied")
+def test_an_evaluation_names_the_goal_its_environment_settings_name(
+    evaluator: Callable[..., Evaluator]
+):
+    """
+    Asserts that the random baseline's evaluation names the goal the
+    environment's settings name, here the Pokédex rather than the default.
+    """
+    evaluation = evaluator(episodes=1, goal=Event.EVENT_GOT_POKEDEX).baseline()
+
+    assert evaluation.goal is Event.EVENT_GOT_POKEDEX

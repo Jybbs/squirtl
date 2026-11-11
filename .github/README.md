@@ -13,7 +13,7 @@
   <a href="https://squirtl.fyi/"><img alt="Docs" src="../docs/assets/badges/docs.svg"><img alt="squirtl.fyi" src="https://img.shields.io/badge/squirtl.fyi-3d6fd0?style=for-the-badge&label="></a>
 </p>
 
-*SquiRtL* trains an agent to play Pokémon Blue from the screen alone. A deep Q-network, PQN, or PPO reads the frames the PyBoy emulator draws, presses one of the Game Boy's buttons each step, and learns from a reward read out of the game's memory, until Blue walks from his bedroom to Oak's lab and chooses his starter. **[Methods](https://squirtl.fyi/methods/)** sets out the environment, the reward, the agents, and how each is evaluated, and **[Commands](https://squirtl.fyi/commands/)** lists every command beside each setting it takes.
+*SquiRtL* trains an agent to play Pokémon Blue from the screen alone. A deep Q-network, PQN, or PPO reads the frames the PyBoy emulator draws, presses one of the Game Boy's buttons each step, and learns from a reward read out of the game's memory, until Blue walks from his bedroom to Oak's lab and chooses his starter, or reaches a later flag a run names as its goal, as far as the Pokédex. **[Methods](https://squirtl.fyi/methods/)** sets out the environment, the reward, the agents, and how each is evaluated, and **[Commands](https://squirtl.fyi/commands/)** lists every command beside each setting it takes.
 
 ## 👟 Quickstart
 
@@ -69,7 +69,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 
 ## 🎒 Results
 
-**[Results](https://squirtl.fyi/results/)** compares each agent against random presses under the same seeds, where PPO reaches the starter in every evaluation episode over 5 seeds from the bedroom and along the curriculum, PQN along the curriculum in 29% [0, 87] of them, and random presses in 21% [14, 31].
+**[Results](https://squirtl.fyi/results/)** compares each agent against random presses under the same seeds, where PPO reaches the starter in every evaluation episode over 5 seeds from the bedroom and along the curriculum, PQN and the deep Q-network in none of them, and random presses in 21% [14, 31].
 
 ## 🕹️ Attribution
 

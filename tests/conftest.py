@@ -211,7 +211,7 @@ def settings() -> RewardSettings:
     Builds reward settings paying powers of two apart from the defaults and
     from one another, so every sum a step earns is exact.
     """
-    return RewardSettings(milestone=0.125, novelty=0.0625, starter=0.5)
+    return RewardSettings(goal=0.5, milestone=0.125, novelty=0.0625)
 
 
 @fixture

@@ -929,6 +929,7 @@
     "sizes": {
       "chip-block": 6.0,
       "chip-end": 10.0,
+      "chip-quiet-block": 2.0,
       "curriculum-head": 136.0,
       "curriculum-places": 64.0,
       "curriculum-screen": 86.0,
@@ -1266,10 +1267,10 @@
   },
   "roles": {
     "agent": "denim",
+    "goal": "amethyst",
     "milestone": "heath",
     "novelty": "fern",
-    "random": "seacaller",
-    "starter": "amethyst"
+    "random": "seacaller"
   },
   "schemes": {
     "dark": {

@@ -2,7 +2,6 @@ import { type Leader, type Term, squareKey } from '../game/episode.ts'
 import { type Flag, eventFlags }             from '../game/flags.ts'
 import { Player }      from '../game/player.ts'
 import type * as rooms from '../game/rooms.ts'
-import EVENTS          from '../rendered/events.json' with { type: 'json' }
 import SYMBOLS         from '../rendered/symbols.json' with { type: 'json' }
 import { count }       from '../widgets/numbers.ts'
 
@@ -65,10 +64,8 @@ export const ROOMS: Readonly<Record<rooms.Place, string>> = {
  * Each flag the reward reads at bit `index % 8` of the byte `index // 8` past
  * `wEventFlags`, as pret/pokered's `CheckEvent` reads it.
  */
-export const FLAG_BITS: readonly FlagBit[] = eventFlags.map((each, n) => {
-  const { index } = EVENTS[n]!
-  return Object.assign({ address: ADDRESS.flags + (index >> 3), bit: index & 7 }, each)
-})
+export const FLAG_BITS: readonly FlagBit[] = eventFlags.map(each =>
+  Object.assign({ address: ADDRESS.flags + (each.index >> 3), bit: each.index & 7 }, each))
 
 /**
  * The second byte of `wEventFlags` the widget shows, which holds every flag
@@ -106,7 +103,7 @@ export function traceOf(player = new Player()): Row[] {
   const rows: Row[] = []
   const snap = (paid: readonly { pay: number, term: Term }[], scripted: boolean) => {
     const { at, chosen, facing, flags, leader, place, turned } = player.episode
-    const pay = { milestone: 0, novelty: 0, starter: 0 }
+    const pay = { goal: 0, milestone: 0, novelty: 0 }
     for (const each of paid) pay[each.term] += each.pay
     rows.push({
       at, bytes: bytesOf(place, at, flags), chosen, facing, flags: new Set(flags), leader: leader && { ...leader },

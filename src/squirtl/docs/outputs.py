@@ -12,14 +12,15 @@ from pathlib         import Path
 from pydantic        import TypeAdapter
 from typing          import Self
 
-from squirtl.docs.commands    import Command
-from squirtl.docs.regions     import Page, Region
-from squirtl.docs.results     import Results
-from squirtl.emulator.schemas import Record, Symbol
-from squirtl.identity.schemas import Identity
-from squirtl.releases.schemas import ReleaseSettings
-from squirtl.reward.schemas   import Event
-from squirtl.runs.schemas     import RunSettings
+from squirtl.docs.commands       import Command
+from squirtl.docs.regions        import Page, Region
+from squirtl.docs.results        import Results
+from squirtl.emulator.schemas    import Record, Symbol
+from squirtl.environment.schemas import EnvironmentSettings
+from squirtl.identity.schemas    import Identity
+from squirtl.releases.schemas    import ReleaseSettings
+from squirtl.reward.schemas      import Event
+from squirtl.runs.schemas        import RunSettings
 
 
 class Output(Record):
@@ -102,8 +103,9 @@ class Inventory(Record):
         Lists every file the package's declarations are written into under
         `docs/.vitepress/lib/rendered/`:
 
-        - The event flags the network reads, in their order, each beside its
-          index in the flag array and the term it pays
+        - The event flags the network reads, in the order the opening sets
+          them, each beside its index in the flag array and the term its
+          first setting pays toward the default goal, `None` past it
         - The identity's JSON
         - The `@theme` block the site's Tailwind sheet imports
         - The measured runs committed under `docs/runs/`, which the Results
@@ -122,6 +124,7 @@ class Inventory(Record):
         commands = Command.every(app)
         identity = Identity.read()
         rendered = Path("docs/.vitepress/lib/rendered")
+        terms    = EnvironmentSettings().goal.terms
         train    = next(command for command in commands if command.chain == ("train",))
 
         return cls(
@@ -129,7 +132,11 @@ class Inventory(Record):
                 Output.from_value(
                     rendered / "events.json",
                     [
-                        {"index": event.value, "name": event.name, "term": event.term}
+                        {
+                            "index" : event.value,
+                            "name"  : event.name,
+                            "term"  : terms.get(event)
+                        }
                         for event in Event
                     ]
                 ),

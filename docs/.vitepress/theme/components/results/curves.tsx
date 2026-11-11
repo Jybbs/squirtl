@@ -80,7 +80,7 @@ function drawToggle(group: results.Group, props: object, pressed: boolean) {
  * The learning curves of the groups a reader presses, any number at once on a
  * group of toggles each marked with its agent's glyph from the game, each
  * curve the interquartile mean of its runs' share of evaluation episodes
- * reaching the starter at each evaluation, beside random presses' share as a
+ * reaching the goal at each evaluation, beside random presses' share as a
  * level line. A pressed group's curve traces out along the steps and draws
  * back on release, and under the plot the figures of every group stand in a
  * fixed slot, lit while pressed. It draws nothing until a run is committed
