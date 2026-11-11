@@ -24,8 +24,10 @@ from collections.abc    import Callable, Mapping
 from common.cli         import Invoker
 from cyclopts           import App, Parameter, UnknownOptionError, UnusedCliTokensError, ValidationError
 from datetime           import UTC, datetime
+from functools          import reduce
 from importlib.metadata import EntryPoint, entry_points, version
 from inspect            import getdoc
+from operator           import getitem
 from pathlib            import Path
 from pytest             import MonkeyPatch, fixture, mark, param, raises
 from re                 import MULTILINE, findall
@@ -43,6 +45,18 @@ from squirtl.reward.schemas      import Event, RewardSettings
 from squirtl.runs.schemas        import Run, RunSettings
 
 type Reader = Callable[[list[str], str | None], RunSettings]
+
+LEVELS = [
+    param(chain, id="-".join(chain) or "the-app")
+    for chain in sorted(
+        {chain[:end] for chain in commands(app) for end in range(len(chain) + 1)}
+    )
+]
+"""
+The words naming each level of the command tree after `squirtl`, the app
+itself, each group, and each command the `App` registers, each case named
+for its words joined by hyphens.
+"""
 
 
 @fixture
@@ -259,24 +273,9 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
     assert read(argv, manifest) == settings
 
 
-@mark.parametrize(
-    "command",
-    [
-        param([],           id="the-app"),
-        param(["cite"],     id="cite"),
-        param(["evaluate"], id="evaluate"),
-        param(["fetch"],    id="fetch"),
-        param(["pack"],     id="pack"),
-        param(["search"],   id="search"),
-        param(["stop"],     id="stop"),
-        param(["train"],    id="train"),
-        param(["watch"],    id="watch"),
-        param(["write"],    id="write"),
-        param(["write", "docs"], id="write-docs")
-    ]
-)
+@mark.parametrize("command", LEVELS)
 def test_help_text(
-    command     : list[str],
+    command     : tuple[str, ...],
     invoke      : Invoker,
     monkeypatch : MonkeyPatch,
     snapshot    : SnapshotAssertion
@@ -303,16 +302,11 @@ def test_each_commands_help_is_the_docstring_of_the_function_it_runs():
     function it runs, so the summary `squirtl --help` prints for it and its
     own `--help` read that one source.
     """
-    commands = {
-        name: command
-        for group in (app, app["write"])
-        for name in group
-        if not name.startswith("-") and (command := group[name]).default_command
-    }
+    registered = [reduce(getitem, chain, app) for chain in commands(app)]
 
-    assert {name: command.help for name, command in commands.items()} == {
-        name: getdoc(command.default_command) for name, command in commands.items()
-    }
+    assert [command.help for command in registered] == [
+        getdoc(command.default_command) for command in registered
+    ]
 
 
 @mark.parametrize(
@@ -402,15 +396,7 @@ def test_the_script_runs_this_app(script: EntryPoint):
     assert script.load() is app
 
 
-@mark.parametrize(
-    "command",
-    [
-        param(path, id="-".join(path) or "the-app")
-        for path in sorted(
-            {chain[:end] for chain in commands(app) for end in range(len(chain) + 1)}
-        )
-    ]
-)
+@mark.parametrize("command", LEVELS)
 def test_version_reports_installed_package(
     command : tuple[str, ...],
     invoke  : Invoker,

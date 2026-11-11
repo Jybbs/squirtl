@@ -1,9 +1,11 @@
 """
 Pins how `Region` writes each table into a page, covering the pages it
-finds, a table written between its pair of markers in place of what the pair
-held, the tables of the addresses and the flags, and a marker left unpaired,
-and how `Page` writes the parts of a command's page around its own prose,
-covering a page not yet written and markers naming other parts.
+finds, a table written between its pair of markers in place of what the
+pair held, the tables of the addresses and the flags, and a marker left
+unpaired, how `Page` writes the parts of a command's page around its own
+prose, covering a page not yet written and markers naming other parts, and
+how `Summary` writes the README's sentence on the results, covering a README
+holding no marker.
 """
 
 from collections.abc import Callable, Mapping
@@ -12,7 +14,8 @@ from pytest          import mark, param, raises
 
 from squirtl.cli           import app
 from squirtl.docs.commands import Command
-from squirtl.docs.regions  import Page, Region, table
+from squirtl.docs.regions  import Page, Region, Summary, table
+from squirtl.docs.results  import Results
 
 STOP = Command.read(app, ("stop",))
 """
@@ -149,8 +152,10 @@ def test_an_unpaired_marker_names_its_page_and_line(text: str, line: int):
     Pins that a marker which is not an opening followed by its own closing
     fails before any table is written, naming the page and the line.
     """
-    with raises(SyntaxError, match=f"^page.md:{line}: an unpaired marker$"):
+    with raises(SyntaxError, match=r"^`page\.md` holds an unpaired marker") as raised:
         Region(path=Path("page.md"), text=text).written(TRAIN)
+
+    assert (raised.value.filename, raised.value.lineno) == ("page.md", line)
 
 
 def test_each_pair_takes_its_subjects_table_in_place_of_what_it_held():
@@ -196,31 +201,82 @@ def test_only_a_page_holding_a_marker_is_a_region(
 
 
 @mark.parametrize(
-    ("text", "names"),
+    ("text", "names", "line"),
     [
-        param("# `squirtl stop`\n", "nothing", id="no-markers"),
-        param("<!-- help -->\n<!-- /help -->\n", "help", id="settings-missing"),
+        param("# `squirtl stop`\n", "nothing", None, id="no-markers"),
+        param("x\n<!-- help -->\n<!-- /help -->\n", "help", 2, id="settings-missing"),
         param(
             "<!-- settings -->\n<!-- /settings -->\n<!-- help -->\n<!-- /help -->\n",
             "settings, help",
+            1,
             id = "out-of-order"
         ),
         param(
             "<!-- help -->\n<!-- /help -->\n<!-- help -->\n<!-- /help -->\n"
             "<!-- settings -->\n<!-- /settings -->\n",
             "help, help, settings",
+            1,
             id = "repeated"
         )
     ]
 )
-def test_a_page_whose_markers_name_other_parts_is_refused(text: str, names: str):
+def test_a_page_whose_markers_name_other_parts_is_refused(
+    line  : int | None,
+    names : str,
+    text  : str
+):
     """
     Pins that a command's page whose pairs of markers do not name the parts
     of its command in order, each once, fails before any part is written,
-    naming the page and the pairs it holds.
+    naming the page, the pairs it holds, and the line of its first marker.
     """
     with raises(
         SyntaxError,
-        match = f"^page.md: markers naming {names} where the page holds help, settings$"
-    ):
+        match = f"^`page.md` holds markers naming {names} rather than help, settings"
+    ) as raised:
         Page(path=Path("page.md"), text=text).written(STOP)
+
+    assert (raised.value.filename, raised.value.lineno) == ("page.md", line)
+
+
+@mark.parametrize(
+    "files",
+    [
+        param({}, id="missing"),
+        param({".github/README.md": "# SquiRtL\n"}, id="no-markers")
+    ]
+)
+def test_a_readme_holding_no_marker_holds_no_summary(
+    checkout : Callable[[Mapping[str, str]], None],
+    files    : Mapping[str, str]
+):
+    """
+    Pins that a checkout whose README is missing or holds no marker yields
+    no summary to write.
+    """
+    checkout(files)
+
+    assert [*Summary.found(Results.read())] == []
+
+
+def test_the_summary_links_the_results_before_its_sentence(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that the README's pair of markers holds the link to the site's
+    Results section at the package's `Homepage` before the sentence on the
+    results, whatever it held before, the prose around it kept.
+    """
+    checkout(
+        {
+            ".github/README.md":
+                "# SquiRtL\n\n<!-- results -->\nstale\n<!-- /results -->\n"
+        }
+    )
+    results   = Results.read()
+    [summary] = Summary.found(results)
+
+    assert summary.written(TRAIN) == (
+        "# SquiRtL\n\n<!-- results -->\n\n**[Results](https://squirtl.fyi/results/)** "
+        f"{results.summary}\n\n<!-- /results -->\n"
+    )

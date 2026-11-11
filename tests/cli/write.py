@@ -49,7 +49,7 @@ def test_writing_docs_over_an_unpaired_marker_exits_1_and_writes_nothing_else(
 
     assert (invocation.code, invocation.output, invocation.messages) == (
         1, "",
-        ["docs/pages/page.md:1: an unpaired marker"]
+        ["`docs/pages/page.md` holds an unpaired marker (page.md, line 1)"]
     )
     assert not (clone / "docs/.vitepress/lib/rendered/identity.json").exists()
 

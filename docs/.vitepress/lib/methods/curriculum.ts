@@ -38,8 +38,9 @@ export interface Segment {
 /**
  * What a batch shows of one segment: the start of the episode it shows, the
  * farthest back of those whose outcome matches what the batch did to the
- * window, and whether the segment was solved before the batch, after which its
- * episodes start in the bedroom.
+ * window, or of every episode where none does, as at a `required` share of
+ * zero where every one fails, and whether the segment was solved before the
+ * batch, after which its episodes start in the bedroom.
  */
 export interface Shown {
   solved : boolean
@@ -152,7 +153,8 @@ export function runOf(curriculum: Curriculum = CURRICULUM, segments: readonly Se
       if (window.latest === 0 && share >= curriculum.completion) window.solved = true
       else if (won) window.latest = Math.max(0, window.latest - Math.round(draw(curriculum.back) * curriculum.window))
       else window.latest = Math.min(segment.end, window.latest + Math.round(draw(curriculum.forward) * curriculum.window))
-      const shown = tries.filter(each => each.won === won).toSorted((left, right) => left.start - right.start)[0] ?? tries[0]!
+      const miss  = (each: { won: boolean }) => Number(each.won !== won)
+      const shown = tries.toSorted((left, right) => miss(left) - miss(right) || left.start - right.start)[0]!
       return { solved: false, start: shown.start }
     }))
   }

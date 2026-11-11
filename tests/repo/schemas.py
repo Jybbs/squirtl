@@ -444,6 +444,32 @@ def test_a_file_failing_to_parse_becomes_a_finding_on_the_line_the_parser_names(
     assert str(raised.value) == finding.message
 
 
+@mark.parametrize(
+    ("error", "file", "line"),
+    [
+        param(SyntaxError("x", ("page.md", 3, None, None)), "page.md", 3, id="named"),
+        param(SyntaxError("x"), "read.toml", None, id="naming-no-file"),
+        param(ValueError("x"), "read.toml", None, id="another-error")
+    ]
+)
+def test_reading_reports_a_syntax_error_on_the_file_it_names(
+    error : Exception,
+    file  : str,
+    line  : int | None
+):
+    """
+    Pins that an error inside `Finding.reading` is reported on the file
+    the block reads, unless it is a `SyntaxError` naming a file of its own,
+    which is reported on that file at the line it names.
+    """
+    with raises(Unreadable) as raised, Finding.reading(Path("read.toml")):
+        raise error
+
+    finding, = raised.value.args
+
+    assert (finding.file, finding.line) == (Path(file), line)
+
+
 def test_inline_metadata_refuses_two_script_blocks():
     """
     Pins that a script carrying two `script` blocks, each closed before a

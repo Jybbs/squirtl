@@ -1,1 +1,8 @@
+.vp-doc .table-scroll { overflow-x: auto; }
+
+.vp-doc table {
+  display : table;
+  width   : 100%;
+}
+
 .vp-doc td > code { white-space: nowrap; }

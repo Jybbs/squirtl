@@ -8,7 +8,8 @@ from cyclopts import Parameter
 from typing   import Annotated
 
 from squirtl.cli.logs         import listen, refusing
-from squirtl.releases.schemas import ReleaseManifest, ReleaseSettings
+from squirtl.docs.results     import ReleaseSettings
+from squirtl.releases.schemas import ReleaseManifest
 
 
 def pack(
@@ -26,9 +27,10 @@ def pack(
     Every `run.json` packed names the cartridge `data/rom.gb`, and a run
     whose files are unchanged packs into the same bytes.
 
-    Prints the folder holding the tars. A run whose directory holds no
-    record, no checkpoint, or no episodes, or a `--recommended-run` naming
-    none of the runs, exits 1.
+    Prints the folder holding the tars. A run holding a line of episodes
+    `squirtl watch` cannot read exits 1 before any tar is written, and a
+    run whose directory holds no record, no checkpoint, or no episodes, or a
+    `--recommended-run` naming none of the runs, exits 1 as well.
     """
     listen()
 

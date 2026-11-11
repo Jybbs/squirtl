@@ -4,7 +4,8 @@ a declaration in the package, which `squirtl write docs` writes between
 a pair of HTML comments named for the table: the settings one subject of
 a run reads, from the help `squirtl train` prints for each, the addresses
 `Symbol` declares, or the flags `Event` declares. `Page` holds the page of
-one command, whose markers hold the parts `Command` writes from its help.
+one command, whose markers hold the parts `Command` writes from its help,
+and `Summary` the README, whose markers hold its sentence on the results.
 """
 
 from collections.abc import Iterable, Iterator
@@ -14,6 +15,7 @@ from re              import Match, Pattern, compile
 from typing          import ClassVar, Self
 
 from squirtl.docs.commands    import Command
+from squirtl.docs.results     import Results, addresses
 from squirtl.emulator.schemas import Record, Symbol
 from squirtl.reward.schemas   import Event
 
@@ -81,7 +83,8 @@ class Region(Record):
                     continue
                 case _:
                     raise SyntaxError(
-                        f"{self.path}:{self.line(pair[-1])}: an unpaired marker"
+                        f"`{self.path}` holds an unpaired marker",
+                        (str(self.path), self.line(pair[-1]), None, None)
                     )
 
         return pairs
@@ -160,17 +163,57 @@ class Page(Region):
             SyntaxError: Where a marker is not one opening followed by its
                          closing, or where the pairs do not name the parts
                          of `command` in order, each pair once, naming the
-                         page, before anything is written.
+                         page and the line of its first marker where it
+                         holds one, before anything is written.
         """
         pairs = self.pairs()
 
         if (names := [opening[2] for opening, _ in pairs]) != list(command.parts):
             raise SyntaxError(
-                f"{self.path}: markers naming {', '.join(names) or 'nothing'} "
-                f"where the page holds {', '.join(command.parts)}"
+                f"`{self.path}` holds markers naming {', '.join(names) or 'nothing'} "
+                f"rather than {', '.join(command.parts)}",
+                (str(self.path), self.line(pairs[0][0]) if pairs else None, None, None)
             )
 
         return "".join(self.pieces(command, pairs))
+
+
+class Summary(Region):
+    """
+    The README, holding its sentence on the results between `<!-- results
+    -->` and `<!-- /results -->`, linked to the site's Results section at
+    the `Homepage` address the package metadata names.
+    """
+
+    marker: ClassVar[Pattern[str]] = compile(r"<!-- (/?)(results) -->")
+
+    results: Results
+    """
+    The runs the sentence spells.
+    """
+
+    def fill(self, command: Command, name: str) -> str:
+        """
+        Spells the sentence on `results`, after the link to the site's
+        Results section.
+        """
+        site = addresses()["Homepage"]
+
+        return f"**[Results]({site}results/)** {self.results.summary}"
+
+    @classmethod
+    def found(cls, results: Results) -> Iterator[Self]:
+        """
+        Reads the README beside the `results` its sentence spells, where it
+        holds a marker.
+        """
+        path = Path(".github/README.md")
+
+        if (
+            path.is_file()
+            and cls.marker.search(text := path.read_text(encoding="utf-8"))
+        ):
+            yield cls(path=path, results=results, text=text)
 
 
 def table(name: str, train: Command) -> str:

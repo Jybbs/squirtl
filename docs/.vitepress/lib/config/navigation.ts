@@ -17,13 +17,15 @@ export interface SiteTheme extends DefaultTheme.Config {
 }
 
 /**
- * Reads the first level-1 heading of the Markdown file at `file`, which names
- * the page in the sidebar as it names it for VitePress's own title.
+ * Reads the first level-1 heading of the Markdown file at `file` as `md` parses
+ * it, past the frontmatter and outside every code fence, which names the page
+ * in the sidebar as it names it for VitePress's own title.
  */
-function headingOf(file: string): string {
-  const heading = /^# (.+)$/mu.exec(fs.readFileSync(file, 'utf8'))?.[1]
-  if (!heading) throw new Error(`${file} opens on no level-1 heading`)
-  return heading
+function headingOf(file: string, md: MarkdownRenderer): string {
+  const tokens = md.parse(fs.readFileSync(file, 'utf8'), {})
+  const at     = tokens.findIndex(token => token.type === 'heading_open' && token.tag === 'h1')
+  if (at === -1) throw new Error(`${file} holds no level-1 heading`)
+  return tokens[at + 1]!.content
 }
 
 /**
@@ -66,7 +68,7 @@ export async function buildSidebar(
       const folder  = path.join(pages, section.folder)
       const entries = fs.globSync('*.md', { cwd: folder, exclude: ['index.md'] })
         .map(file => ({
-          label : labelOf(md, headingOf(path.join(folder, file))),
+          label : labelOf(md, headingOf(path.join(folder, file), md)),
           page  : path.basename(file, '.md')
         }))
         .toSorted((left, right) => left.label.text.localeCompare(right.label.text))

@@ -27,9 +27,10 @@ from pyboy           import PyBoy
 from pytest          import CaptureFixture, FixtureRequest, MonkeyPatch, fixture, raises
 
 from squirtl.cli              import app
+from squirtl.docs.results     import ReleaseSettings
 from squirtl.emulator         import console
 from squirtl.emulator.schemas import Cartridge
-from squirtl.releases.schemas import ReleaseManifest, ReleaseSettings
+from squirtl.releases.schemas import ReleaseManifest
 from squirtl.runs.searcher    import Searcher
 from squirtl.runs.trainer     import Trainer
 
