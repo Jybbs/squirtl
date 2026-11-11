@@ -1,20 +1,38 @@
 """
-Pins what `Inventory` writes into `docs/`, covering the files it lists,
-a file it writes only where the file has drifted from its declaration,
-the folder it makes where a file's folder is missing, and the prose of a
-command's page it keeps.
+Pins what `Inventory` writes into `docs/`, covering the files it lists, a
+file it writes only where the file has drifted from its declaration, the
+folder it makes where a file's folder is missing, the prose of a command's
+page it keeps, and the modules of `squirtl.docs` loading without the command
+line.
 """
 
 from collections.abc import Callable, Mapping
 from json            import loads
 from pathlib         import Path
-from pytest          import fixture
+from pkgutil         import iter_modules
+from pytest          import fixture, mark
+from subprocess      import check_output
+from sys             import executable
 
-from squirtl.cli              import app
-from squirtl.docs.commands    import Command
-from squirtl.docs.outputs     import Inventory, Output
+from squirtl               import docs
+from squirtl.cli           import app
+from squirtl.docs.commands import Command
+from squirtl.docs.outputs  import Inventory, Output
 from squirtl.emulator.schemas import Symbol
 from squirtl.identity.schemas import Face, Identity
+
+PROBE = (
+    "from importlib import import_module\n"
+    "from sys import argv, modules, set_lazy_imports\n"
+    "set_lazy_imports('normal')\n"
+    "import_module(argv[1])\n"
+    "print('squirtl.cli' in modules)"
+)
+"""
+The program an interpreter of its own runs, importing the module its
+argument names with every import loading eagerly, and printing whether
+`squirtl.cli` loaded with it.
+"""
 
 
 @fixture
@@ -23,7 +41,7 @@ def written() -> dict[str, str]:
     Builds the text each file the inventory lists holds once written, under
     the file's name.
     """
-    return {output.path.name: output.text for output in Inventory.read().outputs}
+    return {output.path.name: output.text for output in Inventory.read(app).outputs}
 
 
 def test_a_command_page_keeps_its_prose_once_its_help_is_written_again(
@@ -45,7 +63,7 @@ def test_a_command_page_keeps_its_prose_once_its_help_is_written_again(
     )
 
     page = next(
-        output for output in Inventory.read().outputs if output.path == stop.path
+        output for output in Inventory.read(app).outputs if output.path == stop.path
     )
 
     assert page.drifted
@@ -81,7 +99,7 @@ def test_the_inventory_lists_the_rendered_files_and_the_pages_it_writes():
     reads rather than deriving again, then each command's page under
     `docs/pages/commands/`, then each page holding a table of settings.
     """
-    outputs = {output.path.as_posix(): output for output in Inventory.read().outputs}
+    outputs = {output.path.as_posix(): output for output in Inventory.read(app).outputs}
     pages   = [path for path in outputs if path.startswith("docs/pages/")]
 
     assert [Path(path).name for path in outputs if path not in pages] == [
@@ -155,3 +173,22 @@ def test_writing_touches_only_the_files_that_drifted(
         inventory.drifted,
         missing.path.read_text(encoding="utf-8")
     ) == ((), "made\n")
+
+
+@mark.parametrize(
+    "module",
+    [
+        docs.__name__,
+        *(module.name for module in iter_modules(docs.__path__, f"{docs.__name__}."))
+    ]
+)
+def test_squirtl_docs_and_each_of_its_modules_load_without_the_command_line(
+    module: str
+):
+    """
+    Asserts that importing `squirtl.docs` or one of its modules, in an
+    interpreter of its own whose imports all load eagerly so an import of
+    the command line runs where it is written, leaves `squirtl.cli` out
+    of `sys.modules`.
+    """
+    assert check_output([executable, "-c", PROBE, module], text=True) == "False\n"

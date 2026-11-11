@@ -30,11 +30,12 @@ from pytest            import CaptureFixture, MonkeyPatch, fixture, mark, param,
 from pytest_subprocess import FakeProcess
 from textwrap          import dedent
 
+from squirtl.cli              import app
 from squirtl.docs.outputs     import Inventory
 from squirtl.emulator.schemas import Record
 from squirtl.repo.checks  import (
     Anchors, Attribution, Audit, Check, Commits, Docstrings, Footnotes, Gates,
-    Inputs, Installs, LabelCheck, Layout, Pins, Rendered, Rows, Runners, ScriptCheck,
+    Imports, Inputs, Installs, LabelCheck, Layout, Pins, Rendered, Rows, Runners, ScriptCheck,
     SiteCopies, SitePins, Subsets, Summaries, TaskCheck, Warming
 )
 from squirtl.repo.schemas import Finding, Severity, Task, TaskIssue, Tasks, Tree, Unreadable
@@ -702,6 +703,95 @@ def test_footnotes_reports_each_fault_at_its_file_and_line(
     ]
 
 
+@mark.parametrize(
+    ("module", "text", "found"),
+    [
+        param(
+            "docs/outputs.py",
+            "from squirtl.cli import app\n",
+            [(
+                1,
+                "`src/squirtl/docs/outputs.py` imports `squirtl.cli`, which sits "
+                "outside the subjects beneath `docs`"
+            )],
+            id = "a-subject-above"
+        ),
+        param(
+            "runs/loop.py",
+            "import json\nimport squirtl.repo.checks\n",
+            [(
+                2,
+                "`src/squirtl/runs/loop.py` imports `squirtl.repo.checks`, which "
+                "sits outside the subjects beneath `runs`"
+            )],
+            id = "an-import-statement"
+        ),
+        param(
+            "identity/schemas.py",
+            "from squirtl.emulator.schemas import Record\n",
+            [(
+                1,
+                "`src/squirtl/identity/schemas.py` imports `squirtl.emulator.schemas`, "
+                "which sits outside the subjects beneath `identity`"
+            )],
+            id = "a-subject-importing-none"
+        ),
+        param(
+            "cli/write.py",
+            "from squirtl.emulator.schemas import Record\n",
+            [],
+            id = "a-subject-reached-through-another"
+        ),
+        param(
+            "docs/outputs.py",
+            "from squirtl.releases.schemas import ReleaseSettings\n",
+            [],
+            id = "a-subject-imported-directly"
+        ),
+        param(
+            "cli/write.py",
+            "from squirtl.cli import app\nfrom . import logs\n",
+            [],
+            id = "its-own-subject-and-a-relative-import"
+        ),
+        param(
+            "docs/outputs.py",
+            "from squirtl.cli import (\n",
+            [
+                (
+                    1,
+                    "Reading `src/squirtl/docs/outputs.py` fails with \"'(' was never "
+                    'closed (outputs.py, line 1)"'
+                )
+            ],
+            id = "a-module-failing-to-parse"
+        )
+    ]
+)
+def test_imports_hold_each_subject_to_the_subjects_beneath_it(
+    found    : list[tuple[int, str]],
+    manifest : str,
+    module   : str,
+    scan     : Scan,
+    text     : str
+):
+    """
+    Pins that the import check reports an import from a subject the
+    importing module's subject does not reach, whether written with `from`
+    or `import`, at its line, and passes one from a subject reached directly
+    or through another, from its own subject, and a relative one, reading no
+    file of the package other than its Python.
+    """
+    path     = f"src/squirtl/{module}"
+    findings = scan(
+        Imports,
+        {"pyproject.toml": manifest, path: text},
+        Tree(files=[Path(path), Path("src/squirtl/identity/identity.toml")])
+    )
+
+    assert [(line, message) for _, line, message in findings] == found
+
+
 def test_inputs_report_an_input_the_manifest_does_not_declare(
     provision : str,
     scan      : Scan
@@ -1130,7 +1220,7 @@ def test_rendered_reports_each_file_drifted_from_its_declaration(scan: Scan):
     inventory lists as written, and reports a file edited by hand and a file
     missing, each on its own path.
     """
-    outputs = {str(output.path): output.text for output in Inventory.read().outputs}
+    outputs = {str(output.path): output.text for output in Inventory.read(app).outputs}
     edited, *kept, missing = outputs
 
     drifted = scan(
@@ -1928,7 +2018,7 @@ def test_the_audit_reports_each_unreadable_file_once(
         "docs/references.bib",
         "pyproject.toml",
         "uv.lock",
-        *(str(output.path) for output in Inventory.read().outputs)
+        *(str(output.path) for output in Inventory.read(app).outputs)
     }
     assert len(audit.findings) == len(set(audit.findings))
     assert audit.report() == 1

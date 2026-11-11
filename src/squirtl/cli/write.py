@@ -7,6 +7,7 @@ git tracks.
 
 from subprocess import SubprocessError
 
+from squirtl.cli          import app
 from squirtl.cli.logs     import listen, refusing
 from squirtl.docs.outputs import Inventory
 from squirtl.docs.schemas import Bibliography, Manuscripts
@@ -35,7 +36,7 @@ def docs():
 
     with refusing(LookupError, OSError, SubprocessError, SyntaxError, ValueError):
         manuscripts = Manuscripts.read().write(Bibliography.read())
-        inventory   = Inventory.read()
+        inventory   = Inventory.read(app)
 
     for path in (*manuscripts, *inventory.write()):
         print(path)
