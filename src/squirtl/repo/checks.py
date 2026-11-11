@@ -1130,22 +1130,27 @@ class Warming(Check):
     saves the cache under the new key.
     """
 
-    # `hashed` holds the globs `jdx/mise-action` hashes into its cache key,
-    # its `MISE_CONFIG_FILE_PATTERNS`.
+    # `hashed` holds the globs `jdx/mise-action` hashes into its cache key
+    # from the root of the checkout, its `MISE_CONFIG_FILE_PATTERNS`.
     hashed: ClassVar[tuple[str, ...]] = (
-        "**/.config/mise/config.toml", "**/.config/mise/config.lock",
-        "**/.config/mise/config.*.toml", "**/.config/mise/config.*.lock",
-        "**/.config/mise.toml", "**/.config/mise.lock",
-        "**/.config/mise.*.toml", "**/.config/mise.*.lock",
-        "**/.mise/config.toml", "**/.mise/config.lock",
-        "**/.mise/config.*.toml", "**/.mise/config.*.lock",
-        "**/mise/config.toml", "**/mise/config.lock",
-        "**/mise/config.*.toml", "**/mise/config.*.lock",
-        "**/.mise.toml", "**/.mise.lock",
-        "**/.mise.*.toml", "**/.mise.*.lock",
-        "**/mise.toml", "**/mise.lock",
-        "**/mise.*.toml", "**/mise.*.lock",
-        "**/.tool-versions"
+        ".config/mise/conf.d/*.toml", ".config/mise/conf.d/*/mise*.toml",
+        ".config/mise/config.toml", ".config/mise/config.lock",
+        ".config/mise/config.*.toml", ".config/mise/config.*.lock",
+        ".config/mise/mise.toml", ".config/mise/mise.*.toml",
+        ".config/mise/mise.lock", ".config/mise/mise.*.lock",
+        ".config/mise.toml", ".config/mise.lock",
+        ".config/mise.*.toml", ".config/mise.*.lock",
+        ".mise/conf.d/*.toml", ".mise/conf.d/*/mise*.toml",
+        ".mise/config.toml", ".mise/config.lock",
+        ".mise/config.*.toml", ".mise/config.*.lock",
+        "mise/conf.d/*.toml", "mise/conf.d/*/mise*.toml",
+        "mise/config.toml", "mise/config.lock",
+        "mise/config.*.toml", "mise/config.*.lock",
+        ".mise.toml", ".mise.lock",
+        ".mise.*.toml", ".mise.*.lock",
+        "mise.toml", "mise.lock",
+        "mise.*.toml", "mise.*.lock",
+        ".tool-versions"
     )
 
     actions   : Actions
