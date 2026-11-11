@@ -43,8 +43,8 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
         `demonstration` through it.
 
         Raises:
-            ValueError: Where `demonstration` no longer reaches the starter
-                        at its last press.
+            ValueError: Where `demonstration` no longer reaches the goal at
+                        its last press.
         """
         RecordConstructorArgs.__init__(
             self,
@@ -100,7 +100,7 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
 
         Raises:
             ValueError: Where an episode ends before the last press, or the
-                        last press does not reach the starter.
+                        last press does not reach the goal.
         """
         presses        = self.demonstration.presses
         observation, _ = self.env.reset(
@@ -127,8 +127,8 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
 
         if not terminated or len(self.states) < len(presses):
             raise ValueError(
-                f"the demonstration's {len(presses):,} presses no longer reach the "
-                f"starter at the last of them"
+                f"the demonstration's {len(presses):,} presses no longer reach "
+                f"{self.get_wrapper_attr('settings').goal.name} at the last of them"
             )
 
     def reset(
@@ -172,7 +172,7 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
         stack         = self.stacks[takeover.step]
         self.steps    = 0
         self.takeover = takeover
-        self.target   = self.get_wrapper_attr("reward").goal(
+        self.target   = self.get_wrapper_attr("reward").total(
             self.earned[self.ends[takeover.segment] + 1] - self.earned[takeover.step]
         ) - self.tolerance
 
@@ -198,7 +198,7 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
         if takeover := self.takeover:
             self.steps += 1
             earned      = self.get_wrapper_attr("progress").earned
-            succeeded   = self.get_wrapper_attr("reward").goal(earned) >= self.target
+            succeeded   = self.get_wrapper_attr("reward").total(earned) >= self.target
             truncated  |= not terminated and (succeeded or self.steps >= takeover.limit)
 
             if terminated or truncated:
@@ -277,6 +277,7 @@ class RecordOutcome(Wrapper, RecordConstructorArgs):
             progress        = self.get_wrapper_attr("progress")
             statistics      = info["episode"]
             info["outcome"] = Outcome(
+                flags      = progress.firsts,
                 length     = statistics["l"],
                 positions  = len(progress.positions),
                 reward     = statistics["r"],

@@ -38,9 +38,9 @@ function measured() {
 enableAutoUnmount(afterEach)
 
 describe('climbOf', () => {
-  it('runs the course from the floor at the first step to the starter near the top, a step at a time', () => {
-    expect([PLOT.heads[0], PLOT.heads.at(-1), PLOT.heads.length]).toStrictEqual([[48, 298], [369, 25.3], 164])
-    expect(PLOT.course).toMatch(/^M48,298H50V298H51\.9V297\.9.*H369V25\.3$/u)
+  it('runs the course from the floor at the first step to the starter two thirds of the way up, a step at a time', () => {
+    expect([PLOT.heads[0], PLOT.heads.at(-1), PLOT.heads.length]).toStrictEqual([[48, 298], [369, 99.8], 164])
+    expect(PLOT.course).toMatch(/^M48,298H50V298H51\.9V297\.9.*H369V99\.8$/u)
   })
 
   it('draws the axis with a tick at each value it labels, and a tick on the floor per new position', () => {
@@ -58,7 +58,7 @@ describe('climbOf', () => {
       [131, 'milestone', [306, 265.3], [272, 254.3], [275, 257.3]],
       [156, 'milestone', [355.2, 234.1], [321.2, 223.1], [324.2, 226.1]],
       [156, 'milestone', [355.2, 204.3], [321.2, 193.3], [324.2, 196.3]],
-      [163, 'starter', [369, 25.3], [335, 14.3], [338, 17.3]]
+      [163, 'goal', [369, 99.8], [335, 88.8], [338, 91.8]]
     ])
   })
 

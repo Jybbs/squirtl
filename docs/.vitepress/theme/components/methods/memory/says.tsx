@@ -10,9 +10,9 @@ import { LONGEST, type Role, SAYS, partsOf, pointedSay } from '../../../../lib/m
  */
 const ROLES: Readonly<Record<Role, string>> = {
   bytes     : 'font-semibold text-denim-text',
+  goal      : 'font-semibold text-amethyst-text',
   milestone : 'font-semibold text-heath-text',
   novelty   : 'font-semibold text-fern-text',
-  starter   : 'font-semibold text-amethyst-text',
   step      : 'font-bold'
 }
 

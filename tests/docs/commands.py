@@ -16,13 +16,15 @@ from enum     import StrEnum
 from pytest   import mark, param
 from typing   import Annotated
 
-from squirtl.cli           import app
-from squirtl.docs.commands import Command, spelled, unwrapped
+from squirtl.cli            import app
+from squirtl.docs.commands  import Command, spelled, unwrapped
+from squirtl.reward.schemas import Event
 
 
 class Shade(StrEnum):
     """
-    A choice a stand-in command takes, spelled by its value.
+    A choice a stand-in command takes, spelled by the name cyclopts gives
+    its member.
     """
 
     LIGHT = "light"
@@ -127,7 +129,7 @@ def test_a_paragraph_joins_its_lines_and_keeps_each_item_of_a_list():
 def test_a_stand_in_setting_spells_its_enumeration_default():
     """
     Asserts that a setting taking an enumeration tables its default by the
-    member's value.
+    name cyclopts gives the member.
     """
     stand_in = App(name="stand-in")
 
@@ -151,6 +153,7 @@ def test_a_stand_in_setting_spells_its_enumeration_default():
         param(None, "none", id="none"),
         param(True, "true", id="boolean"),
         param(Shade.LIGHT, "light", id="enumeration"),
+        param(Event.EVENT_GOT_STARTER, "event-got-starter", id="integer-enumeration"),
         param((72, 80), "72, 80", id="pair"),
         param(0.25, "0.25", id="number")
     ]
@@ -175,7 +178,7 @@ def test_a_table_holds_only_the_settings_under_its_prefix():
     )[2:]
 
     assert [row.split(" | ")[0] for row in rows] == [
-        "| `--reward.milestone`", "| `--reward.novelty`", "| `--reward.starter`"
+        "| `--reward.goal`", "| `--reward.milestone`", "| `--reward.novelty`"
     ]
 
 

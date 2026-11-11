@@ -71,9 +71,9 @@ class CurriculumSettings(Record):
 
     demonstration: Path | None = None
     """
-    The directory of the run whose shortest episode reaching the starter
-    each training episode starts along, or `None` to start every episode in
-    Blue's bedroom.
+    The directory of the run whose shortest episode reaching the goal each
+    training episode starts along, a run ending its episodes at the same
+    goal, or `None` to start every episode in Blue's bedroom.
     """
 
     forward: tuple[PositiveFloat, PositiveFloat] = (0.5, 1.0)
@@ -313,16 +313,25 @@ class RunSettings(Record):
     def verify(self) -> Self:
         """
         Refuses a demonstration for the deep Q-network, whose episodes start
-        in Blue's bedroom alone.
+        in Blue's bedroom alone, and reward settings whose ceiling at the
+        environment's goal passes 1, the bound Mnih et al. clip each reward
+        to.
 
         Raises:
-            ValueError: Where the settings name both, which Pydantic raises
-                        as a `ValidationError`.
+            ValueError: Where either holds, which Pydantic raises as a
+                        `ValidationError`.
         """
         if self.curriculum.demonstration and self.agent.algorithm is Algorithm.DQN:
             raise ValueError(
                 f"the deep Q-network starts every episode in Blue's bedroom, so it "
                 f"takes no demonstration such as {self.curriculum.demonstration}"
+            )
+
+        if (ceiling := self.reward.ceiling(goal := self.environment.goal)) > 1:
+            raise ValueError(
+                f"a step reaching a new position and every flag up to {goal.name} "
+                f"at once earns {ceiling - 1:.3g} more than the 1 Mnih et al. clip "
+                f"each reward to"
             )
 
         return self
@@ -400,7 +409,7 @@ class Run(Record):
     def demonstration(self) -> Recording:
         """
         Reads the recording of the shortest episode `episodes` holds that
-        started in Blue's bedroom and reached the starter, the first of
+        started in Blue's bedroom and reached the run's goal, the first of
         those sharing its length.
 
         Raises:
@@ -415,7 +424,8 @@ class Run(Record):
             return shortest.recording
 
         raise ValueError(
-            f"{self.episodes} holds no episode reaching the starter from the bedroom"
+            f"{self.episodes} holds no episode reaching "
+            f"{self.settings.environment.goal.name} from the bedroom"
         )
 
     @property

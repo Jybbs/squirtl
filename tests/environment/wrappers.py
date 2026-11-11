@@ -7,7 +7,7 @@ own, covering:
   of PyBoy to at each block shape, which a reshape into blocks summed
   over each block also gives
 - The `Outcome` and the `Recording` `RecordOutcome` reports at an episode's
-  last step alone, whether `TimeLimit` truncates the episode or the starter
+  last step alone, whether `TimeLimit` truncates the episode or the goal
   ends it
 - The unfinished episode `ReplayRecording` plays back at the next reset alone,
   which leaves the wrappers beneath it where the recording's last step left
@@ -139,7 +139,7 @@ def test_a_truncated_episode_reports_its_outcome_at_its_last_step_alone(recorded
         positions  = 4,
         reward     = 0.1875,
         seconds    = infos[-1]["episode"]["t"],
-        shares     = {Term.MILESTONE: 0.0, Term.NOVELTY: 0.1875, Term.STARTER: 0.0},
+        shares     = {Term.GOAL: 0.0, Term.MILESTONE: 0.0, Term.NOVELTY: 0.1875},
         terminated = False
     )
 
@@ -282,17 +282,18 @@ def test_a_segment_ends_at_a_flag_and_never_at_a_new_position_alone():
 
 @mark.parametrize(
     "presses",
-    [param(bytes(12), id="short-of-the-starter"), param(bytes(14), id="past-it")]
+    [param(bytes(12), id="short-of-the-goal"), param(bytes(14), id="past-it")]
 )
-def test_a_demonstration_not_reaching_the_starter_at_its_last_press_is_refused(
+def test_a_demonstration_not_reaching_the_goal_at_its_last_press_is_refused(
     following : Callable[..., Env],
     presses   : bytes
 ):
     """
-    Asserts that a demonstration stopping short of the starter, or holding
-    presses past the one reaching it, is refused as the wrapper plays it.
+    Asserts that a demonstration stopping short of the run's goal, or
+    holding presses past the one reaching it, is refused as the wrapper
+    plays it, naming the goal.
     """
-    with raises(ValueError, match="no longer reach the starter"):
+    with raises(ValueError, match="no longer reach EVENT_GOT_STARTER at the last"):
         following(presses)
 
 
@@ -333,7 +334,9 @@ def test_a_start_observes_the_frames_the_demonstration_stacked_there(
     stack = env.get_wrapper_attr("stacks")[6]
 
     assert_array_equal(observed[Entry.FRAMES], stack, strict=True)
-    assert observed[Entry.FLAGS].tolist() == [[0, 0, 1, 0]]
+    assert observed[Entry.FLAGS].tolist() == [
+        [int(event is Event.EVENT_OAK_APPEARED_IN_PALLET) for event in Event]
+    ]
 
     stepped, *_ = env.step(0)
 
@@ -413,20 +416,23 @@ def test_a_start_ends_once_it_succeeds_or_reaches_its_limit(
     assert info["recording"].presses == bytes(step + length)
 
 
-def test_an_episode_reaching_the_starter_reports_its_termination(
+def test_an_episode_reaching_the_goal_reports_its_termination(
     overworld : Overworld,
     recorded  : Env
 ):
     """
-    Asserts that an episode whose first step sets the starter's flag reports
-    there an outcome of one step that terminated, paying the starter alone.
+    Asserts that an episode whose first step sets its goal's flag reports
+    there an outcome of one step that terminated, paying the goal alone and
+    recording the step first setting the flag.
     """
     set_event(Event.EVENT_GOT_STARTER, overworld.game_boy.emulator.memory)
     *_, terminated, truncated, info = recorded.step(0)
+    outcome = info["outcome"]
 
-    assert (terminated, truncated, info["outcome"].length, info["outcome"].shares) == (
+    assert (terminated, truncated, outcome.length, outcome.shares, outcome.flags) == (
         True, False, 1,
-        {Term.MILESTONE: 0.0, Term.NOVELTY: 0.0, Term.STARTER: 0.5}
+        {Term.GOAL: 0.5, Term.MILESTONE: 0.0, Term.NOVELTY: 0.0},
+        {Event.EVENT_GOT_STARTER: 1}
     )
 
 

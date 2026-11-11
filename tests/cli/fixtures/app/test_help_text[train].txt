@@ -16,9 +16,9 @@ the last checkpoint and exits 130.
 Each of these exits 1 before any directory is made:                             
 
  • A --resume directory holding no run or no checkpoint                         
- • A --curriculum.demonstration directory holding no run, or no episode reaching
-   the starter from Blue's bedroom, or one whose presses no longer reach the    
-   starter on replay                                                            
+ • A --curriculum.demonstration directory holding no run, a run whose episodes  
+   end at another --environment.goal than this run's, no episode reaching that  
+   goal from Blue's bedroom, or one whose presses no longer reach it on replay  
  • A checkpoint damaged, already holding the run's steps, or differing from the 
    agent the run's settings build                                               
  • A checkpoint whose segments end at other steps than the segments of its      
@@ -41,9 +41,9 @@ Each of these exits 1 before any directory is made:
 │                               holds before overwriting the oldest, four per  │
 │                               reset observation and one per step, whose      │
 │                               default takes 606 MB for a 72 by 80 frame, a   │
-│                               48 by 48 grid, and four flags, the grid and    │
-│                               the flags packed eight cells to a byte.        │
-│                               [default: 100000]                              │
+│                               48 by 48 grid, and a flag for each member of   │
+│                               Event, the grid and the flags packed eight     │
+│                               cells to a byte. [default: 100000]             │
 │ --agent.device STR            The device every network and batch sit on,     │
 │                               which defaults to the accelerator torch        │
 │                               reports and to the CPU where it reports none.  │
@@ -200,9 +200,10 @@ Each of these exits 1 before any directory is made:
 │                               default is the completion threshold of         │
 │                               Mhammedi and Cohan's Table 8. [default: 0.95]  │
 │ --curriculum.demonstration    The directory of the run whose shortest        │
-│   PATH                        episode reaching the starter each training     │
-│                               episode starts along, or None to start every   │
-│                               episode in Blue's bedroom.                     │
+│   PATH                        episode reaching the goal each training        │
+│                               episode starts along, a run ending its         │
+│                               episodes at the same goal, or None to start    │
+│                               every episode in Blue's bedroom.               │
 │ --curriculum.forward FLOAT    The least and the most a window moves forward, │
 │   FLOAT                       each a multiple of window, between which each  │
 │                               move draws uniformly, whose default is the     │
@@ -267,6 +268,20 @@ Each of these exits 1 before any directory is made:
 │                               pressed on open ground moves the player one    │
 │                               square whichever frame the press lands on.     │
 │                               [default: 17]                                  │
+│ --environment.goal CHOICE     The flag whose first setting ends an episode,  │
+│                               each flag Event declares before it paying the  │
+│                               milestone, whose default is the starter and    │
+│                               whose farthest is the Pokédex, since Viridian  │
+│                               City turns Blue back at its north exit until   │
+│                               EVENT_GOT_POKEDEX is set, as pret/pokered's    │
+│                               scripts/ViridianCity.asm holds. [choices:      │
+│                               event-oak-appeared-in-pallet,                  │
+│                               event-followed-oak-into-lab,                   │
+│                               event-oak-asked-to-choose-mon,                 │
+│                               event-got-starter,                             │
+│                               event-battled-rival-in-oaks-lab,               │
+│                               event-got-oaks-parcel, event-got-pokedex]      │
+│                               [default: event-got-starter]                   │
 │ --environment.grid-size INT   The side in squares of the grid of reached     │
 │                               positions centered on the player, by default   │
 │                               one square per cell of the 48 by 48 crop       │
@@ -293,18 +308,17 @@ Each of these exits 1 before any directory is made:
 │                               of them, whose default is the 250,000 steps of │
 │                               each iteration Dopamine's DQN evaluates after. │
 │                               [default: 250000]                              │
-│ --reward.milestone FLOAT      The reward a step earns for each milestone on  │
-│                               the way to the starter whose flag it first     │
-│                               sets. [default: 0.1]                           │
+│ --reward.goal FLOAT           The reward the step first setting the run's    │
+│                               goal earns, which has to be the largest term.  │
+│                               [default: 0.35]                                │
+│ --reward.milestone FLOAT      The reward a step earns for each flag on the   │
+│                               way to the goal it first sets. [default: 0.1]  │
 │ --reward.novelty FLOAT        The reward a step earns for reaching a         │
 │                               position the episode has not reached before,   │
 │                               whose default is a 400th of the default        │
 │                               milestone, the ratio Pleines et al. pay one    │
 │                               new coordinate against one completed event.    │
 │                               [default: 0.00025]                             │
-│ --reward.starter FLOAT        The reward the step first setting              │
-│                               EVENT_GOT_STARTER earns, which has to be the   │
-│                               largest term. [default: 0.6]                   │
 │ --seed INT                    The seed every random draw in the run derives  │
 │                               from, whose default follows CleanRL's          │
 │                               dqn_atari.py. [default: 1]                     │

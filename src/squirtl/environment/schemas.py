@@ -19,7 +19,7 @@ from pydantic         import model_validator
 from typing           import Annotated, Self
 
 from squirtl.emulator.schemas import Record
-from squirtl.reward.schemas   import Term
+from squirtl.reward.schemas   import Event, Flag, Term
 
 type Compressed = Annotated[
     bytes,
@@ -75,6 +75,15 @@ class EnvironmentSettings(Record):
     The frames a step advances from its press, by default the fewest under
     which a direction pressed on open ground moves the player one square
     whichever frame the press lands on.
+    """
+
+    goal: Flag = Event.EVENT_GOT_STARTER
+    """
+    The flag whose first setting ends an episode, each flag `Event` declares
+    before it paying the milestone, whose default is the starter and whose
+    farthest is the Pokédex, since Viridian City turns Blue back at its
+    north exit until `EVENT_GOT_POKEDEX` is set, as pret/pokered's
+    `scripts/ViridianCity.asm` holds.
     """
 
     grid_size: PositiveInt = 48
@@ -153,8 +162,14 @@ class Outcome(Record):
 
     terminated: bool
     """
-    Whether the episode ended at the starter, where otherwise `TimeLimit`
+    Whether the episode ended at the run's goal, where otherwise `TimeLimit`
     or, along a demonstration, `FollowDemonstration` truncated it.
+    """
+
+    flags: dict[Flag, PositiveInt] = {}
+    """
+    The step of the episode first setting each flag its own steps set, by
+    the flag's name, none for an outcome recorded without them.
     """
 
 

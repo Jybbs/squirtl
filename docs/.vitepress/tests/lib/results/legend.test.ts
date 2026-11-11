@@ -17,7 +17,7 @@ describe('legendOf', () => {
     expect(legend.map(row => [row.head, row.entries.map(entry => entry.name)])).toStrictEqual([
       ['Agent', ['DQN', 'PPO', 'PQN']],
       ['Start', ['From the bedroom', 'With the curriculum']],
-      ['Share reaching the starter', ['None', 'Up to 33%', 'Up to 67%', 'Above 67%']],
+      ['Share reaching the goal', ['None', 'Up to 33%', 'Up to 67%', 'Above 67%']],
       ['Last evaluation', ['A seed, from its random share', 'Interquartile mean, 95% interval']],
       ['Random presses', ['Across every seed']],
       ['Verdict', ['Odds of the higher return, 95% interval', 'Even odds']]

@@ -18,9 +18,8 @@ from numpy.random      import default_rng
 from pytest            import approx, mark, param
 from syrupy.assertion  import SnapshotAssertion
 
-from squirtl.evaluation.report  import Estimate, Report
-from squirtl.evaluation.schemas import Evaluation
-from squirtl.reward.schemas     import Term
+from squirtl.evaluation.report import Estimate, Report
+from squirtl.reward.schemas    import Term
 
 
 def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
@@ -30,12 +29,12 @@ def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
     Asserts that a report of three runs against two prints the table of each
     run's measures, the table of each measure's interquartile mean with its
     interval and runs, and both probabilities of improvement its fixture
-    file holds, one run reaching the starter in 40 steps.
+    file holds, one run reaching its goal in 40 steps.
     """
     reached = outcome(
-        length = 40,
-        reward = 0.6025,
-        shares = dict.fromkeys(Term, 0.0) | {Term.NOVELTY: 0.0025, Term.STARTER: 0.6},
+        length     = 40,
+        reward     = 0.6025,
+        shares     = dict.fromkeys(Term, 0.0) | {Term.GOAL: 0.6, Term.NOVELTY: 0.0025},
         terminated = True
     )
     report = Report(
@@ -52,7 +51,9 @@ def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
         },
         runs = {
             "20261003T000000.000000Z": (
-                Evaluation(outcomes=[reached, outcome()], step=100),
+                played([0.0], 100).model_copy(
+                    update = {"outcomes": [reached, outcome()]}
+                ),
                 played([0.0, 0.0], None)
             ),
 
@@ -75,7 +76,7 @@ def test_a_report_naming_no_rival_runs_leaves_out_their_column_and_comparison():
     """
     Asserts that a report naming no `--against` run carries no `Against`
     column and no sentence comparing the agent with such runs, and that a
-    measure no run reaches, the steps to the starter here, spells `none`.
+    measure no run reaches, the steps to the goal here, spells `none`.
     """
     markdown = Report(
         against = {},
@@ -83,7 +84,7 @@ def test_a_report_naming_no_rival_runs_leaves_out_their_column_and_comparison():
     ).markdown(default_rng(0))
 
     assert ("Against" in markdown, "against it" in markdown) == (False, False)
-    assert "| Steps to the starter | none | none |" in markdown
+    assert "| Steps to the goal | none | none |" in markdown
 
 
 @mark.parametrize(

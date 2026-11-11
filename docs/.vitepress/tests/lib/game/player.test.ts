@@ -24,10 +24,10 @@ describe('Player', () => {
     playing.finish()
     const { chosen, flags, reached, shares, steps, total } = playing.episode
 
-    expect([steps, total, reached.size, chosen]).toStrictEqual([163, 0.915, 61, [7, 3]])
+    expect([steps, total, reached.size, chosen]).toStrictEqual([163, 0.665, 61, [7, 3]])
     expect([...flags]).toStrictEqual(['appeared', 'followed', 'asked', 'starter'])
     expect(shares)
-      .toStrictEqual({ milestone: 0.30000000000000004, novelty: 0.015000000000000012, starter: 0.6 })
+      .toStrictEqual({ goal: 0.35, milestone: 0.30000000000000004, novelty: 0.015000000000000012 })
   })
 
   it('plays the same episode again once reset', () => {

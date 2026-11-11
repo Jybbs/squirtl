@@ -31,6 +31,7 @@ from collections.abc     import Callable, Iterator
 from common.agents       import each_agent
 from contextlib          import ExitStack
 from copy                import deepcopy
+from gymnasium.spaces    import Dict, MultiBinary
 from math                import exp, log
 from numpy               import float32, ndarray
 from pathlib             import Path
@@ -49,8 +50,9 @@ from squirtl.agent.checkpoint    import RolloutCheckpoint
 from squirtl.agent.learner       import DQN, RolloutAgent
 from squirtl.agent.networks      import ActorCritic, QNetwork
 from squirtl.agent.rollout       import Rollout
-from squirtl.agent.schemas       import Algorithm, Measures, PolicyUpdate, Update
+from squirtl.agent.schemas       import AgentSettings, Algorithm, Measures, PolicyUpdate, Update
 from squirtl.environment.schemas import Entry
+from squirtl.reward.schemas      import Event
 
 
 @fixture
@@ -290,6 +292,27 @@ def test_a_random_action_reaches_every_action_the_network_values(
 
     assert first == second
     assert set(first) == set(range(7))
+
+
+def test_a_restore_refuses_a_checkpoint_reading_fewer_flags(
+    build : Callable[..., DQN],
+    space : Dict
+):
+    """
+    Asserts that a checkpoint of a network reading four flags, as one
+    written before `Event` declared the flags past the starter, is refused
+    by an agent reading a flag for each member `Event` declares.
+    """
+    agent = DQN(
+        actions  = 7,
+        seed     = 1,
+        settings = AgentSettings(device="cpu"),
+        space    = Dict({**space.spaces, Entry.FLAGS: MultiBinary((1, len(Event)))}),
+        steps    = 1000
+    )
+
+    with raises(ValueError, match="the checkpoint's networks differ from the agent's"):
+        agent.restore(build().checkpoint)
 
 
 def test_a_restore_refuses_networks_of_another_shape(build: Callable[..., DQN]):

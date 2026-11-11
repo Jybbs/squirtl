@@ -40,7 +40,7 @@ def test_a_benchmark_plays_the_evaluations_its_run_lacks_and_reads_those_it_hold
             emulator    = EmulatorSettings(cartridge=Path("rom.gb")),
             environment = EnvironmentSettings(max_episode_steps=6),
             evaluation  = EvaluationSettings(episodes=2),
-            reward      = RewardSettings(milestone=0.05, starter=0.7),
+            reward      = RewardSettings(goal=0.7, milestone=0.05),
             seed        = 7
         ),
         datetime(2026, 10, 4, tzinfo=UTC)

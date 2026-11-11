@@ -258,7 +258,7 @@ def test_a_step_returns_its_score_and_never_truncates(
 ):
     """
     Asserts that a step returns the gray frame it ends on, the reward
-    its score totals, whether it found the starter, no truncation, which
+    its score totals, whether it reached the goal, no truncation, which
     `TimeLimit` reports, and each term's share as its info dict.
     """
     overworld.reset(seed=0)
@@ -267,7 +267,10 @@ def test_a_step_returns_its_score_and_never_truncates(
 
     assert_array_equal(frame, overworld.game_boy.grayscale, strict=True)
     assert (earned, ended, truncated) == (reward, terminated, False)
-    assert info == {term: reward if term is event.term else 0.0 for term in Term}
+    assert info == {
+        term: reward if term is Event.EVENT_GOT_STARTER.terms[event] else 0.0
+        for term in Term
+    }
 
 
 def test_the_action_space_offers_no_press_and_each_button(overworld: Overworld):
@@ -297,12 +300,20 @@ def test_the_environment_imports_nothing_from_the_agent():
     [
         param(
             {},
-            {Entry.FLAGS: (1, 4), Entry.FRAMES: (4, 72, 80), Entry.GRID: (1, 48, 48)},
+            {
+                Entry.FLAGS  : (1, len(Event)),
+                Entry.FRAMES : (4, 72, 80),
+                Entry.GRID   : (1, 48, 48)
+            },
             id = "the-defaults"
         ),
         param(
             {"frame_stack": 2, "grid_size": 9, "frame_shape": (36, 40)},
-            {Entry.FLAGS: (1, 4), Entry.FRAMES: (2, 36, 40), Entry.GRID: (1, 9, 9)},
+            {
+                Entry.FLAGS  : (1, len(Event)),
+                Entry.FRAMES : (2, 36, 40),
+                Entry.GRID   : (1, 9, 9)
+            },
             id = "other-shapes"
         )
     ]
@@ -498,7 +509,7 @@ def test_playing_a_recording_reaches_the_return_its_episode_earned(
 @mark.parametrize(
     "settings",
     [param(
-        RewardSettings(milestone=0.125, novelty=0.1, starter=0.5),
+        RewardSettings(goal=0.5, milestone=0.125, novelty=0.1),
         id = "a-tenth-a-square"
     )]
 )

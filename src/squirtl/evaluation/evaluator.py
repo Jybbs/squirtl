@@ -103,7 +103,7 @@ class Evaluator(AbstractContextManager):
         """
         Starts the environments `specification` describes, which reset
         an episode only when `play` asks, so the evaluation chooses each
-        episode's seed.
+        episode's seed, and reads the goal its environment settings name.
 
         Args:
             algorithm : The agent whose network each evaluation builds.
@@ -123,6 +123,7 @@ class Evaluator(AbstractContextManager):
             },
             vectorization_mode = "async"
         )
+        self.goal     = specification.kwargs["environment"].goal
         self.seed     = seed
         self.settings = settings
 
@@ -132,6 +133,7 @@ class Evaluator(AbstractContextManager):
         seeded action space.
         """
         return Evaluation(
+            goal     = self.goal,
             outcomes = self.play(Policy()),
             step     = None
         )
@@ -155,6 +157,7 @@ class Evaluator(AbstractContextManager):
         network.load_state_dict(weights.online)
 
         return Evaluation(
+            goal     = self.goal,
             outcomes = self.play(
                 Policy(
                     device  = self.device,

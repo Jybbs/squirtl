@@ -106,7 +106,7 @@ function segmentsOf(trace: readonly Row[] = TRACE): Segment[] {
   return trace.flatMap((row, n) => {
     const fresh = [...row.flags].filter(flag => !seen.has(flag))
     for (const flag of fresh) seen.add(flag)
-    return fresh.length > 0 ? [{ end: n - 1, tag: TAGS[fresh.at(-1)!], term: fresh.includes('starter') ? 'starter' : 'milestone' }] : []
+    return fresh.length > 0 ? [{ end: n - 1, tag: TAGS[fresh.at(-1)!], term: fresh.includes('starter') ? 'goal' : 'milestone' }] : []
   })
 }
 

@@ -33,8 +33,9 @@ Pins the training loop of one run on the CPU, covering:
   taking in each episode at its length, its segment, and its success, the
   windows moving back, the steps counting the agent's own presses alone,
   each line playing back to its return, a resume ending as a run that never
-  stopped, and a demonstration, or a resume whose checkpoint's segments
-  end elsewhere, refused before any directory is made
+  stopped, and a demonstration ending at another goal or reaching none, or
+  a resume whose checkpoint's segments end elsewhere, refused before any
+  directory is made
 """
 
 from collections.abc   import Callable
@@ -251,6 +252,47 @@ def test_a_checkpoint_and_an_evaluation_land_where_an_update_reaches_each_interv
     assert evaluators[0].arguments[0] is Algorithm.PQN
 
 
+def test_a_demonstration_ending_at_another_goal_is_refused_before_any_directory(
+    demonstrated : Path,
+    rolling      : Callable[..., Trainer],
+    timed        : Cartridge
+):
+    """
+    Asserts that a run ending its episodes at the Pokédex along a run ending
+    them at the starter is refused before it makes a directory of its own,
+    naming both goals.
+    """
+    with raises(
+        ValueError,
+        match = "at EVENT_GOT_STARTER, where this run ends them at EVENT_GOT_POKEDEX"
+    ):
+        rolling(
+            Algorithm.PPO,
+            cartridge   = timed,
+            curriculum  = CurriculumSettings(demonstration=demonstrated),
+            environment = EnvironmentSettings(goal=Event.EVENT_GOT_POKEDEX)
+        )
+
+    assert [path.name for path in demonstrated.parent.iterdir()] == [demonstrated.name]
+
+
+@mark.parametrize(
+    "number",
+    [param(SIGINT, id="an-interrupt"), param(SIGTERM, id="a-termination-signal")]
+)
+def test_a_signal_ends_the_run_at_the_end_of_its_episode(
+    number  : int,
+    trainer : Callable[..., Trainer]
+):
+    """
+    Asserts that an interrupt or a termination signal on step 3 ends the run
+    at the end of its first episode, on step 6, with a checkpoint there.
+    """
+    run = finish(trainer(), lambda step, _: step == 3 and raise_signal(number))
+
+    assert ReplayCheckpoint.from_path(run.checkpoint).step == 6
+
+
 def test_a_resume_copies_the_evaluations_up_to_its_checkpoint_and_the_baseline(
     evaluators : list[EvaluatorStandIn],
     trainer    : Callable[..., Trainer]
@@ -278,23 +320,6 @@ def test_a_resume_copies_the_evaluations_up_to_its_checkpoint_and_the_baseline(
     ]
 
 
-@mark.parametrize(
-    "number",
-    [param(SIGINT, id="an-interrupt"), param(SIGTERM, id="a-termination-signal")]
-)
-def test_a_signal_ends_the_run_at_the_end_of_its_episode(
-    number  : int,
-    trainer : Callable[..., Trainer]
-):
-    """
-    Asserts that an interrupt or a termination signal on step 3 ends the run
-    at the end of its first episode, on step 6, with a checkpoint there.
-    """
-    run = finish(trainer(), lambda step, _: step == 3 and raise_signal(number))
-
-    assert ReplayCheckpoint.from_path(run.checkpoint).step == 6
-
-
 def test_a_resume_drops_the_lines_past_the_checkpoint_it_continues_from(
     trainer: Callable[..., Trainer]
 ):
@@ -315,6 +340,26 @@ def test_a_resume_drops_the_lines_past_the_checkpoint_it_continues_from(
         2,
         "".join(lines[:2])
     )
+
+
+@mark.parametrize(
+    "steps",
+    [param(20, id="two-steps-cut-off"), param(18, id="ending-as-the-third-ends")]
+)
+def test_each_finished_episode_writes_a_line_and_the_cut_one_none(
+    steps   : int,
+    trainer : Callable[..., Trainer]
+):
+    """
+    Asserts that a run of 6-step episodes writes a line for each of the
+    three its time limit truncated, each holding its six presses, whether
+    its end cuts two steps of a fourth off or lands on the third's last
+    step.
+    """
+    assert [
+        (episode.length, episode.terminated, len(episode.recording.presses))
+        for episode in finish(trainer(steps=steps)).recorded
+    ] == [(6, False, 6)] * 3
 
 
 def test_a_resume_whose_demonstration_ends_elsewhere_is_refused_before_any_directory(
@@ -368,26 +413,6 @@ def test_a_resume_whose_demonstration_ends_elsewhere_is_refused_before_any_direc
     assert sorted(stopped.directory.parent.iterdir()) == runs
 
 
-@mark.parametrize(
-    "steps",
-    [param(20, id="two-steps-cut-off"), param(18, id="ending-as-the-third-ends")]
-)
-def test_each_finished_episode_writes_a_line_and_the_cut_one_none(
-    steps   : int,
-    trainer : Callable[..., Trainer]
-):
-    """
-    Asserts that a run of 6-step episodes writes a line for each of the
-    three its time limit truncated, each holding its six presses, whether
-    its end cuts two steps of a fourth off or lands on the third's last
-    step.
-    """
-    assert [
-        (episode.length, episode.terminated, len(episode.recording.presses))
-        for episode in finish(trainer(steps=steps)).recorded
-    ] == [(6, False, 6)] * 3
-
-
 def test_a_resumed_run_writes_its_checkpoints_where_a_run_that_never_stopped_does(
     monkeypatch : MonkeyPatch,
     trainer     : Callable[..., Trainer]
@@ -407,20 +432,6 @@ def test_a_resumed_run_writes_its_checkpoints_where_a_run_that_never_stopped_doe
     finish(resumed)
 
     assert steps == [[12, 20], [12], [20]]
-
-
-def test_a_rollout_run_ending_unraised_lets_each_worker_close_its_environment(
-    rolling: Callable[..., Trainer]
-):
-    """
-    Asserts that a run ending with nothing raised closes the environments
-    through their workers, each of which exits 0 rather than being
-    terminated.
-    """
-    with rolling(Algorithm.PQN, steps=8) as trainer:
-        list(trainer)
-
-    assert {process.exitcode for process in trainer.env.unwrapped.processes} == {0}
 
 
 @mark.parametrize(
@@ -448,6 +459,20 @@ def test_a_rollout_takes_the_steps_of_the_settings_of_its_own_agent(
         assert run.tally.counts.tolist() == [1, 1]
 
 
+def test_a_rollout_run_ending_unraised_lets_each_worker_close_its_environment(
+    rolling: Callable[..., Trainer]
+):
+    """
+    Asserts that a run ending with nothing raised closes the environments
+    through their workers, each of which exits 0 rather than being
+    terminated.
+    """
+    with rolling(Algorithm.PQN, steps=8) as trainer:
+        list(trainer)
+
+    assert {process.exitcode for process in trainer.env.unwrapped.processes} == {0}
+
+
 def test_a_rollout_run_goes_on_to_the_end_of_the_rollout_reaching_its_steps(
     rolling: Callable[..., Trainer]
 ):
@@ -458,25 +483,6 @@ def test_a_rollout_run_goes_on_to_the_end_of_the_rollout_reaching_its_steps(
     run = finish(rolling(Algorithm.PQN, steps=9))
 
     assert VectorCheckpoint.from_path(run.checkpoint).step == 16
-
-
-def test_a_rollout_run_makes_the_environments_its_settings_name(
-    rolling: Callable[..., Trainer]
-):
-    """
-    Asserts that a run of PQN or PPO makes as many environments as
-    its settings count, at most `max_concurrency` of them stepping at
-    once, each reporting an episode's final observation on its last
-    step, and normalizes rewards at the run's discount rather than at
-    `NormalizeReward`'s own.
-    """
-    with rolling(Algorithm.PPO, agent={"discount": 0.9, "max_concurrency": 1}) as run:
-        vector = run.env.unwrapped
-
-        assert (
-            run.env.gamma, vector.autoreset_mode,
-            vector.max_concurrency, vector.num_envs
-        ) == (0.9, AutoresetMode.SAME_STEP, 1, 2)
 
 
 @mark.parametrize(
@@ -504,24 +510,44 @@ def test_an_evaluation_lands_at_the_first_episode_end_reaching_each_interval(
 
 
 @mark.usefixtures("evaluators")
-def test_an_evaluation_logs_how_often_each_policy_reached_the_starter(
+def test_an_evaluation_logs_how_often_each_policy_reached_the_goal(
     logged  : list[str],
     trainer : Callable[..., Trainer]
 ):
     """
     Asserts that an evaluation at step 12 logs its start, then the share
     of episodes in which the agent and the random baseline each reached
-    the starter beside each one's mean return, from the stand-in's agent
-    reaching the starter for a return of 0.012 and its baseline reaching it
-    in no episode for 0.125.
+    the run's goal, naming it, beside each one's mean return, from the
+    stand-in's agent reaching it for a return of 0.012 and its baseline
+    reaching it in no episode for 0.125.
     """
     finish(trainer(evaluation_steps=10))
 
     assert {
-        "At step 12, the agent reached the starter in 100% of its evaluation episodes "
-        "for a mean return of 0.0120, and the random baseline in 0% for 0.1250",
+        "At step 12, the agent reached EVENT_GOT_STARTER in 100% of its evaluation "
+        "episodes for a mean return of 0.0120, and the random baseline in 0% for "
+        "0.1250",
         "Evaluating the agent at step 12"
     } <= set(logged)
+
+
+def test_a_rollout_run_makes_the_environments_its_settings_name(
+    rolling: Callable[..., Trainer]
+):
+    """
+    Asserts that a run of PQN or PPO makes as many environments as
+    its settings count, at most `max_concurrency` of them stepping at
+    once, each reporting an episode's final observation on its last
+    step, and normalizes rewards at the run's discount rather than at
+    `NormalizeReward`'s own.
+    """
+    with rolling(Algorithm.PPO, agent={"discount": 0.9, "max_concurrency": 1}) as run:
+        vector = run.env.unwrapped
+
+        assert (
+            run.env.gamma, vector.autoreset_mode,
+            vector.max_concurrency, vector.num_envs
+        ) == (0.9, AutoresetMode.SAME_STEP, 1, 2)
 
 
 def test_a_rollout_run_of_one_environment_writes_a_line_for_each_episode(
@@ -561,41 +587,6 @@ def test_a_rollout_run_resuming_a_checkpoint_of_another_agent_is_refused(
                 update = {"settings": stopped.settings.model_copy(update={"steps": 32})}
             )
         )
-
-
-def test_a_run_remembers_the_value_of_a_final_observation_at_the_step_truncating_it(
-    monkeypatch : MonkeyPatch,
-    rolling     : Callable[..., Trainer]
-):
-    """
-    Asserts that a run passes the agent 0 and no ending on every step but
-    the sixth, which truncates both environments' episodes, terminates
-    neither, and carries the value of each one's final observation.
-    """
-    trainer  = rolling(Algorithm.PQN, steps=16)
-    remember = trainer.agent.remember
-    seen     = []
-    monkeypatch.setattr(
-        trainer.agent,
-        "remember",
-        lambda bootstraps, rewards, terminated, truncated: seen.append(
-            (bootstraps.tolist(), terminated.tolist(), truncated.tolist())
-        ) or remember(bootstraps, rewards, terminated, truncated)
-    )
-    monkeypatch.setattr(
-        trainer.agent,
-        "value",
-        lambda observations: full(len(observations["frames"]), 7.0)
-    )
-    finish(trainer)
-
-    idle = [0.0, 0.0], [False, False], [False, False]
-
-    assert seen == [idle] * 5 + [(
-        [7.0, 7.0],
-        [False, False],
-        [True, True]
-    )] + [idle] * 2
 
 
 @mark.filterwarnings("ignore:.*pending call to .step")
@@ -650,39 +641,39 @@ def test_the_settings_start_the_training_loop_of_the_agent_they_name(
     assert type(Trainer.start(cartridge, settings, datetime.now(UTC))) is kind
 
 
-def test_a_run_stopped_halfway_and_resumed_ends_as_a_run_that_never_stopped(
-    trainer: Callable[..., Trainer]
+def test_a_run_remembers_the_value_of_a_final_observation_at_the_step_truncating_it(
+    monkeypatch : MonkeyPatch,
+    rolling     : Callable[..., Trainer]
 ):
     """
-    Asserts that a run stopped at the end of its episode on step 12 and
-    resumed to step 20 ends with the networks, Adam's state, replay memory,
-    and generators of the same run taken through in one go, and records the
-    same episodes, every `timer_div` and press included, apart from the wall
-    time each took.
+    Asserts that a run passes the agent 0 and no ending on every step but
+    the sixth, which truncates both environments' episodes, terminates
+    neither, and carries the value of each one's final observation.
     """
-    unbroken = finish(trainer())
-    resumed  = trainer(resumes=finish(trainer(), stop_at_eight))
-    finish(resumed)
+    trainer  = rolling(Algorithm.PQN, steps=16)
+    remember = trainer.agent.remember
+    seen     = []
+    monkeypatch.setattr(
+        trainer.agent,
+        "remember",
+        lambda bootstraps, rewards, terminated, truncated: seen.append(
+            (bootstraps.tolist(), terminated.tolist(), truncated.tolist())
+        ) or remember(bootstraps, rewards, terminated, truncated)
+    )
+    monkeypatch.setattr(
+        trainer.agent,
+        "value",
+        lambda observations: full(len(observations["frames"]), 7.0)
+    )
+    finish(trainer)
 
-    first, second = (
-        ReplayCheckpoint.from_path(run.checkpoint) for run in (unbroken, resumed.run)
-    )
+    idle = [0.0, 0.0], [False, False], [False, False]
 
-    assert_close(
-        [first.online, first.target, first.optimizer, first.replay],
-        [second.online, second.target, second.optimizer, second.replay],
-        atol = 0,
-        rtol = 0
-    )
-    assert (first.exploration, first.sampling, first.step) == (
-        second.exploration, second.sampling, second.step
-    )
-    unbroken_lines, resumed_lines = (
-        [episode.model_dump(exclude={"seconds"}) for episode in run.recorded]
-        for run in (unbroken, resumed.run)
-    )
-
-    assert unbroken_lines == resumed_lines
+    assert seen == [idle] * 5 + [(
+        [7.0, 7.0],
+        [False, False],
+        [True, True]
+    )] + [idle] * 2
 
 
 @each_agent
@@ -737,18 +728,39 @@ def test_an_episodes_line_averages_the_updates_taken_while_it_played(
     assert [line.update and line.update.loss for line in lines[::2]] == means
 
 
-def test_a_second_interrupt_ends_the_run_at_once(trainer: Callable[..., Trainer]):
+def test_a_run_stopped_halfway_and_resumed_ends_as_a_run_that_never_stopped(
+    trainer: Callable[..., Trainer]
+):
     """
-    Asserts that a second interrupt raises `KeyboardInterrupt` on the step
-    it lands on, ending the run before its first episode ends and writing
-    no checkpoint.
+    Asserts that a run stopped at the end of its episode on step 12 and
+    resumed to step 20 ends with the networks, Adam's state, replay memory,
+    and generators of the same run taken through in one go, and records the
+    same episodes, every `timer_div` and press included, apart from the wall
+    time each took.
     """
-    built = trainer()
+    unbroken = finish(trainer())
+    resumed  = trainer(resumes=finish(trainer(), stop_at_eight))
+    finish(resumed)
 
-    with raises(KeyboardInterrupt):
-        finish(built, lambda *_: raise_signal(SIGINT))
+    first, second = (
+        ReplayCheckpoint.from_path(run.checkpoint) for run in (unbroken, resumed.run)
+    )
 
-    assert (built.agent.step, built.run.checkpoint.exists()) == (2, False)
+    assert_close(
+        [first.online, first.target, first.optimizer, first.replay],
+        [second.online, second.target, second.optimizer, second.replay],
+        atol = 0,
+        rtol = 0
+    )
+    assert (first.exploration, first.sampling, first.step) == (
+        second.exploration, second.sampling, second.step
+    )
+    unbroken_lines, resumed_lines = (
+        [episode.model_dump(exclude={"seconds"}) for episode in run.recorded]
+        for run in (unbroken, resumed.run)
+    )
+
+    assert unbroken_lines == resumed_lines
 
 
 @mark.parametrize(
@@ -795,22 +807,18 @@ def test_a_step_values_the_final_observation_of_each_episode_it_truncated(
     ).tolist() == values
 
 
-def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
-    logged  : list[str],
-    trainer : Callable[..., Trainer]
-):
+def test_a_second_interrupt_ends_the_run_at_once(trainer: Callable[..., Trainer]):
     """
-    Asserts that a `stop` file written on step 8 ends the run at the end of
-    its episode on step 12, with that episode's line and a checkpoint there,
-    and logs the file it found.
+    Asserts that a second interrupt raises `KeyboardInterrupt` on the step
+    it lands on, ending the run before its first episode ends and writing
+    no checkpoint.
     """
-    run = finish(trainer(), stop_at_eight)
+    built = trainer()
 
-    assert (
-        len(list(run.recorded)),
-        ReplayCheckpoint.from_path(run.checkpoint).step
-    ) == (2, 12)
-    assert f"Stopping at step 12 after 2 episodes on finding {run.stop}" in logged
+    with raises(KeyboardInterrupt):
+        finish(built, lambda *_: raise_signal(SIGINT))
+
+    assert (built.agent.step, built.run.checkpoint.exists()) == (2, False)
 
 
 @mark.parametrize(
@@ -856,23 +864,22 @@ def test_a_stop_within_a_rollout_ends_the_run_once_its_update_ends(
     assert any(line.startswith(message) for line in logged)
 
 
-def test_a_tally_averages_each_environments_updates_until_its_episode_ends():
+def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
+    logged  : list[str],
+    trainer : Callable[..., Trainer]
+):
     """
-    Asserts that a tally reads the mean of each measure of the updates added
-    since the environment's last episode ended, and `None` where none was,
-    each environment on its own count.
+    Asserts that a `stop` file written on step 8 ends the run at the end of
+    its episode on step 12, with that episode's line and a checkpoint there,
+    and logs the file it found.
     """
-    tally = Tally(2, Update)
-    tally.add(Update(loss=1.0, value=2.0))
-    tally.add(Update(loss=3.0, value=4.0))
+    run = finish(trainer(), stop_at_eight)
 
-    assert tally.take(0) == Update(loss=2.0, value=3.0)
-    assert tally.take(0) is None
-
-    tally.add(Update(loss=8.0, value=9.0))
-
-    assert tally.take(0) == Update(loss=8.0, value=9.0)
-    assert tally.take(1) == Update(loss=4.0, value=5.0)
+    assert (
+        len(list(run.recorded)),
+        ReplayCheckpoint.from_path(run.checkpoint).step
+    ) == (2, 12)
+    assert f"Stopping at step 12 after 2 episodes on finding {run.stop}" in logged
 
 
 @each_agent
@@ -968,6 +975,25 @@ def test_a_rollout_run_stopped_before_its_first_step_resumes_as_one_never_stoppe
     )
 
 
+def test_a_tally_averages_each_environments_updates_until_its_episode_ends():
+    """
+    Asserts that a tally reads the mean of each measure of the updates added
+    since the environment's last episode ended, and `None` where none was,
+    each environment on its own count.
+    """
+    tally = Tally(2, Update)
+    tally.add(Update(loss=1.0, value=2.0))
+    tally.add(Update(loss=3.0, value=4.0))
+
+    assert tally.take(0) == Update(loss=2.0, value=3.0)
+    assert tally.take(0) is None
+
+    tally.add(Update(loss=8.0, value=9.0))
+
+    assert tally.take(0) == Update(loss=8.0, value=9.0)
+    assert tally.take(1) == Update(loss=4.0, value=5.0)
+
+
 def test_a_vector_checkpoint_of_a_recording_of_no_presses_reads_back(tmp_path: Path):
     """
     Asserts that a slot whose recording holds no presses reads back as
@@ -998,14 +1024,13 @@ def test_a_vector_checkpoint_reads_back_as_written(tmp_path: Path):
     assert read.online["weight"].tolist() == [1.0, 2.0]
 
 
-def test_an_episode_reaching_the_starter_writes_a_terminated_line(
+def test_an_episode_reaching_the_goal_writes_a_terminated_line(
     trainer: Callable[..., Trainer]
 ):
     """
-    Asserts that an episode whose step sets the starter's flag ends there,
-    its line recording its three steps, its termination, and the starter's
-    pay, and that the next episode starts afresh from the state the reset
-    loads.
+    Asserts that an episode whose step sets its goal's flag ends there, its
+    line recording its three steps, its termination, and the goal's pay, and
+    that the next episode starts afresh from the state the reset loads.
     """
     run = finish(
         trainer = trainer(),
@@ -1022,7 +1047,7 @@ def test_an_episode_reaching_the_starter_writes_a_terminated_line(
         (6, False),
         (6, False)
     ]
-    assert recorded[0].shares[Term.STARTER] == RewardSettings().starter
+    assert recorded[0].shares[Term.GOAL] == RewardSettings().goal
 
 
 def test_an_episodes_line_averages_the_updates_its_steps_took(
@@ -1037,6 +1062,24 @@ def test_an_episodes_line_averages_the_updates_its_steps_took(
     assert [
         episode.update is None for episode in finish(trainer()).recorded
     ] == [True, False, False]
+
+
+@mark.parametrize(
+    ("last", "steps"),
+    [param(8, 1, id="within-the-first-rollout"), param(16, 10, id="within-the-second")]
+)
+def test_a_run_whose_steps_fall_within_a_rollout_plays_that_rollout_out(
+    last    : int,
+    rolling : Callable[..., Trainer],
+    steps   : int
+):
+    """
+    Asserts that a run ends on the last step of the rollout its `steps` fall
+    within, since every update reads a full rollout.
+    """
+    run = finish(rolling(Algorithm.PQN, steps=steps))
+
+    assert VectorCheckpoint.from_path(run.checkpoint).step == last
 
 
 def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
@@ -1089,7 +1132,7 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
         for episode in finish(built, move_then_choose).recorded
     ] == [
         (
-            approx(reward.novelty + reward.starter),
+            approx(reward.novelty + reward.goal),
             2,
             approx(0.85),
             Update(loss=2.0, value=-2.0)
@@ -1101,28 +1144,10 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
         message.partition(": ")[2]
         for message in logged if message.startswith("Episode ")
     ] == [
-        "return 0.6625, positions 2, epsilon 0.850, loss 2, value -2",
+        "return 0.4125, positions 2, epsilon 0.850, loss 2, value -2",
         "return 0.0000, positions 1, epsilon 0.550, loss 6.5, value -6.5",
         "return 0.0000, positions 1, epsilon 0.250, loss 12.5, value -12.5"
     ]
-
-
-@mark.parametrize(
-    ("last", "steps"),
-    [param(8, 1, id="within-the-first-rollout"), param(16, 10, id="within-the-second")]
-)
-def test_a_run_whose_steps_fall_within_a_rollout_plays_that_rollout_out(
-    last    : int,
-    rolling : Callable[..., Trainer],
-    steps   : int
-):
-    """
-    Asserts that a run ends on the last step of the rollout its `steps` fall
-    within, since every update reads a full rollout.
-    """
-    run = finish(rolling(Algorithm.PQN, steps=steps))
-
-    assert VectorCheckpoint.from_path(run.checkpoint).step == last
 
 
 def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
@@ -1183,6 +1208,29 @@ def test_an_interrupt_reaching_each_worker_leaves_the_rollout_stepping(
         assert list(trainer)[-1] == 8
 
 
+@each_agent
+def test_a_handover_of_pqn_or_ppo_takes_the_episodes_its_checkpoint_counts(
+    algorithm : Algorithm,
+    holding   : Callable[[str], Run]
+):
+    """
+    Asserts that a run of either agent hands over its checkpoint and the
+    count of lines that checkpoint names whatever their lengths, dropping
+    the line a run wrote past it.
+    """
+    lines = ['{"length": 99}\n', '{"length": 99}\n']
+    run   = holding("".join(lines)).model_copy(
+        update = {"settings": RunSettings(agent=AgentSettings(algorithm=algorithm))}
+    )
+    vector_checkpoint(1, 16).save(run.checkpoint)
+    handover = Handover.from_run(run)
+
+    assert (
+        type(handover.checkpoint),
+        handover.episodes
+    ) == (VectorCheckpoint, lines[:1])
+
+
 def test_each_checkpoint_follows_the_episodes_written_through_to_disk(
     monkeypatch : MonkeyPatch,
     trainer     : Callable[..., Trainer]
@@ -1208,29 +1256,6 @@ def test_each_checkpoint_follows_the_episodes_written_through_to_disk(
     finish(trainer())
 
     assert events == ["episodes.jsonl", "checkpoint.npz"] * 2
-
-
-@each_agent
-def test_a_handover_of_pqn_or_ppo_takes_the_episodes_its_checkpoint_counts(
-    algorithm : Algorithm,
-    holding   : Callable[[str], Run]
-):
-    """
-    Asserts that a run of either agent hands over its checkpoint and the
-    count of lines that checkpoint names whatever their lengths, dropping
-    the line a run wrote past it.
-    """
-    lines = ['{"length": 99}\n', '{"length": 99}\n']
-    run   = holding("".join(lines)).model_copy(
-        update = {"settings": RunSettings(agent=AgentSettings(algorithm=algorithm))}
-    )
-    vector_checkpoint(1, 16).save(run.checkpoint)
-    handover = Handover.from_run(run)
-
-    assert (
-        type(handover.checkpoint),
-        handover.episodes
-    ) == (VectorCheckpoint, lines[:1])
 
 
 def test_each_environment_starts_from_a_reset_of_its_own(
@@ -1276,19 +1301,6 @@ def test_ppos_episode_logs_no_epsilon_beside_its_measures(
         )
         for message in logged
     )
-
-
-def test_the_run_puts_each_signals_handler_back_once_it_ends(
-    trainer: Callable[..., Trainer]
-):
-    """
-    Asserts that the interrupt and termination signals take back the
-    handlers they held before the run began, once the run ends.
-    """
-    handlers = [getsignal(number) for number in (SIGINT, SIGTERM)]
-    finish(trainer())
-
-    assert [getsignal(number) for number in (SIGINT, SIGTERM)] == handlers
 
 
 @each_agent
@@ -1419,6 +1431,63 @@ def test_a_rollout_run_along_a_demonstration_resumes_as_one_never_stopped(
     assert_ended_alike(resumed, unbroken)
 
 
+def test_the_run_puts_each_signals_handler_back_once_it_ends(
+    trainer: Callable[..., Trainer]
+):
+    """
+    Asserts that the interrupt and termination signals take back the
+    handlers they held before the run began, once the run ends.
+    """
+    handlers = [getsignal(number) for number in (SIGINT, SIGTERM)]
+    finish(trainer())
+
+    assert [getsignal(number) for number in (SIGINT, SIGTERM)] == handlers
+
+
+@mark.parametrize(
+    ("presses", "terminated", "message"),
+    [
+        param(
+            bytes(13),
+            False,
+            "holds no episode reaching EVENT_GOT_STARTER",
+            id = "no-goal"
+        ),
+        param(bytes(12), True, "no longer reach EVENT_GOT_STARTER", id="short-of-it")
+    ]
+)
+def test_a_demonstration_that_reaches_no_goal_is_refused_before_any_directory(
+    demonstrated : Path,
+    message      : str,
+    presses      : bytes,
+    rolling      : Callable[..., Trainer],
+    terminated   : bool,
+    timed        : Cartridge
+):
+    """
+    Asserts that a run along a directory holding no episode that reached
+    the run's goal, or one whose episode no longer reaches it on replay, is
+    refused before it makes a directory of its own, naming the goal.
+    """
+    line = next(Run.read(demonstrated).recorded).model_copy(
+        update = {
+            "recording"  : Recording(presses=presses, timer_div=0),
+            "terminated" : terminated
+        }
+    )
+    (demonstrated / "episodes.jsonl").write_text(f"{line.model_dump_json()}\n")
+
+    with raises(ValueError, match=message):
+        along(
+            algorithm    = Algorithm.PPO,
+            demonstrated = demonstrated,
+            rolling      = rolling,
+            timed        = timed
+        )
+
+    assert [path.name for path in demonstrated.parent.iterdir()] == [demonstrated.name]
+
+
 def vector_checkpoint(
     episodes : int,
     step     : int,
@@ -1448,47 +1517,3 @@ def vector_checkpoint(
         ],
         step = step
     )
-
-
-@mark.parametrize(
-    ("presses", "terminated", "message"),
-    [
-        param(
-            bytes(13),
-            False,
-            "holds no episode reaching the starter",
-            id = "no-starter"
-        ),
-        param(bytes(12), True, "no longer reach the starter", id="short-of-it")
-    ]
-)
-def test_a_demonstration_that_reaches_no_starter_is_refused_before_any_directory(
-    demonstrated : Path,
-    message      : str,
-    presses      : bytes,
-    rolling      : Callable[..., Trainer],
-    terminated   : bool,
-    timed        : Cartridge
-):
-    """
-    Asserts that a run along a directory holding no episode that reached the
-    starter, or one whose episode no longer reaches it on replay, is refused
-    before it makes a directory of its own.
-    """
-    line = next(Run.read(demonstrated).recorded).model_copy(
-        update = {
-            "recording"  : Recording(presses=presses, timer_div=0),
-            "terminated" : terminated
-        }
-    )
-    (demonstrated / "episodes.jsonl").write_text(f"{line.model_dump_json()}\n")
-
-    with raises(ValueError, match=message):
-        along(
-            algorithm    = Algorithm.PPO,
-            demonstrated = demonstrated,
-            rolling      = rolling,
-            timed        = timed
-        )
-
-    assert [path.name for path in demonstrated.parent.iterdir()] == [demonstrated.name]

@@ -63,7 +63,7 @@ export interface Results {
 
 /**
  * What one evaluation of the agent measured, the share of its episodes
- * reaching the starter and their mean return, at the step of the run it read.
+ * reaching the goal and their mean return, at the step of the run it read.
  */
 export interface Score {
   reached : number
@@ -147,7 +147,7 @@ export function interquartile(values: readonly number[]): number {
 
 /**
  * Reads the interquartile mean across the runs of `group` at each evaluation
- * any of them played, its share reaching the starter at the interquartile mean
+ * any of them played, its share reaching the goal at the interquartile mean
  * of the steps the runs had taken by then.
  */
 export function meansOf(group: Group): Score[] {
@@ -197,7 +197,7 @@ export function verdictOf(estimate: Estimate): Verdict {
 /**
  * Lists the figures under the curves, each group's chip in its agent's hue
  * while `pressed` holds it and in none otherwise, beside the interquartile mean
- * of its runs' share reaching the starter and the probability that a run of it
+ * of its runs' share reaching the goal and the probability that a run of it
  * beats a run of random presses on mean return, then `random`, the share
  * random presses reach across every seed.
  */

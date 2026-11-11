@@ -44,23 +44,26 @@ def test_a_pair_of_symbols_markers_takes_the_table_of_the_addresses():
         param(
             "events",
             [
-                "| `EVENT_FOLLOWED_OAK_INTO_LAB` | `0x00` | `--reward.milestone` |",
-                "| `EVENT_OAK_ASKED_TO_CHOOSE_MON` | `0x21` | `--reward.milestone` |",
-                "| `EVENT_GOT_STARTER` | `0x22` | `--reward.starter` |",
-                "| `EVENT_OAK_APPEARED_IN_PALLET` | `0x27` | `--reward.milestone` |"
+                "| `EVENT_OAK_APPEARED_IN_PALLET` | `0x27` |",
+                "| `EVENT_FOLLOWED_OAK_INTO_LAB` | `0x00` |",
+                "| `EVENT_OAK_ASKED_TO_CHOOSE_MON` | `0x21` |",
+                "| `EVENT_GOT_STARTER` | `0x22` |",
+                "| `EVENT_BATTLED_RIVAL_IN_OAKS_LAB` | `0x23` |",
+                "| `EVENT_GOT_OAKS_PARCEL` | `0x39` |",
+                "| `EVENT_GOT_POKEDEX` | `0x25` |"
             ],
             id = "events"
         )
     ]
 )
-def test_the_addresses_and_the_flags_are_tabled_in_the_order_of_their_values(
+def test_the_addresses_and_the_flags_are_tabled_in_their_order(
     name : str,
     rows : list[str]
 ):
     """
     Pins the rows of the table of the addresses `Symbol` declares, each
-    beside its label, and of the flags `Event` declares, each beside its
-    index and the setting holding what it pays.
+    beside its label in the order of the address, and of the flags `Event`
+    declares, each beside its index in the order the opening sets them.
     """
     assert table(name, TRAIN).splitlines()[2:] == rows
 

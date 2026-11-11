@@ -148,7 +148,7 @@ describe('Episode at its end', () => {
   it('chooses the starter with A facing Squirtle’s Poké Ball, which ends the episode', () => {
     const game = placed('lab', [7, 4], 'up')
 
-    expect(game.press('a')).toStrictEqual([{ pay: PAY.starter, term: 'starter' }])
+    expect(game.press('a')).toStrictEqual([{ pay: PAY.goal, term: 'goal' }])
     expect([game.done, game.terminated, game.chosen, game.flags.has('starter')])
       .toStrictEqual([true, true, [7, 3], true])
     expect(game.press('left')).toStrictEqual([])
@@ -177,18 +177,18 @@ describe('Episode at its end', () => {
 })
 
 describe('eventFlags and milestones', () => {
-  it('names each event flag in the order the package declares the events, each with the term it pays', () => {
-    expect(episode.eventFlags.map(each => [each.flag, each.term])).toStrictEqual([
-      ['followed', 'milestone'],
-      ['starter', 'starter'],
-      ['appeared', 'milestone'],
-      ['asked', 'milestone']
+  it('names each event flag up to the default goal in the order the package declares the events, each with its index and the term it pays, and none past it', () => {
+    expect(episode.eventFlags.map(each => [each.flag, each.index, each.term])).toStrictEqual([
+      ['appeared', 0x27, 'milestone'],
+      ['followed', 0x00, 'milestone'],
+      ['asked', 0x21, 'milestone'],
+      ['starter', 0x22, 'goal']
     ])
-    expect(episode.eventFlags.map(each => each.term)).toStrictEqual(EVENTS.map(event => event.term))
+    expect(EVENTS.map(event => event.term)).toStrictEqual(['milestone', 'milestone', 'milestone', 'goal', null, null, null])
   })
 
   it('reads the milestones as the flags whose events pay one', () => {
-    expect(episode.milestones).toStrictEqual(['followed', 'appeared', 'asked'])
+    expect(episode.milestones).toStrictEqual(['appeared', 'followed', 'asked'])
   })
 })
 

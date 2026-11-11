@@ -108,8 +108,8 @@ def table(name: str, train: Command) -> str:
       `train` takes
     - For `symbols`, each address `Symbol` declares beside its label, in
       the order of the address
-    - For `events`, each flag `Event` declares beside its index and the
-      setting holding what its first step pays, in the order of the index
+    - For `events`, each flag `Event` declares beside its index, in the
+      order the opening sets them
     """
     match name.split(":"):
         case ["settings", subject]: return train.table(f"--{subject}.")
@@ -119,10 +119,7 @@ def table(name: str, train: Command) -> str:
                 Symbol
             ))
         case _:
-            header = "| **Event** | **Index** | **Pays** |", "|---|---|---|"
-            rows   = (
-                f"| `{event.name}` | `0x{event:02X}` | `--reward.{event.term}` |"
-                for event in sorted(Event)
-            )
+            header = "| **Event** | **Index** |", "|---|---|"
+            rows   = (f"| `{event.name}` | `0x{event:02X}` |" for event in Event)
 
     return "\n".join((*header, *rows))

@@ -7,7 +7,7 @@ import SETTINGS        from '../../../lib/rendered/settings.json' with { type: '
 describe('the segments', () => {
   it('ends a segment at each press first setting a flag the reward pays, the flags one press sets making one segment', () => {
     expect(curriculum.SEGMENTS.map(each => [each.term, each.tag])).toStrictEqual([
-      ['milestone', 'Oak stops Blue'], ['milestone', 'Oak asks Blue to choose'], ['starter', 'Blue takes a starter']
+      ['milestone', 'Oak stops Blue'], ['milestone', 'Oak asks Blue to choose'], ['goal', 'Blue takes a starter']
     ])
     expect(curriculum.SEGMENTS.every(({ end }) => [...TRACE[end + 1]!.flags].some(flag => !TRACE[end]!.flags.has(flag)))).toBe(true)
   })

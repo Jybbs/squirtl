@@ -32,7 +32,7 @@ describe('the discount', () => {
   })
 
   it('weighs the starter at its payment where it arrives at once', () => {
-    expect(discount.weightOf(0.5, 0)).toBe(0.6)
+    expect(discount.weightOf(0.5, 0)).toBe(0.35)
   })
 })
 
@@ -71,8 +71,8 @@ describe('plotOf', () => {
 
   it('sets a dot on the curve for each payment that jumps either return', () => {
     expect(PLOT.dots.map(dot => [dot.player, dot.term])).toStrictEqual([
-      ['agent', 'milestone'], ['agent', 'milestone'], ['agent', 'milestone'], ['agent', 'starter'],
-      ['random', 'milestone'], ['random', 'milestone'], ['random', 'milestone'], ['random', 'starter']
+      ['agent', 'milestone'], ['agent', 'milestone'], ['agent', 'milestone'], ['agent', 'goal'],
+      ['random', 'milestone'], ['random', 'milestone'], ['random', 'milestone'], ['random', 'goal']
     ])
   })
 

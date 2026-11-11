@@ -3,6 +3,7 @@ import { eventFlags, squareKey }         from '../game/episode.ts'
 import { PLAYING, Player, type Playing } from '../game/player.ts'
 import { SCREEN }                        from '../game/screen.ts'
 import * as identity                     from '../identity/identity.ts'
+import EVENTS                            from '../rendered/events.json' with { type: 'json' }
 import SETTINGS                          from '../rendered/settings.json' with { type: 'json' }
 
 /**
@@ -90,11 +91,12 @@ function rampOf(tones: readonly (readonly number[])[]): Uint32Array {
 
 /**
  * Counts the bytes each entry of the observation holds, one a pixel of each
- * frame, one a square of the grid, and one a flag.
+ * frame, one a square of the grid, and one each event flag the package's
+ * `Event` declares, those past the default goal among them.
  */
 export function bytesOf(observing: Observing = OBSERVING): Record<'flags' | 'frames' | 'grid', number> {
   const { frame, grid, stack } = observing
-  return { flags: eventFlags.length, frames: stack * frame.height * frame.width, grid: grid * grid }
+  return { flags: EVENTS.length, frames: stack * frame.height * frame.width, grid: grid * grid }
 }
 
 /**

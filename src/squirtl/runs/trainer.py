@@ -397,13 +397,26 @@ class Trainer(AbstractContextManager, ABC):
 
         Raises:
             FileNotFoundError : Where the directory they name holds no run.
-            ValueError        : Where its run holds no episode reaching the
-                                starter from Blue's bedroom.
+            ValueError        : Where its run ends its episodes at another
+                                goal than this run's, or holds no episode
+                                reaching its goal from Blue's bedroom.
         """
-        if directory := self.settings.curriculum.demonstration:
-            return Run.read(directory).demonstration
+        if (directory := self.settings.curriculum.demonstration) is None:
+            return None
 
-        return None
+        demonstrated = Run.read(directory)
+        theirs, ours = (
+            settings.environment.goal
+            for settings in (demonstrated.settings, self.settings)
+        )
+
+        if theirs is not ours:
+            raise ValueError(
+                f"the demonstration {directory} ends its episodes at "
+                f"{theirs.name}, where this run ends them at {ours.name}"
+            )
+
+        return demonstrated.demonstration
 
     @property
     @abstractmethod
@@ -469,8 +482,8 @@ class Trainer(AbstractContextManager, ABC):
     def evaluate(self):
         """
         Evaluates the agent at its step through `Benchmark.from_run`,
-        recording the step it landed at, and logs how often the agent
-        and the random baseline reached the starter and the returns each
+        recording the step it landed at, and logs how often the agent and
+        the random baseline reached the run's goal and the returns each
         averaged.
         """
         logger.info("Evaluating the agent at step {:,}", self.agent.step)
@@ -479,10 +492,11 @@ class Trainer(AbstractContextManager, ABC):
         self.evaluated = self.agent.step
 
         logger.info(
-            "At step {:,}, the agent reached the starter in {:.0%} of its "
-            "evaluation episodes for a mean return of {:.4f}, and the random "
-            "baseline in {:.0%} for {:.4f}",
+            "At step {:,}, the agent reached {} in {:.0%} of its evaluation "
+            "episodes for a mean return of {:.4f}, and the random baseline in "
+            "{:.0%} for {:.4f}",
             self.evaluated,
+            benchmark.agent.goal.name,
             benchmark.agent.reached,
             benchmark.agent.reward,
             benchmark.baseline.reached,

@@ -30,11 +30,12 @@ from syrupy.assertion   import SnapshotAssertion
 from sys                import executable
 from typing             import Annotated
 
-from squirtl.agent.schemas    import AgentSettings
-from squirtl.cli              import app
-from squirtl.emulator.schemas import EmulatorSettings
-from squirtl.reward.schemas   import RewardSettings
-from squirtl.runs.schemas     import Run, RunSettings
+from squirtl.agent.schemas       import AgentSettings
+from squirtl.cli                 import app
+from squirtl.emulator.schemas    import EmulatorSettings
+from squirtl.environment.schemas import EnvironmentSettings
+from squirtl.reward.schemas      import Event, RewardSettings
+from squirtl.runs.schemas        import Run, RunSettings
 
 type Reader = Callable[[list[str], str | None], RunSettings]
 
@@ -191,9 +192,23 @@ def test_a_table_above_the_working_directory_is_not_read(
         ),
         param(
             "[tool.squirtl.reward]\nmilestone = 0.05\n",
-            ["--reward.starter", "0.7"],
-            RunSettings(reward=RewardSettings(milestone=0.05, starter=0.7)),
+            ["--reward.goal", "0.7"],
+            RunSettings(reward=RewardSettings(goal=0.7, milestone=0.05)),
             id = "the-reward-table-beside-a-flag"
+        ),
+        param(
+            None,
+            ["--environment.goal", "event-got-pokedex"],
+            RunSettings(environment=EnvironmentSettings(goal=Event.EVENT_GOT_POKEDEX)),
+            id = "a-goal-flag"
+        ),
+        param(
+            "[tool.squirtl.environment]\ngoal = 'EVENT_GOT_OAKS_PARCEL'\n",
+            [],
+            RunSettings(
+                environment = EnvironmentSettings(goal=Event.EVENT_GOT_OAKS_PARCEL)
+            ),
+            id = "a-goal-in-the-environment-table"
         ),
         param(
             "[tool.squirtl.agent]\nbatch-size = 8\n",

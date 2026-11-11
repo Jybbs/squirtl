@@ -18,7 +18,7 @@
         },
         "capacity": {
           "default": 100000,
-          "description": "The slots the deep Q-network's replay memory holds before overwriting\nthe oldest, four per reset observation and one per step, whose default\ntakes 606 MB for a 72 by 80 frame, a 48 by 48 grid, and four flags, the\ngrid and the flags packed eight cells to a byte.",
+          "description": "The slots the deep Q-network's replay memory holds before overwriting\nthe oldest, four per reset observation and one per step, whose default\ntakes 606 MB for a 72 by 80 frame, a 48 by 48 grid, and a flag for each\nmember of `Event`, the grid and the flags packed eight cells to a byte.",
           "exclusiveMinimum": 0,
           "title": "Capacity",
           "type": "integer"
@@ -194,7 +194,7 @@
             }
           ],
           "default": null,
-          "description": "The directory of the run whose shortest episode reaching the starter\neach training episode starts along, or `None` to start every episode in\nBlue's bedroom.",
+          "description": "The directory of the run whose shortest episode reaching the goal each\ntraining episode starts along, a run ending its episodes at the same\ngoal, or `None` to start every episode in Blue's bedroom.",
           "title": "Demonstration"
         },
         "forward": {
@@ -327,6 +327,11 @@
           "title": "Frames Per Step",
           "type": "integer"
         },
+        "goal": {
+          "$ref": "#/$defs/Flag",
+          "default": 34,
+          "description": "The flag whose first setting ends an episode, each flag `Event` declares\nbefore it paying the milestone, whose default is the starter and whose\nfarthest is the Pokédex, since Viridian City turns Blue back at its\nnorth exit until `EVENT_GOT_POKEDEX` is set, as pret/pokered's\n`scripts/ViridianCity.asm` holds."
+        },
         "grid_size": {
           "default": 48,
           "description": "The side in squares of the grid of reached positions centered on the\nplayer, by default one square per cell of the 48 by 48 crop Pleines et\nal. observe.",
@@ -370,6 +375,23 @@
       },
       "title": "EvaluationSettings",
       "type": "object"
+    },
+    "Event": {
+      "description": "The flags in `wEventFlags` the opening sets from Blue's bedroom to the\nPokédex, declared in the order the opening sets them, each member named\nfor its constant in pret/pokered's `constants/event_constants.asm` and\nits value that constant's index in the flag array.",
+      "enum": [
+        39,
+        0,
+        33,
+        34,
+        35,
+        57,
+        37
+      ],
+      "title": "Event",
+      "type": "integer"
+    },
+    "Flag": {
+      "$ref": "#/$defs/Event"
     },
     "Fraction": {
       "exclusiveMinimum": 0,
@@ -505,20 +527,20 @@
       "additionalProperties": false,
       "description": "The settings the reward reads, each a field of `RunSettings.reward` and\na key under `[tool.squirtl.reward]` in `pyproject.toml`, holding what\neach member of `Term` pays a step.",
       "properties": {
+        "goal": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.35,
+          "description": "The reward the step first setting the run's goal earns, which has to be\nthe largest term."
+        },
         "milestone": {
           "$ref": "#/$defs/UnitInterval",
           "default": 0.1,
-          "description": "The reward a step earns for each milestone on the way to the starter\nwhose flag it first sets."
+          "description": "The reward a step earns for each flag on the way to the goal it first\nsets."
         },
         "novelty": {
           "$ref": "#/$defs/UnitInterval",
           "default": 0.00025,
           "description": "The reward a step earns for reaching a position the episode has not\nreached before, whose default is a 400th of the default milestone, the\nratio Pleines et al. pay one new coordinate against one completed event."
-        },
-        "starter": {
-          "$ref": "#/$defs/UnitInterval",
-          "default": 0.6,
-          "description": "The reward the step first setting `EVENT_GOT_STARTER` earns, which has\nto be the largest term."
         }
       },
       "title": "RewardSettings",

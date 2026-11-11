@@ -11,7 +11,7 @@ describe('captionsOf', () => {
     const observing = { ...sees.OBSERVING, frame: { height: 2, width: 3 }, grid: 5, stack: 4 }
 
     expect(labels.captionsOf(observing)).toStrictEqual({
-      flags  : '4, one per moment that pays · 4 bytes',
+      flags  : '7, in the order the opening sets them · 7 bytes',
       frames : '4 × 2 × 3, newest last · 24 bytes',
       grid   : '5 × 5, Blue at the center · 25 bytes'
     })
@@ -31,6 +31,16 @@ describe('frameNamesOf', () => {
       { back: 2, label: 'The frame 2 steps before', tag: `t ${MINUS} 2` },
       { back: 1, label: 'The frame 1 step before', tag: `t ${MINUS} 1` },
       { back: 0, label: 'The frame of this step', tag: 't' }
+    ])
+  })
+})
+
+describe('pastOf', () => {
+  it('names each flag past the default goal beside its index, in the order the network reads the flags', () => {
+    expect(labels.pastOf()).toStrictEqual([
+      { index: 0x23, name: 'Battled the rival' },
+      { index: 0x39, name: 'Got Oak’s parcel' },
+      { index: 0x25, name: 'Got the Pokédex' }
     ])
   })
 })

@@ -82,13 +82,13 @@ describe('StoryReward under reduced motion', () => {
     sight.show(true)
     await nextTick()
 
-    expect(pointer.sliderState(wrapper)).toStrictEqual(['163', 'Step 163 of 163, the return 0.91500'])
-    expect(wrapper.text()).toContain('0.91500Step 163 of 163')
+    expect(pointer.sliderState(wrapper)).toStrictEqual(['163', 'Step 163 of 163, the return 0.66500'])
+    expect(wrapper.text()).toContain('0.66500Step 163 of 163')
     expect(chips(wrapper).slice(0, 4)).toStrictEqual([
-      ['The starter', null, '+0.60000'],
+      ['The starter', null, '+0.35000'],
       ['New positions', '60 × 0.00025', '0.01500'],
       ['Milestones', '3 of 3', '0.30000'],
-      ['The starter', 'Squirtle', '0.60000']
+      ['The starter', 'Squirtle', '0.35000']
     ])
     expect(recorder.images.length).toBeGreaterThan(0)
   })
@@ -141,7 +141,7 @@ describe('StoryReward’s chips and key', () => {
     const { wrapper } = await mounted()
 
     expect(wrapper.findAll('ul > li').map(entry => entry.text())).toStrictEqual([
-      'The agent', 'Random presses', 'New positions+0.00025', 'Milestones+0.10000', 'The starter+0.60000',
+      'The agent', 'Random presses', 'New positions+0.00025', 'Milestones+0.10000', 'The starter+0.35000',
       'Already reached0.00000'
     ])
     expect(wrapper.text()).toBePublishedProse()

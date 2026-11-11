@@ -32,7 +32,7 @@ from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Outcome
 from squirtl.evaluation.evaluator  import Evaluator, Policy
 from squirtl.evaluation.schemas    import EvaluationSettings
-from squirtl.reward.schemas        import RewardSettings, Term
+from squirtl.reward.schemas        import Event, RewardSettings, Term
 
 
 class Tally(Env):
@@ -293,9 +293,10 @@ def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
 ):
     """
     Asserts that two worker processes on PyBoy play the random baseline's
-    three episodes and those of each agent, each truncated after three steps
-    on the blank cartridge, the agent's evaluation recording the step it
-    read and leaving PyTorch's global generator as it found it.
+    three episodes and those of each agent, each truncated after three
+    steps on the blank cartridge and each evaluation naming the run's goal,
+    the agent's recording the step it read and leaving PyTorch's global
+    generator as it found it.
     """
     with evaluator(algorithm, environments=2, episodes=3) as started:
         online = acting_network(
@@ -308,6 +309,12 @@ def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
 
     assert equal(get_rng_state(), state)
     assert [
-        (evaluation.step, [(o.length, o.terminated) for o in evaluation.outcomes])
+        (
+            evaluation.goal, evaluation.step,
+            [(o.length, o.terminated) for o in evaluation.outcomes]
+        )
         for evaluation in played
-    ] == [(None, [(3, False)] * 3), (9, [(3, False)] * 3)]
+    ] == [
+        (Event.EVENT_GOT_STARTER, None, [(3, False)] * 3),
+        (Event.EVENT_GOT_STARTER, 9, [(3, False)] * 3)
+    ]
