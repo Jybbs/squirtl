@@ -8,25 +8,32 @@ import { preference, stubSight } from '../../common/browser.ts'
 
 /**
  * Mounts a drawing that moves for `frames` frames, recording the step each
- * frame advanced it by, and returns that record beside the call waking the loop
- * and the sight a case shows it through.
+ * frame advanced it by and the clock reading it advanced at, and returns those
+ * records beside the call waking the loop, the call moving the drawing for
+ * `more` frames past the last it moved for, and the sight a case shows it
+ * through.
  */
 async function drawn(frames: number) {
   const sight           = stubSight()
   const steps: number[] = []
+  const times: number[] = []
   let wake!: () => void
   mount(defineComponent({
     setup: () => {
       const node = ref<HTMLElement>()
       wake = useFrameLoop(node, elapsed => {
         steps.push(elapsed)
+        times.push(performance.now())
         return steps.length < frames
       })
       return () => h('canvas', { ref: node })
     }
   }))
   await nextTick()
-  return { sight, steps, wake }
+  const extend = (more: number) => {
+    frames = steps.length + more
+  }
+  return { extend, sight, steps, times, wake }
 }
 
 beforeEach(() => {
@@ -59,5 +66,18 @@ describe('useFrameLoop', () => {
     vi.advanceTimersByTime(500)
 
     expect([still, steps.length]).toStrictEqual([0, 2])
+  })
+
+  test('draws once a frame after it settles and wakes before the next frame', async () => {
+    const { extend, sight, times, wake } = await drawn(2)
+
+    sight.show(true)
+    vi.advanceTimersToNextFrame()
+    vi.advanceTimersToNextFrame()
+    extend(3)
+    wake()
+    vi.advanceTimersByTime(1000)
+
+    expect([times.length, new Set(times).size]).toStrictEqual([5, 5])
   })
 })

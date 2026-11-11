@@ -79,8 +79,24 @@ describe('roles.css', () => {
     expect(contrast(resolved(label, scheme), resolved(fill, scheme))).toBeGreaterThanOrEqual(TEXT)
   })
 
+  it.for(['dark', 'light'] as const)('sets inline code in %s on its own ground, holding its text', scheme => {
+    const ground = resolved('--vp-code-bg', scheme)
+
+    expect(ground).not.toBe(resolved('--vp-c-bg', scheme))
+    expect(contrast(resolved('--vp-code-color', scheme), ground)).toBeGreaterThanOrEqual(TEXT)
+  })
+
+  it('sets inline code at the identity’s code size, standing its x-height at the body’s', () => {
+    const sizes = [tokens.get('--vp-code-font-size'), tokens.get('--text-code')]
+
+    expect(sizes).toStrictEqual(['var(--text-code)', '0.9218em'])
+  })
+
   it('reads a hex for every color it measures', () => {
-    const colors = [...named(/^--vp-c-(?:bg|text|brand-[12]$)/u), ...named(/^--vp-button-brand/u)]
+    const colors = [
+      ...named(/^--vp-(?:c-(?:bg|text|brand-[12]$)|code-(?:bg|color))/u),
+      ...named(/^--vp-button-brand/u)
+    ]
 
     const hexes = (['dark', 'light'] as const).flatMap(scheme => colors.map(name => resolved(name, scheme)))
 
