@@ -10,6 +10,7 @@ Defines the records a release of SquiRtL carries its trained runs through:
   evaluate` read from a run directory or from a release
 """
 
+from collections.abc    import Container
 from functools          import cached_property
 from hashlib            import file_digest
 from http               import HTTPStatus
@@ -142,15 +143,7 @@ class PackedRun(RunListing):
         holding the agent's `Weights` with no optimizer state and no replay
         memory. Each member's header is `normalized`, so a run whose files
         are unchanged writes the same bytes.
-
-        Raises:
-            FileNotFoundError: Where the run's directory holds no checkpoint
-                               or no episodes.
         """
-        for path in (run.checkpoint, run.episodes):
-            if not path.is_file():
-                raise FileNotFoundError(f"{run.directory} holds no {path.name}")
-
         curriculum, emulator = run.settings.curriculum, run.settings.emulator
         demonstration        = curriculum.demonstration
         settings             = run.settings.model_copy(
@@ -194,6 +187,19 @@ class ReleaseSettings(Record):
     """
     The name of the run a release plays where no selection names one.
     """
+
+    def check_recommends(self, names: Container[str]):
+        """
+        Refuses a `recommended_run` naming none of `names`, the names of the
+        trained runs.
+
+        Raises:
+            ValueError: Where none bears that name.
+        """
+        if self.recommended_run not in names:
+            raise ValueError(
+                f"The recommended run {self.recommended_run} is no trained run"
+            )
 
 
 class ReleaseManifest(ReleaseSettings):
@@ -249,21 +255,23 @@ class ReleaseManifest(ReleaseSettings):
         Packs each run `Results.folder` lists, then each demonstration
         those runs follow, from its directory under `Run.folder` by its
         name, into `folder`, and writes the manifest listing them there
-        as `file`. It checks every line of each run's episodes through
-        `Run.check_episodes` before writing any tar.
+        as `file`. Before writing any tar, it checks the recommended run
+        through `ReleaseSettings.check_recommends`, then each run's files
+        through `Run.check_files` and every line of its episodes through
+        `Run.check_episodes`.
 
         Raises:
             FileNotFoundError : Where a run's directory holds no record, no
                                 checkpoint, or no episodes.
-            ValidationError   : Where `settings` recommends a run no tar
-                                holds.
-            ValueError        : Where a line of a run's episodes holds no
-                                `Episode`.
+            ValueError        : Where `settings` recommends none of the
+                                trained runs, or a line of a run's episodes
+                                holds no `Episode`.
         """
         trained = [
             Run.read(Run.folder / directory.name)
             for directory in sorted(Results.folder.iterdir())
         ]
+        settings.check_recommends({run.name for run in trained})
         followed = sorted(
             {
                 demonstration.name
@@ -274,6 +282,7 @@ class ReleaseManifest(ReleaseSettings):
         demonstrations = [Run.read(Run.folder / name) for name in followed]
 
         for run in (*trained, *demonstrations):
+            run.check_files()
             run.check_episodes()
 
         cls.folder.mkdir(exist_ok=True, parents=True)
@@ -300,10 +309,7 @@ class ReleaseManifest(ReleaseSettings):
         Raises:
             ValueError: Where no trained run bears that name.
         """
-        if self.recommended_run not in {run.name for run in self.runs}:
-            raise ValueError(
-                f"The recommended run {self.recommended_run} is no trained run"
-            )
+        self.check_recommends({run.name for run in self.runs})
 
         return self
 
