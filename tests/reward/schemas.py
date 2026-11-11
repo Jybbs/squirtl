@@ -9,14 +9,16 @@ Pins the records the reward reads and writes, covering:
 - The total of a score's shares
 """
 
+from collections     import Counter
 from collections.abc import Callable
+from common.console  import set_event, stand
 from operator        import attrgetter
 from pydantic        import ValidationError
 from pytest          import mark, param, raises
 
 from squirtl.emulator.console import GameBoy
 from squirtl.emulator.schemas import Symbol
-from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Term
+from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Tally, Term
 
 
 def test_a_position_reads_the_map_and_coordinates_their_symbols_hold(
@@ -73,45 +75,62 @@ def test_an_event_reads_as_clear_where_every_other_bit_is_set(
     assert not event.is_set(game_boy)
 
 
-def test_each_event_earns_the_starter_or_a_milestone():
+def test_a_tally_packs_what_a_step_holds_leaving_out_a_term_none_earned():
     """
-    Asserts that `EVENT_GOT_STARTER` earns the starter term and every other
-    event a milestone.
+    Asserts that a tally keeps each term some step has earned, and each
+    position it holds reads back as the position packed.
     """
-    assert {event.name: event.term for event in Event} == {
-        "EVENT_FOLLOWED_OAK_INTO_LAB"   : Term.MILESTONE,
-        "EVENT_GOT_STARTER"             : Term.STARTER,
-        "EVENT_OAK_APPEARED_IN_PALLET"  : Term.MILESTONE,
-        "EVENT_OAK_ASKED_TO_CHOOSE_MON" : Term.MILESTONE
-    }
+    positions = {Position(map=1, x=2, y=3), Position(map=4, x=5, y=6)}
+    tally     = Tally.of(
+        Counter({Term.MILESTONE: 0, Term.NOVELTY: 2}),
+        {Event.EVENT_GOT_STARTER},
+        Position(map=4, x=5, y=6),
+        positions
+    )
+
+    assert (tally.earned, tally.events, tally.reached) == (
+        {Term.NOVELTY: 2},
+        {Event.EVENT_GOT_STARTER},
+        positions
+    )
+    assert len(tally.positions) == 6
 
 
-def test_each_event_holds_the_index_pret_pokered_gives_its_constant():
+def test_a_tally_reads_back_from_json_as_the_one_written():
     """
-    Asserts that each event holds the index its constant takes in
-    pret/pokered's `constants/event_constants.asm`, counted from the
-    `const_def` opening the Pallet Town events.
+    Asserts that a tally written to JSON reads back equal, its packed
+    positions and its flags included.
     """
-    assert {event.name: event.value for event in Event} == {
-        "EVENT_FOLLOWED_OAK_INTO_LAB"   : 0x00,
-        "EVENT_GOT_STARTER"             : 0x22,
-        "EVENT_OAK_APPEARED_IN_PALLET"  : 0x27,
-        "EVENT_OAK_ASKED_TO_CHOOSE_MON" : 0x21
-    }
+    position = Position(map=255, x=0, y=7)
+    written  = Tally.of(
+        {Term.NOVELTY: 1},
+        {Event.EVENT_OAK_ASKED_TO_CHOOSE_MON},
+        position,
+        {position}
+    )
+
+    assert Tally.model_validate_json(written.model_dump_json()) == written
 
 
-def test_each_term_reads_the_setting_named_for_it():
+def test_a_tally_reads_the_start_of_an_episode_from_the_games_memory(game_boy: GameBoy):
     """
-    Asserts that each term pays the value of the setting its own value
-    names, so no term reads another's setting.
+    Asserts that a tally read from the console holds each flag set and the
+    position the player stands on as the one position reached, with no term
+    earned.
     """
-    settings = RewardSettings(milestone=0.125, novelty=0.0625, starter=0.5)
+    position = Position(map=2, x=3, y=4)
 
-    assert {term: settings.pay(term) for term in Term} == {
-        Term.MILESTONE : 0.125,
-        Term.NOVELTY   : 0.0625,
-        Term.STARTER   : 0.5
-    }
+    stand(game_boy.emulator.memory, position)
+    set_event(Event.EVENT_FOLLOWED_OAK_INTO_LAB, game_boy.emulator.memory)
+
+    tally = Tally.read(game_boy)
+
+    assert (tally.earned, tally.events, tally.position, tally.reached) == (
+        {},
+        {Event.EVENT_FOLLOWED_OAK_INTO_LAB},
+        position,
+        {position}
+    )
 
 
 @mark.parametrize("field", RewardSettings.model_fields)
@@ -135,12 +154,17 @@ def test_each_setting_refuses_a_value_outside_zero_to_one(
         RewardSettings(**{field: value})
 
 
-def test_the_settings_accept_a_starter_paying_more_than_every_other_term():
+def test_each_event_earns_the_starter_or_a_milestone():
     """
-    Asserts that a starter paying half again the milestone is accepted, so
-    the starter has only to pay more than every other term.
+    Asserts that `EVENT_GOT_STARTER` earns the starter term and every other
+    event a milestone.
     """
-    assert RewardSettings(milestone=0.125, starter=0.1875).starter == 0.1875
+    assert {event.name: event.term for event in Event} == {
+        "EVENT_FOLLOWED_OAK_INTO_LAB"   : Term.MILESTONE,
+        "EVENT_GOT_STARTER"             : Term.STARTER,
+        "EVENT_OAK_APPEARED_IN_PALLET"  : Term.MILESTONE,
+        "EVENT_OAK_ASKED_TO_CHOOSE_MON" : Term.MILESTONE
+    }
 
 
 @mark.parametrize(
@@ -207,3 +231,39 @@ def test_the_settings_refuse_terms_one_step_could_sum_past_one(
     """
     with raises(ValidationError, match=f"earns {past} more than the 1 Mnih et al."):
         RewardSettings(**settings)
+
+
+def test_each_event_holds_the_index_pret_pokered_gives_its_constant():
+    """
+    Asserts that each event holds the index its constant takes in
+    pret/pokered's `constants/event_constants.asm`, counted from the
+    `const_def` opening the Pallet Town events.
+    """
+    assert {event.name: event.value for event in Event} == {
+        "EVENT_FOLLOWED_OAK_INTO_LAB"   : 0x00,
+        "EVENT_GOT_STARTER"             : 0x22,
+        "EVENT_OAK_APPEARED_IN_PALLET"  : 0x27,
+        "EVENT_OAK_ASKED_TO_CHOOSE_MON" : 0x21
+    }
+
+
+def test_each_term_reads_the_setting_named_for_it():
+    """
+    Asserts that each term pays the value of the setting its own value
+    names, so no term reads another's setting.
+    """
+    settings = RewardSettings(milestone=0.125, novelty=0.0625, starter=0.5)
+
+    assert {term: settings.pay(term) for term in Term} == {
+        Term.MILESTONE : 0.125,
+        Term.NOVELTY   : 0.0625,
+        Term.STARTER   : 0.5
+    }
+
+
+def test_the_settings_accept_a_starter_paying_more_than_every_other_term():
+    """
+    Asserts that a starter paying half again the milestone is accepted, so
+    the starter has only to pay more than every other term.
+    """
+    assert RewardSettings(milestone=0.125, starter=0.1875).starter == 0.1875

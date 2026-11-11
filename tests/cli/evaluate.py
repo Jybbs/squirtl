@@ -101,6 +101,26 @@ def test_a_run_holding_a_damaged_checkpoint_exits_1_naming_it(
     )
 
 
+def test_a_search_exits_1_naming_the_commands_reading_one(
+    invoke   : Invoker,
+    searched : Path
+):
+    """
+    Asserts that evaluating a search, which trains no agent, exits 1 naming
+    `squirtl watch` and `squirtl search --resume`, and writes no evaluation
+    and no baseline into the search's directory.
+    """
+    invocation = invoke(["evaluate", str(searched)])
+    run        = Run.read(searched)
+
+    assert (
+        invocation.code,
+        "squirtl watch" in invocation.log,
+        "squirtl search --resume" in invocation.log,
+        run.evaluations.exists() or run.baseline.exists()
+    ) == (1, True, True, False)
+
+
 def test_a_second_evaluation_reads_what_the_first_wrote(
     evaluators : list[EvaluatorStandIn],
     invoke     : Invoker,

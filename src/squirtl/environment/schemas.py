@@ -6,18 +6,20 @@ Defines the records the environment reads and writes:
 - `Outcome`, what one episode reached, which its last step reports
 - `Recording`, the `timer_div` and the presses of one episode, which the emulator
   plays to the same frames again
+- `Snapshot`, the whole environment at one step, which a reset restores
 """
 
 from compression.zstd    import compress, decompress
 from enum                import StrEnum, auto
 from functools           import partial
+from numpy               import frombuffer, ndarray, uint8
 from pyboy.api.constants import COLS, ROWS
 from pyboy.utils         import CLOCK_RATE, FRAME_CYCLES
 from pydantic            import AfterValidator, Field, PlainSerializer, PositiveInt, ValidationInfo, model_validator
 from typing              import Annotated, Self
 
 from squirtl.emulator.schemas import Record
-from squirtl.reward.schemas   import Term
+from squirtl.reward.schemas   import Tally, Term
 
 type Compressed = Annotated[
     bytes,
@@ -170,3 +172,44 @@ class Recording(Record, ser_json_bytes="base64", val_json_bytes="base64"):
     """
     The value the episode's reset wrote into DIV.
     """
+
+
+class Snapshot(Record, ser_json_bytes="base64", val_json_bytes="base64"):
+    """
+    The whole environment once a step or a reset has run, meaning the
+    emulator's state, the frames the observation stacked, and the episode's
+    progress, which a reset given it under `snapshot` restores, as Mhammedi
+    and Cohan's Appendix C restores a node. The state and the frames are
+    held compressed through zstd.
+    """
+
+    frames: bytes
+    """
+    The frames the observation stacked, the newest last, as the `uint8`
+    bytes of the stack compressed.
+    """
+
+    state: bytes
+    """
+    The whole state of the emulator as `GameBoy.state` saves it, the frame
+    it last rendered among it, compressed.
+    """
+
+    tally: Tally
+    """
+    The episode's progress.
+    """
+
+    timer_div: Annotated[int, Field(ge=0, le=255)]
+    """
+    The value the episode's reset wrote into DIV.
+    """
+
+    def stack(self, shape: tuple[int, int, int]) -> ndarray:
+        """
+        Decompresses the frames the observation stacked.
+
+        Returns:
+            An array of `uint8` of `shape`, a `(depth, height, width)` triple.
+        """
+        return frombuffer(decompress(self.frames), uint8).reshape(shape)

@@ -146,24 +146,35 @@ def test_a_new_episode_earns_novelty_again_for_a_position_an_earlier_one_reached
     ] == [earning(novelty=settings.novelty), earning()]
 
 
-def test_a_step_reaching_a_new_position_and_a_milestone_earns_both(
+def test_a_progress_resumed_from_its_tally_goes_on_as_it_would_have(
     flag     : Callable[[Event], None],
+    game_boy : GameBoy,
     move     : Callable[[Position], None],
     progress : Progress,
     settings : RewardSettings
 ):
     """
-    Asserts that a step reaching a new position on the same step it first
-    sets a milestone's flag earns both terms, the way stepping onto row 1 of
-    Pallet Town, beside its north exit, sets `EVENT_OAK_APPEARED_IN_PALLET`.
+    Asserts that a progress taken up from another's tally holds its shares,
+    its flags, and its positions, so each step scores as the other's next
+    step does, earning nothing for a position or a flag already earned.
     """
-    move(Position(map=0, x=0, y=1))
+    move(Position(map=0, x=1, y=0))
+    progress.score()
     flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
+    progress.score()
 
-    assert progress.score() == earning(
-        milestone = settings.milestone,
-        novelty   = settings.novelty
+    resumed = Progress(game_boy, settings, progress.tally)
+
+    assert (resumed.shares, resumed.events, resumed.position, resumed.positions) == (
+        progress.shares, progress.events, progress.position, progress.positions
     )
+
+    move(Position(map=0, x=0, y=0))
+    assert resumed.score() == earning()
+
+    move(Position(map=0, x=2, y=0))
+    assert resumed.score() == earning(novelty=settings.novelty)
+    assert progress.positions != resumed.positions
 
 
 @mark.parametrize(
@@ -199,35 +210,24 @@ def test_the_most_one_step_earns_is_the_ceiling_the_settings_hold(
     assert score.total <= 1
 
 
-def test_the_shares_total_what_each_term_earned_across_the_episodes_steps(
+def test_a_step_reaching_a_new_position_and_a_milestone_earns_both(
     flag     : Callable[[Event], None],
     move     : Callable[[Position], None],
     progress : Progress,
     settings : RewardSettings
 ):
     """
-    Asserts that the episode's shares total each term across its steps, two
-    new positions paying the novelty twice and a milestone and the starter
-    once each, and zero for no step at all.
+    Asserts that a step reaching a new position on the same step it first
+    sets a milestone's flag earns both terms, the way stepping onto row 1 of
+    Pallet Town, beside its north exit, sets `EVENT_OAK_APPEARED_IN_PALLET`.
     """
-    totals = [progress.shares]
-
-    move(Position(map=0, x=1, y=0))
+    move(Position(map=0, x=0, y=1))
     flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
-    progress.score()
-    move(Position(map=0, x=2, y=0))
-    flag(Event.EVENT_GOT_STARTER)
-    progress.score()
-    totals.append(progress.shares)
 
-    assert totals == [
-        dict.fromkeys(Term, 0),
-        {
-            Term.MILESTONE : settings.milestone,
-            Term.NOVELTY   : 2 * settings.novelty,
-            Term.STARTER   : settings.starter
-        }
-    ]
+    assert progress.score() == earning(
+        milestone = settings.milestone,
+        novelty   = settings.novelty
+    )
 
 
 @mark.parametrize(
@@ -333,6 +333,83 @@ def test_the_flags_mark_each_set_event_in_the_order_event_declares(
 
     assert Progress(game_boy, settings).flags.tolist() == [
         int(event in events) for event in Event
+    ]
+
+
+def test_a_tally_holds_the_progress_as_it_stands(
+    flag     : Callable[[Event], None],
+    move     : Callable[[Position], None],
+    progress : Progress
+):
+    """
+    Asserts that a tally holds how often each term was earned, each flag
+    set, the position the player stands on, and each position reached.
+    """
+    move(Position(map=0, x=1, y=0))
+    flag(Event.EVENT_FOLLOWED_OAK_INTO_LAB)
+    progress.score()
+
+    tally = progress.tally
+
+    assert tally.earned == {Term.MILESTONE: 1, Term.NOVELTY: 1}
+    assert tally.events == {Event.EVENT_FOLLOWED_OAK_INTO_LAB}
+    assert tally.position == Position(map=0, x=1, y=0)
+    assert tally.reached == {Position(map=0, x=0, y=0), Position(map=0, x=1, y=0)}
+
+
+def test_the_milestones_total_each_flags_pay_leaving_out_the_novelty(
+    flag     : Callable[[Event], None],
+    move     : Callable[[Position], None],
+    progress : Progress,
+    settings : RewardSettings
+):
+    """
+    Asserts that the milestones hold what each flag earned, as a search
+    reads its reward, whatever novelty each new position paid.
+    """
+    assert progress.milestones == 0.0
+
+    move(Position(map=0, x=1, y=0))
+    progress.score()
+
+    assert progress.milestones == 0.0
+
+    flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
+    progress.score()
+    flag(Event.EVENT_GOT_STARTER)
+    progress.score()
+
+    assert progress.milestones == settings.milestone + settings.starter
+
+
+def test_the_shares_total_what_each_term_earned_across_the_episodes_steps(
+    flag     : Callable[[Event], None],
+    move     : Callable[[Position], None],
+    progress : Progress,
+    settings : RewardSettings
+):
+    """
+    Asserts that the episode's shares total each term across its steps, two
+    new positions paying the novelty twice and a milestone and the starter
+    once each, and zero for no step at all.
+    """
+    totals = [progress.shares]
+
+    move(Position(map=0, x=1, y=0))
+    flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
+    progress.score()
+    move(Position(map=0, x=2, y=0))
+    flag(Event.EVENT_GOT_STARTER)
+    progress.score()
+    totals.append(progress.shares)
+
+    assert totals == [
+        dict.fromkeys(Term, 0),
+        {
+            Term.MILESTONE : settings.milestone,
+            Term.NOVELTY   : 2 * settings.novelty,
+            Term.STARTER   : settings.starter
+        }
     ]
 
 

@@ -5,10 +5,11 @@ positions and flags out for the observation.
 """
 
 from collections import Counter
+from math        import fsum
 from numpy       import array, int8, ndarray, zeros
 
 from squirtl.emulator.console import GameBoy
-from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Term
+from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Tally, Term
 
 
 class Progress:
@@ -19,16 +20,24 @@ class Progress:
     pays each step.
     """
 
-    def __init__(self, game_boy: GameBoy, settings: RewardSettings):
+    def __init__(
+        self,
+        game_boy : GameBoy,
+        settings : RewardSettings,
+        tally    : Tally | None = None
+    ):
         """
-        Records the position the player starts the episode on and each flag
-        already set, neither of which a step earns.
+        Takes up the episode where `tally` leaves it, or otherwise records
+        the position the player starts the episode on and each flag already
+        set, neither of which a step earns.
         """
-        self.earned    = Counter()
-        self.events    = Event.read(game_boy)
+        tally = tally or Tally.read(game_boy)
+
+        self.earned    = Counter(tally.earned)
+        self.events    = set(tally.events)
         self.game_boy  = game_boy
-        self.position  = Position.read(game_boy)
-        self.positions = {self.position}
+        self.position  = tally.position
+        self.positions = tally.reached
         self.settings  = settings
 
     @property
@@ -40,12 +49,30 @@ class Progress:
         return array([event in self.events for event in Event], int8)
 
     @property
+    def milestones(self) -> float:
+        """
+        Totals the reward the flags set in the episode have earned, each
+        paid as its term pays it, leaving out the novelty of every position.
+        """
+        return fsum(
+            share for term, share in self.shares.items() if term is not Term.NOVELTY
+        )
+
+    @property
     def shares(self) -> dict[Term, float]:
         """
         Totals each term's part of the reward the episode's steps have
         earned, as `RewardSettings.shares` pays the count of each.
         """
         return self.settings.shares(self.earned)
+
+    @property
+    def tally(self) -> Tally:
+        """
+        Packs the progress so far into the `Tally` that `Progress` resumes
+        from.
+        """
+        return Tally.of(self.earned, self.events, self.position, self.positions)
 
     def grid(self, size: int) -> ndarray:
         """

@@ -1,6 +1,6 @@
 """
-Defines `watch`, the command that plays an episode a run recorded back
-through the emulator's window.
+Defines `watch`, the command that plays an episode a run recorded, or the
+demonstration a search found, back through the emulator's window.
 """
 
 from cyclopts       import Parameter
@@ -17,31 +17,38 @@ from squirtl.runs.schemas          import Run
 
 def watch(
     directory : Annotated[Path, Parameter(
-        help = "The run's directory under `data/runs/`."
+        help = "The directory under `data/runs/` of a run or a search."
     )],
     *,
     episode   : Annotated[
         PositiveInt | None,
-        Parameter(help="The episode to play, counting from 1, or none for the last.")
+        Parameter(
+            help = (
+                "The episode to play, counting from 1, or none for the last, which "
+                "a search refuses, since it holds one demonstration."
+            )
+        )
     ] = None
 ) -> int | None:
     """
     Opens the emulator's window and plays back one episode the run recorded,
-    from the reset at the `timer_div` the run recorded for it to the return
-    the run recorded, at the sixty steps a second the window paces.
+    or the demonstration a search found, from the reset at the `timer_div`
+    recorded for it to the return recorded, at the sixty steps a second the
+    window paces. A search's return leaves out the novelty of each position.
 
-    A directory holding no run, an episode the run never recorded, or a
-    cartridge the emulator refuses exits 1 before the window opens, and
-    a console whose intro leaves a state of another digest than the run's
-    exits 1 before playing anything. A playback reaching a return other than
-    the one recorded exits 1 once it ends.
+    A directory holding no run, an episode the run never recorded, a search
+    holding no demonstration, or a cartridge the emulator refuses exits
+    1 before the window opens, and a console whose intro leaves a state
+    of another digest than the run's exits 1 before playing anything. A
+    playback reaching a return other than the one recorded exits 1 once
+    it ends.
     """
     listen()
 
     with refusing(IndexError, OSError, ValueError):
-        run       = Run.read(directory)
-        recorded  = run.episode(episode)
-        cartridge = Cartridge.read(run.settings.emulator.cartridge)
+        run                 = Run.read(directory)
+        recording, recorded = run.playback(episode)
+        cartridge           = Cartridge.read(run.settings.emulator.cartridge)
 
     with Overworld(
         cartridge,
@@ -59,13 +66,14 @@ def watch(
 
             return 1
 
-        reward = overworld.play(recorded.recording)
+        played = overworld.play(recording)
+        reward = overworld.progress.milestones if run.searches else played
 
-    if reward != recorded.reward:
+    if reward != recorded:
         logger.error(
             "The playback reached a return of {} where the run recorded {}",
             reward,
-            recorded.reward
+            recorded
         )
 
         return 1

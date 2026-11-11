@@ -237,6 +237,7 @@ def test_a_setting_takes_its_flag_then_the_table_then_its_default(
     [
         param([],           id="the-app"),
         param(["evaluate"], id="evaluate"),
+        param(["search"],   id="search"),
         param(["stop"],     id="stop"),
         param(["train"],    id="train"),
         param(["watch"],    id="watch"),
@@ -253,12 +254,12 @@ def test_help_text(
     Asserts that `--help` exits zero and prints the help text its fixture
     file holds, the app's carrying the description the manifest declares
     and each command's its docstring and each flag's, so a change to what a
-    command documents is reviewed as a diff. The device defaults to the CPU
-    and an evaluation to four environments here, whatever accelerator and
-    CPUs the machine running the suite reports.
+    command documents is reviewed as a diff. The device defaults to the CPU,
+    an evaluation to four environments, and a search to four workers here,
+    whatever accelerator and CPUs the machine running the suite reports.
     """
     monkeypatch.setattr("squirtl.agent.schemas.current_accelerator", lambda **_: None)
-    monkeypatch.setattr("squirtl.evaluation.schemas.process_cpu_count", lambda: 4)
+    monkeypatch.setattr("squirtl.emulator.schemas.process_cpu_count", lambda: 4)
     invocation = invoke([*command, "--help"])
 
     assert invocation.code == 0

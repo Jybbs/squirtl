@@ -46,16 +46,16 @@ def evaluate(
     agent beats its baseline, and the runs `--against` names where it names
     any, on each run's mean return.
 
-    A directory holding no run exits 1 before any evaluation, and a run
-    holding no checkpoint, holding a damaged one, or reading a cartridge the
-    emulator refuses exits 1, keeping the evaluations already written for
-    the runs evaluated before it.
+    A directory holding no run or a search exits 1 before any evaluation,
+    and a run holding no checkpoint, holding a damaged one, or reading a
+    cartridge the emulator refuses exits 1, keeping the evaluations already
+    written for the runs evaluated before it.
     """
     listen()
 
     with refusing(OSError, ValueError):
         runs, rivals = (
-            [Run.read(directory) for directory in group]
+            [Run.trained(directory) for directory in group]
             for group in (directories, against or [])
         )
 

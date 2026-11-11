@@ -1,6 +1,7 @@
 """
-Defines `stop`, the command that writes the stop file ending a training run
-at the end of the episode it is playing.
+Defines `stop`, the command that writes the stop file ending a training
+run at the end of the episode it is playing, or a search at the end of its
+iteration.
 """
 
 from loguru  import logger
@@ -12,9 +13,10 @@ from squirtl.runs.schemas import Run
 
 def stop(directory: Path):
     """
-    Writes the stop file into a training run's directory from any shell,
-    ending the run at the end of the episode it is playing with a checkpoint
-    and exit status 0, as a first interrupt does.
+    Writes the stop file into a run's directory from any shell, ending a
+    training run at the end of the episode it is playing, or a search at the
+    end of its iteration, with a checkpoint and exit status 0, as a first
+    interrupt does.
 
     A directory holding no run exits 1.
 
@@ -29,6 +31,7 @@ def stop(directory: Path):
 
     run.stop.touch()
     logger.info(
-        "Wrote the stop file ending the run in {} at its episode's end",
-        run.directory
+        "Wrote the stop file ending the run in {} at its {}'s end",
+        run.directory,
+        "iteration" if run.searches else "episode"
     )

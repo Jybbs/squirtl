@@ -3,6 +3,7 @@ Defines the records the emulator reads:
 
 - `Record`, the frozen base every subject's records build on, and
   `UnitInterval`, the 0-to-1 float bounding a probability or a reward
+- `processors`, the count a setting of worker processes defaults to
 - `Button`, `Edition`, and `Symbol`, the buttons a step presses, the
   release a run plays, and the addresses it reads in the game's memory
 - `Cartridge`, the ROM a run boots, and `EmulatorSettings`
@@ -11,6 +12,7 @@ Defines the records the emulator reads:
 from enum      import IntEnum, StrEnum, auto
 from functools import cached_property
 from hashlib   import sha1
+from os        import process_cpu_count
 from pathlib   import Path
 from pydantic  import BaseModel, Field, PositiveInt, model_validator
 from typing    import Annotated, Self
@@ -168,3 +170,10 @@ class EmulatorSettings(Record):
         `open_window` is set and otherwise `null`, which draws nothing.
         """
         return "SDL2" if self.open_window else "null"
+
+
+def processors() -> int:
+    """
+    Reads the CPUs the process may use, or 1 where Python cannot tell.
+    """
+    return process_cpu_count() or 1

@@ -236,21 +236,23 @@ def test_each_episode_logs_a_line_and_each_step_one_under_verbose(
     )
 
 
-def test_a_run_writes_its_record_lines_and_checkpoint_and_prints_its_directory(
-    trained: Path
+def test_a_resume_of_a_search_exits_1_naming_the_commands_reading_one(
+    invoke   : Invoker,
+    searched : Path
 ):
     """
-    Asserts that a run exits zero having written, in the directory under
-    `data/runs/` it prints, its record, a line for each of its two 4-step
-    episodes, and its checkpoint at its tenth and last step.
+    Asserts that resuming a search through `squirtl train` exits 1 naming
+    `squirtl watch` and `squirtl search --resume`, and makes no directory
+    beside the search's.
     """
-    run = Run.read(trained)
+    invocation = invoke(["train", "--resume", str(searched)])
 
     assert (
-        trained.parent,
-        len(list(run.recorded)),
-        Checkpoint.from_path(run.checkpoint).step
-    ) == (Path("data/runs"), 2, 10)
+        invocation.code,
+        "squirtl watch" in invocation.log,
+        "squirtl search --resume" in invocation.log,
+        list(Path("data/runs").iterdir())
+    ) == (1, True, True, [searched])
 
 
 @mark.parametrize(
@@ -275,3 +277,20 @@ def test_the_window_flag_boots_the_emulator_in_its_sdl2_window(
     invoke(["train", *quick, *flags])
 
     assert windows == [window]
+
+
+def test_a_run_writes_its_record_lines_and_checkpoint_and_prints_its_directory(
+    trained: Path
+):
+    """
+    Asserts that a run exits zero having written, in the directory under
+    `data/runs/` it prints, its record, a line for each of its two 4-step
+    episodes, and its checkpoint at its tenth and last step.
+    """
+    run = Run.read(trained)
+
+    assert (
+        trained.parent,
+        len(list(run.recorded)),
+        Checkpoint.from_path(run.checkpoint).step
+    ) == (Path("data/runs"), 2, 10)

@@ -5,7 +5,7 @@ the protocols naming the PyBoy members it calls: `Emulator`, `GameWrapper`,
 """
 
 from contextlib import AbstractContextManager
-from hashlib    import file_digest
+from hashlib    import sha256
 from io         import BytesIO
 from numpy      import ndarray
 from pyboy      import PyBoy
@@ -69,6 +69,12 @@ class Emulator(Protocol):
         Presses the button `input` names for the next `delay` frames.
         """
 
+    def load_state(self, file_like_object: BinaryIO):
+        """
+        Reads the whole state of the emulator back from `file_like_object`,
+        which `save_state` wrote.
+        """
+
     def save_state(self, file_like_object: BinaryIO):
         """
         Writes the whole state of the emulator into `file_like_object`.
@@ -112,16 +118,13 @@ class GameBoy(AbstractContextManager):
     @property
     def digest(self) -> str:
         """
-        Hashes the whole state of the console as PyBoy saves it, which is
+        Hashes the whole state of the console as `state` saves it, which is
         the same after every `reset` at one `timer_div`.
 
         Returns:
             The hex digest of the state's SHA-256.
         """
-        with BytesIO() as state:
-            self.emulator.save_state(state)
-
-            return file_digest(state, "sha256").hexdigest()
+        return sha256(self.state).hexdigest()
 
     @property
     def grayscale(self) -> ndarray:
@@ -149,6 +152,17 @@ class GameBoy(AbstractContextManager):
         """
         return self.emulator.screen.ndarray[..., :3].copy()
 
+    @property
+    def state(self) -> bytes:
+        """
+        Saves the whole state of the console as PyBoy saves it, the frame it
+        last rendered among it, which `load` puts back.
+        """
+        with BytesIO() as state:
+            self.emulator.save_state(state)
+
+            return state.getvalue()
+
     @classmethod
     def boot(cls, cartridge: Cartridge, settings: EmulatorSettings) -> Self:
         """
@@ -174,6 +188,14 @@ class GameBoy(AbstractContextManager):
         over as bytes prints a `TypeError` and keeps running.
         """
         self.emulator.stop(save=False)
+
+    def load(self, state: bytes):
+        """
+        Puts back the whole state `state` saved, so the console renders the
+        frame it held then and plays on from there as it did then.
+        """
+        with BytesIO(state) as saved:
+            self.emulator.load_state(saved)
 
     def press(self, button: Button | None, frames: int) -> ndarray:
         """

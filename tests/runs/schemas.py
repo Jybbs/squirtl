@@ -40,10 +40,13 @@ from shutil            import copytree
 from subprocess        import CalledProcessError, check_output
 from syrupy.assertion  import SnapshotAssertion
 
-from squirtl.agent.schemas      import Weights
-from squirtl.emulator.schemas   import Cartridge, Record
-from squirtl.evaluation.schemas import Evaluation
-from squirtl.runs.schemas       import Episode, Revision, Run, RunSettings, Stream
+from squirtl.agent.schemas       import Weights
+from squirtl.emulator.schemas    import Cartridge, Record
+from squirtl.environment.schemas import Recording
+from squirtl.evaluation.schemas  import Evaluation
+from squirtl.runs.schemas        import Episode, Revision, Run, RunSettings, SearchHandover, Stream
+from squirtl.runs.searcher       import Searcher
+from squirtl.search.schemas      import Iteration
 
 
 def test_a_checkpoint_at_the_runs_last_step_may_land_within_an_episode(
@@ -91,39 +94,51 @@ def test_a_clean_clone_reads_as_its_commit_and_its_lockfile(clone: Path):
     )
 
 
-def test_a_resumed_run_names_the_run_it_continues(clone: Path):
+@mark.usefixtures("clone")
+def test_a_demonstration_replaces_the_last_one_whole(run: Run):
     """
-    Asserts that a run resuming another records the name of the run it
-    continues in a directory of its own.
+    Asserts that writing a demonstration leaves the recording it was given
+    at the run's path, overwriting the partial file a killed write left and
+    keeping no partial file behind.
     """
-    resumed = Run.start(
-        "0",
-        RunSettings(),
-        datetime(2026, 10, 5, tzinfo=UTC),
-        Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC)).name
-    )
+    run.directory.mkdir(parents=True)
 
-    assert loads(resumed.record.read_text(encoding="utf-8"))["resumes"] == (
-        "20261004T000000.000000Z"
-    )
+    partial = run.demonstration.with_name("demonstration.json.partial")
+    partial.write_text("cut sho", encoding="utf-8")
 
+    recording = Recording(presses=bytes([1, 4]), timer_div=9)
 
-def test_a_revision_outside_a_clone_raises_the_error_git_exits_with(outside: Path):
-    """
-    Asserts that reading a revision where no clone holds the working
-    directory raises the error git exits with, rather than recording a run
-    with no commit.
-    """
-    with raises(CalledProcessError):
-        Revision.checked_out()
+    run.demonstrate(recording)
+
+    assert Recording.model_validate_json(run.demonstration.read_bytes()) == recording
+    assert not partial.exists()
 
 
-def test_a_run_holding_no_evaluations_reads_none(run: Run):
+def test_a_handover_reads_the_lines_its_checkpoint_holds(halted: Run):
     """
-    Asserts that a run whose directory holds no `evaluations`, as a run that
-    has played none leaves it, reads no evaluation rather than raising.
+    Asserts that a handover holds the search's name, its checkpoint, and
+    each line up to that checkpoint's iteration, dropping any after it.
     """
-    assert list(run.evaluated) == []
+    lines = [*halted.lines(halted.iterations)]
+
+    with halted.iterations.open("a", encoding="utf-8") as appended:
+        appended.write(lines[-1])
+
+    handover = SearchHandover.from_run(halted)
+
+    assert (handover.name, handover.iterations) == (halted.name, lines)
+    assert handover.checkpoint.frontier.iterations == len(lines)
+
+
+def test_a_handover_refuses_a_search_at_its_steps(halted: Run):
+    """
+    Asserts that a search whose checkpoint already holds its steps raises,
+    since there is nothing left to continue.
+    """
+    settings = halted.settings.model_copy(update={"steps": 1})
+
+    with raises(ValueError, match="already holds the search's end"):
+        SearchHandover.from_run(halted.model_copy(update={"settings": settings}))
 
 
 @mark.usefixtures("clone")
@@ -150,29 +165,31 @@ def test_a_revision_is_dirty_wherever_git_reports_a_change(
     assert Revision.checked_out().dirty is dirty
 
 
-def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
+def test_a_handover_refuses_a_search_holding_no_checkpoint(halted: Run):
     """
-    Asserts that starting a run where no clone holds the working directory
-    raises the error git exits with before creating any directory, since the
-    run reads its revision first.
+    Asserts that a search holding no checkpoint raises, naming the file.
     """
-    with raises(CalledProcessError):
-        Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
+    halted.checkpoint.unlink()
 
-    assert not (outside / "data").exists()
+    with raises(FileNotFoundError, match="checkpoint.npz"):
+        SearchHandover.from_run(halted)
 
 
-def test_a_run_reads_an_episode_validating_its_line_alone(
-    episode : Episode,
-    holding : Callable[[str], Run]
+def test_a_handover_refuses_a_search_holding_the_starter(
+    searcher: Callable[..., Searcher]
 ):
     """
-    Asserts that a run reads its second episode though the line before it
-    holds no episode, since it validates the line it returns alone.
+    Asserts that a search whose checkpoint holds the starter raises, however
+    many steps it has left.
     """
-    run = holding(f'{{"length": 3}}\n{episode.model_dump_json()}\n')
+    built = searcher(steps=100_000)
 
-    assert run.episode(2) == episode
+    with built:
+        for _ in built:
+            pass
+
+    with raises(ValueError, match="already holds the search's end"):
+        SearchHandover.from_run(built.run)
 
 
 @mark.parametrize(
@@ -193,31 +210,24 @@ def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
     )
 
 
-def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path):
+def test_a_handover_refuses_a_training_run(run: Run):
     """
-    Asserts that reading the directory a run started in returns that run,
-    whether the directory is named relative to the working directory or
-    absolutely, each read keeping its paths in the directory it names.
+    Asserts that a training run hands nothing over to a search, naming the
+    command that continues one.
     """
-    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
-
-    assert [
-        (read.model_dump(), read.directory)
-        for read in map(Run.read, (run.directory, clone / run.directory))
-    ] == [
-        (run.model_dump(), run.directory),
-        (run.model_dump(), clone / run.directory)
-    ]
+    with raises(ValueError, match="squirtl train"):
+        SearchHandover.from_run(run)
 
 
-def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
+def test_a_handover_refuses_iterations_short_of_the_checkpoint(halted: Run):
     """
-    Asserts that the JSON a run writes into its directory validates back
-    into a record equal to the run that wrote it.
+    Asserts that a search whose iterations end short of its checkpoint
+    raises, naming how far each goes.
     """
-    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
+    halted.iterations.write_text("", encoding="utf-8")
 
-    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
+    with raises(ValueError, match="short of the checkpoint"):
+        SearchHandover.from_run(halted)
 
 
 @mark.parametrize(
@@ -253,36 +263,30 @@ def test_a_run_name_reads_back_as_the_instant_it_started(
     assert datetime.fromisoformat(name) == started
 
 
-def test_a_run_records_its_settings_revision_and_start(clone: Path):
+def test_a_new_stream_leaves_the_seed_of_every_earlier_one_as_it_was():
     """
-    Asserts that a run writes its record into the directory named for the
-    instant it started under `data/runs/`, holding the digest of its start,
-    its settings, the revision of the clone, that instant, and no run it
-    resumes.
+    Asserts that the search's stream comes last among the streams, since
+    each stream's seed derives from its place, so every seed an earlier run
+    drew from reads as it did.
     """
-    settings = RunSettings(seed=7)
-    Run.start("0", settings, datetime(2026, 10, 4, 12, 30, 5, 123456, tzinfo=UTC))
-
-    assert loads(
-        (clone / "data/runs/20261004T123005.123456Z/run.json").read_text(
-            encoding = "utf-8"
-        )
-    ) == {
-        "digest"   : "0",
-        "resumes"  : None,
-        "revision" : Revision.checked_out().model_dump(),
-        "started"  : "2026-10-04T12:30:05.123456Z",
-        "settings" : settings.model_dump(mode="json")
-    }
+    assert [*Stream][-1] is Stream.SEARCH
 
 
-def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
+def test_a_resumed_run_names_the_run_it_continues(clone: Path):
     """
-    Asserts that a run built on an instant carrying no UTC offset raises
-    rather than reading that instant as the machine's local time.
+    Asserts that a run resuming another records the name of the run it
+    continues in a directory of its own.
     """
-    with raises(ValidationError, match="timezone info"):
-        Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
+    resumed = Run.start(
+        "0",
+        RunSettings(),
+        datetime(2026, 10, 5, tzinfo=UTC),
+        Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC)).name
+    )
+
+    assert loads(resumed.record.read_text(encoding="utf-8"))["resumes"] == (
+        "20261004T000000.000000Z"
+    )
 
 
 @mark.usefixtures("clone")
@@ -302,22 +306,14 @@ def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
     assert Revision.checked_out().dirty
 
 
-def test_a_run_skips_an_unfinished_last_line_with_a_warning(
-    episode : Episode,
-    holding : Callable[[str], Run],
-    logged  : list[str]
-):
+def test_a_revision_outside_a_clone_raises_the_error_git_exits_with(outside: Path):
     """
-    Asserts that a run reads its episodes past a last line lacking its
-    newline, as a run that stopped while writing it leaves it, logging a
-    warning naming the file rather than failing to validate the line.
+    Asserts that reading a revision where no clone holds the working
+    directory raises the error git exits with, rather than recording a run
+    with no commit.
     """
-    run = holding(f'{episode.model_dump_json()}\n{{"length": ')
-
-    assert (list(run.recorded), logged) == (
-        [episode],
-        [f"Skipping the unfinished last line of {run.episodes}"]
-    )
+    with raises(CalledProcessError):
+        Revision.checked_out()
 
 
 @mark.parametrize(
@@ -336,20 +332,12 @@ def test_a_revision_refuses_output_that_holds_no_hash(commit: str):
         Revision(commit=commit, dirty=False, lockfile="0")
 
 
-def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
+def test_a_run_holding_no_evaluations_reads_none(run: Run):
     """
-    Asserts that a run started at the same instant as an earlier one raises
-    rather than writing into the earlier run's directory, whose record stays
-    as the earlier run wrote it.
+    Asserts that a run whose directory holds no `evaluations`, as a run that
+    has played none leaves it, reads no evaluation rather than raising.
     """
-    started = datetime(2026, 10, 4, tzinfo=UTC)
-    first   = Run.start("0", RunSettings(seed=1), started)
-    record  = first.record.read_text(encoding="utf-8")
-
-    with raises(FileExistsError):
-        Run.start("0", RunSettings(seed=2), started)
-
-    assert first.record.read_text(encoding="utf-8") == record
+    assert list(run.evaluated) == []
 
 
 @mark.parametrize(
@@ -460,58 +448,46 @@ def test_a_run_read_from_outside_the_clone_keeps_its_files_where_it_was_read(
     ]
 
 
-def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
+def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
     """
-    Asserts that starting a run creates its directory under `data/runs/` and
-    the record inside it, and creates or removes no other file or directory
-    outside the clone's own git metadata.
+    Asserts that starting a run where no clone holds the working directory
+    raises the error git exits with before creating any directory, since the
+    run reads its revision first.
     """
-    changed  = set(clone.rglob("*"))
-    run      = Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
-    changed ^= set(clone.rglob("*"))
+    with raises(CalledProcessError):
+        Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
 
-    assert {
-        path.relative_to(clone) for path in changed if ".git" not in path.parts
-    } == {Path("data"), Path("data/runs"), run.directory, run.record}
+    assert not (outside / "data").exists()
 
 
-def test_a_runs_episodes_read_back_in_the_order_written(
+def test_a_run_reads_an_episode_validating_its_line_alone(
     episode : Episode,
     holding : Callable[[str], Run]
 ):
     """
-    Asserts that a run reads each line of its `episodes` back as the episode
-    written there, nested recording included, in the order the lines run,
-    and parses no line past the last one drawn, so a line a stopped run left
-    half written stays unread.
+    Asserts that a run reads its second episode though the line before it
+    holds no episode, since it validates the line it returns alone.
     """
-    later    = episode.model_copy(update={"length": 4})
-    recorded = holding(
-        f'{episode.model_dump_json()}\n{later.model_dump_json()}\n{{"length": '
-    ).recorded
+    run = holding(f'{{"length": 3}}\n{episode.model_dump_json()}\n')
 
-    assert [next(recorded), next(recorded)] == [episode, later]
+    assert run.episode(2) == episode
 
 
-def test_a_sync_writes_the_file_through_the_drives_cache(
-    monkeypatch : MonkeyPatch,
-    run         : Run,
-    tmp_path    : Path
-):
+def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path):
     """
-    Asserts that syncing one of a run's files hands `flush` a descriptor of
-    that file, which writes it through the drive's cache.
+    Asserts that reading the directory a run started in returns that run,
+    whether the directory is named relative to the working directory or
+    absolutely, each read keeping its paths in the directory it names.
     """
-    flushed = []
-    monkeypatch.setattr(
-        "squirtl.runs.schemas.flush",
-        lambda descriptor: flushed.append(fstat(descriptor).st_ino)
-    )
-    path = tmp_path / "episodes.jsonl"
-    path.write_text("", encoding="utf-8")
-    run.sync(path)
+    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
 
-    assert flushed == [path.stat().st_ino]
+    assert [
+        (read.model_dump(), read.directory)
+        for read in map(Run.read, (run.directory, clone / run.directory))
+    ] == [
+        (run.model_dump(), run.directory),
+        (run.model_dump(), clone / run.directory)
+    ]
 
 
 @mark.parametrize(
@@ -641,12 +617,14 @@ def test_an_append_cuts_an_unfinished_last_line_alone(
     ) == ([12] * kept + [20], [f"Cutting the unfinished last line of {path}"] * cut)
 
 
-def test_each_stream_seed_fits_in_64_unsigned_bits():
+def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
     """
-    Asserts that every stream's seed is a 64-bit unsigned integer, the
-    widest seed `torch.manual_seed` takes.
+    Asserts that the JSON a run writes into its directory validates back
+    into a record equal to the run that wrote it.
     """
-    assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
+    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
+
+    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
 
 
 @mark.usefixtures("clone")
@@ -695,6 +673,202 @@ def test_a_run_holding_its_evaluation_but_no_baseline_plays_the_baseline_alone(
         [[None]],
         True
     )
+
+
+def test_a_run_records_its_settings_revision_and_start(clone: Path):
+    """
+    Asserts that a run writes its record into the directory named for the
+    instant it started under `data/runs/`, holding the digest of its start,
+    its settings, the revision of the clone, that instant, and no run it
+    resumes.
+    """
+    settings = RunSettings(seed=7)
+    Run.start("0", settings, datetime(2026, 10, 4, 12, 30, 5, 123456, tzinfo=UTC))
+
+    assert loads(
+        (clone / "data/runs/20261004T123005.123456Z/run.json").read_text(
+            encoding = "utf-8"
+        )
+    ) == {
+        "digest"   : "0",
+        "resumes"  : None,
+        "revision" : Revision.checked_out().model_dump(),
+        "searches" : False,
+        "started"  : "2026-10-04T12:30:05.123456Z",
+        "settings" : settings.model_dump(mode="json")
+    }
+
+
+def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
+    """
+    Asserts that a run built on an instant carrying no UTC offset raises
+    rather than reading that instant as the machine's local time.
+    """
+    with raises(ValidationError, match="timezone info"):
+        Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
+
+
+def test_a_run_skips_an_unfinished_last_line_with_a_warning(
+    episode : Episode,
+    holding : Callable[[str], Run],
+    logged  : list[str]
+):
+    """
+    Asserts that a run reads its episodes past a last line lacking its
+    newline, as a run that stopped while writing it leaves it, logging a
+    warning naming the file rather than failing to validate the line.
+    """
+    run = holding(f'{episode.model_dump_json()}\n{{"length": ')
+
+    assert (list(run.recorded), logged) == (
+        [episode],
+        [f"Skipping the unfinished last line of {run.episodes}"]
+    )
+
+
+def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
+    """
+    Asserts that a run started at the same instant as an earlier one raises
+    rather than writing into the earlier run's directory, whose record stays
+    as the earlier run wrote it.
+    """
+    started = datetime(2026, 10, 4, tzinfo=UTC)
+    first   = Run.start("0", RunSettings(seed=1), started)
+    record  = first.record.read_text(encoding="utf-8")
+
+    with raises(FileExistsError):
+        Run.start("0", RunSettings(seed=2), started)
+
+    assert first.record.read_text(encoding="utf-8") == record
+
+
+def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
+    """
+    Asserts that starting a run creates its directory under `data/runs/` and
+    the record inside it, and creates or removes no other file or directory
+    outside the clone's own git metadata.
+    """
+    changed  = set(clone.rglob("*"))
+    run      = Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
+    changed ^= set(clone.rglob("*"))
+
+    assert {
+        path.relative_to(clone) for path in changed if ".git" not in path.parts
+    } == {Path("data"), Path("data/runs"), run.directory, run.record}
+
+
+def test_a_runs_episodes_read_back_in_the_order_written(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
+    """
+    Asserts that a run reads each line of its `episodes` back as the episode
+    written there, nested recording included, in the order the lines run,
+    and parses no line past the last one drawn, so a line a stopped run left
+    half written stays unread.
+    """
+    later    = episode.model_copy(update={"length": 4})
+    recorded = holding(
+        f'{episode.model_dump_json()}\n{later.model_dump_json()}\n{{"length": '
+    ).recorded
+
+    assert [next(recorded), next(recorded)] == [episode, later]
+
+
+def test_a_search_is_refused_as_a_trained_run(halted: Run):
+    """
+    Asserts that reading a search's directory as a training run raises,
+    naming the commands that read one.
+    """
+    with raises(ValueError, match="`squirtl watch` plays"):
+        Run.trained(halted.directory)
+
+
+def test_a_search_plays_back_its_demonstration_and_its_last_reward(halted: Run):
+    """
+    Asserts that a search plays back the demonstration its directory holds
+    beside the reward of its last iteration.
+    """
+    lines = [
+        Iteration.model_validate_json(line) for line in halted.lines(halted.iterations)
+    ]
+    recording, reward = halted.playback()
+
+    assert reward == lines[-1].reward
+    assert len(recording.presses) == lines[-1].length
+
+
+def test_a_search_refuses_to_play_an_episode_back(halted: Run):
+    """
+    Asserts that naming an episode of a search raises, naming its directory.
+    """
+    with raises(ValueError, match="holds a search"):
+        halted.playback(1)
+
+
+def test_a_search_with_no_iteration_has_nothing_to_play_back(halted: Run):
+    """
+    Asserts that a search whose iterations are empty raises, naming the
+    file.
+    """
+    halted.iterations.write_text("", encoding="utf-8")
+
+    with raises(IndexError, match="iterations.jsonl"):
+        halted.playback()
+
+
+def test_a_sync_writes_the_file_through_the_drives_cache(
+    monkeypatch : MonkeyPatch,
+    run         : Run,
+    tmp_path    : Path
+):
+    """
+    Asserts that syncing one of a run's files hands `flush` a descriptor of
+    that file, which writes it through the drive's cache.
+    """
+    flushed = []
+    monkeypatch.setattr(
+        "squirtl.runs.schemas.flush",
+        lambda descriptor: flushed.append(fstat(descriptor).st_ino)
+    )
+    path = tmp_path / "episodes.jsonl"
+    path.write_text("", encoding="utf-8")
+    run.sync(path)
+
+    assert flushed == [path.stat().st_ino]
+
+
+@mark.usefixtures("clone")
+def test_a_training_run_reads_as_one():
+    """
+    Asserts that reading a training run's directory as one reads its record,
+    as `Run.read` does.
+    """
+    started = Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
+
+    assert Run.trained(started.directory) == Run.read(started.directory)
+
+
+def test_a_training_runs_playback_is_its_episode_and_its_return(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
+    """
+    Asserts that a training run plays back the episode `number` names, or
+    its last, beside the return that episode recorded.
+    """
+    run = holding(f"{episode.model_dump_json()}\n")
+
+    assert run.playback(1) == (episode.recording, episode.reward)
+    assert run.playback() == (episode.recording, episode.reward)
+
+
+def test_each_stream_seed_fits_in_64_unsigned_bits():
+    """
+    Asserts that every stream's seed is a 64-bit unsigned integer, the
+    widest seed `torch.manual_seed` takes.
+    """
+    assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
 
 
 def test_reading_a_directory_holding_no_run_raises(clone: Path):

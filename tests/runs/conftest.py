@@ -2,11 +2,13 @@
 Defines the fixtures the tests of `squirtl.runs` request, meaning the
 stand-in records a test reading no clone builds on, the record of one
 episode, a writer of a run's episodes, the settings of a short run beside
-a factory of trainers starting one, and the messages loguru logs during
-a test.
+a factory of trainers starting one, a factory of searchers on the fake game
+of `game` beside one on real worker processes, and the messages loguru logs
+during a test.
 """
 
 from collections.abc import Callable, Iterator, Mapping
+from common.search   import PoolStandIn
 from contextlib      import ExitStack
 from datetime        import UTC, datetime, timedelta
 from itertools       import count
@@ -18,8 +20,10 @@ from squirtl.agent.schemas       import AgentSettings
 from squirtl.emulator.schemas    import Cartridge
 from squirtl.environment.schemas import EnvironmentSettings, Recording
 from squirtl.reward.schemas      import Term
-from squirtl.runs.schemas        import Episode, Handover, Revision, Run, RunSettings
+from squirtl.runs.schemas        import Episode, Handover, Revision, Run, RunSettings, SearchHandover
+from squirtl.runs.searcher       import Searcher
 from squirtl.runs.trainer        import Trainer
+from squirtl.search.schemas      import SearchSettings
 
 
 @fixture
@@ -110,6 +114,104 @@ def trainer(cartridge: Cartridge, short: RunSettings) -> Callable[..., Trainer]:
         )
 
     return build
+
+
+def searches(cartridge: Cartridge, settings: RunSettings) -> Callable[..., Searcher]:
+    """
+    Builds a factory starting a search of `settings` on `cartridge`, any
+    keyword a field of `RunSettings` to set in its place, each search
+    started a second after the one before.
+    """
+    seconds = count()
+
+    def build(resumes: Run | None = None, **fields: object) -> Searcher:
+        """
+        Builds the searcher of the search `fields` describe, which continues
+        the search `resumes` from its checkpoint where it is one.
+        """
+        built = Searcher(
+            cartridge,
+            settings.model_copy(update=fields),
+            datetime(2026, 10, 4, tzinfo=UTC) + timedelta(seconds=next(seconds)),
+            resumes and SearchHandover.from_run(resumes)
+        )
+
+        return built
+
+    return build
+
+
+@fixture
+def searching(clone: Path, rom: Path) -> RunSettings:
+    """
+    Builds the settings of a 60-press search in `clone` on the CPU, reading
+    the cartridge `rom` writes, of two groups of two particles, each rollout
+    2 to 4 presses, each group 1 to 2 outer steps an iteration, a checkpoint
+    at the first iteration end reaching each multiple of 20 presses, an
+    update every 8 presses drawing 4 stacks from 64 slots, and one worker.
+    """
+    return RunSettings(
+        agent            = AgentSettings(device="cpu"),
+        checkpoint_steps = 20,
+        search           = SearchSettings(
+            batch_size   = 4,
+            capacity     = 64,
+            groups       = 2,
+            inner_steps  = (2, 4),
+            outer_steps  = (1, 2),
+            particles    = 2,
+            update_steps = 8,
+            workers      = 1
+        ),
+        steps = 60
+    )
+
+
+@fixture
+def searcher(
+    cartridge : Cartridge,
+    game      : None,
+    pools     : list[PoolStandIn],
+    searching : RunSettings
+) -> Callable[..., Searcher]:
+    """
+    Builds a factory of searches of `searching` playing the fake game of
+    `game` in the process running the test.
+    """
+    return searches(cartridge, searching)
+
+
+@fixture
+def halted(searcher: Callable[..., Searcher]) -> Run:
+    """
+    Takes a search of `searching` to the end of the first iteration reaching
+    30 presses, as `squirtl stop` would stop it.
+
+    Returns:
+        The run it recorded.
+    """
+    built = searcher()
+
+    with built:
+        for presses in built:
+            if presses >= 30:
+                built.run.stop.touch()
+
+    return built.run
+
+
+@fixture
+def actual(cartridge: Cartridge, searching: RunSettings) -> Callable[..., Searcher]:
+    """
+    Builds a factory of searches of `searching` over two real worker
+    processes.
+    """
+    return searches(
+        cartridge = cartridge,
+        settings  = searching.model_copy(
+            update = {"search": searching.search.model_copy(update={"workers": 2})}
+        )
+    )
 
 
 @fixture

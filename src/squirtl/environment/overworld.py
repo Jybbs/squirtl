@@ -4,8 +4,9 @@ from the bedroom of Blue, the player character, to the starter, which
 `Overworld.specification` specifies with its wrappers.
 """
 
-from functools import reduce
-from gymnasium import Env
+from compression.zstd import decompress
+from functools        import reduce
+from gymnasium        import Env
 from gymnasium.envs.registration import EnvSpec
 from gymnasium.spaces            import Box, Discrete
 from gymnasium.wrappers          import FrameStackObservation, RecordEpisodeStatistics
@@ -15,7 +16,7 @@ from typing   import Any
 
 from squirtl.emulator.console     import GameBoy
 from squirtl.emulator.schemas     import Button, Cartridge, EmulatorSettings
-from squirtl.environment.schemas  import EnvironmentSettings, Recording
+from squirtl.environment.schemas  import EnvironmentSettings, Recording, Snapshot
 from squirtl.environment.wrappers import ProgressObservation, RecordOutcome, ShrinkObservation
 from squirtl.reward.progress      import Progress
 from squirtl.reward.schemas       import RewardSettings, Term
@@ -109,18 +110,30 @@ class Overworld(Env):
         seed    : int | None            = None
     ) -> tuple[ndarray, dict[str, Any]]:
         """
-        Loads Blue's bedroom with the DIV of the `Recording` that `options`
-        holds under `recording`, or otherwise one from the environment's
-        generator, which `seed` reseeds, and starts the episode's progress
-        and its record. It then advances one frame with no press, since the
-        state `GameBoy.start` saves holds no rendered screen.
+        Puts back the emulator's state and the episode's progress that
+        `options` holds under `snapshot`, with no frame advanced. Otherwise
+        it loads Blue's bedroom with the DIV of the `Recording` that
+        `options` holds under `recording`, or one from the environment's
+        generator, which `seed` reseeds, and starts the episode's
+        progress, then advances one frame with no press, since the state
+        `GameBoy.start` saves holds no rendered screen. Either way the
+        episode's record starts empty.
 
         Returns:
-            That frame in gray beside an empty info dict.
+            The frame the emulator last rendered, in gray, beside an empty
+            info dict.
         """
         super().reset(seed=seed)
 
+        self.actions = bytearray()
+
         match options:
+            case {"snapshot": Snapshot() as snapshot}:
+                self.game_boy.load(decompress(snapshot.state))
+                self.progress  = Progress(self.game_boy, self.reward, snapshot.tally)
+                self.timer_div = snapshot.timer_div
+
+                return self.game_boy.grayscale, {}
             case {"recording": Recording() as recording}:
                 self.timer_div = recording.timer_div
             case _:
@@ -128,7 +141,6 @@ class Overworld(Env):
                 self.timer_div = int(self.np_random.integers(256))
 
         self.game_boy.reset(self.timer_div)
-        self.actions  = bytearray()
         self.progress = Progress(self.game_boy, self.reward)
 
         return self.game_boy.press(None, 1), {}

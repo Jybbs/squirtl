@@ -15,7 +15,8 @@ from pydantic         import ValidationError
 from pytest           import mark, param, raises
 from re               import escape
 
-from squirtl.environment.schemas import EnvironmentSettings, Recording
+from squirtl.environment.schemas import EnvironmentSettings, Recording, Snapshot
+from squirtl.reward.schemas      import Event, Position, Tally, Term
 
 
 @mark.parametrize(
@@ -84,3 +85,24 @@ def test_a_recording_refuses_a_timer_div_outside_the_eight_bits_of_div(timer_div
     """
     with raises(ValidationError):
         Recording(presses=b"", timer_div=timer_div)
+
+
+def test_a_snapshot_reads_back_from_json_as_the_one_written():
+    """
+    Asserts that a snapshot written to JSON, its compressed bytes and its
+    tally included, reads back equal, as a checkpoint's kept states do.
+    """
+    position = Position(map=1, x=2, y=3)
+    written  = Snapshot(
+        frames = bytes(range(256)),
+        state  = bytes(reversed(range(256))),
+        tally  = Tally.of(
+            {Term.NOVELTY: 2},
+            {Event.EVENT_GOT_STARTER},
+            position,
+            {position}
+        ),
+        timer_div = 255
+    )
+
+    assert Snapshot.model_validate_json(written.model_dump_json()) == written

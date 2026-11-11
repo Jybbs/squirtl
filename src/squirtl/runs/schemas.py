@@ -4,10 +4,12 @@ Defines the records one run reads and writes:
 - `RunSettings`, every setting the run reads
 - `Revision`, the code the run ran on
 - `Run`, the directory under `data/runs/` recording both, each episode, each
-  evaluation, and the checkpoint
+  evaluation, and the checkpoint, or each iteration and the demonstration of a
+  search
 - `Episode`, one episode as a line of the run's `episodes`
 - `Stream`, the streams of random draws the run makes
-- `Handover`, what a resumed run takes over from the run it continues
+- `Handover`, what a resumed run takes over from the run it continues, and
+  `SearchHandover`, what a resumed search does
 """
 
 from collections     import deque
@@ -27,13 +29,15 @@ from pydantic     import AwareDatetime, Field, NonNegativeInt, PositiveInt, Priv
 from subprocess   import check_output
 from typing       import Annotated, Self
 
-from squirtl.agent.schemas         import AgentSettings, Checkpoint, Weights, flush
+from squirtl.agent.schemas         import AgentSettings, Checkpoint, Weights, flush, replacing
 from squirtl.emulator.schemas      import Cartridge, EmulatorSettings, Record
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Outcome, Recording
 from squirtl.evaluation.evaluator  import Evaluator
 from squirtl.evaluation.schemas    import Evaluation, EvaluationSettings
 from squirtl.reward.schemas        import RewardSettings
+from squirtl.search.checkpoint     import SearchCheckpoint
+from squirtl.search.schemas        import Iteration, SearchSettings
 
 type Hexadecimal = Annotated[
     str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
@@ -97,6 +101,7 @@ class Stream(StrEnum):
     AGENT       = auto()
     ENVIRONMENT = auto()
     EVALUATION  = auto()
+    SEARCH      = auto()
 
 
 class RunSettings(Record):
@@ -149,6 +154,11 @@ class RunSettings(Record):
     reward: RewardSettings = Field(default_factory=RewardSettings)
     """
     The settings the reward reads.
+    """
+
+    search: SearchSettings = Field(default_factory=SearchSettings)
+    """
+    The settings a search reads.
     """
 
     seed: NonNegativeInt = 1
@@ -233,6 +243,11 @@ class Run(Record):
     afresh.
     """
 
+    searches: bool = False
+    """
+    Whether the run is a search over save states rather than a training run.
+    """
+
     @property
     def baseline(self) -> Path:
         """
@@ -249,6 +264,14 @@ class Run(Record):
         which a resumed run continues training from.
         """
         return self.directory / "checkpoint.npz"
+
+    @property
+    def demonstration(self) -> Path:
+        """
+        Locates the JSON file holding the `Recording` of the path a search
+        has found, rewritten at the end of each iteration.
+        """
+        return self.directory / "demonstration.json"
 
     @property
     def directory(self) -> Path:
@@ -285,6 +308,22 @@ class Run(Record):
         return self.directory / "evaluations.jsonl"
 
     @property
+    def iterations(self) -> Path:
+        """
+        Locates the JSON Lines file holding one `Iteration` of a search per
+        line, in the order the search ran them.
+        """
+        return self.directory / "iterations.jsonl"
+
+    @property
+    def log(self) -> Path:
+        """
+        Locates the JSON Lines file holding a line for each unit of the
+        run's work, a search's `iterations` and otherwise its `episodes`.
+        """
+        return self.iterations if self.searches else self.episodes
+
+    @property
     def name(self) -> str:
         """
         Spells `started` in UTC in the basic format of ISO 8601 to the
@@ -311,8 +350,9 @@ class Run(Record):
     @property
     def stop(self) -> Path:
         """
-        Locates the file whose presence stops the run at the end of the
-        episode it is playing, which `squirtl stop` writes.
+        Locates the file whose presence stops a training run at the end of
+        the episode it is playing, or a search at the end of its iteration,
+        which `squirtl stop` writes.
         """
         return self.directory / "stop"
 
@@ -336,6 +376,14 @@ class Run(Record):
             lines.writelines(
                 f"{record.model_dump_json()}\n".encode() for record in records
             )
+
+    def demonstrate(self, recording: Recording):
+        """
+        Writes `recording` to the run's `demonstration` through `replacing`,
+        so an interrupt leaves the last one whole.
+        """
+        with replacing(self.demonstration) as partial:
+            partial.write_text(recording.model_dump_json(), encoding="utf-8")
 
     def ended_by(self, step: int) -> list[str]:
         """
@@ -475,6 +523,39 @@ class Run(Record):
                     else:
                         logger.warning("Skipping the unfinished last line of {}", path)
 
+    def playback(self, number: int | None = None) -> tuple[Recording, float]:
+        """
+        Reads what `squirtl watch` plays and the return it expects, episode
+        `number` of a training run and its return, as `episode` reads it, or
+        a search's demonstration and the reward its last iteration records.
+
+        Raises:
+            FileNotFoundError : Where a search holds no demonstration.
+            IndexError        : Where `episodes` holds no such episode, or a
+                                search no iteration.
+            ValueError        : Where `number` names an episode of a search.
+        """
+        if not self.searches:
+            episode = self.episode(number)
+
+            return episode.recording, episode.reward
+
+        if number is not None:
+            raise ValueError(
+                f"{self.directory} holds a search, whose one demonstration has no "
+                f"episode {number}"
+            )
+
+        if last := deque(self.lines(self.iterations), maxlen=1):
+            return (
+                Recording.model_validate_json(
+                    self.demonstration.read_text(encoding="utf-8")
+                ),
+                Iteration.model_validate_json(last[0]).reward
+            )
+
+        raise IndexError(f"{self.iterations} holds no iteration")
+
     @classmethod
     def read(cls, directory: Path) -> Self:
         """
@@ -498,7 +579,8 @@ class Run(Record):
         digest   : str,
         settings : RunSettings,
         started  : datetime,
-        resumes  : str | None = None
+        resumes  : str | None = None,
+        searches : bool       = False
     ) -> Self:
         """
         Creates the directory of a run reading `settings` from `started` on
@@ -506,10 +588,11 @@ class Run(Record):
         the revision of the clone in the working directory, and `digest`.
 
         Args:
-            digest  : The SHA-256 digest of the state `GameBoy.start` left
-                      the run's console in.
-            resumes : The name of the run this one continues, or `None` for
-                      a run starting afresh.
+            digest   : The SHA-256 digest of the state `GameBoy.start` left
+                       the run's console in.
+            resumes  : The name of the run this one continues, or `None` for
+                       a run starting afresh.
+            searches : Whether the run is a search over save states.
 
         Raises:
             CalledProcessError : Where the working directory holds no git
@@ -527,6 +610,7 @@ class Run(Record):
             digest   = digest,
             resumes  = resumes,
             revision = Revision.checked_out(),
+            searches = searches,
             settings = settings,
             started  = started
         )
@@ -542,6 +626,26 @@ class Run(Record):
         """
         with path.open("ab") as file:
             flush(file.fileno())
+
+    @classmethod
+    def trained(cls, directory: Path) -> Self:
+        """
+        Reads the training run `directory` holds, as `read` does.
+
+        Raises:
+            ValueError: Where `directory` holds a search, naming the
+                        commands that read one, beside each error `read`
+                        raises.
+        """
+        run = cls.read(directory)
+
+        if run.searches:
+            raise ValueError(
+                f"{directory} holds a search, which `squirtl watch` plays and "
+                f"`squirtl search --resume` continues"
+            )
+
+        return run
 
 
 class Episode(Outcome):
@@ -645,3 +749,67 @@ class Handover(Record):
             evaluations = list(previous.evaluated_by(checkpoint.step)),
             name        = previous.name
         )
+
+
+class SearchHandover(Record):
+    """
+    What a resumed search takes over from the stopped search it continues,
+    read whole before the new run writes anything, so a resume refused for
+    any of it leaves no directory behind.
+    """
+
+    checkpoint: SearchCheckpoint
+    """
+    The stopped search's last checkpoint, which the search restores.
+    """
+
+    iterations: list[str]
+    """
+    The line of each iteration the checkpoint holds, as the stopped search's
+    `iterations` holds it.
+    """
+
+    name: str
+    """
+    The stopped search's name, which the new run records under `resumes`.
+    """
+
+    @classmethod
+    def from_run(cls, previous: Run) -> Self:
+        """
+        Reads what `previous` recorded up to its last checkpoint.
+
+        Raises:
+            FileNotFoundError : Where `previous` holds no checkpoint.
+            ValueError        : Where `previous` is a training run, its
+                                checkpoint is damaged or already holds
+                                the starter or the run's `steps`, or the
+                                iterations `previous` recorded end short
+                                of it.
+        """
+        if not previous.searches:
+            raise ValueError(
+                f"{previous.directory} holds a training run, which `squirtl train "
+                f"--resume` continues"
+            )
+
+        checkpoint = SearchCheckpoint.from_path(previous.checkpoint)
+        frontier   = checkpoint.frontier
+
+        if frontier.winner.terminated or frontier.presses >= previous.settings.steps:
+            raise ValueError(
+                f"{previous.checkpoint} already holds the search's end, at press "
+                f"{frontier.presses:,}"
+            )
+
+        iterations = list(
+            islice(previous.lines(previous.iterations), frontier.iterations)
+        )
+
+        if len(iterations) < frontier.iterations:
+            raise ValueError(
+                f"{previous.iterations} ends at iteration {len(iterations):,}, short "
+                f"of the checkpoint at iteration {frontier.iterations:,}"
+            )
+
+        return cls(checkpoint=checkpoint, iterations=iterations, name=previous.name)

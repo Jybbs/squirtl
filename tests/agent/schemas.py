@@ -7,6 +7,7 @@ Pins the records the agent reads and writes, covering:
   warm-up as long as a batch
 - The value a batch reads for each draw, and its target under the action
   one network chooses and another values
+- What configuring the process sets, NNPACK off and any thread count named
 - A checkpoint reading back as written with each `state_dict`'s metadata
   and replay memory's arrays, refusing a file holding more than tensors
   and plain values or a network entry that is no tensor
@@ -31,6 +32,7 @@ from torch           import Tensor, arange, device, equal, save, tensor, uint8
 from torch.nn        import Linear
 from zipfile         import ZIP_ZSTANDARD, ZipFile
 
+from squirtl.agent               import schemas
 from squirtl.agent.schemas       import AgentSettings, Batch, Checkpoint, Weights, flush
 from squirtl.environment.schemas import Entry
 
@@ -214,6 +216,29 @@ def reversed_frames(observations: Mapping[str, Tensor]) -> Tensor:
     the value its pixel holds, so it values the first frame highest.
     """
     return -frames(observations)
+
+
+@mark.parametrize(
+    ("threads", "counts"),
+    [param(None, [], id="unset"), param(3, [3], id="named")]
+)
+def test_configuring_turns_nnpack_off_and_sets_the_threads_the_settings_name(
+    counts      : list[int],
+    monkeypatch : MonkeyPatch,
+    threads     : int | None
+):
+    """
+    Asserts that configuring the process turns NNPACK off, and sets the
+    thread count only where the settings name one.
+    """
+    flags, named = [], []
+
+    monkeypatch.setattr(schemas.nnpack, "set_flags", flags.append)
+    monkeypatch.setattr(schemas, "set_num_threads", named.append)
+
+    AgentSettings(device="cpu", threads=threads).configure()
+
+    assert (flags, named) == ([False], counts)
 
 
 def test_a_batch_runs_a_network_choosing_for_itself_once():

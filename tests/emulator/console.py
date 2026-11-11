@@ -14,6 +14,7 @@ Pins how `GameBoy` runs a cartridge through PyBoy, covering:
 from collections.abc import Callable, Iterator
 from common.console  import StandIn
 from functools       import partial
+from hashlib         import sha256
 from numpy           import arange, ndarray, shares_memory, tile, uint8
 from numpy.random    import default_rng
 from numpy.testing   import assert_array_equal
@@ -51,6 +52,31 @@ def game_boy(cartridge: Cartridge) -> Iterator[GameBoy]:
         yield booted
 
 
+def readings(game_boy: GameBoy) -> tuple[bytes, ndarray, ndarray, bytes]:
+    """
+    Reads the state of `game_boy` and its frame, plays 20 frames, and reads
+    what they render and the state they reach.
+    """
+    return game_boy.state, game_boy.grayscale, game_boy.press(None, 20), game_boy.state
+
+
+def test_a_boot_hands_pyboy_the_cartridge_as_bytes(boot: Boot, cartridge: Cartridge):
+    """
+    Asserts that a boot hands PyBoy a stream of the cartridge's bytes rather
+    than its path, so PyBoy derives no path to a file beside it.
+    """
+    assert boot(EmulatorSettings()).emulator.gamerom.getvalue() == cartridge.data
+
+
+def test_a_boot_reads_no_save_beside_the_cartridge(game_boy: GameBoy):
+    """
+    Asserts that the first byte of the cartridge's RAM reads zero although
+    `rom.gb.ram` beside the cartridge holds `0xAB` in every byte, which
+    PyBoy loads into that RAM when it boots from the cartridge's path.
+    """
+    assert game_boy.emulator.memory[0, 0xA000] == 0
+
+
 @mark.parametrize(
     ("open_window", "window"),
     [param(False, "null", id="headless"), param(True, "SDL2", id="a-window")]
@@ -70,23 +96,6 @@ def test_a_boot_runs_silent_and_headless_unless_a_window_opens(
         "sound_emulated" : False,
         "window"         : window
     }
-
-
-def test_a_boot_hands_pyboy_the_cartridge_as_bytes(boot: Boot, cartridge: Cartridge):
-    """
-    Asserts that a boot hands PyBoy a stream of the cartridge's bytes rather
-    than its path, so PyBoy derives no path to a file beside it.
-    """
-    assert boot(EmulatorSettings()).emulator.gamerom.getvalue() == cartridge.data
-
-
-def test_a_boot_reads_no_save_beside_the_cartridge(game_boy: GameBoy):
-    """
-    Asserts that the first byte of the cartridge's RAM reads zero although
-    `rom.gb.ram` beside the cartridge holds `0xAB` in every byte, which
-    PyBoy loads into that RAM when it boots from the cartridge's path.
-    """
-    assert game_boy.emulator.memory[0, 0xA000] == 0
 
 
 def test_a_close_writes_nothing_beside_the_cartridge(cartridge: Cartridge):
@@ -141,6 +150,24 @@ def test_a_press_sends_any_button_then_ticks_before_reading_the_screen(
     assert game_boy.emulator.calls == [*pressed, ("tick", 24), ("screen",)]
 
 
+def test_a_load_puts_back_the_memory_the_frame_and_what_plays_next(game_boy: GameBoy):
+    """
+    Asserts that loading a saved state puts back the console's memory, the
+    frame it last rendered, and the frames it renders from there, whatever
+    played since it was saved.
+    """
+    game_boy.press(None, 20)
+
+    saved = readings(game_boy)
+
+    game_boy.press(None, 100)
+    game_boy.emulator.memory[Symbol.W_X_COORD] = 77
+    game_boy.load(saved[0])
+
+    for read, expected in zip(readings(game_boy), saved, strict=True):
+        assert_array_equal(read, expected)
+
+
 def test_a_press_holding_its_button_past_its_frames_is_refused(boot: Boot):
     """
     Asserts that a press advancing fewer frames than its settings hold the
@@ -185,16 +212,6 @@ def test_a_reset_at_one_timer_div_leaves_a_state_of_one_digest(game_boy: GameBoy
     assert (written != first, again, game_boy.digest != first) == (True, first, True)
 
 
-def test_a_start_leaves_pythons_global_generator_undrawn(game_boy: GameBoy):
-    """
-    Asserts that a start on PyBoy leaves the state of Python's global
-    generator as it found it.
-    """
-    before, _, after = getstate(), game_boy.start(), getstate()
-
-    assert after == before
-
-
 @mark.parametrize("button", Button, ids=attrgetter("name"))
 def test_each_button_names_one_pyboy_presses(button: Button, game_boy: GameBoy):
     """
@@ -214,6 +231,16 @@ def test_each_symbol_reads_the_byte_at_its_address(game_boy: GameBoy, symbol: Sy
     game_boy.emulator.memory[symbol] = 0x5A
 
     assert game_boy.read(symbol) == 0x5A
+
+
+def test_a_start_leaves_pythons_global_generator_undrawn(game_boy: GameBoy):
+    """
+    Asserts that a start on PyBoy leaves the state of Python's global
+    generator as it found it.
+    """
+    before, _, after = getstate(), game_boy.start(), getstate()
+
+    assert after == before
 
 
 def test_a_start_plays_the_intro_through_the_game_wrapper(boot: Boot):
@@ -242,39 +269,11 @@ def test_a_window_the_setting_opens_is_one_pyboy_runs(
         assert game_boy.emulator.tick(1)
 
 
-def test_the_frame_a_press_returns_holds_the_red_channel_alone(boot: Boot):
+def test_the_digest_hashes_the_whole_saved_state(game_boy: GameBoy):
     """
-    Asserts that the frame a press returns is a `(144, 160)` array of
-    `uint8` holding the red channel of PyBoy's RGBA frame alone, read from a
-    stand-in frame of bytes a generator seeded at 0 draws, whose red channel
-    no reduction across the channels gives.
+    Asserts that a console's digest is the SHA-256 of the state it saves.
     """
-    game_boy                = boot(EmulatorSettings())
-    game_boy.emulator.frame = default_rng(0).integers(
-        256,
-        dtype = uint8,
-        size  = (144, 160, 4)
-    )
-
-    assert_array_equal(
-        game_boy.press(None, 1),
-        game_boy.emulator.frame[..., 0],
-        strict = True
-    )
-
-
-def test_the_screen_holds_the_rgb_channels_alone(boot: Boot):
-    """
-    Asserts that the screen is a `(144, 160, 3)` array of `uint8` holding
-    the red, green, and blue channels of PyBoy's RGBA frame in that order,
-    read from a stand-in frame whose every pixel holds each channel's index
-    in that channel.
-    """
-    assert_array_equal(
-        boot(EmulatorSettings()).screen,
-        tile(arange(3, dtype=uint8), (144, 160, 1)),
-        strict = True
-    )
+    assert game_boy.digest == sha256(game_boy.state).hexdigest()
 
 
 @mark.parametrize(
@@ -314,4 +313,39 @@ def test_a_reset_returns_to_the_start_with_its_timer_div_in_div(
 
     assert (game_boy.read(Symbol.W_CUR_MAP), game_boy.emulator.memory[0xFF04]) == (
         0, timer_div
+    )
+
+
+def test_the_frame_a_press_returns_holds_the_red_channel_alone(boot: Boot):
+    """
+    Asserts that the frame a press returns is a `(144, 160)` array of
+    `uint8` holding the red channel of PyBoy's RGBA frame alone, read from a
+    stand-in frame of bytes a generator seeded at 0 draws, whose red channel
+    no reduction across the channels gives.
+    """
+    game_boy                = boot(EmulatorSettings())
+    game_boy.emulator.frame = default_rng(0).integers(
+        256,
+        dtype = uint8,
+        size  = (144, 160, 4)
+    )
+
+    assert_array_equal(
+        game_boy.press(None, 1),
+        game_boy.emulator.frame[..., 0],
+        strict = True
+    )
+
+
+def test_the_screen_holds_the_rgb_channels_alone(boot: Boot):
+    """
+    Asserts that the screen is a `(144, 160, 3)` array of `uint8` holding
+    the red, green, and blue channels of PyBoy's RGBA frame in that order,
+    read from a stand-in frame whose every pixel holds each channel's index
+    in that channel.
+    """
+    assert_array_equal(
+        boot(EmulatorSettings()).screen,
+        tile(arange(3, dtype=uint8), (144, 160, 1)),
+        strict = True
     )

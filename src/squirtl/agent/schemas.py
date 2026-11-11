@@ -4,8 +4,10 @@ Defines the records the agent reads and writes:
 - `AgentSettings`, every setting the agent reads
 - `Batch`, the transitions one update draws from replay memory
 - `Checkpoint`, the file holding everything a resumed run continues
-  training from, replay memory included, and `flush`, which writes a file
-  through the drive's cache
+  training from, replay memory included, beside `archiving` and `reading`,
+  which write such a file and read it back, `replacing`, which writes any
+  file whole or not at all, and `flush`, which writes a file through the
+  drive's cache
 - `Update`, the loss and the value one update reads
 - `Weights`, the online network's weights and their step, which an
   evaluation reads from a checkpoint alone
@@ -13,7 +15,9 @@ Defines the records the agent reads and writes:
 
 import fcntl
 
+from collections.abc   import Iterator, Mapping
 from compression.zstd  import ZstdError
+from contextlib        import contextmanager
 from io                import BytesIO
 from numpy             import load as load_npz, ndarray, save as save_npy
 from numpy.lib.npyio   import NpzFile
@@ -21,8 +25,9 @@ from os                import O_RDONLY, close, fsync, open as os_open
 from pathlib           import Path
 from pydantic          import Field, InstanceOf, PositiveFloat, PositiveInt, ValidatorFunctionWrapHandler, WrapValidator
 from pydantic          import model_validator
-from torch             import Tensor, load, no_grad, save
+from torch             import Tensor, load, no_grad, save, set_num_threads
 from torch.accelerator import current_accelerator
+from torch.backends    import nnpack
 from typing            import Annotated, Self
 from zipfile           import BadZipFile, ZIP_ZSTANDARD, ZipFile
 
@@ -151,6 +156,17 @@ class AgentSettings(Record):
     start size Mnih et al. set.
     """
 
+    def configure(self):
+        """
+        Turns NNPACK off for the whole process and sets the process's thread
+        count to `threads`, where the settings name one.
+        """
+        # NNPACK runs the Q-network's convolutions on the CPU slower than PyTorch's own.
+        nnpack.set_flags(False)
+
+        if self.threads:
+            set_num_threads(self.threads)
+
     @model_validator(mode="after")
     def verify(self) -> Self:
         """
@@ -272,15 +288,8 @@ class Weights(Record, extra="ignore"):
                               damaged, in its zip directory, a zip header, a
                               zstd frame, or a member, naming `path`.
         """
-        try:
-            # `numpy.load` leaves a file it opened itself open where `ZipFile` refuses
-            # it, so the file is opened here and closed by this block.
-            with path.open("rb") as file, load_npz(file) as archive:
-                return cls.model_validate(cls.members(archive))
-        except (
-            BadZipFile, EOFError, KeyError, NotImplementedError, ZstdError
-        ) as error:
-            raise ValueError(f"{path} holds no whole checkpoint: {error}") from error
+        with reading(path) as archive:
+            return cls.model_validate(cls.members(archive))
 
     @classmethod
     def members(cls, archive: NpzFile) -> dict[str, object]:
@@ -338,50 +347,14 @@ class Checkpoint(Weights, extra="forbid"):
 
     def save(self, path: Path):
         """
-        Writes the checkpoint to `path` as an `.npz` whose members `zipfile`
-        compresses with zstd, an `.npy` member for each array of `replay`
-        beside an `agent.pt` member. `torch.save` writes that member
-        holding every other field as it is, so each `state_dict` keeps its
-        `_metadata`.
-
-        The archive is written to the `.partial` file beside `path` and
-        flushed through the drive's own cache, then takes the name `path`,
-        whose directory is flushed in turn. An interrupt therefore leaves
-        the checkpoint at `path` as it was, and the `.partial` file goes
-        whether or not the write raised.
+        Writes the checkpoint to `path` through `archiving`, an `.npy`
+        member for each array of `replay` beside an `agent.pt` member.
+        `torch.save` writes that member holding every other field as it is,
+        so each `state_dict` keeps its `_metadata`.
         """
-        partial = path.with_name(f"{path.name}.partial")
-
-        try:
-            with partial.open("wb") as file:
-                with ZipFile(file, "w", ZIP_ZSTANDARD) as archive:
-                    with archive.open("agent.pt", "w") as member:
-                        save(
-                            {key: value for key, value in self if key != "replay"},
-                            member
-                        )
-
-                    for name, array in self.replay.items():
-                        # ZIP64 lets the frames of a large replay memory pass 2 GiB.
-                        with archive.open(
-                            f"{name}.npy",
-                            "w",
-                            force_zip64 = True
-                        ) as member:
-                            save_npy(member, array)
-
-                flush(file.fileno())
-
-            partial.replace(path)
-        finally:
-            partial.unlink(missing_ok=True)
-
-        directory = os_open(path.parent, O_RDONLY)
-
-        try:
-            fsync(directory)
-        finally:
-            close(directory)
+        with archiving(self.replay, path) as archive:
+            with archive.open("agent.pt", "w") as member:
+                save({key: value for key, value in self if key != "replay"}, member)
 
 
 class Update(Record):
@@ -401,6 +374,51 @@ class Update(Record):
     """
 
 
+@contextmanager
+def archiving(arrays: Mapping[str, ndarray], path: Path) -> Iterator[ZipFile]:
+    """
+    Opens an `.npz` to write to `path` through `replacing`, whose members
+    `zipfile` compresses with zstd, adding an `.npy` member for each of
+    `arrays` once the block ends. The archive is flushed through the drive's
+    own cache before it takes the name `path`, whose directory is flushed
+    in turn.
+    """
+    with replacing(path) as partial, partial.open("wb") as file:
+        with ZipFile(file, "w", ZIP_ZSTANDARD) as archive:
+            yield archive
+
+            for name, array in arrays.items():
+                # ZIP64 lets the frames of a large replay memory pass 2 GiB.
+                with archive.open(f"{name}.npy", "w", force_zip64=True) as member:
+                    save_npy(member, array)
+
+        flush(file.fileno())
+
+    directory = os_open(path.parent, O_RDONLY)
+
+    try:
+        fsync(directory)
+    finally:
+        close(directory)
+
+
+@contextmanager
+def replacing(path: Path) -> Iterator[Path]:
+    """
+    Names the `.partial` file beside `path` for the block to write, which
+    takes the name `path` once the block ends. An interrupt therefore leaves
+    the file at `path` as it was, and the `.partial` file goes whether or
+    not the block raised.
+    """
+    partial = path.with_name(f"{path.name}.partial")
+
+    try:
+        yield partial
+        partial.replace(path)
+    finally:
+        partial.unlink(missing_ok=True)
+
+
 def flush(descriptor: int):
     """
     Writes the file `descriptor` names through to the drive's storage,
@@ -411,3 +429,22 @@ def flush(descriptor: int):
         fcntl.fcntl(descriptor, full)
     else:
         fsync(descriptor)
+
+
+@contextmanager
+def reading(path: Path) -> Iterator[NpzFile]:
+    """
+    Opens the `.npz` that `archiving` wrote at `path`.
+
+    Raises:
+        ValueError: Where the file at `path` is cut short or damaged, in its
+                    zip directory, a zip header, a zstd frame, or a member,
+                    naming `path`.
+    """
+    try:
+        # `numpy.load` leaves a file it opened itself open where `ZipFile` refuses
+        # it, so the file is opened here and closed by this block.
+        with path.open("rb") as file, load_npz(file) as archive:
+            yield archive
+    except (BadZipFile, EOFError, KeyError, NotImplementedError, ZstdError) as error:
+        raise ValueError(f"{path} holds no whole checkpoint: {error}") from error

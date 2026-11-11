@@ -9,16 +9,22 @@ PyTorch.
 │              the random baseline under the same seeds, and writes each       │
 │              evaluation into its run's directory, reading in place of        │
 │              playing any the run already holds.                              │
-│ stop         Writes the stop file into a training run's directory from any   │
-│              shell, ending the run at the end of the episode it is playing   │
-│              with a checkpoint and exit status 0, as a first interrupt does. │
+│ search       Searches for a path from Blue's bedroom to the starter over     │
+│              saved states, across --search.workers processes, ending once a  │
+│              particle sets EVENT_GOT_STARTER or the presses reach the run's  │
+│              --steps, logging a line per iteration above a progress bar.     │
+│ stop         Writes the stop file into a run's directory from any shell,     │
+│              ending a training run at the end of the episode it is playing,  │
+│              or a search at the end of its iteration, with a checkpoint and  │
+│              exit status 0, as a first interrupt does.                       │
 │ train        Trains the agent for the run's --steps environment steps,       │
 │              headless unless --emulator.open-window is set, logging a line   │
 │              per episode above a progress bar.                               │
 │ watch        Opens the emulator's window and plays back one episode the run  │
-│              recorded, from the reset at the timer_div the run recorded for  │
-│              it to the return the run recorded, at the sixty steps a second  │
-│              the window paces.                                               │
+│              recorded, or the demonstration a search found, from the reset   │
+│              at the timer_div recorded for it to the return recorded, at the │
+│              sixty steps a second the window paces. A search's return leaves │
+│              out the novelty of each position.                               │
 │ write        Writes files the package declares into the checkout.            │
 │ --help (-h)  Display this message and exit.                                  │
 │ --version    Display application version.                                    │

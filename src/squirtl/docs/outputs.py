@@ -100,9 +100,9 @@ class Inventory(Record):
         - The identity's JSON
         - The `@theme` block the site's Tailwind sheet imports
         - The default of every setting a run reads, which the site's widgets
-          model, leaving out the agent's device and the environments an
-          evaluation plays across, both of which follow the machine a run
-          starts on
+          model, leaving out the agent's device, the environments an evaluation
+          plays across, and the worker processes a search runs across, each of
+          which follows the machine a run starts on
         """
         identity = Identity.read()
         rendered = Path("docs/.vitepress/lib/rendered")
@@ -117,7 +117,11 @@ class Inventory(Record):
                 Output.from_value(
                     rendered / "settings.json",
                     RunSettings(),
-                    exclude = {"agent": {"device"}, "evaluation": {"environments"}}
+                    exclude = {
+                        "agent"      : {"device"},
+                        "evaluation" : {"environments"},
+                        "search"     : {"workers"}
+                    }
                 ),
                 Output(path=rendered / "theme.css", text=identity.sheet)
             )

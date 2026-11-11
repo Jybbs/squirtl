@@ -4,23 +4,20 @@ drives through each step of the run.
 """
 
 from collections.abc import Iterator
-from contextlib      import AbstractContextManager
 from datetime        import datetime
 from loguru          import logger
 from numpy           import uint64
 from numpy.random    import SeedSequence
-from signal          import SIGINT, SIGTERM, signal
 from statistics      import fmean
-from types           import FrameType
-from typing          import Self
 
 from squirtl.agent.learner    import Agent
-from squirtl.agent.schemas    import Update
+from squirtl.agent.schemas    import Checkpoint, Update
 from squirtl.emulator.schemas import Cartridge
+from squirtl.runs.driver      import Driver
 from squirtl.runs.schemas     import Episode, Handover, Run, RunSettings, Stream
 
 
-class Trainer(AbstractContextManager):
+class Trainer(Driver):
     """
     The training loop of one run, which plays each episode of `Overworld`
     through `Agent` from outside the environment and appends each one to the
@@ -31,25 +28,15 @@ class Trainer(AbstractContextManager):
     takes its `steps` or is stopped at an episode's end.
     """
 
-    def __enter__(self) -> Self:
-        """
-        Takes over the interrupt and termination signals for `interrupt`,
-        keeping the handlers they had for `__exit__` to put back.
-        """
-        self.handlers = {
-            number: signal(number, self.interrupt) for number in (SIGINT, SIGTERM)
-        }
-
-        return self
+    handover = Handover
+    unit     = "episode"
 
     def __exit__(self, *raised: object):
         """
-        Puts back the handlers each signal had before `__enter__` and closes
-        the environment, whether or not the `with` block raised.
+        Puts back the signal handlers and closes the environment, whether or
+        not the `with` block raised.
         """
-        for number, handler in self.handlers.items():
-            signal(number, handler)
-
+        super().__exit__(*raised)
         self.env.close()
 
     def __init__(
@@ -85,17 +72,18 @@ class Trainer(AbstractContextManager):
         if handover:
             self.agent.restore(handover.checkpoint)
 
-        self.cartridge   = cartridge
-        self.evaluated   = 0
-        self.finished    = 0
-        self.interrupted = False
-        self.run         = Run.start(
-            self.env.unwrapped.digest,
-            settings,
-            started,
-            handover and handover.name
+        super().__init__(
+            Run.start(
+                self.env.unwrapped.digest,
+                settings,
+                started,
+                handover and handover.name
+            )
         )
-        self.saved = 0
+
+        self.cartridge = cartridge
+        self.evaluated = 0
+        self.finished  = 0
 
         if handover:
             self.inherit(handover)
@@ -121,15 +109,7 @@ class Trainer(AbstractContextManager):
             if self.due(settings.evaluation_steps, self.evaluated):
                 self.evaluate()
 
-        if self.run.stop.exists():
-            logger.warning(
-                "Stopping at the end of episode {:,} on finding {}",
-                self.finished,
-                self.run.stop
-            )
-
-        if self.saved < self.agent.step or not self.run.checkpoint.exists():
-            self.checkpoint()
+        self.conclude(self.finished)
 
     @property
     def seed(self) -> int:
@@ -150,34 +130,18 @@ class Trainer(AbstractContextManager):
         )
 
     @property
-    def stopping(self) -> bool:
+    def state(self) -> Checkpoint:
         """
-        Reads whether the run stops at the end of its episode, which a
-        signal `interrupt` caught or the run's `stop` file sets.
+        Gathers the agent's checkpoint, replay memory included.
         """
-        return self.interrupted or self.run.stop.exists()
+        return self.agent.checkpoint
 
-    def checkpoint(self):
+    @property
+    def step(self) -> int:
         """
-        Writes the run's `episodes` through to disk, then the agent's
-        checkpoint, replay memory included, to the run's `checkpoint`, and
-        records the step it landed at, so no checkpoint runs ahead of the
-        episodes recorded before it.
+        Reads the environment steps the agent has remembered.
         """
-        self.run.sync(self.run.episodes)
-        self.agent.checkpoint.save(self.run.checkpoint)
-        self.saved = self.agent.step
-
-        logger.info("Wrote the checkpoint at step {:,}", self.saved)
-
-    def due(self, interval: int, last: int) -> bool:
-        """
-        Reads whether the agent's step has reached the first multiple of
-        `interval` after `last`, the step a checkpoint or an evaluation
-        last landed at, the one a resumed run continues from included, or 0
-        before the first.
-        """
-        return self.agent.step >= (last // interval + 1) * interval
+        return self.agent.step
 
     def evaluate(self):
         """
@@ -219,27 +183,6 @@ class Trainer(AbstractContextManager):
             handover.name,
             self.saved,
             self.finished
-        )
-
-    def interrupt(self, number: int, frame: FrameType | None):  # prose: ignore[unsorted-positionals]
-        """
-        Stops the run at the end of the episode it is playing on the first
-        interrupt or termination signal, and raises `KeyboardInterrupt` on
-        the next, which ends the run at once on its last checkpoint.
-
-        Raises:
-            KeyboardInterrupt: On any signal after the first.
-        """
-        if self.interrupted:
-            logger.warning("Ending at once on the last checkpoint")
-
-            raise KeyboardInterrupt
-
-        self.interrupted = True
-
-        logger.warning(
-            "Stopping at the end of the episode, where another interrupt ends the "
-            "run at once on its last checkpoint"
         )
 
     def play(self) -> Iterator[int]:

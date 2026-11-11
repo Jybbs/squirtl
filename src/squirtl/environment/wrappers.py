@@ -1,16 +1,18 @@
 """
-Defines the wrappers `Overworld.specification` names beside Gymnasium's own,
-`ProgressObservation` and `ShrinkObservation`, which shape the observation,
-and `RecordOutcome`, which reports what each episode reached.
+Defines the wrappers `Overworld.specification` names beside Gymnasium's
+own, `ProgressObservation` and `ShrinkObservation`, which shape the
+observation, the first also capturing and restoring the whole environment as
+a `Snapshot`, and `RecordOutcome`, which reports what each episode reached.
 """
 
+from compression.zstd import compress
 from gymnasium        import Env, ObservationWrapper, Wrapper
 from gymnasium.spaces import Box, Dict, MultiBinary
 from gymnasium.utils  import RecordConstructorArgs
-from numpy            import full, ndarray, ndindex, uint32, uint8
+from numpy            import full, ndarray, ndindex, stack, uint32, uint8
 from typing           import Any
 
-from squirtl.environment.schemas import Entry, Outcome
+from squirtl.environment.schemas import Entry, Outcome, Snapshot
 from squirtl.reward.schemas      import Event
 
 
@@ -22,6 +24,9 @@ class ProgressObservation(ObservationWrapper, RecordConstructorArgs):
     - `FLAGS`, one deep, from `Progress.flags`
     - `FRAMES`, the stack the wrapped environment observes
     - `GRID`, one deep, from `Progress.grid`, marking each position reached
+
+    It wraps `FrameStackObservation` directly, whose `obs_queue` holds the
+    frames a `Snapshot` captures and restores.
     """
 
     def __init__(self, env: Env, size: int):
@@ -41,6 +46,21 @@ class ProgressObservation(ObservationWrapper, RecordConstructorArgs):
         )
         self.size = size
 
+    def capture(self) -> Snapshot:
+        """
+        Captures the whole environment as the last step or reset left it,
+        meaning the unwrapped environment's emulator, its progress, and its
+        `timer_div`, beside the frames the observation stacked.
+        """
+        overworld = self.unwrapped
+
+        return Snapshot(
+            frames    = compress(stack(self.env.obs_queue).tobytes()),
+            state     = compress(overworld.game_boy.state),
+            tally     = overworld.progress.tally,
+            timer_div = overworld.timer_div
+        )
+
     def observation(self, observation: ndarray) -> dict[Entry, ndarray]:
         """
         Sets the frame stack beside the flags and the grid of the unwrapped
@@ -53,6 +73,26 @@ class ProgressObservation(ObservationWrapper, RecordConstructorArgs):
             Entry.FRAMES : observation,
             Entry.GRID   : progress.grid(self.size)[None]
         }
+
+    def reset(
+        self,
+        *,
+        options : dict[str, Any] | None = None,
+        seed    : int | None            = None
+    ) -> tuple[dict[Entry, ndarray], dict[str, Any]]:
+        """
+        Resets the wrapped environment, then puts back the frames the
+        `Snapshot` that `options` holds under `snapshot` stacked, where it
+        holds one, in place of the stack the reset padded out of one frame.
+        """
+        frames, info = self.env.reset(options=options, seed=seed)
+
+        match options:
+            case {"snapshot": Snapshot() as snapshot}:
+                self.env.obs_queue.extend(snapshot.stack(frames.shape))
+                frames = stack(self.env.obs_queue)
+
+        return self.observation(frames), info
 
 
 class RecordOutcome(Wrapper, RecordConstructorArgs):

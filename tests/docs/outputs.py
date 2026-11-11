@@ -65,18 +65,20 @@ def test_the_inventory_lists_the_events_the_identity_its_sheet_and_the_settings(
 def test_the_settings_leave_out_what_the_machine_chooses(written: dict[str, str]):
     """
     Asserts that the settings the site models carry every subject's defaults
-    but the agent's device and the environments an evaluation plays across,
-    both of which follow the machine a run starts on, so the file reads the
-    same wherever it is written.
+    but the agent's device, the environments an evaluation plays across, and
+    the workers a search runs across, each of which follows the machine a
+    run starts on, so the file reads the same wherever it is written.
     """
     settings = loads(written["settings.json"])
 
     assert (
         "device" in settings["agent"],
         "environments" in settings["evaluation"],
+        "workers" in settings["search"],
         settings["evaluation"]["episodes"],
-        settings["reward"]["starter"]
-    ) == (False, False, 30, 0.6)
+        settings["reward"]["starter"],
+        settings["search"]["particles"]
+    ) == (False, False, False, 30, 0.6, 32)
 
 
 def test_writing_touches_only_the_files_that_drifted(

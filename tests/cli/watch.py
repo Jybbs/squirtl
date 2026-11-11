@@ -7,6 +7,9 @@ Pins what `squirtl watch` does, covering:
 - The playback reaching another return, a console whose intro leaves
   another state than the run recorded, an episode the run never recorded,
   and a directory holding no run, each exiting 1
+- The demonstration a search found, played back to the reward its last
+  iteration records, and an episode named of a search, a search holding no
+  demonstration, and a demonstration reaching another reward, each exiting 1
 """
 
 from common.cli import Invoker
@@ -150,3 +153,77 @@ def test_a_playback_with_nothing_to_play_exits_1_before_the_window_opens(
 
     assert (invocation.code, windows) == (1, [])
     assert ("holds no episode 3" in invocation.log) is bool(argv)
+
+
+@mark.usefixtures("windows")
+def test_a_search_plays_back_its_demonstration_to_the_reward_it_recorded(
+    invoke   : Invoker,
+    searched : Path
+):
+    """
+    Asserts that playing back a search boots the emulator in its window and
+    exits zero on reaching the reward its last iteration records, leaving
+    out the novelty of each position the demonstration passes.
+    """
+    invocation = invoke(["watch", str(searched)])
+
+    assert (invocation.code, "the run recorded" in invocation.log) == (0, True)
+
+
+@mark.usefixtures("windows")
+def test_a_search_given_an_episode_exits_1(invoke: Invoker, searched: Path):
+    """
+    Asserts that naming an episode of a search, which holds one
+    demonstration, exits 1 saying so.
+    """
+    invocation = invoke(["watch", str(searched), "--episode", "1"])
+
+    assert (invocation.code, "holds a search" in invocation.log) == (1, True)
+
+
+@mark.usefixtures("windows")
+def test_a_search_holding_no_demonstration_exits_1(invoke: Invoker, searched: Path):
+    """
+    Asserts that a search whose demonstration is missing exits 1 naming
+    the file.
+    """
+    Run.read(searched).demonstration.unlink()
+
+    invocation = invoke(["watch", str(searched)])
+
+    assert (invocation.code, "demonstration.json" in invocation.log) == (1, True)
+
+
+@mark.usefixtures("windows")
+def test_a_search_holding_no_iteration_exits_1(invoke: Invoker, searched: Path):
+    """
+    Asserts that a search whose iterations are empty exits 1 naming the
+    file.
+    """
+    Run.read(searched).iterations.write_text("", encoding="utf-8")
+
+    invocation = invoke(["watch", str(searched)])
+
+    assert (invocation.code, "iterations.jsonl" in invocation.log) == (1, True)
+
+
+@mark.usefixtures("windows")
+def test_a_demonstration_reaching_another_reward_exits_1(
+    invoke   : Invoker,
+    searched : Path
+):
+    """
+    Asserts that a demonstration playing back short of the reward its last
+    iteration records exits 1, naming both.
+    """
+    run  = Run.read(searched)
+    line = loads(run.iterations.read_text("utf-8").splitlines()[-1]) | {"reward": 0.5}
+
+    run.iterations.write_text(f"{dumps(line)}\n", encoding="utf-8")
+
+    invocation = invoke(["watch", str(searched)])
+
+    assert (
+        invocation.code,
+        "where the run recorded 0.5" in invocation.log
+    ) == (1, True)
