@@ -17,6 +17,12 @@ export const GAME_VIEW = 'pixelated block h-auto w-full rounded-2 border-hairlin
 export const LABEL = 'font-code text-label leading-snug font-medium tracking-caps text-quiet uppercase'
 
 /**
+ * The classes of a list a widget lays out itself, clearing the indent, the
+ * marker, and the gap between items the default theme gives a page's lists.
+ */
+export const LIST = 'm-0 list-none p-0 *:mt-0'
+
+/**
  * The classes of the parts of a drawing that serves as its own slider, its
  * control showing the cursor that drags it while a touch still scrolls the
  * page, and its thumb ringed while it has focus and passing a pointer's press

@@ -13,7 +13,7 @@ from pydantic        import TypeAdapter
 from typing          import Self
 
 from squirtl.docs.commands    import Command
-from squirtl.docs.regions     import Region
+from squirtl.docs.regions     import Page, Region
 from squirtl.docs.results     import Results
 from squirtl.emulator.schemas import Record, Symbol
 from squirtl.identity.schemas import Identity
@@ -113,8 +113,9 @@ class Inventory(Record):
         - The default of every setting a run reads, which the site's widgets
           model, leaving out each field `RunSettings.machine` names
         - The address of every symbol the package reads in the game's memory
-        - The page of each command `app` registers under
-          `docs/pages/commands/`
+        - The parts of the page of each command `app` registers under
+          `docs/pages/commands/` written from its help, leaving the prose
+          around them
         - Each page under `docs/pages/` carrying the table of a subject's
           settings between a pair of markers
         """
@@ -145,7 +146,10 @@ class Inventory(Record):
                     {symbol.name: symbol.value for symbol in Symbol}
                 ),
                 Output(path=rendered / "theme.css", text=identity.sheet),
-                *(Output(path=command.path, text=command.text) for command in commands),
+                *(
+                    Output(path=command.path, text=Page.read(command).written(command))
+                    for command in commands
+                ),
                 *(
                     Output(path=region.path, text=region.written(train))
                     for region in Region.every()

@@ -1,3 +1,5 @@
+<!-- help -->
+
 # `squirtl train`
 
 Trains the agent `--agent.algorithm` names for the run's `--steps` environment steps, headless unless `--emulator.open-window` is set, logging a line per episode above a progress bar.
@@ -19,6 +21,10 @@ Each of these exits 1 before any directory is made:
 ```console
 squirtl train [OPTIONS]
 ```
+
+<!-- /help -->
+
+<!-- settings -->
 
 ## Settings
 
@@ -89,3 +95,5 @@ squirtl train [OPTIONS]
 | `--seed` | `1` | *The seed every random draw in the run derives from, whose default follows CleanRL's `dqn_atari.py`.* |
 | `--steps` | `2500000` | *The environment steps the run takes, a run of PQN or PPO going on to the end of the rollout that reaches them, whose default is ten of the 250,000-step iterations Dopamine's DQN evaluates after.* |
 | `--verbose` | `false` | *Log each step beside the line each episode logs.* |
+
+<!-- /settings -->

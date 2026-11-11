@@ -1,3 +1,5 @@
+<!-- help -->
+
 # `squirtl watch`
 
 Opens the emulator's window and plays back one episode the run recorded, from the reset at the `timer_div` the run recorded for it to the return the run recorded, at the sixty steps a second the window paces.
@@ -20,6 +22,12 @@ A console whose intro leaves a state of another digest than the run's exits 1 be
 squirtl watch [OPTIONS] [ARGS]
 ```
 
+<!-- /help -->
+
+A playback presses the buttons the run recorded for its episode, checking the state the intro leaves against the run's digest before the first press and the return it reaches against the recorded one after the last. The widget below plays back an episode that a stand-in for the agent pressed through a model of the first rooms, with a made-up digest and `timer_div` standing in for the ones a run's `run.json` and `episodes.jsonl` record.
+
+<!-- settings -->
+
 ## Settings
 
 | **Flag** | **Default** | **What It Sets** |
@@ -30,3 +38,5 @@ squirtl watch [OPTIONS] [ARGS]
 | `--agent` | `none` | *The agent the run trained.* |
 | `--seed` | `none` | *The seed the run's random draws derive from.* |
 | `--start` | `none` | *Where the run's training episodes start.* |
+
+<!-- /settings -->

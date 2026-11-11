@@ -29,7 +29,8 @@ def docs():
     read another cartridge, followed a demonstration at an absolute path,
     or holds no evaluation of the agent or the random baseline, exits 1 once
     the footnotes are written and before any other file is, naming the page
-    and the line or the run.
+    and the line or the run, as does a command's page whose markers do not
+    hold the parts written from its help in order, naming the page.
     """
     listen()
 
