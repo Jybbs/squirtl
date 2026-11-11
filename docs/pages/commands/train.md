@@ -47,9 +47,10 @@ squirtl train [OPTIONS]
 | `--agent.ppo.trace-decay` | `0.95` | *The λ that weights each generalized advantage estimate of Schulman et al., whose default is the one Pleines et al. train with.* |
 | `--agent.ppo.value-coefficient` | `0.5` | *The weight of the value's loss beside the clipped objective, whose default is the coefficient Pleines et al. train with.* |
 | `--agent.pqn.epochs` | `2` | *The passes each update takes over the rollout, whose default is the epochs of Gallici et al.'s Atari settings.* |
-| `--agent.pqn.epsilon-end` | `0.001` | *The chance of a random action once exploration has annealed, whose default is the one Gallici et al.'s Atari settings finish at.* |
+| `--agent.pqn.epsilon-end` | `0.001` | *The chance of a random action the last environment anneals to, the lowest of the environments' floors, whose default is the one Gallici et al.'s Atari settings finish at.* |
+| `--agent.pqn.epsilon-end-first` | `0.4` | *The chance of a random action the first environment anneals to, the highest of the environments' floors, whose default is the epsilon Horgan et al.'s Ape-X gives its most exploring actor.* |
 | `--agent.pqn.epsilon-start` | `1.0` | *The chance of a random action at the run's first step, whose default is the one Gallici et al.'s Atari settings start at.* |
-| `--agent.pqn.exploration-fraction` | `0.1` | *The share of the run's steps over which the chance of a random action falls linearly from `epsilon_start` to `epsilon_end`, whose default is the decay of Gallici et al.'s Atari settings.* |
+| `--agent.pqn.exploration-fraction` | `0.1` | *The share of the run's steps over which each environment's chance of a random action falls linearly from `epsilon_start` to its floor, whose default is the decay of Gallici et al.'s Atari settings.* |
 | `--agent.pqn.learning-rate` | `0.00025` | *The step size RAdam takes on every minibatch, held constant across the run, whose default is the learning rate of Gallici et al.'s Atari settings.* |
 | `--agent.pqn.max-grad-norm` | `10.0` | *The norm each minibatch's gradient is clipped to, whose default is the maximum gradient norm of Gallici et al.'s Atari settings.* |
 | `--agent.pqn.minibatches` | `32` | *The minibatches each epoch splits the rollout into, whose default is the count of Gallici et al.'s Atari settings.* |

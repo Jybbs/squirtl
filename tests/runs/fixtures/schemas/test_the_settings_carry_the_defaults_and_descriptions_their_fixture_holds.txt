@@ -452,7 +452,12 @@
         "epsilon_end": {
           "$ref": "#/$defs/UnitInterval",
           "default": 0.001,
-          "description": "The chance of a random action once exploration has annealed, whose\ndefault is the one Gallici et al.'s Atari settings finish at."
+          "description": "The chance of a random action the last environment anneals to, the\nlowest of the environments' floors, whose default is the one Gallici et\nal.'s Atari settings finish at."
+        },
+        "epsilon_end_first": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.4,
+          "description": "The chance of a random action the first environment anneals to, the\nhighest of the environments' floors, whose default is the epsilon Horgan\net al.'s Ape-X gives its most exploring actor."
         },
         "epsilon_start": {
           "$ref": "#/$defs/UnitInterval",
@@ -462,7 +467,7 @@
         "exploration_fraction": {
           "$ref": "#/$defs/Fraction",
           "default": 0.1,
-          "description": "The share of the run's steps over which the chance of a random action\nfalls linearly from `epsilon_start` to `epsilon_end`, whose default is\nthe decay of Gallici et al.'s Atari settings."
+          "description": "The share of the run's steps over which each environment's chance of a\nrandom action falls linearly from `epsilon_start` to its floor, whose\ndefault is the decay of Gallici et al.'s Atari settings."
         },
         "learning_rate": {
           "default": 0.00025,

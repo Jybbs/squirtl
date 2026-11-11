@@ -754,8 +754,9 @@ class Episode(Outcome):
 
     epsilon: float | None
     """
-    The chance of a random action at the episode's last step, or `None` for
-    PPO, which samples each action from its policy.
+    The chance of a random action in the environment that played the
+    episode at its last step, or `None` for PPO, which samples each action
+    from its policy.
     """
 
     recording: Recording

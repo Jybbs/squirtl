@@ -13,6 +13,7 @@ import fcntl
 
 from collections.abc   import Iterable
 from enum              import StrEnum, auto
+from numpy             import linspace, ndarray
 from os                import fsync
 from pydantic          import Field, PositiveFloat, PositiveInt, model_validator
 from torch.accelerator import current_accelerator
@@ -164,8 +165,16 @@ class PQNSettings(Record):
 
     epsilon_end: UnitInterval = 0.001
     """
-    The chance of a random action once exploration has annealed, whose
-    default is the one Gallici et al.'s Atari settings finish at.
+    The chance of a random action the last environment anneals to, the
+    lowest of the environments' floors, whose default is the one Gallici et
+    al.'s Atari settings finish at.
+    """
+
+    epsilon_end_first: UnitInterval = 0.4
+    """
+    The chance of a random action the first environment anneals to, the
+    highest of the environments' floors, whose default is the epsilon Horgan
+    et al.'s Ape-X gives its most exploring actor.
     """
 
     epsilon_start: UnitInterval = 1.0
@@ -176,9 +185,9 @@ class PQNSettings(Record):
 
     exploration_fraction: Fraction = 0.1
     """
-    The share of the run's steps over which the chance of a random action
-    falls linearly from `epsilon_start` to `epsilon_end`, whose default is
-    the decay of Gallici et al.'s Atari settings.
+    The share of the run's steps over which each environment's chance of a
+    random action falls linearly from `epsilon_start` to its floor, whose
+    default is the decay of Gallici et al.'s Atari settings.
     """
 
     learning_rate: PositiveFloat = 2.5e-4
@@ -212,6 +221,22 @@ class PQNSettings(Record):
     The λ that weights each λ-return the network's values are trained
     toward, whose default is the one of Gallici et al.'s Atari settings.
     """
+
+    def floors(self, environments: int) -> ndarray:
+        """
+        Reads the chance of a random action each of `environments`
+        environments anneals to, falling geometrically from
+        `epsilon_end_first` to `epsilon_end`, as Horgan et al. spread
+        the chances of Ape-X's actors. One environment anneals to
+        `epsilon_end_first`.
+
+        Returns:
+            A `(environments,)` array of `float64`.
+        """
+        weights = linspace(0, 1, environments)
+
+        # Raises each end to its weight, since `geomspace` refuses an end of zero.
+        return self.epsilon_end_first ** (1 - weights) * self.epsilon_end**weights
 
 
 class AgentSettings(Record):

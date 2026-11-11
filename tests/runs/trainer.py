@@ -706,6 +706,20 @@ def test_each_environments_episode_writes_a_line_as_its_last_step_returns(
     assert {line.epsilon is None for line in lines} == {algorithm.sampled}
 
 
+def test_a_second_interrupt_ends_the_run_at_once(trainer: Callable[..., Trainer]):
+    """
+    Asserts that a second interrupt raises `KeyboardInterrupt` on the step
+    it lands on, ending the run before its first episode ends and writing
+    no checkpoint.
+    """
+    built = trainer()
+
+    with raises(KeyboardInterrupt):
+        finish(built, lambda *_: raise_signal(SIGINT))
+
+    assert (built.agent.step, built.run.checkpoint.exists()) == (2, False)
+
+
 @mark.parametrize(
     ("limit", "means", "steps"),
     [
@@ -737,18 +751,22 @@ def test_an_episodes_line_averages_the_updates_taken_while_it_played(
     assert [line.update and line.update.loss for line in lines[::2]] == means
 
 
-def test_a_second_interrupt_ends_the_run_at_once(trainer: Callable[..., Trainer]):
+def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
+    logged  : list[str],
+    trainer : Callable[..., Trainer]
+):
     """
-    Asserts that a second interrupt raises `KeyboardInterrupt` on the step
-    it lands on, ending the run before its first episode ends and writing
-    no checkpoint.
+    Asserts that a `stop` file written on step 8 ends the run at the end of
+    its episode on step 12, with that episode's line and a checkpoint there,
+    and logs the file it found.
     """
-    built = trainer()
+    run = finish(trainer(), stop_at_eight)
 
-    with raises(KeyboardInterrupt):
-        finish(built, lambda *_: raise_signal(SIGINT))
-
-    assert (built.agent.step, built.run.checkpoint.exists()) == (2, False)
+    assert (
+        len(list(run.recorded)),
+        ReplayCheckpoint.from_path(run.checkpoint).step
+    ) == (2, 12)
+    assert f"Stopping at step 12 after 2 episodes on finding {run.stop}" in logged
 
 
 @mark.parametrize(
@@ -795,22 +813,23 @@ def test_a_step_values_the_final_observation_of_each_episode_it_truncated(
     ).tolist() == values
 
 
-def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
-    logged  : list[str],
-    trainer : Callable[..., Trainer]
-):
+def test_a_tally_averages_each_environments_updates_until_its_episode_ends():
     """
-    Asserts that a `stop` file written on step 8 ends the run at the end of
-    its episode on step 12, with that episode's line and a checkpoint there,
-    and logs the file it found.
+    Asserts that a tally reads the mean of each measure of the updates added
+    since the environment's last episode ended, and `None` where none was,
+    each environment on its own count.
     """
-    run = finish(trainer(), stop_at_eight)
+    tally = Tally(2, Update)
+    tally.add(Update(loss=1.0, value=2.0))
+    tally.add(Update(loss=3.0, value=4.0))
 
-    assert (
-        len(list(run.recorded)),
-        ReplayCheckpoint.from_path(run.checkpoint).step
-    ) == (2, 12)
-    assert f"Stopping at step 12 after 2 episodes on finding {run.stop}" in logged
+    assert tally.take(0) == Update(loss=2.0, value=3.0)
+    assert tally.take(0) is None
+
+    tally.add(Update(loss=8.0, value=9.0))
+
+    assert tally.take(0) == Update(loss=8.0, value=9.0)
+    assert tally.take(1) == Update(loss=4.0, value=5.0)
 
 
 @mark.parametrize(
@@ -856,23 +875,20 @@ def test_a_stop_within_a_rollout_ends_the_run_once_its_update_ends(
     assert any(line.startswith(message) for line in logged)
 
 
-def test_a_tally_averages_each_environments_updates_until_its_episode_ends():
+def test_a_vector_checkpoint_of_a_recording_of_no_presses_reads_back(tmp_path: Path):
     """
-    Asserts that a tally reads the mean of each measure of the updates added
-    since the environment's last episode ended, and `None` where none was,
-    each environment on its own count.
+    Asserts that a slot whose recording holds no presses reads back as
+    written, whose empty `bytes` `torch.save` pickles through the `bytes`
+    global, and that the read allows that global for its own `torch.load`
+    alone.
     """
-    tally = Tally(2, Update)
-    tally.add(Update(loss=1.0, value=2.0))
-    tally.add(Update(loss=3.0, value=4.0))
+    written = vector_checkpoint(2, 16, presses=b"")
+    written.save(tmp_path / "checkpoint.npz")
 
-    assert tally.take(0) == Update(loss=2.0, value=3.0)
-    assert tally.take(0) is None
-
-    tally.add(Update(loss=8.0, value=9.0))
-
-    assert tally.take(0) == Update(loss=8.0, value=9.0)
-    assert tally.take(1) == Update(loss=4.0, value=5.0)
+    assert VectorCheckpoint.from_path(
+        tmp_path / "checkpoint.npz"
+    ).slots == written.slots
+    assert bytes not in get_safe_globals()
 
 
 @each_agent
@@ -966,22 +982,6 @@ def test_a_rollout_run_stopped_before_its_first_step_resumes_as_one_never_stoppe
         resumed  = finish(rewarding(rolling(algorithm, resumes=stopped))),
         unbroken = finish(rewarding(rolling(algorithm)))
     )
-
-
-def test_a_vector_checkpoint_of_a_recording_of_no_presses_reads_back(tmp_path: Path):
-    """
-    Asserts that a slot whose recording holds no presses reads back as
-    written, whose empty `bytes` `torch.save` pickles through the `bytes`
-    global, and that the read allows that global for its own `torch.load`
-    alone.
-    """
-    written = vector_checkpoint(2, 16, presses=b"")
-    written.save(tmp_path / "checkpoint.npz")
-
-    assert VectorCheckpoint.from_path(
-        tmp_path / "checkpoint.npz"
-    ).slots == written.slots
-    assert bytes not in get_safe_globals()
 
 
 def test_a_vector_checkpoint_reads_back_as_written(tmp_path: Path):
@@ -1101,28 +1101,10 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
         message.partition(": ")[2]
         for message in logged if message.startswith("Episode ")
     ] == [
-        "return 0.6625, positions 2, epsilon 0.850, loss 2, value -2",
-        "return 0.0000, positions 1, epsilon 0.550, loss 6.5, value -6.5",
-        "return 0.0000, positions 1, epsilon 0.250, loss 12.5, value -12.5"
+        "return 0.6625, positions 2, epsilon 0.85, loss 2, value -2",
+        "return 0.0000, positions 1, epsilon 0.55, loss 6.5, value -6.5",
+        "return 0.0000, positions 1, epsilon 0.25, loss 12.5, value -12.5"
     ]
-
-
-@mark.parametrize(
-    ("last", "steps"),
-    [param(8, 1, id="within-the-first-rollout"), param(16, 10, id="within-the-second")]
-)
-def test_a_run_whose_steps_fall_within_a_rollout_plays_that_rollout_out(
-    last    : int,
-    rolling : Callable[..., Trainer],
-    steps   : int
-):
-    """
-    Asserts that a run ends on the last step of the rollout its `steps` fall
-    within, since every update reads a full rollout.
-    """
-    run = finish(rolling(Algorithm.PQN, steps=steps))
-
-    assert VectorCheckpoint.from_path(run.checkpoint).step == last
 
 
 def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
@@ -1168,6 +1150,24 @@ def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
     ).step is None
 
 
+@mark.parametrize(
+    ("last", "steps"),
+    [param(8, 1, id="within-the-first-rollout"), param(16, 10, id="within-the-second")]
+)
+def test_a_run_whose_steps_fall_within_a_rollout_plays_that_rollout_out(
+    last    : int,
+    rolling : Callable[..., Trainer],
+    steps   : int
+):
+    """
+    Asserts that a run ends on the last step of the rollout its `steps` fall
+    within, since every update reads a full rollout.
+    """
+    run = finish(rolling(Algorithm.PQN, steps=steps))
+
+    assert VectorCheckpoint.from_path(run.checkpoint).step == last
+
+
 def test_an_interrupt_reaching_each_worker_leaves_the_rollout_stepping(
     rolling: Callable[..., Trainer]
 ):
@@ -1210,6 +1210,19 @@ def test_each_checkpoint_follows_the_episodes_written_through_to_disk(
     assert events == ["episodes.jsonl", "checkpoint.npz"] * 2
 
 
+def test_each_environment_starts_from_a_reset_of_its_own(
+    rolling: Callable[..., Trainer]
+):
+    """
+    Asserts that each environment takes a seed of its own at its first
+    reset, which leaves the two at different values of `timer_div`.
+    """
+    with rolling(Algorithm.PQN) as trainer:
+        first, second = trainer.env.unwrapped.get_attr("recording")
+
+    assert first.timer_div != second.timer_div
+
+
 @each_agent
 def test_a_handover_of_pqn_or_ppo_takes_the_episodes_its_checkpoint_counts(
     algorithm : Algorithm,
@@ -1233,17 +1246,34 @@ def test_a_handover_of_pqn_or_ppo_takes_the_episodes_its_checkpoint_counts(
     ) == (VectorCheckpoint, lines[:1])
 
 
-def test_each_environment_starts_from_a_reset_of_its_own(
-    rolling: Callable[..., Trainer]
+def test_each_pqn_episode_records_and_logs_the_floor_of_its_own_environment(
+    logged  : list[str],
+    rolling : Callable[..., Trainer]
 ):
     """
-    Asserts that each environment takes a seed of its own at its first
-    reset, which leaves the two at different values of `timer_div`.
+    Asserts that once a run's chance has annealed over its first 8 steps,
+    each line PQN writes carries the floor of the environment that played
+    it, 0.4 for the first of the two and 0.001 for the second, and that each
+    episode logs its floor at three significant figures.
     """
-    with rolling(Algorithm.PQN) as trainer:
-        first, second = trainer.env.unwrapped.get_attr("recording")
+    built = rolling(
+        Algorithm.PQN,
+        agent = {
+            "pqn": {
+                "exploration_fraction" : 0.25,
+                "minibatches"          : 2,
+                "rollout_steps"        : 4
+            }
+        }
+    )
 
-    assert first.timer_div != second.timer_div
+    assert [line.epsilon for line in finish(built).recorded] == approx(
+        [0.4, 0.001] * 2
+    )
+    assert [
+        message.partition("epsilon ")[2].partition(",")[0]
+        for message in logged if message.startswith("Episode ")
+    ] == ["0.4", "0.001"] * 2
 
 
 def test_ppos_episode_logs_no_epsilon_beside_its_measures(
