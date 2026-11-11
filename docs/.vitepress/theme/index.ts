@@ -3,6 +3,7 @@ import DefaultTheme              from 'vitepress/theme-without-fonts'
 
 import './styles/site.css'
 import './styles/roles.css'
+import './styles/tables.css'
 import './styles/kit/chip.css'
 import './styles/kit/clock.css'
 import './styles/kit/focus.css'

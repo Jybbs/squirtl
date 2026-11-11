@@ -29,7 +29,7 @@ export default defineConfigWithTheme<navigation.SiteTheme>({
     edition   : { host: facts.host, version: facts.version },
     logo      : { alt: IDENTITY.name, dark: '/mark-dark.svg', light: '/mark-light.svg' },
     nav       : navigation.buildNav(),
-    sidebar   : navigation.buildSidebar(pages),
+    sidebar   : await navigation.buildSidebar(pages),
     siteTitle : false
   }
 })
