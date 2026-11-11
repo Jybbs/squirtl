@@ -14,6 +14,7 @@ Defines the records one run reads and writes:
 
 from collections     import deque
 from collections.abc import Iterable, Iterator
+from cyclopts        import Parameter
 from datetime        import UTC, datetime
 from enum            import StrEnum, auto
 from hashlib         import sha256
@@ -194,6 +195,16 @@ class Revision(Record):
             ),
             lockfile = sha256(Path("uv.lock").read_bytes()).hexdigest()
         )
+
+
+class Start(StrEnum):
+    """
+    Where a run's training episodes start, in Blue's bedroom or along the
+    demonstration its curriculum names.
+    """
+
+    BEDROOM    = auto()
+    CURRICULUM = auto()
 
 
 class Stream(StrEnum):
@@ -766,14 +777,19 @@ class Run(Record):
             flush(file.fileno())
 
 
-class Start(StrEnum):
+class TrainingSettings(RunSettings):
     """
-    Where a run's training episodes start, in Blue's bedroom or along the
-    demonstration its curriculum names.
+    The settings `squirtl train` reads, `RunSettings` with `search` taking
+    no flag, so the command parses and lists none of a search's settings and
+    records their defaults.
     """
 
-    BEDROOM    = auto()
-    CURRICULUM = auto()
+    search: Annotated[SearchSettings, Parameter(parse=False)] = Field(
+        default_factory = SearchSettings
+    )
+    """
+    The settings a search reads, at their defaults.
+    """
 
 
 class RunListing(Record):

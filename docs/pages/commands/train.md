@@ -93,17 +93,6 @@ squirtl train [OPTIONS]
 | `--reward.goal` | `0.35` | *The reward the step first setting the run's goal earns, which has to be the largest term.* |
 | `--reward.milestone` | `0.1` | *The reward a step earns for each flag on the way to the goal it first sets.* |
 | `--reward.novelty` | `0.00025` | *The reward a step earns for reaching a position the episode has not reached before, whose default is a 400th of the default milestone, the ratio Pleines et al. pay one new coordinate against one completed event.* |
-| `--search.batch-size` | `128` | *The frame stacks each update of the predictor draws, whose default follows Mhammedi and Cohan's Appendix A.3.* |
-| `--search.capacity` | `100000` | *The frames replay memory holds for the predictor, one per slot, under 1 GB at the default frame shape.* |
-| `--search.epsilon` | `0.2` | *The chance a press takes a random action in place of the one its rollout holds, whose default follows Mhammedi and Cohan's Appendix A.2.* |
-| `--search.groups` | `4` | *The groups of particles the search evolves, Mhammedi and Cohan's M.* |
-| `--search.inner-steps` | `5, 15` | *The fewest and the most presses of one rollout, Mhammedi and Cohan's range of T.* |
-| `--search.learning-rate` | `0.0003` | *The step size Adam takes on the predictor, whose default follows Mhammedi and Cohan's Appendix A.3.* |
-| `--search.outer-steps` | `10, 20` | *The fewest and the most rollouts each particle plays in one iteration, Mhammedi and Cohan's range of K.* |
-| `--search.particles` | `32` | *The particles each group holds, Mhammedi and Cohan's N.* |
-| `--search.rollback` | `1, 3` | *The fewest and the most generations a particle moves up the tree once every particle of its group is dead, Mhammedi and Cohan's range of k.* |
-| `--search.update-steps` | `44` | *The presses between updates of the predictor, whose default is the ratio of Mhammedi and Cohan's Table 6, 2.28 million updates over 400 million frames at their action repeat of 4.* |
-| `--search.workers` | *the machine's* | *The worker processes the rollouts run across, which defaults to the CPUs the process may use.* |
 | `--seed` | `1` | *The seed every random draw in the run derives from, whose default follows CleanRL's `dqn_atari.py`.* |
 | `--steps` | `2500000` | *The environment steps the run takes, a run of PQN or PPO going on to the end of the rollout that reaches them, whose default is ten of the 250,000-step iterations Dopamine's DQN evaluates after.* |
 | `--verbose` | `false` | *Log each step beside the line each episode logs.* |

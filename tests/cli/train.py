@@ -7,6 +7,7 @@ Pins what `squirtl train` does, covering:
   no checkpoint or one already holding its steps, a damaged checkpoint, a
   log short of its checkpoint, replay memory of another shape, a
   demonstration directory holding no run, and a search
+- A search's setting, which it takes no flag for
 - A resume into a new directory under the settings the stopped run recorded
 - The line each episode logs and the line each step logs under `--verbose`
 - The emulator's window `--emulator.open-window` opens
@@ -237,6 +238,22 @@ def test_each_episode_logs_a_line_and_each_step_one_under_verbose(
     assert (log.count("Episode "), log.count("Step "), "━ 100% " in log) == (
         2, logged, True
     )
+
+
+@mark.usefixtures("clone")
+def test_a_search_setting_exits_2_before_making_any_directory(invoke: Invoker):
+    """
+    Asserts that `squirtl train` refuses `--search.particles` as an option
+    it does not know, exiting 2 as cyclopts does on a token it cannot parse,
+    before any directory is made.
+    """
+    invocation = invoke(["train", "--search.particles", "3"])
+
+    assert (
+        invocation.code,
+        "Unknown option: --search.particles" in invocation.log,
+        Path("data/runs").exists()
+    ) == (2, True, False)
 
 
 def test_a_resume_of_a_search_exits_1_naming_the_commands_reading_one(
