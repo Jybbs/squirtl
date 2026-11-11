@@ -190,7 +190,7 @@ class ReleaseSettings(Record):
     The settings `squirtl pack` writes a release's runs under.
     """
 
-    recommended_run: str = "20261108T230619.486374Z"
+    recommended_run: str = "20261111T020527.724383Z"
     """
     The name of the run a release plays where no selection names one.
     """

@@ -55,18 +55,18 @@ describe.each([ResultsComparison, ResultsCurves])('$name', widget => {
 })
 
 describe('ResultsCurves', () => {
-  it('presses both PQN groups at first, the rest released, and toggles any group on a press', async () => {
+  it('presses both PPO groups at first, the rest released, and toggles any group on a press', async () => {
     held.runs     = true
     const wrapper = mount(ResultsCurves)
 
     expect(toggles(wrapper)).toStrictEqual([
-      ['Deep Q-network', 'false'], ['PPO', 'false'], ['PPO, curriculum', 'false'], ['PQN', 'true'], ['PQN, curriculum', 'true']
+      ['Deep Q-network', 'false'], ['PPO', 'true'], ['PPO, curriculum', 'true'], ['PQN', 'false'], ['PQN, curriculum', 'false']
     ])
 
     await wrapper.findAll('button')[1]!.trigger('click')
     await wrapper.findAll('button')[3]!.trigger('click')
 
-    expect(toggles(wrapper).map(([, pressed]) => pressed)).toStrictEqual(['false', 'true', 'false', 'false', 'true'])
+    expect(toggles(wrapper).map(([, pressed]) => pressed)).toStrictEqual(['false', 'false', 'true', 'true', 'false'])
     expect(wrapper.text()).toBePublishedProse()
   })
 
@@ -98,7 +98,7 @@ describe('ResultsCurves’s traces', () => {
 
     await nextTick()
 
-    expect(traces(wrapper).map(width => width > 100)).toStrictEqual([false, false, false, true, true])
+    expect(traces(wrapper).map(width => width > 100)).toStrictEqual([false, true, true, false, false])
   })
 
   it('traces a curve pressed under reduced motion out whole at once', async () => {
@@ -107,10 +107,10 @@ describe('ResultsCurves’s traces', () => {
     const wrapper            = mount(ResultsCurves)
 
     await nextTick()
-    await wrapper.findAll('button')[1]!.trigger('click')
+    await wrapper.findAll('button')[3]!.trigger('click')
     await nextTick()
 
-    expect(traces(wrapper).map(width => width > 100)).toStrictEqual([false, true, false, true, true])
+    expect(traces(wrapper).map(width => width > 100)).toStrictEqual([false, true, true, true, false])
   })
 
   it('holds every curve back until the plot first comes into view', async () => {
@@ -126,7 +126,7 @@ describe('ResultsCurves’s traces', () => {
     await vi.advanceTimersByTimeAsync(2000)
 
     expect([before.map(width => width > 100), traces(wrapper).map(width => width > 100)]).toStrictEqual([
-      [false, false, false, false, false], [false, false, false, true, true]
+      [false, false, false, false, false], [false, true, true, false, false]
     ])
   })
 
@@ -142,11 +142,11 @@ describe('ResultsCurves’s releases', () => {
     await vi.advanceTimersByTimeAsync(0)
     sight.show(true)
     await vi.advanceTimersByTimeAsync(2000)
-    await wrapper.findAll('button')[3]!.trigger('click')
+    await wrapper.findAll('button')[1]!.trigger('click')
     await wrapper.findAll('button')[0]!.trigger('click')
     await vi.advanceTimersByTimeAsync(700)
 
-    expect(traces(wrapper).map(width => width > 100)).toStrictEqual([true, false, false, false, true])
+    expect(traces(wrapper).map(width => width > 100)).toStrictEqual([true, false, true, false, false])
   })
 })
 

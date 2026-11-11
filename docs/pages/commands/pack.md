@@ -14,4 +14,4 @@ squirtl pack [OPTIONS]
 
 | **Flag** | **Default** | **What It Sets** |
 |---|---|---|
-| `--recommended-run` | `20261108T230619.486374Z` | *The name of the run a release plays where no selection names one.* |
+| `--recommended-run` | `20261111T020527.724383Z` | *The name of the run a release plays where no selection names one.* |

@@ -11,10 +11,10 @@ import type { Group } from './results.ts'
 type Api = toggleGroup.Api<PropTypes>
 
 /**
- * The groups pressed before a reader presses any, PQN's runs from the bedroom
+ * The groups pressed before a reader presses any, PPO's runs from the bedroom
  * and along the curriculum, whose curves part furthest.
  */
-const PRESSED = ['pqn-bedroom', 'pqn-curriculum']
+const PRESSED = ['ppo-bedroom', 'ppo-curriculum']
 
 /**
  * Makes the groups a group of toggles on Zag.js's toggle group machine, any
