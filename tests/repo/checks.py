@@ -35,7 +35,7 @@ from squirtl.emulator.schemas import Record
 from squirtl.repo.checks  import (
     Anchors, Attribution, Audit, Check, Commits, Docstrings, Footnotes, Gates,
     Inputs, Installs, LabelCheck, Layout, Pins, Rendered, Rows, Runners, ScriptCheck,
-    SitePins, Subsets, Summaries, TaskCheck, Warming
+    SiteCopies, SitePins, Subsets, Summaries, TaskCheck, Warming
 )
 from squirtl.repo.schemas import Finding, Severity, Task, TaskIssue, Tasks, Tree, Unreadable
 
@@ -828,14 +828,14 @@ def test_rendered_reports_an_identity_that_fails_validation(
     ("on", "found"),
     [
         param(
-            "on:\n  push:\n    paths: [.github/**, .mise/config.toml, .mise/mise.lock]",
+            "on:\n  push:\n    paths: [.github/**, .mise/**]",
             [],
             id = "every-file"
         ),
         param("on:\n  push:\n    branches: [main]", [], id="no-filter"),
         param(
             "on:\n  push:\n    paths: [.github/workflows/warm.yml, .mise/*.toml]",
-            [(4, ".github/actions/provision/action.yml"), (4, ".mise/mise.lock")],
+            [(4, ".github/actions/provision/action.yml"), (4, ".mise/conf.d/ci.toml")],
             id = "two-left-out"
         ),
         param(
@@ -843,14 +843,14 @@ def test_rendered_reports_an_identity_that_fails_validation(
             [
                 (2, ".github/actions/provision/action.yml"),
                 (2, ".github/workflows/warm.yml"),
-                (2, ".mise/config.toml"),
-                (2, ".mise/mise.lock")
+                (2, ".mise/conf.d/ci.toml"),
+                (2, ".mise/config.toml")
             ],
             id = "no-push"
         ),
         param(
             "on:\n  push:\n    paths-ignore: [.mise/**]",
-            [(4, ".mise/config.toml"), (4, ".mise/mise.lock")],
+            [(4, ".mise/conf.d/ci.toml"), (4, ".mise/config.toml")],
             id = "ignored"
         )
     ]
@@ -865,9 +865,10 @@ def test_warming_reports_each_file_a_key_is_built_from_that_no_push_reaches(
     Pins that the warming check reports each file a cache key is built from
     that a push to the saving workflow's branches can touch without running
     it, meaning the workflow, the manifest of the action its saving job
-    runs, and each file the globs `jdx/mise-action` hashes match, on the
-    line of the push filter or of `on`, and nothing where a push runs the
-    workflow whatever it touches.
+    runs, and each file the globs `jdx/mise-action` hashes match from the
+    root of the checkout, on the line of the push filter or of `on`, and
+    nothing where a push runs the workflow whatever it touches, whereas
+    `.mise/mise.lock` and a mise config below the root match no glob.
     """
     findings = scan(
         Warming,
@@ -878,14 +879,18 @@ def test_warming_reports_each_file_a_key_is_built_from_that_no_push_reaches(
                 "      - uses: ./.github/actions/provision\n"
                 "        with: { tools: python uv }\n"
             ),
-            ".mise/config.toml" : "",
-            ".mise/mise.lock"   : ""
+            ".mise/conf.d/ci.toml"   : "",
+            ".mise/config.toml"      : "",
+            ".mise/mise.lock"        : "",
+            "docs/.mise/config.toml" : ""
         },
         Tree(
             files = [
+                Path(".mise/conf.d/ci.toml"),
                 Path(".mise/config.toml"),
                 Path(".mise/mise.lock"),
-                Path("README.md")
+                Path("README.md"),
+                Path("docs/.mise/config.toml")
             ]
         )
     )
@@ -1572,6 +1577,41 @@ def test_scripts_skip_a_task_file_mise_would_not_run(
     assert findings == []
 
 
+def test_site_copies_are_unreadable_where_the_lockfile_lists_no_packages(scan: Scan):
+    """
+    Pins that a `docs/bun.lock` leaving out its `packages` fails the read on
+    that file, naming the missing key.
+    """
+    with raises(Unreadable, match="at `packages`"):
+        scan(SiteCopies, {"docs/bun.lock": '{"lockfileVersion": 1,}'})
+
+
+def test_site_copies_report_a_shared_package_the_manifest_leaves_out_on_no_line(
+    scan: Scan
+):
+    """
+    Pins that the site's copies check still reports a shared package the
+    lockfile installs at more than one path where `docs/package.json` pins
+    no version of it, on that file with no line.
+    """
+    findings = scan(
+        SiteCopies,
+        {
+            "docs/bun.lock"     : '{"packages": {"vue": [], "vitepress/vue": [],},}',
+            "docs/package.json" : '{"devDependencies": {}}'
+        }
+    )
+
+    assert findings == [
+        (
+            "docs/package.json",
+            None,
+            "`docs/bun.lock` resolves `vue` more than once, nesting a copy at "
+            "`vitepress/vue`"
+        )
+    ]
+
+
 def test_site_pins_are_unreadable_where_a_pin_is_missing(mise_config: str, scan: Scan):
     """
     Pins that a `docs/package.json` leaving out a pin the site's pins check
@@ -1683,49 +1723,6 @@ def test_summaries_report_each_writer_besides_the_gate(scan: Scan, workflow: str
     ]
 
 
-def test_task_check_reports_each_defect_mise_finds_at_its_weight(scan: Scan):
-    """
-    Pins that the task check reports each defect `mise tasks validate`
-    finds on the file declaring the task, an error as an error and a
-    warning as a warning, and a defect in a task mise did not list on
-    `.mise/config.toml`.
-    """
-    tasks = Tasks(
-        issues = [
-            TaskIssue(
-                details  = "Referenced in 'depends'",
-                message  = "Dependency 'x' not found",
-                severity = Severity.ERROR,
-                task     = "py:test"
-            ),
-            TaskIssue(message="Empty script", severity=Severity.WARNING, task="py:gone")
-        ],
-        tasks = [Task(
-            depends = ["x"],
-            name    = "py:test",
-            source  = Path(".mise/tasks/py/test").absolute()
-        )]
-    )
-
-    assert [
-        (str(finding.file), finding.severity, finding.message)
-        for finding in TaskCheck.read(lambda field: tasks).scan()
-    ] == [
-        (
-            ".mise/tasks/py/test",
-            Severity.ERROR,
-            (
-                "`py:test` fails `mise tasks validate` with \"Dependency 'x' not "
-                "found\" (Referenced in 'depends')"
-            )
-        ),
-        (
-            ".mise/config.toml", Severity.WARNING,
-            "`py:gone` fails `mise tasks validate` with 'Empty script'"
-        )
-    ]
-
-
 @mark.parametrize(
     ("command", "found"),
     [
@@ -1791,6 +1788,115 @@ def test_installs_hold_each_bun_install_to_the_lockfile(
     assert findings == [(".mise/tasks/site/install", 4, message) for message in found]
 
 
+def test_task_check_reports_each_defect_mise_finds_at_its_weight(scan: Scan):
+    """
+    Pins that the task check reports each defect `mise tasks validate`
+    finds on the file declaring the task, an error as an error and a
+    warning as a warning, and a defect in a task mise did not list on
+    `.mise/config.toml`.
+    """
+    tasks = Tasks(
+        issues = [
+            TaskIssue(
+                details  = "Referenced in 'depends'",
+                message  = "Dependency 'x' not found",
+                severity = Severity.ERROR,
+                task     = "py:test"
+            ),
+            TaskIssue(message="Empty script", severity=Severity.WARNING, task="py:gone")
+        ],
+        tasks = [Task(
+            depends = ["x"],
+            name    = "py:test",
+            source  = Path(".mise/tasks/py/test").absolute()
+        )]
+    )
+
+    assert [
+        (str(finding.file), finding.severity, finding.message)
+        for finding in TaskCheck.read(lambda field: tasks).scan()
+    ] == [
+        (
+            ".mise/tasks/py/test",
+            Severity.ERROR,
+            (
+                "`py:test` fails `mise tasks validate` with \"Dependency 'x' not "
+                "found\" (Referenced in 'depends')"
+            )
+        ),
+        (
+            ".mise/config.toml", Severity.WARNING,
+            "`py:gone` fails `mise tasks validate` with 'Empty script'"
+        )
+    ]
+
+
+@mark.parametrize(
+    ("nested", "found"),
+    [
+        param([], [], id="clean"),
+        param(["vitepress/@vue/shared"], [], id="an-unshared-copy"),
+        param(["@sentry/vue"], [], id="a-scoped-name-ending-alike"),
+        param(
+            ["vitepress/vue"],
+            [(
+                4,
+                (
+                    "`docs/bun.lock` resolves `vue` more than once, nesting a copy at "
+                    "`vitepress/vue`"
+                )
+            )],
+            id = "vue"
+        ),
+        param(
+            ["vitepress/@vueuse/integrations/@vueuse/core", "vitepress/@vueuse/core"],
+            [
+                (
+                    3,
+                    "`docs/bun.lock` resolves `@vueuse/core` more than once, nesting a "
+                    "copy at `vitepress/@vueuse/core`, "
+                    "`vitepress/@vueuse/integrations/@vueuse/core`"
+                )
+            ],
+            id = "two-copies-of-a-scoped-package"
+        )
+    ]
+)
+def test_site_copies_report_each_shared_package_the_lockfile_resolves_twice(
+    found  : list[tuple[int, str]],
+    nested : list[str],
+    scan   : Scan
+):
+    """
+    Pins that the site's copies check passes a lockfile installing each
+    shared package at one path and a nested copy of any other package, and
+    reports each shared package installed at more than one path on the line
+    of `docs/package.json` pinning it, naming every path but the top-level
+    one in sorted order, with the trailing commas Bun writes accepted.
+    """
+    entries = "".join(
+        f'    "{path}": ["name@1.0.0", "", {{}}, "sha512-a"],\n'
+        for path in ["@vueuse/core", "vitepress", "vue", *nested]
+    )
+    findings = scan(
+        SiteCopies,
+        {
+            "docs/bun.lock"     : f'{{\n  "packages": {{\n{entries}  }},\n}}\n',
+            "docs/package.json" : dumps(
+                {
+                    "devDependencies": {
+                        "@vueuse/core" : "15.0.0",
+                        "vue"          : "3.5.45"
+                    }
+                },
+                indent = 2
+            )
+        }
+    )
+
+    assert findings == [("docs/package.json", line, message) for line, message in found]
+
+
 def test_the_audit_reports_each_unreadable_file_once(
     capsys   : CaptureFixture[str],
     checkout : Callable[[Mapping[str, str]], None],
@@ -1817,6 +1923,7 @@ def test_the_audit_reports_each_unreadable_file_once(
         "CITATION.cff",
         "a.py",
         "b.py",
+        "docs/bun.lock",
         "docs/package.json",
         "docs/references.bib",
         "pyproject.toml",
