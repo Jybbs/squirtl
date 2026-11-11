@@ -5,7 +5,7 @@ Defines the checks `repo:audit` runs, each a `Check` whose `scan` yields one
 """
 
 from abc             import ABC, abstractmethod
-from ast             import AsyncFunctionDef, ClassDef, FunctionDef, get_docstring, parse, walk
+from ast             import AsyncFunctionDef, ClassDef, FunctionDef, Import, ImportFrom, get_docstring, parse, walk
 from collections     import Counter, defaultdict
 from collections.abc import Callable, Iterator
 from functools       import cache
@@ -18,6 +18,7 @@ from pathlib              import Path
 from re     import fullmatch
 from typing import ClassVar, Self
 
+from squirtl.cli              import app
 from squirtl.docs.outputs     import Inventory
 from squirtl.docs.schemas     import Bibliography, Manuscripts
 from squirtl.emulator.schemas import Record
@@ -403,6 +404,93 @@ class Gates(Check):
                     )
 
 
+class Imports(Check):
+    """
+    Holds each import of one subject of the package from another to the
+    subjects beneath it, so no subject reaches up into the code that drives
+    it.
+    """
+
+    # `beneath` names the subjects each subject imports directly, and each
+    # subject also reaches every subject those reach, whereas a subject
+    # missing from it imports no other.
+    beneath: ClassVar[dict[str, tuple[str, ...]]] = {
+        "agent"       : ("emulator",),
+        "cli"         : ("docs", "releases"),
+        "docs"        : (
+            "agent", "evaluation", "identity", "releases", "reward", "runs"
+        ),
+        "environment" : ("reward",),
+        "evaluation"  : ("agent", "environment"),
+        "releases"    : ("agent", "docs", "runs"),
+        "repo"        : ("cli", "docs", "emulator", "releases"),
+        "reward"      : ("emulator",),
+        "runs"        : ("evaluation",)
+    }
+
+    manifest : Manifest
+    tree     : Tree
+
+    @property
+    def reach(self) -> dict[str, set[str]]:
+        """
+        Gathers every subject each subject in `beneath` reaches, through the
+        subjects it imports directly and every subject those reach.
+        """
+        reach = {subject: set(subjects) for subject, subjects in self.beneath.items()}
+
+        for middle in reach:
+            for subjects in reach.values():
+                if middle in subjects:
+                    subjects |= reach[middle]
+
+        return reach
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding at each import a module of the package makes
+        from a subject its own subject does not reach, and the findings
+        `Unreadable` holds for each module that fails to parse.
+        """
+        reach = self.reach
+
+        for package in self.manifest.packages:
+            for module in self.tree.under(package):
+                if module.suffix != ".py":
+                    continue
+
+                subject = module.relative_to(package).parts[0]
+                allowed = {subject, *reach.get(subject, ())}
+
+                try:
+                    with Finding.reading(module):
+                        nodes = walk(
+                            parse(module.read_text(encoding="utf-8"), filename=module)
+                        )
+                except Unreadable as error:
+                    yield from error.args
+                    continue
+
+                for node in nodes:
+                    match node:
+                        case Import(names=aliases):
+                            names = [alias.name for alias in aliases]
+                        case ImportFrom(level=0, module=str() as name): names = [name]
+                        case _: continue
+
+                    for name in names:
+                        match name.split("."):
+                            case [package.name, other, *_] if other not in allowed:
+                                yield Finding(
+                                    file    = module,
+                                    line    = node.lineno,
+                                    message = (
+                                        f"`{module}` imports `{name}`, which sits "
+                                        f"outside the subjects beneath `{subject}`"
+                                    )
+                                )
+
+
 class Inputs(Check):
     """
     Holds each input a step passes an action of this repository to the
@@ -756,12 +844,13 @@ class Rendered(Check):
     @classmethod
     def read(cls, documents: Callable[[type], Record]) -> Self:
         """
-        Builds the check as `Check.read` does, raising `Unreadable` on
-        `identity` where any part of the inventory fails to read, the
-        identity failing to parse or to validate among them.
+        Builds the check from the inventory of the `squirtl` command, the
+        one `squirtl write docs` writes, raising `Unreadable` on `identity`
+        where any part of it fails to read, the identity failing to parse or
+        to validate among them.
         """
         with Finding.reading(cls.identity):
-            return super().read(documents)
+            return cls(inventory=Inventory.read(app))
 
     def scan(self) -> Iterator[Finding]:
         """

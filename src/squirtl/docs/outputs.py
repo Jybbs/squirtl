@@ -7,11 +7,11 @@ one of those files, leaving the footnotes of each Markdown file to
 """
 
 from collections.abc import Mapping
+from cyclopts        import App
 from pathlib         import Path
 from pydantic        import TypeAdapter
 from typing          import Self
 
-from squirtl.cli              import app
 from squirtl.docs.commands    import Command
 from squirtl.docs.regions     import Region
 from squirtl.docs.results     import Results
@@ -97,7 +97,7 @@ class Inventory(Record):
         return tuple(output for output in self.outputs if output.drifted)
 
     @classmethod
-    def read(cls) -> Self:
+    def read(cls, app: App) -> Self:
         """
         Lists every file the package's declarations are written into under
         `docs/.vitepress/lib/rendered/`:
@@ -113,7 +113,8 @@ class Inventory(Record):
         - The default of every setting a run reads, which the site's widgets
           model, leaving out each field `RunSettings.machine` names
         - The address of every symbol the package reads in the game's memory
-        - The page of each command under `docs/pages/commands/`
+        - The page of each command `app` registers under
+          `docs/pages/commands/`
         - Each page under `docs/pages/` carrying the table of a subject's
           settings between a pair of markers
         """
