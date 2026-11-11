@@ -81,8 +81,8 @@ class EnvironmentSettings(Record):
     """
     The flag whose first setting ends an episode, each flag `Event` declares
     before it paying the milestone, whose default is the starter and whose
-    farthest is the Pokédex, since Viridian City turns Blue back at its
-    north exit until `EVENT_GOT_POKEDEX` is set, as pret/pokered's
+    farthest is the Pokédex, since the old man lying across Viridian City's
+    road north turns Blue back until `EVENT_GOT_POKEDEX` is set, as pret/pokered's
     `scripts/ViridianCity.asm` holds.
     """
 
@@ -169,7 +169,7 @@ class Outcome(Record):
     flags: dict[Flag, PositiveInt] = {}
     """
     The step of the episode first setting each flag its own steps set, by
-    the flag's name, none for an outcome recorded without them.
+    the flag's name, empty for an outcome recorded without them.
     """
 
 

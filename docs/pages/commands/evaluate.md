@@ -4,7 +4,7 @@ Evaluates the agent of each run at its last checkpoint, over the episodes the ru
 
 Prints as Markdown each run's measures, then each measure's interquartile mean across the runs with its 95% percentile bootstrap interval and the count of runs behind it, then the probability that the agent beats its baseline, and the runs `--against` names where it names any, on each run's mean return.
 
-A directory holding no run exits 1 before any evaluation, and a run holding no checkpoint, holding a damaged one, or reading a cartridge the emulator refuses exits 1, keeping the evaluations already written for the runs evaluated before it.
+A directory holding no run, or runs ending their episodes at more than one goal, whose shares reaching it do not compare, exits 1 before any evaluation, and a run holding no checkpoint, holding a damaged one, or reading a cartridge the emulator refuses exits 1, keeping the evaluations already written for the runs evaluated before it.
 
 ```console
 squirtl evaluate [OPTIONS] DIRECTORIES

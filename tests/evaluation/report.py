@@ -19,7 +19,7 @@ from pytest            import approx, mark, param
 from syrupy.assertion  import SnapshotAssertion
 
 from squirtl.evaluation.report import Estimate, Report
-from squirtl.reward.schemas    import Term
+from squirtl.reward.schemas    import Event, Term
 
 
 def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
@@ -70,6 +70,27 @@ def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
     )
 
     assert report.markdown(default_rng(0)) == snapshot
+
+
+def test_a_report_names_the_goal_each_evaluation_ended_its_episodes_at():
+    """
+    Asserts that each row of a report's table names the goal its evaluation
+    ended its episodes at, here the Pokédex rather than the default.
+    """
+    markdown = Report(
+        against = {},
+        runs    = {
+            "20261003T000000.000000Z": (
+                played([0.5], 100, goal=Event.EVENT_GOT_POKEDEX),
+                played([0.0], None, goal=Event.EVENT_GOT_POKEDEX)
+            )
+        }
+    ).markdown(default_rng(0))
+
+    assert [
+        line.split(" | ")[2] for line in markdown.splitlines()
+        if line.startswith("| `20261003")
+    ] == ["`EVENT_GOT_POKEDEX`"] * 2
 
 
 def test_a_report_naming_no_rival_runs_leaves_out_their_column_and_comparison():

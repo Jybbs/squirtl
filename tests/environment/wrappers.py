@@ -281,20 +281,25 @@ def test_a_segment_ends_at_a_flag_and_never_at_a_new_position_alone():
 
 
 @mark.parametrize(
-    "presses",
-    [param(bytes(12), id="short-of-the-goal"), param(bytes(14), id="past-it")]
+    ("goal", "presses"),
+    [
+        param(Event.EVENT_GOT_STARTER, bytes(12), id="short-of-the-goal"),
+        param(Event.EVENT_GOT_STARTER, bytes(14), id="past-it"),
+        param(Event.EVENT_GOT_POKEDEX, bytes(13), id="short-of-a-later-goal")
+    ]
 )
 def test_a_demonstration_not_reaching_the_goal_at_its_last_press_is_refused(
     following : Callable[..., Env],
+    goal      : Event,
     presses   : bytes
 ):
     """
     Asserts that a demonstration stopping short of the run's goal, or
     holding presses past the one reaching it, is refused as the wrapper
-    plays it, naming the goal.
+    plays it, naming the goal, the Pokédex as much as the starter.
     """
-    with raises(ValueError, match="no longer reach EVENT_GOT_STARTER at the last"):
-        following(presses)
+    with raises(ValueError, match=f"no longer reach {goal.name} at the last"):
+        following(presses, goal=goal)
 
 
 def test_a_start_falling_short_by_less_than_the_tolerance_succeeds(

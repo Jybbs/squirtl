@@ -516,15 +516,23 @@ def test_an_evaluation_logs_how_often_each_policy_reached_the_goal(
 ):
     """
     Asserts that an evaluation at step 12 logs its start, then the share
-    of episodes in which the agent and the random baseline each reached
-    the run's goal, naming it, beside each one's mean return, from the
-    stand-in's agent reaching it for a return of 0.012 and its baseline
-    reaching it in no episode for 0.125.
+    of episodes in which the agent and the random baseline each reached the
+    run's goal, naming it, here the Pokédex rather than the default, beside
+    each one's mean return, from the stand-in's agent reaching it for a
+    return of 0.012 and its baseline reaching it in no episode for 0.125.
     """
-    finish(trainer(evaluation_steps=10))
+    finish(
+        trainer = trainer(
+            environment = EnvironmentSettings(
+                goal              = Event.EVENT_GOT_POKEDEX,
+                max_episode_steps = 6
+            ),
+            evaluation_steps = 10
+        )
+    )
 
     assert {
-        "At step 12, the agent reached EVENT_GOT_STARTER in 100% of its evaluation "
+        "At step 12, the agent reached EVENT_GOT_POKEDEX in 100% of its evaluation "
         "episodes for a mean return of 0.0120, and the random baseline in 0% for "
         "0.1250",
         "Evaluating the agent at step 12"

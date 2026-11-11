@@ -35,7 +35,7 @@ The table below is written from the help `squirtl train` prints for each `--envi
 | `--environment.frame-shape` | `72, 80` | *The height and width in pixels each frame shrinks to, each dividing the screen's own, whose default is the half-resolution grayscale screen Pleines et al. observe.* |
 | `--environment.frame-stack` | `4` | *The frames each observation stacks, the newest last, whose default follows Mnih et al.* |
 | `--environment.frames-per-step` | `17` | *The frames a step advances from its press, by default the fewest under which a direction pressed on open ground moves the player one square whichever frame the press lands on.* |
-| `--environment.goal` | `event-got-starter` | *The flag whose first setting ends an episode, each flag `Event` declares before it paying the milestone, whose default is the starter and whose farthest is the Pokédex, since Viridian City turns Blue back at its north exit until `EVENT_GOT_POKEDEX` is set, as pret/pokered's `scripts/ViridianCity.asm` holds.* |
+| `--environment.goal` | `event-got-starter` | *The flag whose first setting ends an episode, each flag `Event` declares before it paying the milestone, whose default is the starter and whose farthest is the Pokédex, since the old man lying across Viridian City's road north turns Blue back until `EVENT_GOT_POKEDEX` is set, as pret/pokered's `scripts/ViridianCity.asm` holds.* |
 | `--environment.grid-size` | `48` | *The side in squares of the grid of reached positions centered on the player, by default one square per cell of the 48 by 48 crop Pleines et al. observe.* |
 | `--environment.max-episode-steps` | `10240` | *The steps after which `TimeLimit` truncates an episode, by default the budget Pleines et al. start each episode with.* |
 

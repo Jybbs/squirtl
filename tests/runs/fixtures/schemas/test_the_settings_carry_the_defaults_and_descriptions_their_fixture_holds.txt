@@ -330,7 +330,7 @@
         "goal": {
           "$ref": "#/$defs/Flag",
           "default": 34,
-          "description": "The flag whose first setting ends an episode, each flag `Event` declares\nbefore it paying the milestone, whose default is the starter and whose\nfarthest is the Pokédex, since Viridian City turns Blue back at its\nnorth exit until `EVENT_GOT_POKEDEX` is set, as pret/pokered's\n`scripts/ViridianCity.asm` holds."
+          "description": "The flag whose first setting ends an episode, each flag `Event` declares\nbefore it paying the milestone, whose default is the starter and whose\nfarthest is the Pokédex, since the old man lying across Viridian City's\nroad north turns Blue back until `EVENT_GOT_POKEDEX` is set, as pret/pokered's\n`scripts/ViridianCity.asm` holds."
         },
         "grid_size": {
           "default": 48,
@@ -377,7 +377,7 @@
       "type": "object"
     },
     "Event": {
-      "description": "The flags in `wEventFlags` the opening sets from Blue's bedroom to the\nPokédex, declared in the order the opening sets them, each member named\nfor its constant in pret/pokered's `constants/event_constants.asm` and\nits value that constant's index in the flag array.",
+      "description": "A flag in `wEventFlags` for each moment of the opening from\nBlue's bedroom to the Pokédex, declared in the order the opening\nsets them, each member named for its constant in pret/pokered's\n`constants/event_constants.asm` and its value that constant's index in\nthe flag array.",
       "enum": [
         39,
         0,

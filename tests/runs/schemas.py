@@ -174,11 +174,19 @@ def test_a_run_holding_no_episode_reaching_its_goal_gives_no_demonstration(
     holding : Callable[[str], Run]
 ):
     """
-    Asserts that a run whose every episode truncated gives no demonstration.
+    Asserts that a run whose every episode truncated gives no demonstration,
+    naming the goal its settings name, here the Pokédex rather than the
+    default.
     """
-    run = holding(f"{episode.model_dump_json()}\n")
+    run = holding(f"{episode.model_dump_json()}\n").model_copy(
+        update = {
+            "settings": RunSettings(
+                environment = EnvironmentSettings(goal=Event.EVENT_GOT_POKEDEX)
+            )
+        }
+    )
 
-    with raises(ValueError, match="holds no episode reaching EVENT_GOT_STARTER"):
+    with raises(ValueError, match="holds no episode reaching EVENT_GOT_POKEDEX"):
         run.demonstration
 
 
@@ -899,6 +907,27 @@ def test_the_settings_refuse_terms_one_step_could_sum_past_one_on_the_way_to_the
         match = f"every flag up to {goal.name} at once earns {past} more than the 1"
     ):
         RunSettings(environment=EnvironmentSettings(goal=goal), reward=reward)
+
+
+@mark.parametrize(
+    "reward",
+    [
+        param(
+            RewardSettings(goal=0.5, milestone=0.125, novelty=0.125),
+            id = "powers-of-two"
+        ),
+        param(RewardSettings(goal=0.68, milestone=0.07, novelty=0.11), id="decimals")
+    ]
+)
+def test_the_settings_accept_terms_one_step_sums_to_exactly_one_at_the_goal(
+    reward: RewardSettings
+):
+    """
+    Asserts that the settings accept terms where a step reaching a new
+    position and first setting every flag up to the starter at once earns
+    exactly 1, the most the bound Mnih et al. clip each reward to allows.
+    """
+    assert RunSettings(reward=reward).reward == reward
 
 
 def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():

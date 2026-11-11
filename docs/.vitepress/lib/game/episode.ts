@@ -24,7 +24,7 @@ export interface EventFlag {
 }
 
 /**
- * A moment in the game an event flag marks, from Oak appearing to the Pokédex.
+ * A moment in the game an event flag marks that the model sets, from Oak appearing to the starter.
  */
 export type Flag = (typeof FLAGS)[keyof typeof FLAGS]['flag']
 

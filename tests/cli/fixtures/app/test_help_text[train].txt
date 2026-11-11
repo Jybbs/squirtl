@@ -271,9 +271,10 @@ Each of these exits 1 before any directory is made:
 │ --environment.goal CHOICE     The flag whose first setting ends an episode,  │
 │                               each flag Event declares before it paying the  │
 │                               milestone, whose default is the starter and    │
-│                               whose farthest is the Pokédex, since Viridian  │
-│                               City turns Blue back at its north exit until   │
-│                               EVENT_GOT_POKEDEX is set, as pret/pokered's    │
+│                               whose farthest is the Pokédex, since the old   │
+│                               man lying across Viridian City's road north    │
+│                               turns Blue back until EVENT_GOT_POKEDEX is     │
+│                               set, as pret/pokered's                         │
 │                               scripts/ViridianCity.asm holds. [choices:      │
 │                               event-oak-appeared-in-pallet,                  │
 │                               event-followed-oak-into-lab,                   │

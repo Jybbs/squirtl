@@ -18,6 +18,7 @@ from torch        import Tensor, inference_mode
 from torch.random import fork_rng
 
 from squirtl.agent.checkpoint    import Weights
+from squirtl.agent.learner       import matching_networks
 from squirtl.agent.networks      import acting_network, tensors
 from squirtl.agent.schemas       import Algorithm
 from squirtl.emulator.schemas    import Record, UnitInterval
@@ -146,6 +147,11 @@ class Evaluator(AbstractContextManager):
         evaluate the agents their PPO trains. The network is built anew,
         under a fork of PyTorch's global generator, so the evaluation leaves
         the agent and that generator as they were.
+
+        Raises:
+            ValueError: Where the entries of `weights` differ from the
+                        network's, as a checkpoint another agent wrote holds
+                        them.
         """
         with fork_rng(devices=[]):
             network = acting_network(
@@ -154,7 +160,8 @@ class Evaluator(AbstractContextManager):
                 self.envs.single_observation_space
             )
 
-        network.load_state_dict(weights.online)
+        with matching_networks():
+            network.load_state_dict(weights.online)
 
         return Evaluation(
             goal     = self.goal,

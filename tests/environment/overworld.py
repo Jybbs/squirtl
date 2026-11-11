@@ -19,7 +19,7 @@ Pins how `Overworld` keeps Gymnasium's environment contract, covering:
 """
 
 from collections.abc  import Callable
-from common.console   import set_event, shade, stand
+from common.console   import StandIn, set_event, shade, stand
 from gymnasium        import Env, make
 from gymnasium.spaces import Box, Discrete
 from gymnasium.utils.env_checker import check_env
@@ -28,7 +28,7 @@ from hashlib        import sha256
 from numpy          import argwhere, uint8, unique
 from numpy.random   import default_rng
 from numpy.testing  import assert_array_equal
-from pytest         import approx, mark, param
+from pytest         import MonkeyPatch, approx, mark, param
 from subprocess     import check_output
 from sys            import executable
 from torch          import equal
@@ -36,9 +36,10 @@ from torch.nn.utils import parameters_to_vector
 
 from squirtl.agent.learner         import DQN
 from squirtl.agent.schemas         import AgentSettings
-from squirtl.emulator.schemas      import Button
+from squirtl.emulator              import console
+from squirtl.emulator.schemas      import Button, Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
-from squirtl.environment.schemas   import Entry, Recording, Takeover
+from squirtl.environment.schemas   import Entry, EnvironmentSettings, Recording, Takeover
 from squirtl.reward.schemas        import Event, Position, RewardSettings, Term
 
 
@@ -230,17 +231,31 @@ def test_an_agent_learns_from_the_observations_the_environment_makes(
     assert not equal(parameters_to_vector(agent.network.parameters()), online)
 
 
-def test_resets_with_no_seed_draw_on_from_the_seeded_generator(overworld: Overworld):
+def test_an_episode_ends_at_the_goal_its_settings_name(
+    cartridge   : Cartridge,
+    monkeypatch : MonkeyPatch,
+    settings    : RewardSettings
+):
     """
-    Asserts that resets after a seeded one draw each episode's `timer_div`
-    on from the generator that seed started, rather than reseeding it.
+    Asserts that an environment whose settings name `EVENT_GOT_POKEDEX` as
+    its goal pays the starter as a milestone without ending the episode, and
+    the Pokédex as the goal, which ends it.
     """
-    for seed in (5, None, None):
-        overworld.reset(seed=seed)
+    monkeypatch.setattr(console, "PyBoy", StandIn)
+    overworld = Overworld(
+        cartridge,
+        EmulatorSettings(hold=3),
+        EnvironmentSettings(frames_per_step=20, goal=Event.EVENT_GOT_POKEDEX),
+        settings
+    )
+    overworld.reset(seed=0)
+    steps = []
 
-    assert [
-        call[1] for call in overworld.game_boy.emulator.calls if call[0] == "reset_game"
-    ] == default_rng(5).integers(256, size=3).tolist()
+    for event in (Event.EVENT_GOT_STARTER, Event.EVENT_GOT_POKEDEX):
+        set_event(event, overworld.game_boy.emulator.memory)
+        steps.append(overworld.step(0)[1:3])
+
+    assert steps == [(settings.milestone, False), (settings.goal, True)]
 
 
 @mark.parametrize(
@@ -271,6 +286,19 @@ def test_a_step_returns_its_score_and_never_truncates(
         term: reward if term is Event.EVENT_GOT_STARTER.terms[event] else 0.0
         for term in Term
     }
+
+
+def test_resets_with_no_seed_draw_on_from_the_seeded_generator(overworld: Overworld):
+    """
+    Asserts that resets after a seeded one draw each episode's `timer_div`
+    on from the generator that seed started, rather than reseeding it.
+    """
+    for seed in (5, None, None):
+        overworld.reset(seed=seed)
+
+    assert [
+        call[1] for call in overworld.game_boy.emulator.calls if call[0] == "reset_game"
+    ] == default_rng(5).integers(256, size=3).tolist()
 
 
 def test_the_action_space_offers_no_press_and_each_button(overworld: Overworld):

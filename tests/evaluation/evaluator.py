@@ -18,7 +18,7 @@ from gymnasium.spaces  import Box, Dict, Discrete
 from gymnasium.vector  import AutoresetMode, SyncVectorEnv
 from numpy             import ndarray, uint8, zeros
 from os                import kill
-from pytest            import MonkeyPatch, fixture, mark, param
+from pytest            import MonkeyPatch, fixture, mark, param, raises
 from signal            import SIGINT
 from torch             import Tensor, arange, equal, get_rng_state, no_grad, tensor
 from torch.testing     import assert_close
@@ -92,13 +92,19 @@ def value_the_last(observations: dict[str, Tensor]) -> Tensor:
 def evaluator(cartridge: Cartridge) -> Callable[..., Evaluator]:
     """
     Builds a factory of evaluators on `cartridge` on the CPU from seed 1,
-    under episodes of three steps and the evaluation settings any keyword
-    sets, playing the deep Q-network unless the call names another agent.
+    under episodes of three steps ending at the starter unless the call
+    names another goal, and the evaluation settings any keyword sets,
+    playing the deep Q-network unless the call names another agent.
     """
 
-    def build(algorithm: Algorithm = Algorithm.DQN, **settings: object) -> Evaluator:
+    def build(
+        algorithm  : Algorithm = Algorithm.DQN,
+        goal       : Event     = Event.EVENT_GOT_STARTER,
+        **settings : object
+    ) -> Evaluator:
         """
-        Starts the evaluator of `algorithm` that `settings` describe.
+        Starts the evaluator of `algorithm` toward `goal` that `settings`
+        describe.
         """
         return Evaluator(
             algorithm,
@@ -108,7 +114,7 @@ def evaluator(cartridge: Cartridge) -> Callable[..., Evaluator]:
             Overworld.specification(
                 cartridge,
                 EmulatorSettings(),
-                EnvironmentSettings(max_episode_steps=3),
+                EnvironmentSettings(goal=goal, max_episode_steps=3),
                 RewardSettings()
             )
         )
@@ -227,6 +233,28 @@ def test_each_agent_plays_its_network_at_its_epsilon(
     assert_close(policies[0].network.state_dict(), built.state_dict(), atol=0, rtol=0)
 
 
+def test_an_evaluation_refuses_weights_another_agents_network_holds(
+    evaluator: Callable[..., Evaluator]
+):
+    """
+    Asserts that evaluating the deep Q-network on the weights of PPO's
+    network, whose entries differ from its own, raises a `ValueError` naming
+    the difference rather than PyTorch's `RuntimeError`.
+    """
+    with evaluator(environments=1, episodes=1) as started:
+        online = acting_network(
+            started.envs.single_action_space.n,
+            Algorithm.PPO,
+            started.envs.single_observation_space
+        ).state_dict()
+
+        with raises(
+            ValueError,
+            match = "the checkpoint's networks differ from the agent's"
+        ):
+            started.evaluate(Weights(online=online, step=9))
+
+
 def test_a_worker_plays_on_through_an_interrupt(evaluator: Callable[..., Evaluator]):
     """
     Asserts that the interrupt signal reaching each worker process, as a
@@ -318,3 +346,16 @@ def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
         (Event.EVENT_GOT_STARTER, None, [(3, False)] * 3),
         (Event.EVENT_GOT_STARTER, 9, [(3, False)] * 3)
     ]
+
+
+@mark.usefixtures("tallied")
+def test_an_evaluation_names_the_goal_its_environment_settings_name(
+    evaluator: Callable[..., Evaluator]
+):
+    """
+    Asserts that the random baseline's evaluation names the goal the
+    environment's settings name, here the Pokédex rather than the default.
+    """
+    evaluation = evaluator(episodes=1, goal=Event.EVENT_GOT_POKEDEX).baseline()
+
+    assert evaluation.goal is Event.EVENT_GOT_POKEDEX

@@ -228,7 +228,9 @@ def rolling(space: Dict) -> Callable[..., RolloutAgent]:
 def space() -> Dict:
     """
     Declares the environment's observation, four stacked 72 by 80 frames
-    beside a binary 48 by 48 grid and four binary flags, those two one deep.
+    beside a binary 48 by 48 grid and four binary flags, those two one deep,
+    as a network written before `Event` declared the flags past the starter
+    reads.
     """
     return Dict(
         {

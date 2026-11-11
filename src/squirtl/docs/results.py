@@ -17,7 +17,7 @@ from squirtl.agent.schemas      import Algorithm
 from squirtl.emulator.schemas   import EmulatorSettings, Record
 from squirtl.evaluation.report  import Estimate
 from squirtl.evaluation.schemas import Evaluation
-from squirtl.reward.schemas     import Flag
+from squirtl.reward.schemas     import Event, Flag
 from squirtl.runs.schemas       import Run
 
 
@@ -267,10 +267,7 @@ class Results(Record):
             Trained.read(directory)
             for directory in sorted(folder.iterdir() if folder.is_dir() else ())
         )
-        if len(goals := {run.goal.name for run in runs}) > 1:
-            raise ValueError(
-                f"the runs under {folder} end at {', '.join(sorted(goals))}"
-            )
+        Event.check_shared((run.goal for run in runs), f"the runs under {folder}")
 
         baselines = {run.seed: run.baseline.reached for run in Trained.seeded(runs)}
         group     = attrgetter("agent", "curriculum")

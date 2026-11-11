@@ -2,7 +2,7 @@
 Defines the records the reward reads and writes:
 
 - `Term`, the terms a step's reward sums
-- `Event`, the flags in `wEventFlags` the opening sets up to the Pokédex,
+- `Event`, a flag in `wEventFlags` for each moment of the opening up to the Pokédex,
   which JSON holds as `Flag`, by name
 - `Position`, the square of the map the player stands on
 - `RewardSettings`, what each term pays a step
@@ -10,7 +10,7 @@ Defines the records the reward reads and writes:
 """
 
 from collections     import Counter
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from enum            import IntEnum, StrEnum, auto
 from itertools       import takewhile
 from math            import fsum
@@ -74,10 +74,11 @@ class Term(StrEnum):
 
 class Event(IntEnum):
     """
-    The flags in `wEventFlags` the opening sets from Blue's bedroom to the
-    Pokédex, declared in the order the opening sets them, each member named
-    for its constant in pret/pokered's `constants/event_constants.asm` and
-    its value that constant's index in the flag array.
+    A flag in `wEventFlags` for each moment of the opening from
+    Blue's bedroom to the Pokédex, declared in the order the opening
+    sets them, each member named for its constant in pret/pokered's
+    `constants/event_constants.asm` and its value that constant's index in
+    the flag array.
     """
 
     EVENT_OAK_APPEARED_IN_PALLET    = 0x27  # prose: skip[alphabetize-siblings]
@@ -109,6 +110,19 @@ class Event(IntEnum):
         and Pydantic's validation of a member fall back to this hook.
         """
         return cls.__members__.get(str(value).upper().replace("-", "_"))
+
+    @classmethod
+    def check_shared(cls, goals: Iterable[Self], runs: str):
+        """
+        Checks that every goal in `goals` is the same flag, since shares of
+        episodes reaching different goals do not compare.
+
+        Raises:
+            ValueError: Where `goals` holds more than one flag, naming
+                        `runs` and each flag.
+        """
+        if len(names := {goal.name for goal in goals}) > 1:
+            raise ValueError(f"{runs} end at {', '.join(sorted(names))}")
 
     def is_set(self, game_boy: GameBoy) -> bool:
         """
