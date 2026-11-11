@@ -1,3 +1,5 @@
+import { clamp } from '@vueuse/core'
+
 import KANTO            from '../art/kanto.json' with { type: 'json' }
 import { type Placed, SECTIONS, type Section, placed } from '../config/sections.ts'
 import { dotText }      from '../drawing/dots.ts'
@@ -73,11 +75,6 @@ function cityOf(section: Placed): cards.Point {
   const square      = KANTO.tile * MAP.scale
   return { x: MAP.left + (x + left + 0.5) * square, y: MAP.top + (y + top + 0.5) * square }
 }
-
-/**
- * Holds `value` between `low` and `high`.
- */
-const clamp = (value: number, low: number, high: number): number => Math.min(high, Math.max(low, value))
 
 /**
  * Draws the Kanto map faded in `section`'s hue, with the city of every other

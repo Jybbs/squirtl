@@ -4,10 +4,12 @@ import { type MaybeRefOrGetter, watch }                             from 'vue'
 import { useMotion } from './motion.ts'
 
 /**
- * A running autoplay, which a reader's pointer or keys hold and release.
+ * A running autoplay, which a reader's pointer or keys hold and release, and
+ * which a reader's change to what it plays starts over.
  */
 export interface Autoplay {
-  hold : (reason: Reason, on: boolean) => void
+  hold   : (reason: Reason, on: boolean) => void
+  replay : () => void
 }
 
 /**
@@ -65,7 +67,7 @@ export function useAutoplay(target: MaybeElementRef, ticking: Ticking): Autoplay
   }
 
   const again = () => {
-    ticking.restart!()
+    ticking.restart?.()
     run()
   }
 
@@ -85,6 +87,7 @@ export function useAutoplay(target: MaybeElementRef, ticking: Ticking): Autoplay
       else holding.delete(reason)
       if (holding.size > 0) stop()
       else if (animate.value) run()
-    }
+    },
+    replay: again
   }
 }
