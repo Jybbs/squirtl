@@ -1,7 +1,8 @@
 import fs   from 'node:fs'
 import path from 'node:path'
 
-import type { DefaultTheme } from 'vitepress'
+import { createMarkdownRenderer, disposeMdItInstance } from 'vitepress'
+import type { DefaultTheme, MarkdownRenderer }        from 'vitepress'
 
 import type { Edition }                   from '../cards/cards.ts'
 import { SECTIONS, type Section, placed } from './sections.ts'
@@ -26,6 +27,19 @@ function headingOf(file: string): string {
 }
 
 /**
+ * Renders the inline Markdown of `heading` as the page renders it, for the
+ * default theme to set as an entry's label, and returns it beside the heading's
+ * plain text, which the entries sort by.
+ */
+function labelOf(md: MarkdownRenderer, heading: string): { html: string, text: string } {
+  const tokens = md.parseInline(heading, {})[0]?.children ?? []
+  return {
+    html : md.renderer.renderInline(tokens, md.options, {}),
+    text : tokens.map(token => token.content).join('')
+  }
+}
+
+/**
  * Lists each section in the navigation bar, linking its overview.
  */
 export function buildNav(sections: readonly Section[] = SECTIONS): DefaultTheme.NavItemWithLink[] {
@@ -38,22 +52,31 @@ export function buildNav(sections: readonly Section[] = SECTIONS): DefaultTheme.
 
 /**
  * Lists the pages of each section under `pages` in the sidebar its folder
- * shows, the overview first and every other page after it in the alphabetical
- * order of its heading.
+ * shows, each labeled with its heading as the page renders it, the overview
+ * first and every other page after it in the alphabetical order of its
+ * heading's text.
  */
-export function buildSidebar(
+export async function buildSidebar(
   pages    : string,
   sections : readonly Section[] = SECTIONS
-): DefaultTheme.SidebarMulti {
-  return Object.fromEntries(placed(sections).map(section => {
-    const folder  = path.join(pages, section.folder)
-    const entries = fs.globSync('*.md', { cwd: folder, exclude: ['index.md'] })
-      .map(file => ({
-        link : `/${section.folder}/${path.basename(file, '.md')}`,
-        text : headingOf(path.join(folder, file))
-      }))
-      .toSorted((left, right) => left.text.localeCompare(right.text))
+): Promise<DefaultTheme.SidebarMulti> {
+  const md = await createMarkdownRenderer(pages)
+  try {
+    return Object.fromEntries(placed(sections).map(section => {
+      const folder  = path.join(pages, section.folder)
+      const entries = fs.globSync('*.md', { cwd: folder, exclude: ['index.md'] })
+        .map(file => ({
+          label : labelOf(md, headingOf(path.join(folder, file))),
+          page  : path.basename(file, '.md')
+        }))
+        .toSorted((left, right) => left.label.text.localeCompare(right.label.text))
+        .map(({ label, page }) => ({ link: `/${section.folder}/${page}`, text: label.html }))
 
-    return [`/${section.folder}/`, [{ items: entries, link: `/${section.folder}/`, text: section.name }]]
-  }))
+      return [`/${section.folder}/`, [{ items: entries, link: `/${section.folder}/`, text: section.name }]]
+    }))
+  } finally {
+    // Releases the renderer, since VitePress hands the first one built to every
+    // later caller, and the site's own would otherwise render without its rules.
+    disposeMdItInstance()
+  }
 }
