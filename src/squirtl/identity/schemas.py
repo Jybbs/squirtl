@@ -137,6 +137,13 @@ class Face(Declared):
     The family's name, as Google Fonts lists it.
     """
 
+    x_height: float
+    """
+    The height of the face's lowercase letters as a share of its em, the
+    `sxHeight` its OS/2 table records, the body's at the optical size body
+    text sets at.
+    """
+
     @computed_field
     @property
     def query(self) -> str:
@@ -488,6 +495,15 @@ class Faces(Declared):
     The face of display text, whose dots the logo is set in.
     """
 
+    @property
+    def code_size(self) -> float:
+        """
+        The size code sets at in ems of the text around it, the body's
+        x-height over the code face's, so the lowercase letters of either
+        stand at one height.
+        """
+        return self.body.x_height / self.code.x_height
+
 
 class Hue(Declared):
     """
@@ -785,6 +801,7 @@ class Identity(Declared):
             "default-transition-timing-function" : self.motion.easing,
             "ease-glide"    : self.motion.easing,
             "ease-travel"   : self.motion.traveling,
+            "text-code"     : f"{self.faces.code_size:.4g}em",
             "tracking-caps" : f"{lengths.track:g}em"
         }
 

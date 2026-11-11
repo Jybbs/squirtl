@@ -10,7 +10,7 @@ describe('the bytes', () => {
 
   it('sets each flag at bit `index % 8` of the byte `index // 8` past wEventFlags', () => {
     expect(memory.FLAG_BITS.map(each => [each.flag, memory.address(each.address), each.bit])).toStrictEqual([
-      ['followed', 'D747', 0], ['starter', 'D74B', 2], ['appeared', 'D74B', 7], ['asked', 'D74B', 1]
+      ['appeared', 'D74B', 7], ['followed', 'D747', 0], ['asked', 'D74B', 1], ['starter', 'D74B', 2]
     ])
   })
 

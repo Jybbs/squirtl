@@ -3,8 +3,8 @@ Pins the pages `Command` writes for the commands `squirtl`
 registers, covering:
 
 - The commands it finds, each word of a group's command after the group's
-- A page's heading, help without the `Args` section, usage, and table of
-  settings, which leaves out a setting the help hides
+- A page's heading, help without the `Args` section, and usage, beside its
+  table of settings, which leaves out a setting the help hides
 - How a setting spells its flag and its default, whether the default
   follows the machine, no default exists, or the default is a boolean, an
   enumeration, a pair, `None`, or a number
@@ -16,13 +16,15 @@ from enum     import StrEnum
 from pytest   import mark, param
 from typing   import Annotated
 
-from squirtl.cli           import app
-from squirtl.docs.commands import Command, spelled, unwrapped
+from squirtl.cli            import app
+from squirtl.docs.commands  import Command, spelled, unwrapped
+from squirtl.reward.schemas import Event
 
 
 class Shade(StrEnum):
     """
-    A choice a stand-in command takes, spelled by its value.
+    A choice a stand-in command takes, spelled by the name cyclopts gives
+    its member.
     """
 
     LIGHT = "light"
@@ -30,8 +32,8 @@ class Shade(StrEnum):
 
 def test_a_command_taking_no_setting_carries_no_table():
     """
-    Pins that a command with no setting of its own leaves out the heading
-    and the table its page would otherwise close on.
+    Pins that a command with no setting of its own leaves out the part its
+    page would otherwise close on, the heading and the table of settings.
     """
     stand_in = App(name="stand-in")
 
@@ -41,7 +43,7 @@ def test_a_command_taking_no_setting_carries_no_table():
         Does nothing.
         """
 
-    assert "## Settings" not in Command.read(stand_in, ("bare",)).text
+    assert list(Command.read(stand_in, ("bare",)).parts) == ["help"]
 
 
 def test_a_default_following_the_machine_is_named_so():
@@ -101,18 +103,19 @@ def test_a_page_carries_the_description_without_the_args_section():
 
 def test_a_page_lays_out_its_heading_help_usage_and_settings():
     """
-    Asserts that the page of `squirtl stop` opens on its name as code,
-    carries its help as paragraphs and its usage in a console block, and
-    tables its positional setting named both ways and spelled as required,
-    whereas the page of `squirtl watch` tables an optional one under its
-    default.
+    Asserts that the help part of the page of `squirtl stop` opens on its
+    name as code and closes on its usage in a console block, and that its
+    settings part tables its positional setting named both ways and spelled
+    as required, whereas the page of `squirtl watch` tables an optional one
+    under its default.
     """
-    text = Command.read(app, ("stop",)).text
+    parts = Command.read(app, ("stop",)).parts
 
-    assert text.startswith("# `squirtl stop`\n\nWrites the stop file")
-    assert "```console\nsquirtl stop DIRECTORY\n```" in text
-    assert "| `DIRECTORY`, `--directory` | *required* |" in text
-    assert "| `--episode` | `none` |" in Command.read(app, ("watch",)).text
+    assert parts["help"].startswith("# `squirtl stop`\n\nWrites the stop file")
+    assert parts["help"].endswith("```console\nsquirtl stop DIRECTORY\n```")
+    assert parts["settings"].startswith("## Settings\n\n| **Flag** |")
+    assert "| `DIRECTORY`, `--directory` | *required* |" in parts["settings"]
+    assert "| `--episode` | `none` |" in Command.read(app, ("watch",)).parts["settings"]
 
 
 def test_a_paragraph_joins_its_lines_and_keeps_each_item_of_a_list():
@@ -128,7 +131,7 @@ def test_a_paragraph_joins_its_lines_and_keeps_each_item_of_a_list():
 def test_a_stand_in_setting_spells_its_enumeration_default():
     """
     Asserts that a setting taking an enumeration tables its default by the
-    member's value.
+    name cyclopts gives the member.
     """
     stand_in = App(name="stand-in")
 
@@ -142,7 +145,7 @@ def test_a_stand_in_setting_spells_its_enumeration_default():
         """
 
     assert "| `SHADE`, `--shade` | `light` | *The shade to paint in.* |" in (
-        Command.read(stand_in, ("paint",)).text
+        Command.read(stand_in, ("paint",)).parts["settings"]
     )
 
 
@@ -152,6 +155,7 @@ def test_a_stand_in_setting_spells_its_enumeration_default():
         param(None, "none", id="none"),
         param(True, "true", id="boolean"),
         param(Shade.LIGHT, "light", id="enumeration"),
+        param(Event.EVENT_GOT_STARTER, "event-got-starter", id="integer-enumeration"),
         param((72, 80), "72, 80", id="pair"),
         param(0.25, "0.25", id="number")
     ]
@@ -176,7 +180,7 @@ def test_a_table_holds_only_the_settings_under_its_prefix():
     )[2:]
 
     assert [row.split(" | ")[0] for row in rows] == [
-        "| `--reward.milestone`", "| `--reward.novelty`", "| `--reward.starter`"
+        "| `--reward.goal`", "| `--reward.milestone`", "| `--reward.novelty`"
     ]
 
 

@@ -10,7 +10,6 @@ on:
       - .github/actions/provision/action.yml
       - .github/workflows/warm.yml
       - .mise/config.toml
-      - .mise/mise.lock
       - uv.lock
 
   workflow_dispatch:

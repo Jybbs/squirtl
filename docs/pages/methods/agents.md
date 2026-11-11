@@ -26,13 +26,13 @@ The target follows van Hasselt et al.'s[^vanhasselt2016] Double DQN, the online 
 y = r + \gamma \, Q\left(s', \arg\max_{a'} Q(s', a'; \theta); \theta^-\right)
 ```
 
-A step that ends the episode at the starter takes $`y = r`$, whereas a step the time limit cuts short keeps the discounted term. The target network's weights $`\theta^-`$ are a copy of the online network's taken every 1,000 steps, and `--agent.double-q=false` has the target network both choose and value the next press, as Mnih et al.'s deep Q-network does.
+A step that ends the episode at the run's goal takes $`y = r`$, whereas a step the time limit cuts short keeps the discounted term. The target network's weights $`\theta^-`$ are a copy of the online network's taken every 1,000 steps, and `--agent.double-q=false` has the target network both choose and value the next press, as Mnih et al.'s deep Q-network does.
 
 ## PQN
 
 PQN, Gallici et al.'s[^gallici2025] parallel Q-network, values each press as the deep Q-network does but keeps neither replay memory nor a target network. It acts across 8 environments run in parallel, choosing each press epsilon-greedily, and once each environment has taken 512 steps, it trains for 2 passes over the rollout on half the squared error between its values and the λ-returns computed backward through it, with layer normalization after every layer as Gallici et al.'s Atari network normalizes.
 
-From Blue's bedroom, PQN at these settings does not learn the walk to the starter. The network's value of each press is mostly an offset shared by every state, so the press it values highest is nearly the same in every state, and that press changes at each update. Training episodes reach new positions only as the press changes between updates, whereas an evaluation plays one checkpoint whose highest-valued press holds, so across 2.5 million steps on each of five seeds, no evaluation episode reaches the starter and each covers 1 to 31 positions, against random presses reaching it in 20% to 33% of episodes and covering about 160. PQN keeps Gallici et al.'s design as they publish it, with neither a target network nor replay memory.
+From Blue's bedroom, PQN at these settings does not learn the walk to the starter. The network's value of each press is mostly an offset shared by every state, so the press it values highest is nearly the same in every state, and that press changes at each update. Training episodes reach new positions only as the press changes between updates, whereas an evaluation plays one checkpoint whose highest-valued press holds, so across 2.5 million steps on each of five seeds, no evaluation episode reaches the starter and each covers 1 to 75 positions, against random presses reaching it in 13% to 37% of episodes and covering about 160.
 
 ## PPO
 
@@ -56,7 +56,7 @@ The table below is written from the help `squirtl train` prints for each `--agen
 |---|---|---|
 | `--agent.algorithm` | `dqn` | *The agent the run trains, the deep Q-network, PQN, or PPO.* |
 | `--agent.batch-size` | `32` | *The transitions each update of the deep Q-network draws from replay memory, whose default follows Mnih et al.* |
-| `--agent.capacity` | `100000` | *The slots the deep Q-network's replay memory holds before overwriting the oldest, four per reset observation and one per step, whose default takes 606 MB for a 72 by 80 frame, a 48 by 48 grid, and four flags, the grid and the flags packed eight cells to a byte.* |
+| `--agent.capacity` | `100000` | *The slots the deep Q-network's replay memory holds before overwriting the oldest, four per reset observation and one per step, whose default takes 606 MB for a 72 by 80 frame, a 48 by 48 grid, and a flag for each member of `Event`, the grid and the flags packed eight cells to a byte.* |
 | `--agent.device` | *the machine's* | *The device every network and batch sit on, which defaults to the accelerator torch reports and to the CPU where it reports none.* |
 | `--agent.discount` | `0.997` | *The discount on the value of the state each step reaches, whose default is the one Pleines et al. settle on for this game after tuning over 0.99, 0.997, 0.999, and 0.9995.* |
 | `--agent.double-q` | `true` | *Whether the deep Q-network's online network chooses the action at the state each step reaches and the target network values it, as van Hasselt et al.'s Double DQN does, where otherwise the target network does both, as Mnih et al.'s deep Q-network does.* |

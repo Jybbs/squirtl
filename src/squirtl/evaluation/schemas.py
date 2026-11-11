@@ -14,7 +14,7 @@ from typing     import Annotated
 
 from squirtl.emulator.schemas    import Record, UnitInterval
 from squirtl.environment.schemas import Outcome
-from squirtl.reward.schemas      import Term
+from squirtl.reward.schemas      import Flag, Term
 
 
 class Evaluation(Record):
@@ -22,6 +22,12 @@ class Evaluation(Record):
     The episodes one evaluation played of one policy, the agent's at a step
     of its run or the random baseline's, from which `measures` derives what
     a reader judges the policy by.
+    """
+
+    goal: Flag
+    """
+    The flag whose first setting ended each episode the evaluation counts
+    as reaching its goal.
     """
 
     outcomes: Annotated[list[Outcome], Field(min_length=1)]
@@ -38,24 +44,24 @@ class Evaluation(Record):
     @cached_property
     def measures(self) -> dict[str, float | None]:
         """
-        Averages over the episodes the share reaching the starter, the steps
+        Averages over the episodes the share reaching the goal, the steps
         the episodes reaching it took, the positions reached, the return,
         and each term's part of it, in that order under the name a report
         gives each.
 
         Returns:
             Each measure under its name, the steps `None` where no episode
-            reached the starter.
+            reached the goal.
         """
         lengths = [outcome.length for outcome in self.outcomes if outcome.terminated]
 
         return {
-            "Reached the starter"  : self.reached,
-            "Steps to the starter" : fmean(lengths) if lengths else None,
-            "Positions"            : fmean(
+            "Reached the goal"  : self.reached,
+            "Steps to the goal" : fmean(lengths) if lengths else None,
+            "Positions"         : fmean(
                 outcome.positions for outcome in self.outcomes
             ),
-            "Return"               : self.reward,
+            "Return"            : self.reward,
             **{
                 f"{term.capitalize()} pay": fmean(
                     outcome.shares[term] for outcome in self.outcomes
@@ -67,8 +73,8 @@ class Evaluation(Record):
     @property
     def reached(self) -> float:
         """
-        Averages over the episodes whether each reached the starter, the
-        share reaching it.
+        Averages over the episodes whether each reached the goal, the share
+        reaching it.
         """
         return fmean(outcome.terminated for outcome in self.outcomes)
 

@@ -1,6 +1,6 @@
-import EVENTS     from '../rendered/events.json' with { type: 'json' }
-import SETTINGS   from '../rendered/settings.json' with { type: 'json' }
-import * as rooms from './rooms.ts'
+import SETTINGS                  from '../rendered/settings.json' with { type: 'json' }
+import { type Flag, eventFlags } from './flags.ts'
+import * as rooms                from './rooms.ts'
 
 /**
  * The bounds an episode keeps, the presses it runs to before it stops and what
@@ -10,22 +10,6 @@ export interface EpisodeSettings {
   limit : number
   pay   : Readonly<Record<Term, number>>
 }
-
-/**
- * One event flag the network reads, the flag the model of the game sets for
- * it, its name on a widget, and the term of the reward the step first setting
- * it pays.
- */
-export interface EventFlag {
-  flag : Flag
-  name : string
-  term : Term
-}
-
-/**
- * A moment in the game an event flag marks, each milestone's and the starter's.
- */
-export type Flag = (typeof FLAGS)[keyof typeof FLAGS]['flag']
 
 /**
  * Where Oak stands while he leads Blue, and the way he faces.
@@ -59,16 +43,14 @@ export const EPISODE: EpisodeSettings = {
 }
 
 /**
- * The flag the model of the game sets for each event flag the network reads,
- * beside the name a widget gives it, under the name the package's `Event`
- * gives the flag.
+ * The presses of A or B that Oak's speech at the table waits for before he
+ * asks Blue to choose. pret/pokered's `OaksLabOakChooseMonSpeechScript` shows
+ * four text boxes, the rival fed up with waiting, Oak asking Blue to choose,
+ * the rival asking about himself, and Oak telling him to be patient, and each
+ * waits at every `para` and `cont` it holds and once more as it closes, 2, 12,
+ * 2, and 2 presses in turn.
  */
-const FLAGS = {
-  EVENT_FOLLOWED_OAK_INTO_LAB   : { flag: 'followed', name: 'Followed Oak' },
-  EVENT_GOT_STARTER             : { flag: 'starter', name: 'Got the starter' },
-  EVENT_OAK_APPEARED_IN_PALLET  : { flag: 'appeared', name: 'Oak appeared' },
-  EVENT_OAK_ASKED_TO_CHOOSE_MON : { flag: 'asked', name: 'Oak asked' }
-} as const
+export const SPEECH = 18
 
 /**
  * Where Blue wakes, the square pret/pokered's `NewGameWarp` puts him on in his
@@ -84,22 +66,6 @@ const leadScript: readonly (readonly [rooms.Place, rooms.Square])[] = [
   ...rooms.OAK_LEADS.map(at => ['pallet', at] as const),
   ...rooms.LAB_ENTRY.map(at => ['lab', at] as const)
 ]
-
-/**
- * The event flags the network reads, in the order the package's `Event`
- * declares them, each beside the term of the reward the step first setting it
- * pays.
- */
-export const eventFlags: readonly EventFlag[] = EVENTS.map(event =>
-  Object.assign({ term: event.term as Term }, FLAGS[event.name as keyof typeof FLAGS]))
-
-/**
- * The flags of the milestones on the way to the starter, those whose events pay
- * a milestone.
- */
-export const milestones: readonly Flag[] = eventFlags
-  .filter(each => each.term === 'milestone')
-  .map(each => each.flag)
 
 /**
  * The term of the reward each flag pays the first time a step sets it.
@@ -120,7 +86,8 @@ const pays = Object.fromEntries(eventFlags.map(each => [each.flag, each.term])) 
  * `reached` holds the key of every square he has stood on, and `shares` what
  * each term has paid. Once Oak stops him, `script` holds the squares he walks
  * behind Oak, and every press walks him to the next while `leader` holds where
- * Oak stands.
+ * Oak stands. Once he reaches the table, `speech` holds the presses of A or B
+ * that Oak's speech still waits for.
  */
 export class Episode {
   at!         : rooms.Square
@@ -134,6 +101,7 @@ export class Episode {
   reached!    : Set<string>
   script!     : (readonly [rooms.Place, rooms.Square])[]
   shares!     : Record<Term, number>
+  speech!     : number
   steps!      : number
   terminated! : boolean
   turned!     : boolean
@@ -153,6 +121,29 @@ export class Episode {
   }
 
   /**
+   * Reports whether Oak leads Blue, every press walking him to the next square
+   * behind Oak.
+   */
+  get leading(): boolean {
+    return this.script.length > 0
+  }
+
+  /**
+   * Reports whether the game's script holds Blue, walking him behind Oak or
+   * waiting on Oak's speech, so no press moves him where it points.
+   */
+  get scripted(): boolean {
+    return this.leading || this.speaking
+  }
+
+  /**
+   * Reports whether Oak's speech at the table still waits for a press of A or B.
+   */
+  get speaking(): boolean {
+    return this.speech > 0
+  }
+
+  /**
    * Sums what every term has paid so far.
    */
   get total(): number {
@@ -160,9 +151,9 @@ export class Episode {
   }
 
   /**
-   * Walks Blue to the next square behind Oak, facing the way he steps, and pays
-   * the milestones of following Oak in and of Oak asking him to choose once he
-   * reaches the table.
+   * Walks Blue to the next square behind Oak, facing the way he steps, and once
+   * he reaches the table pays the milestone of following Oak in and starts
+   * Oak's speech.
    */
   #advance(): Paid[] {
     const [place, at] = this.script.shift()!
@@ -174,7 +165,8 @@ export class Episode {
     const paid        = this.#arrive(place, at)
     if (this.script.length > 0) return paid
     this.facing = this.lastStop = 'up'
-    return [...paid, ...this.#flag('followed'), ...this.#flag('asked')]
+    this.speech = SPEECH
+    return [...paid, ...this.#flag('followed')]
   }
 
   /**
@@ -192,7 +184,7 @@ export class Episode {
   }
 
   /**
-   * Sets `flag`, paying the term its event pays the first time, the starter's
+   * Sets `flag`, paying the term its event pays the first time, the goal's
    * flag ending the episode.
    */
   #flag(flag: Flag): Paid[] {
@@ -201,8 +193,19 @@ export class Episode {
     const term = pays[flag]
     const pay  = this.settings.pay[term]
     this.shares[term] += pay
-    if (flag === 'starter') this.terminated = true
+    if (term === 'goal') this.terminated = true
     return [{ pay, term }]
+  }
+
+  /**
+   * Moves Oak's speech on by one press where `button` is A or B, as
+   * pret/pokered's `WaitForTextScrollButtonPress` reads it while `wJoyIgnore`
+   * masks the pad, Start, and Select, and pays the milestone of Oak asking Blue
+   * to choose on the press closing its last text box.
+   */
+  #listen(button: rooms.Button): Paid[] {
+    if (button !== 'a' && button !== 'b') return []
+    return --this.speech > 0 ? [] : this.#flag('asked')
   }
 
   /**
@@ -216,8 +219,9 @@ export class Episode {
    * Presses `button` once, counting the step, and reads what the press pays.
    *
    * A press while Oak leads walks Blue to the next square behind him whatever
-   * the button. A direction other than the one he last stopped in only turns
-   * him, as pret/pokered's `OverworldLoop` sends it through
+   * the button, and a press while Oak speaks moves his speech on where it is A
+   * or B. A direction other than the one he last stopped in only turns him, as
+   * pret/pokered's `OverworldLoop` sends it through
    * `.holdIntermediateDirectionLoop`, so a reset's first direction press turns
    * him. One he last stopped in steps him where the square is walkable, takes
    * him through a warp or off a door mat, or leaves him where it is blocked. A
@@ -228,7 +232,8 @@ export class Episode {
     this.steps++
     this.pressed = button
     this.turned  = false
-    if (this.script.length > 0) return this.#advance()
+    if (this.leading) return this.#advance()
+    if (this.speaking) return this.#listen(button)
     if (button === 'a') {
       const ball = rooms.ballAhead(this, this.facing)
       if (!ball) return []
@@ -266,7 +271,8 @@ export class Episode {
     this.place      = START.place
     this.pressed    = null
     this.script     = []
-    this.shares     = { milestone: 0, novelty: 0, starter: 0 }
+    this.shares     = { goal: 0, milestone: 0, novelty: 0 }
+    this.speech     = 0
     this.steps      = 0
     this.terminated = false
     this.turned     = false

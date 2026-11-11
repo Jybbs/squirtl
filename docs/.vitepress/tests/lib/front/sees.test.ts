@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import * as sees                            from '../../../lib/front/sees.ts'
-import { type Flag, eventFlags, squareKey } from '../../../lib/game/episode.ts'
+import { squareKey }                        from '../../../lib/game/episode.ts'
+import { type Flag, eventFlags }            from '../../../lib/game/flags.ts'
 import { Player, type Playing }             from '../../../lib/game/player.ts'
 import { SCREEN }                           from '../../../lib/game/screen.ts'
 import * as identity                        from '../../../lib/identity/identity.ts'
@@ -198,9 +199,9 @@ describe('stepsOf', () => {
 
 describe('bytesOf', () => {
   it.each([
-    [sees.OBSERVING, { flags: 4, frames: stack * height! * width!, grid: side * side }],
-    [{ ...sees.OBSERVING, frame: { height: 2, width: 3 }, grid: 5 }, { flags: 4, frames: 24, grid: 25 }]
-  ])('counts a byte a pixel of each frame, a square of the grid, and a flag', (observing, bytes) => {
+    [sees.OBSERVING, { flags: 7, frames: stack * height! * width!, grid: side * side }],
+    [{ ...sees.OBSERVING, frame: { height: 2, width: 3 }, grid: 5 }, { flags: 7, frames: 24, grid: 25 }]
+  ])('counts a byte a pixel of each frame, a square of the grid, and a flag up to the Pokédex', (observing, bytes) => {
     expect(sees.bytesOf(observing)).toStrictEqual(bytes)
   })
 })

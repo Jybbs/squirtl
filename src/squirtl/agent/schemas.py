@@ -237,8 +237,8 @@ class AgentSettings(Record):
     """
     The slots the deep Q-network's replay memory holds before overwriting
     the oldest, four per reset observation and one per step, whose default
-    takes 606 MB for a 72 by 80 frame, a 48 by 48 grid, and four flags, the
-    grid and the flags packed eight cells to a byte.
+    takes 606 MB for a 72 by 80 frame, a 48 by 48 grid, and a flag for each
+    member of `Event`, the grid and the flags packed eight cells to a byte.
     """
 
     device: str = Field(default_factory=accelerator)

@@ -10,12 +10,15 @@ alone, with no optimizer state and no replay memory. Every run.json packed names
 the cartridge data/rom.gb, and a run whose files are unchanged packs into the   
 same bytes.                                                                     
 
-Prints the folder holding the tars. A run whose directory holds no record, no   
-checkpoint, or no episodes, or a --recommended-run naming none of the runs,     
-exits 1.
+Prints the folder holding the tars. Each of these exits 1 before any tar is     
+written:                                                                        
+
+ • A --recommended-run naming none of the trained runs                          
+ • A run whose directory holds no record, no checkpoint, or no episodes         
+ • A run holding a line of episodes squirtl watch cannot read
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────╮
 │ --recommended-run STR  The name of the run a release plays where no          │
 │                        selection names one. [default:                        │
-│                        20261108T230619.486374Z]                              │
+│                        20261111T020527.724383Z]                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯

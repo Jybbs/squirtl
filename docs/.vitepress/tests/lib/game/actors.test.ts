@@ -97,8 +97,8 @@ describe('spriteMark and termMark', () => {
   })
 
   it.each([
+    ['goal', actors.spriteMark('ball')],
     ['milestone', actors.spriteMark('oak')],
-    ['starter', actors.spriteMark('ball')],
     ['novelty', '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="3" fill="currentColor"/></svg>']
   ] as const)('marks the term %s as the game does on the board', (term, mark) => {
     expect(actors.termMark(term)).toBe(mark)

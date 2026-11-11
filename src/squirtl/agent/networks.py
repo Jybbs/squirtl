@@ -101,10 +101,10 @@ class Encoder(Module):
     units, as Pleines et al. do, with Mnih et al.'s convolutions and no
     batch normalization. Each entry stacks along its first axis, so at the
     default settings an observation holds a `(4, 72, 80)` stack of frames,
-    a `(1, 48, 48)` grid, and a `(1, 4)` vector of flags. Where `normalized`
-    is set, layer normalization runs over each position's channels after
-    every convolution and over each fully connected layer before its
-    activation, as Gallici et al.'s Atari network normalizes.
+    a `(1, 48, 48)` grid, and a flag for each member of `Event`. Where
+    `normalized` is set, layer normalization runs over each position's
+    channels after every convolution and over each fully connected layer
+    before its activation, as Gallici et al.'s Atari network normalizes.
     """
 
     def __init__(self, space: Dict, *, depth: int, normalized: bool):

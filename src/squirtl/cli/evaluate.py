@@ -14,6 +14,7 @@ from squirtl.cli.runs          import ReleaseTag, RunDirectory, Selection
 from squirtl.emulator.schemas  import Cartridge
 from squirtl.evaluation.report import Pairs, Report
 from squirtl.releases.schemas  import RunSelection
+from squirtl.reward.schemas    import Event
 from squirtl.runs.benchmark    import Benchmark
 from squirtl.runs.schemas      import Run
 
@@ -57,12 +58,13 @@ def evaluate(
 
     Both directories and `--release`, or neither, a directory holding no
     run, a release GitHub does not publish or one attaching no manifest, a
-    selection matching none of its runs, or a download whose digest differs
-    or whose tar does not unpack exits 1 before any evaluation. A run
-    holding no checkpoint, holding a damaged one, reading a cartridge the
-    emulator refuses, or recording another digest than the state its intro
-    leaves on the cartridge exits 1, keeping the evaluations already written
-    for the runs evaluated before it.
+    selection matching none of its runs, a download whose digest differs or
+    whose tar does not unpack, or runs ending their episodes at more than
+    one goal, whose shares reaching it do not compare, exits 1 before any
+    evaluation. A run holding no checkpoint, holding a damaged one, reading
+    a cartridge the emulator refuses, or recording another digest than the
+    state its intro leaves on the cartridge exits 1, keeping the evaluations
+    already written for the runs evaluated before it.
     """
     listen()
 
@@ -73,6 +75,10 @@ def evaluate(
             selector    = selector
         ).every()
         rivals = [Run.read(directory) for directory in against or ()]
+        Event.check_shared(
+            (run.settings.environment.goal for run in (*runs, *rivals)),
+            "the runs named"
+        )
 
     print(
         Report(against=evaluated(rivals), runs=evaluated(runs)).markdown(

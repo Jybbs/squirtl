@@ -25,7 +25,7 @@ from operator        import attrgetter
 from os              import SEEK_END, pread
 from pathlib         import Path
 from pydantic        import AwareDatetime, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt
-from pydantic        import PrivateAttr, StringConstraints, model_validator
+from pydantic        import PrivateAttr, StringConstraints, ValidationError, model_validator
 from subprocess      import check_output
 from typing          import Annotated, ClassVar, Self
 
@@ -73,9 +73,9 @@ class CurriculumSettings(Record):
 
     demonstration: Path | None = None
     """
-    The directory of the run whose shortest episode reaching the starter
-    each training episode starts along, or `None` to start every episode in
-    Blue's bedroom.
+    The directory of the run whose shortest episode reaching the goal each
+    training episode starts along, a run ending its episodes at the same
+    goal, or `None` to start every episode in Blue's bedroom.
     """
 
     forward: tuple[PositiveFloat, PositiveFloat] = (0.5, 1.0)
@@ -315,16 +315,25 @@ class RunSettings(Record):
     def verify(self) -> Self:
         """
         Refuses a demonstration for the deep Q-network, whose episodes start
-        in Blue's bedroom alone.
+        in Blue's bedroom alone, and reward settings whose ceiling at the
+        environment's goal passes 1, the bound Mnih et al. clip each reward
+        to.
 
         Raises:
-            ValueError: Where the settings name both, which Pydantic raises
-                        as a `ValidationError`.
+            ValueError: Where either holds, which Pydantic raises as a
+                        `ValidationError`.
         """
         if self.curriculum.demonstration and self.agent.algorithm is Algorithm.DQN:
             raise ValueError(
                 f"the deep Q-network starts every episode in Blue's bedroom, so it "
                 f"takes no demonstration such as {self.curriculum.demonstration}"
+            )
+
+        if (ceiling := self.reward.ceiling(goal := self.environment.goal)) > 1:
+            raise ValueError(
+                f"a step reaching a new position and every flag up to {goal.name} "
+                f"at once earns {ceiling - 1:.3g} more than the 1 Mnih et al. clip "
+                f"each reward to"
             )
 
         return self
@@ -404,7 +413,7 @@ class Run(Record):
     def demonstration(self) -> Recording:
         """
         Reads the recording of the shortest episode `episodes` holds that
-        started in Blue's bedroom and reached the starter, the first of
+        started in Blue's bedroom and reached the run's goal, the first of
         those sharing its length.
 
         Raises:
@@ -419,7 +428,8 @@ class Run(Record):
             return shortest.recording
 
         raise ValueError(
-            f"{self.episodes} holds no episode reaching the starter from the bedroom"
+            f"{self.episodes} holds no episode reaching "
+            f"{self.settings.environment.goal.name} from the bedroom"
         )
 
     @property
@@ -525,6 +535,44 @@ class Run(Record):
                 f"{self.directory} recorded the intro leaving the console in a state "
                 f"of digest {self.digest}, where this cartridge leaves {digest}"
             )
+
+    def check_episodes(self):
+        """
+        Reads each line of `episodes` through `Episode`, as `episode` reads
+        the line `squirtl watch` plays, refusing the run at the first line
+        that does not parse, such as one written before a field of the
+        record was renamed.
+
+        Raises:
+            ValueError: Where a line does not parse, naming `episodes`, the
+                        line's number counting from 1, and each field it
+                        fails at.
+        """
+        for number, line in enumerate(self.lines(self.episodes), 1):
+            try:
+                Episode.model_validate_json(line)
+            except ValidationError as error:
+                raise ValueError(
+                    f"Line {number:,} of {self.episodes} holds no episode, failing "
+                    + ", ".join(
+                        f"at {'.'.join(map(str, problem['loc'])) or 'its root'} "
+                        f"with {problem['msg']!r}"
+                        for problem in error.errors(include_url=False)
+                    )
+                ) from error
+
+    def check_files(self):
+        """
+        Refuses a run whose directory holds no `checkpoint` or no
+        `episodes`, the files a run writes as it trains.
+
+        Raises:
+            FileNotFoundError: Where either is missing, naming the run's
+                               directory and the file it lacks.
+        """
+        for path in (self.checkpoint, self.episodes):
+            if not path.is_file():
+                raise FileNotFoundError(f"{self.directory} holds no {path.name}")
 
     def ended_by(self, step: int) -> list[str]:
         """
