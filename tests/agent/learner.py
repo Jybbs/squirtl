@@ -108,11 +108,11 @@ def test_an_update_lands_on_each_step_the_interval_divides_once_the_warmup_ends(
     """
     agent = build(update_steps=interval, warmup_steps=warmup)
     play(agent, steps)
-    online = parameters_to_vector(agent.online.parameters())
+    online = parameters_to_vector(agent.network.parameters())
 
     assert (
         agent.update() is not None,
-        not equal(parameters_to_vector(agent.online.parameters()), online)
+        not equal(parameters_to_vector(agent.network.parameters()), online)
     ) == (moved, moved)
 
 
@@ -152,10 +152,10 @@ def test_an_update_targets_each_reward_plus_the_discounted_value_that_follows(
     targets = []
 
     with no_grad():
-        for network in (agent.online, agent.target):
+        for network in (agent.network, agent.target):
             network.head.weight.zero_()
 
-        agent.online.head.bias.copy_(one_hot(tensor(2), 7))
+        agent.network.head.bias.copy_(one_hot(tensor(2), 7))
         agent.target.head.bias.copy_(arange(7))
 
     play(agent, 8, terminated)
@@ -213,12 +213,12 @@ def test_the_target_copies_the_online_network_every_sync_steps(
     agent = build(sync_steps=4)
 
     with no_grad():
-        agent.online.head.bias.add_(1)
+        agent.network.head.bias.add_(1)
 
     play(agent, steps)
 
     assert equal(
-        parameters_to_vector(agent.online.parameters()),
+        parameters_to_vector(agent.network.parameters()),
         parameters_to_vector(agent.target.parameters())
     ) is synced
 
@@ -263,11 +263,11 @@ def test_a_greedy_action_is_the_one_the_online_network_values_highest(
     modes = []
 
     with no_grad():
-        values = agent.online(
+        values = agent.network(
             {key: as_tensor(stack)[None] for key, stack in observation.items()}
         )
 
-    agent.online.register_forward_hook(
+    agent.network.register_forward_hook(
         lambda *_: modes.append(is_inference_mode_enabled())
     )
 
@@ -323,11 +323,11 @@ def test_a_seed_builds_the_online_networks_weights(
     first, second = build(seed=1), build(seed=seed)
 
     assert equal(
-        parameters_to_vector(first.online.parameters()),
-        parameters_to_vector(second.online.parameters())
+        parameters_to_vector(first.network.parameters()),
+        parameters_to_vector(second.network.parameters())
     ) is same
     assert equal(
-        parameters_to_vector(second.online.parameters()),
+        parameters_to_vector(second.network.parameters()),
         parameters_to_vector(second.target.parameters())
     )
 
@@ -395,17 +395,17 @@ def test_a_restored_agent_keeps_training_from_the_saved_state(
 
     assert restored.step == saved.step
     assert_close(
-        (restored.online.state_dict(), restored.target.state_dict()),
-        (saved.online.state_dict(), saved.target.state_dict()),
+        (restored.network.state_dict(), restored.target.state_dict()),
+        (saved.network.state_dict(), saved.target.state_dict()),
         atol = 0,
         rtol = 0
     )
 
     play(restored, 32)
-    online = parameters_to_vector(restored.online.parameters())
+    online = parameters_to_vector(restored.network.parameters())
     restored.update()
 
-    assert not equal(parameters_to_vector(restored.online.parameters()), online)
+    assert not equal(parameters_to_vector(restored.network.parameters()), online)
     assert {state["step"].item() for state in restored.optimizer.state.values()} == {3}
 
 
@@ -476,11 +476,11 @@ def test_a_step_both_intervals_divide_copies_the_target_before_its_update(
         warmup_steps = 4
     )
     play(agent, 4)
-    synced = parameters_to_vector(agent.online.parameters())
+    synced = parameters_to_vector(agent.network.parameters())
     agent.update()
 
     assert equal(parameters_to_vector(agent.target.parameters()), synced)
-    assert not equal(parameters_to_vector(agent.online.parameters()), synced)
+    assert not equal(parameters_to_vector(agent.network.parameters()), synced)
 
 
 @mark.parametrize(
@@ -521,13 +521,13 @@ def test_an_update_changes_the_online_network_and_leaves_the_target_alone(
     play(agent, 32)
     online, target = (
         parameters_to_vector(network.parameters()) for network in (
-            agent.online, agent.target
+            agent.network, agent.target
         )
     )
 
     agent.update()
 
-    assert not equal(parameters_to_vector(agent.online.parameters()), online)
+    assert not equal(parameters_to_vector(agent.network.parameters()), online)
     assert equal(parameters_to_vector(agent.target.parameters()), target)
 
 
@@ -545,7 +545,7 @@ def test_an_update_clips_the_gradient_norm_at_max_grad_norm(
     agent.optimizer.register_step_pre_hook(
         lambda *_: norms.append(
             parameters_to_vector(
-                parameter.grad for parameter in agent.online.parameters()
+                parameter.grad for parameter in agent.network.parameters()
             ).norm().item()
         )
     )
@@ -567,15 +567,17 @@ def test_an_update_computes_its_gradient_afresh(
     play(agent, 32)
     twin = deepcopy(agent)
 
-    for parameter in agent.online.parameters():
+    for parameter in agent.network.parameters():
         parameter.grad = ones_like(parameter)
 
     agent.update()
     twin.update()
 
     assert equal(
-        parameters_to_vector(parameter.grad for parameter in agent.online.parameters()),
-        parameters_to_vector(parameter.grad for parameter in twin.online.parameters())
+        parameters_to_vector(
+            parameter.grad for parameter in agent.network.parameters()
+        ),
+        parameters_to_vector(parameter.grad for parameter in twin.network.parameters())
     )
 
 

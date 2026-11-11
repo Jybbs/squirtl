@@ -2,6 +2,8 @@
 Defines the agents a run trains, each choosing each action and training its
 network, counting every schedule in environment steps:
 
+- `Learner`, the base of every agent, holding the network it acts through,
+  its optimizer, and the step it has reached
 - `DQN`, the deep Q-network, which stores each transition in replay memory
   and trains on batches drawn from it
 - `PQN` and `PPO`, which act across environments run in parallel and train
@@ -22,20 +24,25 @@ from torch.nn.utils      import clip_grad_norm_
 from torch.optim         import Adam, AdamW, Optimizer, RAdam
 from typing              import ClassVar
 
-from squirtl.agent.checkpoint import ReplayCheckpoint, RolloutCheckpoint, Weights
+from squirtl.agent.checkpoint import Checkpoint, ReplayCheckpoint, RolloutCheckpoint, Weights
 from squirtl.agent.networks   import seeded_network, tensors
 from squirtl.agent.replay     import Replay
 from squirtl.agent.rollout    import Rollout
-from squirtl.agent.schemas    import AgentSettings, Algorithm, Measures, PQNSettings, Update
+from squirtl.agent.schemas    import AgentSettings, Algorithm, Measures, PPOSettings, PQNSettings, Update
 
 
-class DQN:
+class Learner[C: Checkpoint](ABC):
     """
-    The deep Q-network after Mnih et al., choosing each action
-    epsilon-greedily from its online network and training that network
-    every `update_steps` steps after a warm-up of `warmup_steps`, toward the
-    Double DQN targets of van Hasselt et al. where `double_q` is set. Its
-    target network is a copy of the online network every `sync_steps` steps.
+    The base of every agent a run trains, which acts through one network
+    seeded from the agent's stream, steps it with its `optimizer_class`,
+    and counts the environment steps it has taken toward a run of `steps`.
+    A checkpoint of kind `C` carries the network, the optimizer, and that
+    count over to a resumed run.
+    """
+
+    optimizer_class: ClassVar[type[Optimizer]]
+    """
+    The optimizer the agent trains its network with.
     """
 
     def __init__(
@@ -47,24 +54,132 @@ class DQN:
         steps    : int
     ):
         """
-        Builds both networks for `actions` actions over `space`, Adam over
-        the online network, and empty replay memory for a run of `steps`
-        steps.
+        Builds the network for `actions` actions over `space` and its
+        optimizer at the `learning_rate` of `hyperparameters`, for a run of
+        `steps` steps.
+
+        Args:
+            seed: The unsigned 64-bit seed the weights start from.
+        """
+        self.actions   = actions
+        self.network   = seeded_network(actions, seed, settings, space)
+        self.settings  = settings
+        self.step      = 0
+        self.steps     = steps
+        self.optimizer = self.optimizer_class(
+            self.network.parameters(),
+            lr = self.hyperparameters.learning_rate
+        )
+
+    @property
+    @abstractmethod
+    def checkpoint(self) -> C:
+        """
+        Gathers the state a resumed run continues training from on the
+        agent's side, holding each `state_dict` and the optimizer's tensors
+        uncopied.
+        """
+
+    @property
+    @abstractmethod
+    def epsilon(self) -> float | None:
+        """
+        Reads the chance of a random action at the current step, or `None`
+        for an agent sampling each action from its policy.
+        """
+
+    @property
+    def hyperparameters(self) -> AgentSettings | PPOSettings | PQNSettings:
+        """
+        Reads the record holding the learning rate and the gradient's
+        clipping norm the agent trains under, the record of the settings
+        PQN or PPO alone reads, or the settings themselves for the deep
+        Q-network, whose own sit on them.
+        """
+        return self.settings.hyperparameters or self.settings
+
+    @property
+    def weights(self) -> Weights:
+        """
+        Gathers the network's `state_dict`, uncopied, beside the step it has
+        reached, which an evaluation plays from.
+        """
+        return Weights(online=self.network.state_dict(), step=self.step)
+
+    def annealed(self, schedule: AgentSettings | PQNSettings) -> float:
+        """
+        Reads the chance of a random action at the current step, falling
+        linearly from the `epsilon_start` of `schedule` to its `epsilon_end`
+        over the first `exploration_fraction` of the run's steps and holding
+        there.
+        """
+        return interp(
+            self.step,
+            [0, schedule.exploration_fraction * self.steps],
+            [schedule.epsilon_start, schedule.epsilon_end]
+        )
+
+    def descend(self, loss: Tensor):
+        """
+        Takes one gradient step on `loss`, its gradient's norm clipped at
+        the `max_grad_norm` of `hyperparameters`.
+        """
+        self.optimizer.zero_grad()
+        loss.backward()
+        clip_grad_norm_(self.network.parameters(), self.hyperparameters.max_grad_norm)
+        self.optimizer.step()
+
+    def restore(self, checkpoint: C):
+        """
+        Loads `checkpoint` into the network in place, the step count, and
+        the optimizer, so the optimizer keeps stepping the parameters of the
+        network the checkpoint loads into.
+
+        Raises:
+            ValueError: Where the network's entries differ from the agent's,
+                        as a checkpoint another agent wrote holds them.
+        """
+        with matching_networks():
+            self.network.load_state_dict(checkpoint.online)
+
+        self.step = checkpoint.step
+        self.optimizer.load_state_dict(checkpoint.optimizer)
+
+
+class DQN(Learner[ReplayCheckpoint]):
+    """
+    The deep Q-network after Mnih et al., choosing each action
+    epsilon-greedily from its online network, held as `network`,
+    and training it every `update_steps` steps after a warm-up of
+    `warmup_steps`, toward the Double DQN targets of van Hasselt et al.
+    where `double_q` is set. Its target network is a copy of the online
+    network every `sync_steps` steps.
+    """
+
+    optimizer_class = Adam
+
+    def __init__(
+        self,
+        actions  : int,
+        seed     : int,
+        settings : AgentSettings,
+        space    : Dict,
+        steps    : int
+    ):
+        """
+        Builds the online network and Adam over it as `Learner` does, beside
+        the target network and empty replay memory.
 
         Args:
             seed: The unsigned 64-bit seed the weights, the random actions,
                   and the replay draws each start from.
         """
+        super().__init__(actions, seed, settings, space, steps)
+
         self.exploration, sampling = default_rng(seed).spawn(2)
 
-        self.actions   = actions
-        self.online    = seeded_network(actions, seed, settings, space)
-        self.optimizer = Adam(self.online.parameters(), lr=settings.learning_rate)
-        self.replay    = Replay(settings.capacity, sampling, space)
-        self.settings  = settings
-        self.step      = 0
-        self.steps     = steps
-        self.target    = deepcopy(self.online).requires_grad_(False)
+        self.replay = Replay(settings.capacity, sampling, space)
+        self.target = deepcopy(self.network).requires_grad_(False)
 
     @property
     def checkpoint(self) -> ReplayCheckpoint:
@@ -87,15 +202,7 @@ class DQN:
         """
         Reads the chance of a random action at the current step.
         """
-        return annealed(self.settings, self.step, self.steps)
-
-    @property
-    def weights(self) -> Weights:
-        """
-        Gathers the online network's `state_dict`, uncopied, beside the step
-        it has reached, which an evaluation plays from.
-        """
-        return Weights(online=self.online.state_dict(), step=self.step)
+        return self.annealed(self.settings)
 
     @inference_mode()
     def act(self, observation: Mapping[str, ndarray]) -> int:
@@ -108,7 +215,7 @@ class DQN:
             return self.exploration.integers(self.actions).item()
 
         return (
-            self.online(
+            self.network(
                 {
                     key: entry[None]
                     for key, entry in tensors(self.settings.device, observation).items()
@@ -140,14 +247,13 @@ class DQN:
         self.step += 1
 
         if self.step % self.settings.sync_steps == 0:
-            self.target.load_state_dict(self.online.state_dict())
+            self.target.load_state_dict(self.network.state_dict())
 
     def restore(self, checkpoint: ReplayCheckpoint):
         """
-        Loads `checkpoint` into replay memory, both networks, the optimizer,
-        the step count, and both generators, the networks in place, so
-        the optimizer keeps stepping the parameters of the network the
-        checkpoint loads into.
+        Loads `checkpoint` into replay memory and the target network
+        in place, then into the online network, the step count, and the
+        optimizer as `Learner` does, and into both generators.
 
         Raises:
             ValueError: Where replay memory's arrays or a network's entries
@@ -157,13 +263,12 @@ class DQN:
         self.replay.load(checkpoint.replay)
 
         with matching_networks():
-            self.online.load_state_dict(checkpoint.online)
             self.target.load_state_dict(checkpoint.target)
+
+        super().restore(checkpoint)
 
         self.exploration.bit_generator.state      = checkpoint.exploration
         self.replay.generator.bit_generator.state = checkpoint.sampling
-        self.step = checkpoint.step
-        self.optimizer.load_state_dict(checkpoint.optimizer)
 
     def update(self) -> Update | None:
         """
@@ -184,20 +289,17 @@ class DQN:
             return None
 
         batch  = self.replay.sample(settings.device, settings.batch_size)
-        values = batch.values(self.online)
+        values = batch.values(self.network)
         loss   = huber_loss(
             values,
             batch.targets(
-                self.online if settings.double_q else self.target,
+                self.network if settings.double_q else self.target,
                 settings.discount,
                 self.target
             )
         )
 
-        self.optimizer.zero_grad()
-        loss.backward()
-        clip_grad_norm_(self.online.parameters(), settings.max_grad_norm)
-        self.optimizer.step()
+        self.descend(loss)
 
         return Update(loss=loss.item(), value=values.mean().item())
 
@@ -221,18 +323,13 @@ def matching_networks() -> Iterator[None]:
         ) from error
 
 
-class RolloutAgent(ABC):
+class RolloutAgent(Learner[RolloutCheckpoint]):
     """
     An agent acting across environments run in parallel, which stores each
     step of every environment in its `Rollout` and, once the rollout fills,
     trains its network for `epochs` passes over it, each pass split into
     `minibatches` drawn in an order its generator shuffles. Every random
     draw it makes comes from that generator, seeded from the agent's stream.
-    """
-
-    optimizer_class: ClassVar[type[Optimizer]]
-    """
-    The optimizer the agent trains its network with.
     """
 
     def __init__(
@@ -245,28 +342,20 @@ class RolloutAgent(ABC):
         steps        : int
     ):
         """
-        Builds the network for `actions` actions over `space`, its
-        optimizer, and a rollout of `environments` columns for a run of
-        `steps` steps.
+        Builds the network and its optimizer as `Learner` does, and a
+        rollout of `environments` columns.
 
         Args:
             seed: The unsigned 64-bit seed the weights and the generator
                   each start from.
         """
-        self.actions   = actions
+        super().__init__(actions, seed, settings, space, steps)
+
         self.generator = default_rng(seed)
-        self.network   = seeded_network(actions, seed, settings, space)
         self.rollout   = Rollout(
             environments,
             space,
-            settings.hyperparameters.rollout_steps
-        )
-        self.settings  = settings
-        self.step      = 0
-        self.steps     = steps
-        self.optimizer = self.optimizer_class(
-            self.network.parameters(),
-            lr = settings.hyperparameters.learning_rate
+            self.hyperparameters.rollout_steps
         )
 
     @property
@@ -281,22 +370,6 @@ class RolloutAgent(ABC):
             generator = self.generator.bit_generator.state,
             optimizer = self.optimizer.state_dict()
         )
-
-    @property
-    @abstractmethod
-    def epsilon(self) -> float | None:
-        """
-        Reads the chance of a random action at the current step, or `None`
-        for an agent sampling each action from its policy.
-        """
-
-    @property
-    def weights(self) -> Weights:
-        """
-        Gathers the network's `state_dict`, uncopied, beside the step it has
-        reached, which an evaluation plays from.
-        """
-        return Weights(online=self.network.state_dict(), step=self.step)
 
     @inference_mode()
     def act(self, observations: Mapping[str, ndarray]) -> ndarray:
@@ -370,19 +443,16 @@ class RolloutAgent(ABC):
 
     def restore(self, checkpoint: RolloutCheckpoint):
         """
-        Loads `checkpoint` into the network in place, the optimizer, the
-        step count, and the generator.
+        Loads `checkpoint` into the network, the step count, and the
+        optimizer as `Learner` does, and into the generator.
 
         Raises:
             ValueError: Where the network's entries differ from the agent's,
                         as a checkpoint another agent wrote holds them.
         """
-        with matching_networks():
-            self.network.load_state_dict(checkpoint.online)
+        super().restore(checkpoint)
 
         self.generator.bit_generator.state = checkpoint.generator
-        self.step = checkpoint.step
-        self.optimizer.load_state_dict(checkpoint.optimizer)
 
     def update(self, observations: Mapping[str, ndarray]) -> Measures:
         """
@@ -395,7 +465,7 @@ class RolloutAgent(ABC):
         Returns:
             The update's measures, each averaged over its minibatches.
         """
-        hyperparameters = self.settings.hyperparameters
+        hyperparameters = self.hyperparameters
         rollout         = self.rollout
         batch           = rollout.batch(
             self.settings.device,
@@ -417,13 +487,7 @@ class RolloutAgent(ABC):
                     {name: tensor[selected] for name, tensor in batch.items()}
                 )
 
-                self.optimizer.zero_grad()
-                loss.backward()
-                clip_grad_norm_(
-                    self.network.parameters(),
-                    hyperparameters.max_grad_norm
-                )
-                self.optimizer.step()
+                self.descend(loss)
                 measured.append(measures)
 
         rollout.row = 0
@@ -547,7 +611,7 @@ class PQN(RolloutAgent):
         """
         Reads the chance of a random action at the current step.
         """
-        return annealed(self.settings.pqn, self.step, self.steps)
+        return self.annealed(self.settings.pqn)
 
     def choose(
         self,
@@ -587,15 +651,3 @@ class PQN(RolloutAgent):
                 .numpy(force=True)
         )
 
-
-def annealed(settings: AgentSettings | PQNSettings, step: int, steps: int) -> float:
-    """
-    Reads the chance of a random action at `step` of a run of `steps`,
-    falling linearly from `epsilon_start` to `epsilon_end` over the first
-    `exploration_fraction` of the run's steps and holding there.
-    """
-    return interp(
-        step,
-        [0, settings.exploration_fraction * steps],
-        [settings.epsilon_start, settings.epsilon_end]
-    )

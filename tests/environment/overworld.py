@@ -224,10 +224,10 @@ def test_an_agent_learns_from_the_observations_the_environment_makes(
         observation, reward, terminated, _, _ = env.step(action)
         agent.remember(action, observation, reward, terminated)
 
-    online = parameters_to_vector(agent.online.parameters())
+    online = parameters_to_vector(agent.network.parameters())
     agent.update()
 
-    assert not equal(parameters_to_vector(agent.online.parameters()), online)
+    assert not equal(parameters_to_vector(agent.network.parameters()), online)
 
 
 def test_resets_with_no_seed_draw_on_from_the_seeded_generator(overworld: Overworld):
