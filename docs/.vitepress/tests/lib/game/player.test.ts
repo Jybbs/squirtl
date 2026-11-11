@@ -19,12 +19,12 @@ function placed(
 }
 
 describe('Player', () => {
-  it('plays the default episode from seed 11, choosing Squirtle at step 163', () => {
+  it('plays the default episode from seed 11, choosing Squirtle at step 181', () => {
     const playing = new player.Player()
     playing.finish()
     const { chosen, flags, reached, shares, steps, total } = playing.episode
 
-    expect([steps, total, reached.size, chosen]).toStrictEqual([163, 0.915, 61, [7, 3]])
+    expect([steps, total, reached.size, chosen]).toStrictEqual([181, 0.915, 61, [7, 3]])
     expect([...flags]).toStrictEqual(['appeared', 'followed', 'asked', 'starter'])
     expect(shares)
       .toStrictEqual({ milestone: 0.30000000000000004, novelty: 0.015000000000000012, starter: 0.6 })
@@ -49,7 +49,7 @@ describe('Player', () => {
   it.each([
     [0, 0],
     [131, 131],
-    [500, 163]
+    [500, 181]
   ])('plays the episode again from the bedroom up to step %i, stopping at %i', (step, reached) => {
     const seeking = new player.Player()
     const fresh   = new player.Player()
@@ -77,6 +77,15 @@ describe('Player under a reader', () => {
   it('leaves Blue walking behind Oak whatever the reader presses', () => {
     const playing = new player.Player()
     Object.assign(stand([10, 2], 'pallet', 'up', playing.episode), { steps: player.WANDER }).press('up')
+    playing.queued = 'left'
+    playing.held   = 'right'
+
+    expect([playing.choose(), playing.queued]).toStrictEqual(['b', null])
+  })
+
+  it('leaves Oak speaking at the table whatever the reader presses', () => {
+    const playing = new player.Player()
+    Object.assign(stand([5, 3], 'lab', 'up', playing.episode), { speech: 1, steps: player.WANDER })
     playing.queued = 'left'
     playing.held   = 'right'
 
@@ -115,11 +124,13 @@ describe('autoPress', () => {
     expect(player.autoPress(placed(place, at, facing), () => 0.5)).toBe(button)
   })
 
-  it('presses B while Oak leads, and a random button before the wander ends', () => {
-    const led = placed('pallet', [10, 2], 'up')
+  it('presses B while Oak leads or speaks, and a random button before the wander ends', () => {
+    const led      = placed('pallet', [10, 2], 'up')
+    const speaking = Object.assign(placed('lab', [5, 3], 'up'), { speech: 1 })
     led.press('up')
 
-    expect([player.autoPress(led, () => 0), player.autoPress(placed('lab', [7, 4], 'up', 0), () => 0.99)])
-      .toStrictEqual(['b', 'b'])
+    expect([
+      player.autoPress(led, () => 0), player.autoPress(speaking, () => 0), player.autoPress(placed('lab', [7, 4], 'up', 0), () => 0.99)
+    ]).toStrictEqual(['b', 'b', 'b'])
   })
 })

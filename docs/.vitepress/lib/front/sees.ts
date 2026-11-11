@@ -1,5 +1,6 @@
 import WORLD                             from '../art/world.json' with { type: 'json' }
-import { eventFlags, squareKey }         from '../game/episode.ts'
+import { squareKey }                     from '../game/episode.ts'
+import { eventFlags }                    from '../game/flags.ts'
 import { PLAYING, Player, type Playing } from '../game/player.ts'
 import { SCREEN }                        from '../game/screen.ts'
 import * as identity                     from '../identity/identity.ts'

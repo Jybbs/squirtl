@@ -1,4 +1,5 @@
-import { type Flag, type Leader, type Term, eventFlags, squareKey } from '../game/episode.ts'
+import { type Leader, type Term, squareKey } from '../game/episode.ts'
+import { type Flag, eventFlags }             from '../game/flags.ts'
 import { Player }      from '../game/player.ts'
 import type * as rooms from '../game/rooms.ts'
 import EVENTS          from '../rendered/events.json' with { type: 'json' }
@@ -114,7 +115,7 @@ export function traceOf(player = new Player()): Row[] {
   }
   snap([], false)
   while (!player.done) {
-    const scripted = player.episode.script.length > 0
+    const scripted = player.episode.leading
     snap(player.next(), scripted)
   }
   return rows

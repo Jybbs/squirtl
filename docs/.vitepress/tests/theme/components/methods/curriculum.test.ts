@@ -85,7 +85,7 @@ describe('MethodsCurriculum’s lanes', () => {
     await flushPromises()
 
     expect(screens(wrapper)).toStrictEqual(curriculum.RUN[0]!.map((shown, k) => `translateX(${at(shown.start, curriculum.SEGMENTS[k]!.end).screen}px)`))
-    expect([vi.mocked(still).mock.calls.length, lanes(wrapper).map(([phase]) => phase)]).toStrictEqual([0, ['agent', 'agent', 'agent']])
+    expect([vi.mocked(still).mock.calls.length, lanes(wrapper).map(([phase]) => phase)]).toStrictEqual([0, curriculum.SEGMENTS.map(() => 'agent')])
   })
 
   it('draws every lane’s screen once the rooms load', async () => {
@@ -115,7 +115,7 @@ describe('MethodsCurriculum’s playback', () => {
     await nextTick()
 
     expect([pointer.sliderState(wrapper)[0], replaying, lanes(wrapper).map(([phase]) => phase)])
-      .toStrictEqual(['0', ['recording', 'recording', 'recording'], ['agent', 'agent', 'agent']])
+      .toStrictEqual(['0', curriculum.SEGMENTS.map(() => 'recording'), curriculum.SEGMENTS.map(() => 'agent')])
     vi.useRealTimers()
   })
 
@@ -133,7 +133,7 @@ describe('MethodsCurriculum’s playback', () => {
     await nextTick()
 
     expect([pointer.sliderState(wrapper)[0], lanes(wrapper).map(([phase]) => phase)])
-      .toStrictEqual([String(curriculum.BATCHES - 1), ['agent', 'agent', 'agent']])
+      .toStrictEqual([String(curriculum.BATCHES - 1), curriculum.SEGMENTS.map(() => 'agent')])
     vi.useRealTimers()
   })
 })

@@ -52,8 +52,8 @@ describe('clockAt', () => {
 describe('reachedBy', () => {
   it.each([
     [1, 0],
-    [74, 16],
-    [80, 30]
+    [93, 16],
+    [98, 30]
   ])('counts the agent’s episodes that had reached the starter by step %i as %i', (now, reached) => {
     expect(race.reachedBy(RACE.agent, now)).toBe(reached)
   })
