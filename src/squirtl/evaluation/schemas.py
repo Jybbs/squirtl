@@ -10,7 +10,7 @@ from functools  import cached_property
 from os         import process_cpu_count
 from pydantic   import Field, PositiveInt
 from statistics import fmean
-from typing     import Annotated
+from typing     import Annotated, Self
 
 from squirtl.emulator.schemas    import Record, UnitInterval
 from squirtl.environment.schemas import Outcome
@@ -21,7 +21,15 @@ class Evaluation(Record):
     """
     The episodes one evaluation played of one policy, the agent's at a step
     of its run or the random baseline's, from which `measures` derives what
-    a reader judges the policy by.
+    a reader judges the policy by, and for PPO the same episodes played at
+    the policy's most likely action.
+    """
+
+    argmax: Annotated[list[Outcome], Field(min_length=1)] | None
+    """
+    What each episode reached under the same reset seeds where PPO took its
+    most likely action at every step, in the order of `outcomes`, or `None`
+    for the deep Q-network, PQN, and the random baseline.
     """
 
     goal: Flag
@@ -40,6 +48,19 @@ class Evaluation(Record):
     The steps the agent had taken when the evaluation read it, or `None` for
     the random baseline.
     """
+
+    @property
+    def greedy(self) -> Self | None:
+        """
+        Reads the evaluation of the episodes `argmax` holds, at the same
+        step and toward the same goal, or `None` where it holds none.
+        """
+        return None if self.argmax is None else type(self)(
+            argmax   = None,
+            goal     = self.goal,
+            outcomes = self.argmax,
+            step     = self.step
+        )
 
     @cached_property
     def measures(self) -> dict[str, float | None]:
@@ -109,6 +130,7 @@ class EvaluationSettings(Record):
     epsilon: UnitInterval = 0.05
     """
     The chance of a random action at each step of an evaluation episode of
-    the deep Q-network or of PQN, whose default follows Mnih et al. PPO takes
-    its most likely action at every step.
+    the deep Q-network or of PQN, whose default follows Mnih et al. PPO
+    samples each action from its policy and plays the same episodes again
+    taking its most likely action at every step.
     """

@@ -2,7 +2,8 @@
 Pins what `Results` reads from the run directories under
 `docs/runs/`, covering:
 
-- Each run's scores beside its baseline's, the comparison of each agent and
+- Each run's scores beside its baseline's, PPO's share at its most likely
+  action beside the sampled one, the comparison of each agent and
   curriculum across its runs, and random presses' share across every seed
 - The curriculum's runs set against the same agent's runs from the bedroom
 - A missing folder, which holds no run
@@ -59,6 +60,7 @@ def recorded(
     checkout(
         {
             f"{folder}/baseline.json"     : Evaluation(
+                argmax   = None,
                 goal     = settings.environment.goal,
                 outcomes = [
                     outcome(reward, terminated=reward > 0.5) for reward in baseline
@@ -190,6 +192,29 @@ def test_comparisons_follow_the_agents_name_and_then_the_curriculum(
         (comparison.agent, comparison.curriculum)
         for comparison in Results.read().comparisons
     ] == [(Algorithm.PPO, False), (Algorithm.PQN, False), (Algorithm.PQN, True)]
+
+
+def test_each_score_carries_ppos_share_at_its_most_likely_action(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that a score reads the share of PPO's episodes at its most likely
+    action reaching the goal beside the sampled share each comparison reads,
+    and `None` for an evaluation holding no such episodes, the baseline's
+    among them.
+    """
+    folder     = recorded(checkout, [0.25], 1)
+    evaluation = Evaluation.model_validate_json(
+        (folder / "evaluations.jsonl").read_text()
+    ).model_copy(update={"argmax": [outcome(0.75, terminated=True), outcome()]})
+    (folder / "evaluations.jsonl").write_text(evaluation.model_dump_json() + "\n")
+
+    run = Trained.read(folder)
+
+    assert [(score.argmax, score.reached) for score in (*run.scores, run.baseline)] == [
+        (0.5, 0.0),
+        (None, 0.0)
+    ]
 
 
 def test_estimates_hold_whatever_order_the_runs_names_list_in(

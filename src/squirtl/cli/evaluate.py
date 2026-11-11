@@ -42,7 +42,8 @@ def evaluate(
     episodes the run's settings record, beside the random baseline under the
     same seeds, and writes each evaluation into its run's directory, reading
     in place of playing any the run already holds. The deep Q-network and
-    PQN play at the epsilon those settings record, and PPO takes its most
+    PQN play at the epsilon those settings record, and PPO samples each
+    action from its policy and plays the same episodes again taking its most
     likely action at every step.
 
     The runs are the ones the directories hold, or the runs `--release`
@@ -50,7 +51,8 @@ def evaluate(
     `--agent`, `--start`, and `--seed` select among the release's runs, and
     without them every seed of the recommended run's agent and start plays.
 
-    Prints as Markdown each run's measures, then each measure's
+    Prints as Markdown each run's measures, with PPO's at its most
+    likely action in a row beneath its sampled ones, then each measure's
     interquartile mean across the runs with its 95% percentile bootstrap
     interval and the count of runs behind it, then the probability that the
     agent beats its baseline, and the runs `--against` names where it names

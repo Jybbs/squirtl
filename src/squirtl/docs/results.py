@@ -55,7 +55,15 @@ class ReleaseSettings(Record):
 class Score(Record):
     """
     What one evaluation measured, the share of its episodes reaching the
-    run's goal and their mean return, at the step of the run it read.
+    run's goal and their mean return, beside the share reaching it at PPO's
+    most likely action, at the step of the run it read.
+    """
+
+    argmax: float | None
+    """
+    The share of the same episodes reaching the run's goal where PPO took
+    its most likely action at every step, or `None` for the deep Q-network,
+    PQN, and the random baseline.
     """
 
     reached: float
@@ -78,7 +86,12 @@ class Score(Record):
         """
         Reads the score of `evaluation`.
         """
-        return cls.model_validate(evaluation, from_attributes=True)
+        return cls(
+            argmax  = None if (greedy := evaluation.greedy) is None else greedy.reached,
+            reached = evaluation.reached,
+            reward  = evaluation.reward,
+            step    = evaluation.step
+        )
 
 
 class Trained(RunListing):

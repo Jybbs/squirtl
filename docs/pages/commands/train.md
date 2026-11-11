@@ -88,7 +88,7 @@ squirtl train [OPTIONS]
 | `--environment.max-episode-steps` | `10240` | *The steps after which `TimeLimit` truncates an episode, by default the budget Pleines et al. start each episode with.* |
 | `--evaluation.environments` | *the machine's* | *The environments an evaluation plays its episodes across in parallel, each in a worker process of its own, which defaults to the CPUs the process may use.* |
 | `--evaluation.episodes` | `30` | *The episodes each evaluation plays of the agent and of the random baseline, whose default follows Mnih et al.* |
-| `--evaluation.epsilon` | `0.05` | *The chance of a random action at each step of an evaluation episode of the deep Q-network or of PQN, whose default follows Mnih et al. PPO takes its most likely action at every step.* |
+| `--evaluation.epsilon` | `0.05` | *The chance of a random action at each step of an evaluation episode of the deep Q-network or of PQN, whose default follows Mnih et al. PPO samples each action from its policy and plays the same episodes again taking its most likely action at every step.* |
 | `--evaluation-steps` | `250000` | *The environment steps between the evaluations a run plays, each where an episode end, the end of a rollout's update for PQN and PPO, or the run's last step first reaches a multiple of them, whose default is the 250,000 steps of each iteration Dopamine's DQN evaluates after.* |
 | `--reward.goal` | `0.35` | *The reward the step first setting the run's goal earns, which has to be the largest term.* |
 | `--reward.milestone` | `0.1` | *The reward a step earns for each flag on the way to the goal it first sets.* |

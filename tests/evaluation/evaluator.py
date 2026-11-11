@@ -8,7 +8,8 @@ Pins how `Evaluator` plays an evaluation's episodes, covering:
   interrupt partway through a step terminating each worker
 - The policy taking the network's action or a random one from each
   environment's seeded action space, at the epsilon the settings name for
-  the deep Q-network and PQN and at none for PPO, which plays its most likely
+  the deep Q-network and PQN, and for PPO drawing each action from its
+  policy through that space's generator and again taking its most likely
   action, leaving PyTorch's global generator as it found it
 """
 
@@ -190,31 +191,58 @@ def test_a_policy_takes_the_largest_logit_of_ppos_network_at_no_chance():
     assert acted.tolist() == [6, 6]
 
 
+def test_a_sampled_policy_draws_each_action_from_its_spaces_generator():
+    """
+    Asserts that a sampled policy over logits even across the seven
+    actions draws the actions the Gumbel-max trick takes from each space's
+    generator, the same again from spaces seeded alike and spread over
+    several actions, whereas logits far apart take the largest every time.
+    """
+    frames = {"frames": zeros((64, 1), uint8)}
+    flat   = Policy(network=lambda observations: tensor([[0.0] * 7] * 64), sampled=True)
+    spaces = lambda: [Discrete(7, seed=seed) for seed in range(64)]
+    drawn  = flat.act(frames, spaces()).tolist()
+    gumbel = [space.np_random.gumbel(size=7).argmax() for space in spaces()]
+    peaked = Policy(
+        network = lambda observations: tensor([[0.0] * 6 + [50.0]] * 64),
+        sampled = True
+    )
+
+    assert drawn == gumbel == flat.act(frames, spaces()).tolist()
+    assert len(set(drawn)) > 1
+    assert set(peaked.act(frames, spaces()).tolist()) == {6}
+
+
 @mark.parametrize(
-    ("algorithm", "epsilon"),
+    ("algorithm", "played"),
     [
-        param(Algorithm.DQN, 0.05, id="the-deep-q-network"),
-        param(Algorithm.PPO, 0.0,  id="ppos-most-likely-action"),
-        param(Algorithm.PQN, 0.05, id="pqn")
+        param(Algorithm.DQN, [(0.05, False)],              id="the-deep-q-network"),
+        param(
+            Algorithm.PPO,
+            [(0.0, False), (0.0, True)],
+            id = "ppo-sampled-and-at-its-mode"
+        ),
+        param(Algorithm.PQN, [(0.05, False)],              id="pqn")
     ]
 )
-def test_each_agent_plays_its_network_at_its_epsilon(
+def test_each_agent_plays_its_network_as_it_trains(
     algorithm   : Algorithm,
-    epsilon     : float,
     evaluator   : Callable[..., Evaluator],
-    monkeypatch : MonkeyPatch
+    monkeypatch : MonkeyPatch,
+    played      : list[tuple[float, bool]]
 ):
     """
     Asserts that an evaluation builds the agent's own network from its
     weights and plays it at the epsilon the evaluation settings name, 0.05
-    by default, for the deep Q-network and PQN, and at 0 for PPO, whereas
-    the baseline plays every action at random.
+    by default, for the deep Q-network and PQN, and for PPO plays it at its
+    most likely action and then sampled from its policy, recording the first
+    beside the second, whereas the baseline plays every action at random.
     """
     policies = []
     monkeypatch.setattr(
         Evaluator,
         "play",
-        lambda evaluator, policy: policies.append(policy) or [outcome()]
+        lambda evaluator, policy: policies.append(policy) or [outcome(len(policies))]
     )
 
     with evaluator(algorithm, environments=1, episodes=1) as started:
@@ -223,15 +251,19 @@ def test_each_agent_plays_its_network_at_its_epsilon(
             algorithm,
             started.envs.single_observation_space
         )
-        started.evaluate(Weights(online=built.state_dict(), step=9))
-        started.baseline()
+        evaluation = started.evaluate(Weights(online=built.state_dict(), step=9))
+        baseline   = started.baseline()
 
-    assert [(policy.epsilon, policy.network is None) for policy in policies] == [
-        (epsilon, False),
-        (1.0, True)
-    ]
+    assert [
+        (policy.epsilon, policy.sampled, policy.network is None) for policy in policies
+    ] == [(*each, False) for each in played] + [(1.0, False, True)]
     assert type(policies[0].network) is type(built)
     assert_close(policies[0].network.state_dict(), built.state_dict(), atol=0, rtol=0)
+    assert (
+        evaluation.outcomes[0].reward,
+        None if evaluation.argmax is None else evaluation.argmax[0].reward,
+        baseline.argmax
+    ) == ((2.0, 1.0) if algorithm.sampled else (1.0, None)) + (None,)
 
 
 def test_a_worker_plays_on_through_an_interrupt(evaluator: Callable[..., Evaluator]):
