@@ -17,6 +17,7 @@ from squirtl.docs.regions     import Region
 from squirtl.docs.results     import Results
 from squirtl.emulator.schemas import Record, Symbol
 from squirtl.identity.schemas import Identity
+from squirtl.releases.schemas import ReleaseSettings
 from squirtl.reward.schemas   import Event
 from squirtl.runs.schemas     import RunSettings
 
@@ -107,6 +108,8 @@ class Inventory(Record):
         - The `@theme` block the site's Tailwind sheet imports
         - The measured runs committed under `docs/runs/`, which the Results
           section draws
+        - The settings a release's runs are packed under, which the
+          widgets of `squirtl fetch` and `squirtl pack` model
         - The default of every setting a run reads, which the site's widgets
           model, leaving out each field `RunSettings.machine` names
         - The address of every symbol the package reads in the game's memory
@@ -130,6 +133,7 @@ class Inventory(Record):
                 ),
                 Output.from_value(rendered / "identity.json", identity),
                 Output.from_value(rendered / "results.json", Results.read()),
+                Output.from_value(rendered / "release.json", ReleaseSettings()),
                 Output.from_value(
                     rendered / "settings.json",
                     RunSettings(),

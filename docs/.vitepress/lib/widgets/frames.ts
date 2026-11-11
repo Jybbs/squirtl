@@ -70,8 +70,12 @@ export function useFrameLoop(target: MaybeElementRef, advance: (elapsed: number)
   }, { immediate: false })
 
   const wake = () => {
-    if (visible.value && animate.value) loop.resume()
-    else loop.pause()
+    const shown = visible.value && animate.value
+    // `useRafFn` in `@vueuse/core` 15.0.0 requests the next frame after a callback
+    // that paused the loop, so pausing a loop already paused cancels that frame
+    // before `resume` requests one of its own.
+    if (!shown || !loop.isActive.value) loop.pause()
+    if (shown) loop.resume()
   }
 
   watch([visible, animate], wake, { flush: 'sync' })

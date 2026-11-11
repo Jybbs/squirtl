@@ -42,7 +42,7 @@ from tomllib    import loads
 from typing     import Annotated, Any, ClassVar, Literal, Self
 from yaml                import (
     DocumentEndEvent, MappingNode, Node, NodeEvent, SafeLoader, SequenceNode,
-    YAMLError, compose_all, parse
+    YAMLError, compose_all, parse, safe_load
 )
 
 from squirtl.emulator.schemas import Record
@@ -735,6 +735,54 @@ class SiteManifest(JsonFile, extra="ignore"):
     The exact version each package the site depends on is pinned to, under
     the package's name.
     """
+
+
+class SiteLockfile(JsonFile, extra="ignore"):
+    """
+    The paths `file` installs a package at for the docs site, read from
+    the JSONC Bun writes, whose trailing commas JSON refuses and the flow
+    collections of YAML accept.
+    """
+
+    file: ClassVar[Path] = Path("docs/bun.lock")
+
+    packages: dict[str, JsonValue]
+    """
+    The entry recorded for each path under `node_modules` a package is
+    installed at, under the path, which for a nested copy is the path of the
+    package it is nested under, a `/`, and the copy's own name.
+    """
+
+    @classmethod
+    def from_path(cls, path: Path) -> Self:
+        """
+        Reads the record the lockfile at `path` holds as YAML, raising
+        `Unreadable` where the file fails to parse, on the line the parser
+        names, or fails to validate.
+        """
+        with Finding.reading(path):
+            return cls.model_validate(safe_load(path.read_text(encoding="utf-8")))
+
+    def nested(self, name: str) -> list[str]:
+        """
+        Lists each path but the top-level one that a copy of the package
+        `name` is installed at, where the lockfile installs the package at
+        more than one path.
+
+        Returns:
+            Each such path in sorted order, or an empty list where the
+            package is installed at one path or none.
+        """
+        # Reads the name off the end of each path, a scoped name taking its
+        # `@scope/` segment with it.
+        paths = {
+            path for path in self.packages if search(
+                r"(@[^/]+/)?[^/]+$",
+                path
+            )[0] == name
+        }
+
+        return sorted(paths - {name}) if len(paths) > 1 else []
 
 
 class TomlFile(Record):

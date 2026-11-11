@@ -2,7 +2,8 @@
 Pins what the `squirtl` command itself defines, covering:
 
 - The help text each command renders, each drawn from its function's
-  docstring, beside the version the package metadata carries
+  docstring, beside the version the package metadata carries, which
+  `--version` prints at every level of the command tree
 - The script `[project.scripts]` points at the app
 - The modules `squirtl --help` and `squirtl stop` import, which leave out
   `torch`, SciPy, `pyboy`, and the packages reading `docs/references.bib`
@@ -32,6 +33,7 @@ from typing             import Annotated
 
 from squirtl.agent.schemas    import AgentSettings
 from squirtl.cli              import app
+from squirtl.docs.commands    import commands
 from squirtl.emulator.schemas import EmulatorSettings
 from squirtl.reward.schemas   import RewardSettings
 from squirtl.runs.schemas     import Run, RunSettings
@@ -351,12 +353,26 @@ def test_the_script_runs_this_app(script: EntryPoint):
     assert script.load() is app
 
 
-def test_version_reports_installed_package(invoke: Invoker, script: EntryPoint):
+@mark.parametrize(
+    "command",
+    [
+        param(path, id="-".join(path) or "the-app")
+        for path in sorted(
+            {chain[:end] for chain in commands(app) for end in range(len(chain) + 1)}
+        )
+    ]
+)
+def test_version_reports_installed_package(
+    command : tuple[str, ...],
+    invoke  : Invoker,
+    script  : EntryPoint
+):
     """
     Asserts that `--version` exits zero and names the version of the
-    distribution the `squirtl` script belongs to.
+    distribution the `squirtl` script belongs to, whether it is passed to
+    the app, to a group, or to a command.
     """
-    invocation = invoke(["--version"])
+    invocation = invoke([*command, "--version"])
 
     assert invocation.code == 0
     assert invocation.output.strip() == version(script.dist.name)
