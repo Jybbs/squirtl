@@ -14,6 +14,7 @@ from pytest            import mark, param
 from pytest_subprocess import FakeProcess
 from subprocess        import run
 
+from squirtl.cli          import app
 from squirtl.docs.outputs import Inventory
 
 ENTRY = """
@@ -60,6 +61,10 @@ def test_writing_docs_over_an_unpaired_marker_exits_1_and_writes_nothing_else(
             {"a.md": "One.[^nobody1999]\n", "docs/references.bib": ENTRY},
             id = "unknown-key"
         ),
+        param(
+            {"a.md": "One.[^smith2020]\n\n```\nx\n", "docs/references.bib": ENTRY},
+            id = "open-fence"
+        ),
         param({"a.md": "One.\n"}, id="missing-bibliography"),
         param(
             {
@@ -77,9 +82,9 @@ def test_writing_docs_it_cannot_write_exits_1_and_writes_nothing(
     invoke   : Invoker
 ):
     """
-    Asserts that an unknown key, a missing `docs/references.bib`, and an
-    entry failing validation each exit 1 and leave the Markdown file and the
-    inventory's files unwritten.
+    Asserts that an unknown key, a file ending inside an open code fence, a
+    missing `docs/references.bib`, and an entry failing validation each exit
+    1 and leave the Markdown file and the inventory's files unwritten.
     """
     checkout(files)
     run(["git", "add", "a.md"], check=True, cwd=clone)
@@ -88,7 +93,7 @@ def test_writing_docs_it_cannot_write_exits_1_and_writes_nothing(
 
     assert (invocation.code, invocation.output) == (1, "")
     assert (clone / "a.md").read_text(encoding="utf-8") == files["a.md"]
-    assert not any(output.path.exists() for output in Inventory.read().outputs)
+    assert not any(output.path.exists() for output in Inventory.read(app).outputs)
 
 
 def test_writing_docs_where_git_fails_exits_1_and_writes_nothing(
@@ -106,7 +111,7 @@ def test_writing_docs_where_git_fails_exits_1_and_writes_nothing(
     invocation = invoke(["write", "docs"])
 
     assert (invocation.code, invocation.output) == (1, "")
-    assert not any(output.path.exists() for output in Inventory.read().outputs)
+    assert not any(output.path.exists() for output in Inventory.read(app).outputs)
 
 
 def test_writing_docs_writes_each_file_once_and_prints_its_path(
@@ -123,7 +128,7 @@ def test_writing_docs_writes_each_file_once_and_prints_its_path(
     checkout({"a.md": "One.[^smith2020]\n", "docs/references.bib": ENTRY})
     run(["git", "add", "a.md"], check=True, cwd=clone)
 
-    paths  = ["a.md", *(str(output.path) for output in Inventory.read().outputs)]
+    paths  = ["a.md", *(str(output.path) for output in Inventory.read(app).outputs)]
     first  = invoke(["write", "docs"])
     second = invoke(["write", "docs"])
 

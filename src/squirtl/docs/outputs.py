@@ -7,17 +7,18 @@ one of those files, leaving the footnotes of each Markdown file to
 """
 
 from collections.abc import Mapping
+from cyclopts        import App
 from pathlib         import Path
 from pydantic        import TypeAdapter
 from typing          import Self
 
-from squirtl.cli                 import app
 from squirtl.docs.commands       import Command
-from squirtl.docs.regions        import Region
+from squirtl.docs.regions        import Page, Region
 from squirtl.docs.results        import Results
 from squirtl.emulator.schemas    import Record, Symbol
 from squirtl.environment.schemas import EnvironmentSettings
 from squirtl.identity.schemas    import Identity
+from squirtl.releases.schemas    import ReleaseSettings
 from squirtl.reward.schemas      import Event
 from squirtl.runs.schemas        import RunSettings
 
@@ -97,7 +98,7 @@ class Inventory(Record):
         return tuple(output for output in self.outputs if output.drifted)
 
     @classmethod
-    def read(cls) -> Self:
+    def read(cls, app: App) -> Self:
         """
         Lists every file the package's declarations are written into under
         `docs/.vitepress/lib/rendered/`:
@@ -109,10 +110,14 @@ class Inventory(Record):
         - The `@theme` block the site's Tailwind sheet imports
         - The measured runs committed under `docs/runs/`, which the Results
           section draws
+        - The settings a release's runs are packed under, which the
+          widgets of `squirtl fetch` and `squirtl pack` model
         - The default of every setting a run reads, which the site's widgets
           model, leaving out each field `RunSettings.machine` names
         - The address of every symbol the package reads in the game's memory
-        - The page of each command under `docs/pages/commands/`
+        - The parts of the page of each command `app` registers under
+          `docs/pages/commands/` written from its help, leaving the prose
+          around them
         - Each page under `docs/pages/` carrying the table of a subject's
           settings between a pair of markers
         """
@@ -137,6 +142,7 @@ class Inventory(Record):
                 ),
                 Output.from_value(rendered / "identity.json", identity),
                 Output.from_value(rendered / "results.json", Results.read()),
+                Output.from_value(rendered / "release.json", ReleaseSettings()),
                 Output.from_value(
                     rendered / "settings.json",
                     RunSettings(),
@@ -147,7 +153,10 @@ class Inventory(Record):
                     {symbol.name: symbol.value for symbol in Symbol}
                 ),
                 Output(path=rendered / "theme.css", text=identity.sheet),
-                *(Output(path=command.path, text=command.text) for command in commands),
+                *(
+                    Output(path=command.path, text=Page.read(command).written(command))
+                    for command in commands
+                ),
                 *(
                     Output(path=region.path, text=region.written(train))
                     for region in Region.every()

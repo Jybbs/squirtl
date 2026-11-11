@@ -39,8 +39,8 @@ enableAutoUnmount(afterEach)
 
 describe('climbOf', () => {
   it('runs the course from the floor at the first step to the starter two thirds of the way up, a step at a time', () => {
-    expect([PLOT.heads[0], PLOT.heads.at(-1), PLOT.heads.length]).toStrictEqual([[48, 298], [369, 99.8], 164])
-    expect(PLOT.course).toMatch(/^M48,298H50V298H51\.9V297\.9.*H369V99\.8$/u)
+    expect([PLOT.heads[0], PLOT.heads.at(-1), PLOT.heads.length]).toStrictEqual([[48, 298], [369, 99.8], 182])
+    expect(PLOT.course).toMatch(/^M48,298H49\.8V298H51\.5V297\.9.*H369V99\.8$/u)
   })
 
   it('draws the axis with a tick at each value it labels, and a tick on the floor per new position', () => {
@@ -55,15 +55,15 @@ describe('climbOf', () => {
 
   it('sets each jump’s tile and mark beside its dot', () => {
     expect(PLOT.jumps.map(jump => [jump.at, jump.term, jump.dot, jump.tile, jump.mark])).toStrictEqual([
-      [131, 'milestone', [306, 265.3], [272, 254.3], [275, 257.3]],
-      [156, 'milestone', [355.2, 234.1], [321.2, 223.1], [324.2, 226.1]],
-      [156, 'milestone', [355.2, 204.3], [321.2, 193.3], [324.2, 196.3]],
-      [163, 'goal', [369, 99.8], [335, 88.8], [338, 91.8]]
+      [131, 'milestone', [280.3, 265.3], [246.3, 254.3], [249.3, 257.3]],
+      [156, 'milestone', [324.7, 234.1], [290.7, 223.1], [293.7, 226.1]],
+      [174, 'milestone', [356.6, 204.3], [322.6, 193.3], [325.6, 196.3]],
+      [181, 'goal', [369, 99.8], [335, 88.8], [338, 91.8]]
     ])
   })
 
   it.each([
-    [401, ['0', '50', '100']],
+    [401, ['0', '50', '100', '150']],
     [700, ['0', '25', '50', '75', '100', '125', '150']]
   ])('labels the steps at %i pixels, leaving out a label the axis’s title would meet', (width, labels) => {
     const plot = climb.climbOf(TRACE, width, 300)

@@ -15,7 +15,7 @@ describe('MethodsDiscount', () => {
 
     expect([pointer.sliderState(wrapper), wrapper.findAllComponents({ name: 'Chip' }).map(chip => chip.text())]).toStrictEqual([
       ['94', 'Discount 0.997, half its weight at 231 steps'],
-      ['The walk0.2151', 'A wander0.0000', 'The setting0.997']
+      ['The walk0.2038', 'A wander0.0000', 'The setting0.997']
     ])
   })
 

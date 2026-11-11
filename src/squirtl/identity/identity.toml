@@ -6,16 +6,19 @@ tagline = "An agent that learns the walk to Oak’s lab."
 axes     = "ital,opsz,wght@0,7..72,400..700;1,7..72,400..700"
 fallback = ["Iowan Old Style", "Georgia", "serif"]
 family   = "Literata"
+x_height = 0.507
 
 [faces.code]
 axes     = "wght@400;500;700"
 fallback = ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"]
 family   = "JetBrains Mono"
+x_height = 0.55
 
 [faces.display]
 axes     = "CRSV,ELSH,wght@0,0,500"
 fallback = ["ui-monospace", "monospace"]
 family   = "Bitcount Prop Double"
+x_height = 0.5
 
 [colors]
 accent-1 = { hex = "#c08597", name = "Heath" }

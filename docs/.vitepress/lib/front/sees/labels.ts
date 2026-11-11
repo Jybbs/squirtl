@@ -1,5 +1,5 @@
 import { termMark }                   from '../../game/actors.ts'
-import { type EventFlag, eventFlags } from '../../game/episode.ts'
+import { type EventFlag, eventFlags } from '../../game/flags.ts'
 import EVENTS                         from '../../rendered/events.json' with { type: 'json' }
 import * as numbers                   from '../../widgets/numbers.ts'
 import * as sees                      from '../sees.ts'

@@ -4,7 +4,8 @@ Pins how `Evaluator` plays an evaluation's episodes, covering:
 - Each episode's play depending on its number alone, however many
   environments the evaluation runs and whichever one it lands in
 - The episodes of the random baseline and of the agent played across worker
-  processes on PyBoy, and a worker ignoring the interrupt signal
+  processes on PyBoy, a worker ignoring the interrupt signal, and an
+  interrupt partway through a step terminating each worker
 - The policy taking the network's action or a random one from each
   environment's seeded action space, at the epsilon the settings name for
   the deep Q-network and PQN and at none for PPO, which plays its most likely
@@ -18,8 +19,8 @@ from gymnasium.spaces  import Box, Dict, Discrete
 from gymnasium.vector  import AutoresetMode, SyncVectorEnv
 from numpy             import ndarray, uint8, zeros
 from os                import kill
-from pytest            import MonkeyPatch, fixture, mark, param, raises
-from signal            import SIGINT
+from pytest            import MonkeyPatch, fail, fixture, mark, param, raises
+from signal            import ITIMER_REAL, SIGALRM, SIGINT, SIGTERM, setitimer, signal
 from torch             import Tensor, arange, equal, get_rng_state, no_grad, tensor
 from torch.testing     import assert_close
 from typing            import Any
@@ -268,6 +269,33 @@ def test_an_evaluation_refuses_weights_another_agents_network_holds(
             started.evaluate(Weights(online=online, step=9))
 
 
+@mark.filterwarnings("ignore:.*pending call to .step")
+def test_an_interrupt_partway_through_a_step_ends_each_worker(
+    evaluator: Callable[..., Evaluator]
+):
+    """
+    Asserts that an interrupt raised once a step has read some of the
+    workers' pipes ends the evaluation and terminates each worker, the alarm
+    failing the case where closing the environments blocks on a pipe already
+    read.
+    """
+    handler = signal(SIGALRM, lambda *_: fail("Closing blocked on a pipe already read"))
+
+    with raises(KeyboardInterrupt), evaluator(environments=2, episodes=2) as started:
+        vector = started.envs
+
+        vector.reset(seed=1)
+        vector.step_async(zeros(vector.num_envs, int))
+        vector.parent_pipes[0].recv()
+        setitimer(ITIMER_REAL, 60)
+        raise KeyboardInterrupt
+
+    setitimer(ITIMER_REAL, 0)
+    signal(SIGALRM, handler)
+
+    assert {process.exitcode for process in vector.processes} == {-SIGTERM}
+
+
 @mark.parametrize(
     ("epsilon", "chosen"),
     [
@@ -324,7 +352,8 @@ def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
     three episodes and those of each agent, each truncated after three
     steps on the blank cartridge and each evaluation naming the run's goal,
     the agent's recording the step it read and leaving PyTorch's global
-    generator as it found it.
+    generator as it found it, and each worker exiting cleanly once the
+    evaluation closes.
     """
     with evaluator(algorithm, environments=2, episodes=3) as started:
         online = acting_network(
@@ -336,6 +365,7 @@ def test_the_baseline_and_the_agent_play_their_episodes_across_worker_processes(
         played = [started.baseline(), started.evaluate(Weights(online=online, step=9))]
 
     assert equal(get_rng_state(), state)
+    assert {process.exitcode for process in started.envs.processes} == {0}
     assert [
         (
             evaluation.goal, evaluation.step,

@@ -39,7 +39,7 @@ describe('the discount', () => {
 describe('EPISODES', () => {
   it('walks to the starter in a few hundred steps and wanders to it in thousands', () => {
     expect(discount.EPISODES.map(episode => episode.told)).toStrictEqual([
-      'The walk to the starter in 162 steps', 'A wander to the starter in 8,915 steps'
+      'The walk to the starter in 180 steps', 'A wander to the starter in 8,933 steps'
     ])
   })
 
@@ -77,8 +77,8 @@ describe('plotOf', () => {
   })
 
   it('groups the tiles of payments under eight pixels apart under one leader, combed beneath them', () => {
-    expect(PLOT.lanes.map(lane => lane.groups.map(group => group.tiles.length))).toStrictEqual([[1, 3], [4]])
-    expect(PLOT.lanes[0]!.groups[1]!.leader).toMatch(/^M[\d.]+,33H[\d.]+(M[\d.]+,28V33){3}M[\d.]+,33L/u)
+    expect(PLOT.lanes.map(lane => lane.groups.map(group => group.tiles.length))).toStrictEqual([[1, 2, 1], [4]])
+    expect(PLOT.lanes[0]!.groups[1]!.leader).toMatch(/^M[\d.]+,33H[\d.]+(M[\d.]+,28V33){2}M[\d.]+,33L/u)
   })
 
   it('keeps each row of tiles a pitch apart and inside the chart', () => {

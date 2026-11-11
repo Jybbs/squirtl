@@ -43,7 +43,7 @@ describe('MethodsMemory', () => {
     const wrapper = mount(MethodsMemory)
 
     expect([pointer.sliderState(wrapper), says(wrapper), bytes(wrapper)]).toStrictEqual([
-      ['0', 'Step 0 of 163'], 'Step 0 stands on (26, 03, 06) in the bedroom.', ['wCurMap26', 'wXCoord03', 'wYCoord06', 'wEventFlags00 00']
+      ['0', 'Step 0 of 181'], 'Step 0 stands on (26, 03, 06) in the bedroom.', ['wCurMap26', 'wXCoord03', 'wYCoord06', 'wEventFlags00 00']
     ])
     expect(wrapper.text()).toBePublishedProse()
   })
@@ -120,7 +120,7 @@ describe('MethodsMemory’s playback', () => {
     await thumb.trigger('keydown', { key: 'ArrowRight' })
     await nextTick()
 
-    expect([pointer.sliderState(wrapper), says(wrapper).slice(0, 6)]).toStrictEqual([['2', 'Step 2 of 163'], 'Step 2'])
+    expect([pointer.sliderState(wrapper), says(wrapper).slice(0, 6)]).toStrictEqual([['2', 'Step 2 of 181'], 'Step 2'])
   })
 
   it('fills each flag’s site in the lab once the episode reaches the starter', async () => {

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import * as sees      from '../../../../lib/front/sees.ts'
 import * as labels    from '../../../../lib/front/sees/labels.ts'
 import { termMark }   from '../../../../lib/game/actors.ts'
-import { eventFlags } from '../../../../lib/game/episode.ts'
+import { eventFlags } from '../../../../lib/game/flags.ts'
 import { MINUS }      from '../../../../lib/widgets/numbers.ts'
 
 describe('captionsOf', () => {

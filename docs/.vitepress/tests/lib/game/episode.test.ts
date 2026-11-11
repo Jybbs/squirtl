@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import EVENTS       from '../../../lib/rendered/events.json' with { type: 'json' }
 import SETTINGS     from '../../../lib/rendered/settings.json' with { type: 'json' }
 import * as episode from '../../../lib/game/episode.ts'
 import * as rooms   from '../../../lib/game/rooms.ts'
@@ -37,6 +36,16 @@ function placed(place: rooms.Place, at: rooms.Square, facing: rooms.Direction): 
 function stopped(): episode.Episode {
   const game = placed('pallet', [10, 2], 'up')
   game.press('up')
+  return game
+}
+
+/**
+ * Starts an episode with Blue just led to the table, Oak's speech waiting on
+ * its first press.
+ */
+function seated(): episode.Episode {
+  const game = stopped()
+  while (game.leading) game.press('b')
   return game
 }
 
@@ -113,17 +122,16 @@ describe('Episode behind Oak', () => {
     expect(game.script).toStrictEqual([])
   })
 
-  it('walks Blue behind Oak whatever he presses, into the lab and up to the table', () => {
+  it('walks Blue behind Oak whatever he presses, into the lab and up to the table, where Oak starts to speak', () => {
     const game = stopped()
     const walk = game.script.length
     const paid = Array.from({ length: walk }, (_, n) => game.press(rooms.BUTTONS[n % rooms.BUTTONS.length]!))
 
     expect(paid[0]).toStrictEqual([])
-    expect([paid.at(-1), [...game.flags]])
-      .toStrictEqual([[NEW, MILESTONE, MILESTONE], ['appeared', 'followed', 'asked']])
-    expect([game.place, game.at, game.facing, game.leader, game.steps])
-      .toStrictEqual(['lab', [5, 3], 'up', null, walk + 1])
-    expect(game.shares.milestone).toBeCloseTo(3 * PAY.milestone, 12)
+    expect([paid.at(-1), [...game.flags]]).toStrictEqual([[NEW, MILESTONE], ['appeared', 'followed']])
+    expect([game.place, game.at, game.facing, game.leader, game.steps, game.speech, game.scripted])
+      .toStrictEqual(['lab', [5, 3], 'up', null, walk + 1, episode.SPEECH, true])
+    expect(game.shares.milestone).toBeCloseTo(2 * PAY.milestone, 12)
   })
 
   it('pays each milestone once, however often the game reaches it', () => {
@@ -131,8 +139,7 @@ describe('Episode behind Oak', () => {
     game.flags.add('followed')
     const paid = Array.from({ length: game.script.length }, () => game.press('b'))
 
-    expect([paid.at(-1), [...game.flags]])
-      .toStrictEqual([[NEW, MILESTONE], ['appeared', 'followed', 'asked']])
+    expect([paid.at(-1), [...game.flags]]).toStrictEqual([[NEW], ['appeared', 'followed']])
   })
 
   it('turns Blue up and has Oak lead from inside the lab as the walk enters it', () => {
@@ -141,6 +148,33 @@ describe('Episode behind Oak', () => {
 
     expect([game.place, game.at, game.facing]).toStrictEqual(['lab', [5, 11], 'up'])
     expect(game.leader).toStrictEqual({ at: [5, 10], facing: 'up', place: 'lab' })
+  })
+})
+
+describe('Episode through Oak’s speech', () => {
+  it('has Oak ask Blue to choose on the press of A or B closing the speech’s last text box', () => {
+    const game = seated()
+    const paid = Array.from({ length: episode.SPEECH }, (_, n) => game.press((['a', 'b'] as const)[n % 2]!))
+
+    expect([paid.slice(0, -1).flat(), paid.at(-1), [...game.flags]])
+      .toStrictEqual([[], [MILESTONE], ['appeared', 'followed', 'asked']])
+    expect([game.speech, game.scripted, game.at, game.facing]).toStrictEqual([0, false, [5, 3], 'up'])
+    expect(game.shares.milestone).toBeCloseTo(3 * PAY.milestone, 12)
+  })
+
+  it.each(rooms.DIRECTIONS)('leaves the speech and Blue where they stand on a press of %s', button => {
+    const game  = seated()
+    const steps = game.steps
+
+    expect([game.press(button), game.speech, game.at, game.facing, game.turned, game.steps])
+      .toStrictEqual([[], episode.SPEECH, [5, 3], 'up', false, steps + 1])
+  })
+
+  it('lets Blue walk once Oak has asked him to choose', () => {
+    const game = seated()
+    for (let n = 0; n < episode.SPEECH; n++) game.press('b')
+
+    expect([game.press('down'), game.turned, game.press('down'), game.at]).toStrictEqual([[], true, [], [5, 4]])
   })
 })
 
@@ -168,27 +202,11 @@ describe('Episode at its end', () => {
       .toStrictEqual({ limit: SETTINGS.environment.max_episode_steps, pay: SETTINGS.reward })
   })
 
-  it('starts again from the bedroom with every count and flag cleared', () => {
-    const game = stopped()
+  it('starts again from the bedroom with every count and flag cleared, Oak’s speech among them', () => {
+    const game = seated()
     game.reset()
 
     expect(game).toStrictEqual(new episode.Episode())
-  })
-})
-
-describe('eventFlags and milestones', () => {
-  it('names each event flag up to the default goal in the order the package declares the events, each with its index and the term it pays, and none past it', () => {
-    expect(episode.eventFlags.map(each => [each.flag, each.index, each.term])).toStrictEqual([
-      ['appeared', 0x27, 'milestone'],
-      ['followed', 0x00, 'milestone'],
-      ['asked', 0x21, 'milestone'],
-      ['starter', 0x22, 'goal']
-    ])
-    expect(EVENTS.map(event => event.term)).toStrictEqual(['milestone', 'milestone', 'milestone', 'goal', null, null, null])
-  })
-
-  it('reads the milestones as the flags whose events pay one', () => {
-    expect(episode.milestones).toStrictEqual(['appeared', 'followed', 'asked'])
   })
 })
 

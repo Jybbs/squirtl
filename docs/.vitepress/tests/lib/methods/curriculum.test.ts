@@ -5,9 +5,10 @@ import { TRACE }       from '../../../lib/methods/memory.ts'
 import SETTINGS        from '../../../lib/rendered/settings.json' with { type: 'json' }
 
 describe('the segments', () => {
-  it('ends a segment at each press first setting a flag the reward pays, the flags one press sets making one segment', () => {
+  it('ends a segment at each press first setting a flag the reward pays, Oak’s speech falling between following him in and his asking', () => {
     expect(curriculum.SEGMENTS.map(each => [each.term, each.tag])).toStrictEqual([
-      ['milestone', 'Oak stops Blue'], ['milestone', 'Oak asks Blue to choose'], ['goal', 'Blue takes a starter']
+      ['milestone', 'Oak stops Blue'], ['milestone', 'Blue follows Oak in'], ['milestone', 'Oak asks Blue to choose'],
+      ['goal', 'Blue takes a starter']
     ])
     expect(curriculum.SEGMENTS.every(({ end }) => [...TRACE[end + 1]!.flags].some(flag => !TRACE[end]!.flags.has(flag)))).toBe(true)
   })
@@ -31,7 +32,7 @@ describe('the run', () => {
     const first = curriculum.RUN[0]!
 
     expect(first.every((shown, k) => shown.start >= curriculum.SEGMENTS[k]!.end - curriculum.CURRICULUM.window)).toBe(true)
-    expect(curriculum.RUN.at(-1)!.map(each => each.start)).toStrictEqual([0, 0, 0])
+    expect(curriculum.RUN.at(-1)!.map(each => each.start)).toStrictEqual([0, 0, 0, 0])
   })
 
   it('moves a window forward where too few episodes succeed, solving the run later', () => {
@@ -50,7 +51,7 @@ describe('the run', () => {
 describe('the words', () => {
   it('names a batch and the segments solved by its end', () => {
     expect([curriculum.describe(0), curriculum.describe(curriculum.BATCHES - 1)]).toStrictEqual([
-      `Batch 1 of ${curriculum.BATCHES}, 0 of 3 segments solved`, `Batch ${curriculum.BATCHES} of ${curriculum.BATCHES}, 3 of 3 segments solved`
+      `Batch 1 of ${curriculum.BATCHES}, 0 of 4 segments solved`, `Batch ${curriculum.BATCHES} of ${curriculum.BATCHES}, 4 of 4 segments solved`
     ])
   })
 
@@ -59,7 +60,7 @@ describe('the words', () => {
     const { end } = curriculum.SEGMENTS[0]!
     const start  = curriculum.RUN[0]![0]!.start
 
-    expect([curriculum.farOf(0, 0), curriculum.farOf(last, 0), curriculum.farOf(last, 1)])
+    expect([curriculum.farOf(0, 0), curriculum.farOf(last, 0), curriculum.farOf(last, curriculum.SEGMENTS.length - 1)])
       .toStrictEqual([`${end + 1 - start} presses before it`, 'Solved from the bedroom', 'From the bedroom'])
   })
 

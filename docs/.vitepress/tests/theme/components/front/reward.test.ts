@@ -82,8 +82,8 @@ describe('StoryReward under reduced motion', () => {
     sight.show(true)
     await nextTick()
 
-    expect(pointer.sliderState(wrapper)).toStrictEqual(['163', 'Step 163 of 163, the return 0.66500'])
-    expect(wrapper.text()).toContain('0.66500Step 163 of 163')
+    expect(pointer.sliderState(wrapper)).toStrictEqual(['181', 'Step 181 of 181, the return 0.66500'])
+    expect(wrapper.text()).toContain('0.66500Step 181 of 181')
     expect(chips(wrapper).slice(0, 4)).toStrictEqual([
       ['The starter', null, '+0.35000'],
       ['New positions', '60 × 0.00025', '0.01500'],
@@ -207,13 +207,13 @@ describe('StoryReward playing', () => {
     const { sight, wrapper } = await mounted()
 
     sight.show(true)
-    vi.advanceTimersByTime(20_800)
+    vi.advanceTimersByTime(23_800)
     await nextTick()
     const ended = pointer.sliderState(wrapper)[0]
     vi.advanceTimersByTime(TEMPO.rest + 100)
     await nextTick()
 
-    expect([ended, pointer.sliderState(wrapper)[0]]).toStrictEqual(['163', '1'])
+    expect([ended, pointer.sliderState(wrapper)[0]]).toStrictEqual(['181', '1'])
   })
 
   test('ends every timer once it unmounts', async () => {
@@ -236,10 +236,12 @@ describe('StoryReward held by a reader', () => {
   test.each([
     [131, ['A milestone', null, '+0.10025']],
     [132, ['Following Oak', null, '0.00000']],
-    [156, ['Two milestones', null, '+0.20025']]
+    [156, ['A milestone', null, '+0.10025']],
+    [160, ['Oak speaks', null, '0.00000']],
+    [174, ['A milestone', null, '+0.10000']]
   ])('seeks step %i under a press along the climb, holding the episode there', async (step, paid) => {
     const { sight, wrapper } = await mounted()
-    const control            = pointer.controlOf(wrapper, 163)
+    const control            = pointer.controlOf(wrapper, 181)
     sight.show(true)
 
     await control.trigger('pointerenter', { pointerType: 'mouse' })
@@ -252,7 +254,7 @@ describe('StoryReward held by a reader', () => {
 
   test('holds the episode still while a mouse moves across the climb', async () => {
     const { sight, wrapper } = await mounted()
-    const control            = pointer.controlOf(wrapper, 163)
+    const control            = pointer.controlOf(wrapper, 181)
     sight.show(true)
     await nextTick()
 
@@ -286,6 +288,6 @@ describe('StoryReward stepped by the keys', () => {
     await nextTick()
 
     expect([held, pointer.sliderState(wrapper)[0]])
-      .toStrictEqual([['162', 'Step 162 of 163, the return 0.31500'], '163'])
+      .toStrictEqual([['180', 'Step 180 of 181, the return 0.31500'], '181'])
   })
 })

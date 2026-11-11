@@ -1,3 +1,5 @@
+<!-- help -->
+
 # `squirtl evaluate`
 
 Evaluates the agent of each run at its last checkpoint, over the episodes the run's settings record, beside the random baseline under the same seeds, and writes each evaluation into its run's directory, reading in place of playing any the run already holds. The deep Q-network and PQN play at the epsilon those settings record, and PPO takes its most likely action at every step.
@@ -12,6 +14,10 @@ Both directories and `--release`, or neither, a directory holding no run, a rele
 squirtl evaluate [OPTIONS] [ARGS]
 ```
 
+<!-- /help -->
+
+<!-- settings -->
+
 ## Settings
 
 | **Flag** | **Default** | **What It Sets** |
@@ -22,3 +28,5 @@ squirtl evaluate [OPTIONS] [ARGS]
 | `--agent` | `none` | *The agent the run trained.* |
 | `--seed` | `none` | *The seed the run's random draws derive from.* |
 | `--start` | `none` | *Where the run's training episodes start.* |
+
+<!-- /settings -->

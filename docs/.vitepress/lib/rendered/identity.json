@@ -266,6 +266,7 @@
         "serif"
       ],
       "family": "Literata",
+      "x_height": 0.507,
       "query": "Literata:ital,opsz,wght@0,7..72,400..700;1,7..72,400..700",
       "stack": "'Literata', 'Iowan Old Style', 'Georgia', serif"
     },
@@ -278,6 +279,7 @@
         "monospace"
       ],
       "family": "JetBrains Mono",
+      "x_height": 0.55,
       "query": "JetBrains+Mono:wght@400;500;700",
       "stack": "'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', monospace"
     },
@@ -288,6 +290,7 @@
         "monospace"
       ],
       "family": "Bitcount Prop Double",
+      "x_height": 0.5,
       "query": "Bitcount+Prop+Double:CRSV,ELSH,wght@0,0,500",
       "stack": "'Bitcount Prop Double', ui-monospace, monospace"
     }

@@ -15,7 +15,7 @@ An episode from a start succeeds once the reward for the flags it sets reaches w
 
 A segment counts as solved once its window has reached Blue's bedroom and 95% of the recent episodes from there succeed, after which no episode starts from it. An episode from a start also truncates after twice the moving average of the lengths of the episodes that succeeded, plus 500 steps.
 
-The drawing below plays a run made up for it over the site's model of the walk to the starter, in which a seeded model of an agent improving with training decides whether each episode succeeds, so it shows how the windows move rather than how fast a real run moves them. The model sets the flag for Oak asking Blue to choose on the press that brings him into the lab behind Oak, where the game sets it only after four text boxes, which leaves the drawing three segments, each lane holding one episode of the batch at its start.
+The drawing below plays a run made up for it over the site's model of the walk to the starter, in which a seeded model of an agent improving with training decides whether each episode succeeds, so it shows how the windows move rather than how fast a real run moves them. The model sets the flag for following Oak in on the press that brings Blue to the table behind him, and the flag for Oak asking Blue to choose on the press of A or B that closes the last of the four text boxes Oak's speech shows there, as the game does. Each segment takes a lane, which holds one episode of the batch at its start.
 
 ## Playing Back a Start
 
