@@ -372,15 +372,18 @@ def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
 def test_weights_save_as_a_checkpoint_of_the_same_bytes_each_time(tmp_path: Path):
     """
     Asserts that weights saved alone write a checkpoint holding `agent.pt`
-    alone, which reads back as the weights saved, and that saving them again
-    writes the same bytes.
+    alone, dated 1980-01-01, which reads back as the weights saved, and that
+    saving them again writes the same bytes.
     """
     weights = Weights(online={"weight": tensor([1.0, 2.0])}, step=3)
     weights.save(tmp_path / "first.npz")
     weights.save(tmp_path / "second.npz")
     read = Weights.from_path(tmp_path / "first.npz")
 
-    assert ZipFile(tmp_path / "first.npz").namelist() == ["agent.pt"]
+    assert [
+        (entry.filename, entry.date_time)
+        for entry in ZipFile(tmp_path / "first.npz").infolist()
+    ] == [("agent.pt", (1980, 1, 1, 0, 0, 0))]
     assert (read.online["weight"].tolist(), read.step) == ([1.0, 2.0], 3)
     assert len(
         {(tmp_path / name).read_bytes() for name in ("first.npz", "second.npz")}

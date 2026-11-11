@@ -56,8 +56,9 @@ def test_a_fetch_unpacks_the_run_as_it_was_packed(
 ):
     """
     Asserts that fetching a run into an empty folder unpacks its record, its
-    episodes, and its weights, leaving nothing else in the folder, and that
-    a second fetch downloads nothing.
+    episodes, and its weights, leaving nothing else in the folder, under the
+    User-Agent `squirtl` on every request, and that a second fetch downloads
+    nothing.
     """
     release = GithubRelease.read()
     run     = release.fetch(release.manifest.recommended, tmp_path / "runs")
@@ -245,9 +246,13 @@ def test_a_tar_holds_the_record_the_episodes_and_the_weights_alone(
     Asserts that the tar of a run following a demonstration holds its
     folder's record, naming the default cartridge and the demonstration
     under `data/runs/`, its episodes as written, and a checkpoint holding
-    `agent.pt` alone, whose weights read back as the run's.
+    `agent.pt` alone, whose weights read back as the run's, each member
+    under a header naming no owner, dated at the epoch, and set to mode
+    `0o644` whatever mode its file held.
     """
     run = committed[1]
+    run.episodes.chmod(0o600)
+    ReleaseManifest.pack(ReleaseSettings(recommended_run=packed.recommended_run))
 
     with open_tar(ReleaseManifest.folder / packed.runs[1].asset, "r:zst") as archive:
         members = {

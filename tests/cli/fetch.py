@@ -32,9 +32,9 @@ def test_a_fetch_unpacks_each_run_it_selects_and_logs_it(
 ):
     """
     Asserts that fetching the latest release, or the one `--release` names
-    under a selection matching the run, exits zero, unpacking the run
-    where it packed from and logging its directory, and that fetching again
-    downloads no tar.
+    under a selection matching the run, exits zero, unpacking the run where
+    it packed from behind a progress bar bearing its tar's name and logging
+    its directory, and that fetching again downloads no tar.
     """
     invocation = invoke(["fetch", *flags])
 
