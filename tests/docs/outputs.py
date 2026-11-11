@@ -52,7 +52,7 @@ def test_the_inventory_lists_the_rendered_files_and_the_pages_it_writes():
     pages   = [path for path in outputs if path.startswith("docs/pages/")]
 
     assert [Path(path).name for path in outputs if path not in pages] == [
-        "events.json", "identity.json", "results.json",
+        "events.json", "identity.json", "results.json", "release.json",
         "settings.json", "symbols.json", "theme.css"
     ]
     assert {Path(path).parent for path in outputs if path not in pages} == {Path(
