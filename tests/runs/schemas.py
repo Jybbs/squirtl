@@ -33,6 +33,9 @@ Pins the records one run reads and writes, covering:
   to the run's goal
 - A run refusing a digest other than the one it recorded, and the listing
   naming it among other runs
+- A run's check of its episodes, refusing the first line that does not
+  parse as an episode by its number and passing a log whose finished lines
+  all do
 """
 
 from collections.abc   import Callable, Mapping
@@ -46,6 +49,7 @@ from os                import fstat
 from pathlib           import Path
 from pydantic          import ValidationError
 from pytest            import MonkeyPatch, TempPathFactory, mark, param, raises
+from re                import escape
 from shutil            import copytree
 from subprocess        import CalledProcessError, check_output
 from syrupy.assertion  import SnapshotAssertion
@@ -521,6 +525,57 @@ def test_a_run_refuses_another_digest_naming_both(run: Run):
         run.check("1")
 
 
+@mark.parametrize(
+    ("stale", "failure"),
+    [
+        param(
+            lambda line: line.replace('"goal"', '"starter"'),
+            "at shares.starter.[key] with \"Input should be 'goal', 'milestone' or "
+            "'novelty'\"",
+            id = "a-share-under-a-name-since-retired"
+        ),
+        param(
+            lambda line: line.replace('"epsilon":1.0,', ""),
+            "at epsilon with 'Field required'",
+            id = "a-field-missing"
+        ),
+        param(
+            lambda line: line.replace('"goal"', '"starter"').replace(
+                '"epsilon":1.0,',
+                ""
+            ),
+            "at shares.starter.[key] with \"Input should be 'goal', 'milestone' or "
+            "'novelty'\", at epsilon with 'Field required'",
+            id = "two-fields-failing"
+        ),
+        param(
+            lambda line: "[]",
+            "at its root with 'Input should be an object'",
+            id = "no-object"
+        )
+    ]
+)
+def test_a_run_with_a_line_holding_no_episode_is_refused_naming_the_line(
+    episode : Episode,
+    failure : str,
+    holding : Callable[[str], Run],
+    stale   : Callable[[str], str]
+):
+    """
+    Asserts that checking a run's episodes raises `ValueError` naming its
+    `episodes`, the first line counting from 1 that does not parse as an
+    `Episode`, and each field that line fails at.
+    """
+    line = episode.model_dump_json()
+    run  = holding(f"{line}\n{stale(line)}\n{stale(line)}\n")
+
+    with raises(
+        ValueError,
+        match = escape(f"Line 2 of {run.episodes} holds no episode, failing {failure}")
+    ):
+        run.check_episodes()
+
+
 def test_a_run_skips_an_unfinished_last_line_with_a_warning(
     episode : Episode,
     holding : Callable[[str], Run],
@@ -537,6 +592,22 @@ def test_a_run_skips_an_unfinished_last_line_with_a_warning(
         [episode],
         [f"Skipping the unfinished last line of {run.episodes}"]
     )
+
+
+def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
+    """
+    Asserts that a run started at the same instant as an earlier one raises
+    rather than writing into the earlier run's directory, whose record stays
+    as the earlier run wrote it.
+    """
+    started = datetime(2026, 10, 4, tzinfo=UTC)
+    first   = Run.start("0", RunSettings(seed=1), started)
+    record  = first.record.read_text(encoding="utf-8")
+
+    with raises(FileExistsError):
+        Run.start("0", RunSettings(seed=2), started)
+
+    assert first.record.read_text(encoding="utf-8") == record
 
 
 @mark.parametrize(
@@ -666,20 +737,16 @@ def test_an_append_cuts_an_unfinished_last_line_alone(
     ) == ([12] * kept + [20], [f"Cutting the unfinished last line of {path}"] * cut)
 
 
-def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
+def test_a_run_whose_finished_lines_each_hold_an_episode_passes_its_check(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
     """
-    Asserts that a run started at the same instant as an earlier one raises
-    rather than writing into the earlier run's directory, whose record stays
-    as the earlier run wrote it.
+    Asserts that checking a run's episodes raises nothing where every line
+    parses as an `Episode` but an unfinished last line, which every reader
+    skips.
     """
-    started = datetime(2026, 10, 4, tzinfo=UTC)
-    first   = Run.start("0", RunSettings(seed=1), started)
-    record  = first.record.read_text(encoding="utf-8")
-
-    with raises(FileExistsError):
-        Run.start("0", RunSettings(seed=2), started)
-
-    assert first.record.read_text(encoding="utf-8") == record
+    holding(f'{episode.model_dump_json()}\n{{"length": ').check_episodes()
 
 
 def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):

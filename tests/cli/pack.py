@@ -3,8 +3,8 @@ Pins what `squirtl pack` does, covering:
 
 - The folder it prints and the manifest it writes there, recommending the
   run `--recommended-run` names
-- A run missing its checkpoint, and a recommended run no tar holds, each
-  exiting 1
+- A run missing its checkpoint, a recommended run no tar holds, and a run
+  with a line holding no episode, each exiting 1
 """
 
 from common.cli import Invoker
@@ -50,3 +50,27 @@ def test_a_run_missing_its_checkpoint_or_the_recommended_run_exits_1(
         missing.code,
         f"{trained} holds no checkpoint.npz" in missing.log
     ) == (1, True)
+
+
+def test_a_run_with_a_line_holding_no_episode_exits_1_naming_the_line(
+    invoke  : Invoker,
+    trained : Path
+):
+    """
+    Asserts that packing a run whose first episode records a share under a
+    name since retired exits 1, logging the line of its episodes, and writes
+    no tar.
+    """
+    Path("docs/runs", trained.name).mkdir(parents=True)
+    episodes = trained / "episodes.jsonl"
+    episodes.write_text(
+        episodes.read_text(encoding="utf-8").replace('"goal"', '"starter"', 1),
+        encoding = "utf-8"
+    )
+    invocation = invoke(["pack", "--recommended-run", trained.name])
+
+    assert (
+        invocation.code,
+        f"Line 1 of {episodes} holds no episode" in invocation.log,
+        ReleaseManifest.folder.exists()
+    ) == (1, True, False)

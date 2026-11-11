@@ -235,15 +235,19 @@ class ReleaseManifest(ReleaseSettings):
     @classmethod
     def pack(cls, settings: ReleaseSettings) -> Self:
         """
-        Packs each run `Results.folder` lists, then each demonstration those
-        runs follow, from its directory under `Run.folder` by its name, into
-        `folder`, and writes the manifest listing them there as `file`.
+        Packs each run `Results.folder` lists, then each demonstration
+        those runs follow, from its directory under `Run.folder` by its
+        name, into `folder`, and writes the manifest listing them there
+        as `file`. It checks every line of each run's episodes through
+        `Run.check_episodes` before writing any tar.
 
         Raises:
             FileNotFoundError : Where a run's directory holds no record, no
                                 checkpoint, or no episodes.
             ValidationError   : Where `settings` recommends a run no tar
                                 holds.
+            ValueError        : Where a line of a run's episodes holds no
+                                `Episode`.
         """
         trained = [
             Run.read(Run.folder / directory.name)
@@ -256,15 +260,17 @@ class ReleaseManifest(ReleaseSettings):
                 if (demonstration := run.settings.curriculum.demonstration)
             }
         )
+        demonstrations = [Run.read(Run.folder / name) for name in followed]
+
+        for run in (*trained, *demonstrations):
+            run.check_episodes()
+
         cls.folder.mkdir(exist_ok=True, parents=True)
 
         manifest = cls(
             **dict(settings),
             demonstrations = tuple(
-                PackedRun.pack(
-                    cls.folder,
-                    Run.read(Run.folder / name)
-                ) for name in followed
+                PackedRun.pack(cls.folder, run) for run in demonstrations
             ),
             runs = tuple(PackedRun.pack(cls.folder, run) for run in trained)
         )
