@@ -8,6 +8,5 @@ and PPO.
 A directory holding no run exits 1.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────╮
-│ *  DIRECTORY --directory  The run's directory, under data/runs/ in the clone │
-│                           it trains in. [required]                           │
+│ *  DIRECTORY --directory  The run's directory under data/runs/. [required]   │
 ╰──────────────────────────────────────────────────────────────────────────────╯

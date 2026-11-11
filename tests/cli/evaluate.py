@@ -10,6 +10,8 @@ Pins what `squirtl evaluate` does, covering:
   exiting 1, and a damaged
   member of replay memory, which it never reads
 - A run of PQN or PPO, whose network it builds from the agent the run names
+- The runs of a release, fetched under the default selection, and a run
+  recording another digest than its cartridge's intro leaves, which exits 1
 """
 
 from collections.abc   import Callable
@@ -17,7 +19,7 @@ from common.cli        import Invoker
 from common.evaluation import EvaluatorStandIn
 from os                import truncate
 from pathlib           import Path
-from pytest            import mark, param
+from pytest            import MonkeyPatch, mark, param
 from zipfile           import ZipFile
 
 from squirtl.runs.schemas import Run
@@ -104,6 +106,23 @@ def test_runs_against_another_agent_take_a_column_and_a_comparison(
     assert "The agent beats the runs against it with a probability of" in output
 
 
+def test_a_release_evaluates_each_seed_of_the_recommended_runs_agent_and_start(
+    evaluators : list[EvaluatorStandIn],
+    invoke     : Invoker,
+    released   : Path
+):
+    """
+    Asserts that evaluating a release with no selection fetches its
+    recommended run, the one run of its agent and start, evaluates it beside
+    its baseline, and prints its report.
+    """
+    invocation = invoke(["evaluate", "--release", "0.2.0"])
+
+    assert (invocation.code, len(evaluators), released.name in invocation.output) == (
+        0, 1, True
+    )
+
+
 def test_a_run_holding_a_damaged_checkpoint_exits_1_naming_it(
     evaluators : list[EvaluatorStandIn],
     invoke     : Invoker,
@@ -144,6 +163,45 @@ def test_a_run_of_pqn_or_ppo_plays_its_evaluation_across_worker_processes(
     assert rolled.name in invocation.output
 
 
+def test_a_run_recording_another_digest_than_its_intro_leaves_exits_1(
+    evaluators  : list[EvaluatorStandIn],
+    invoke      : Invoker,
+    monkeypatch : MonkeyPatch,
+    trained     : Path
+):
+    """
+    Asserts that evaluating a run on a console whose intro leaves a state of
+    another digest than the run recorded exits 1, naming both digests, and
+    writes no evaluation.
+    """
+    monkeypatch.setattr(EvaluatorStandIn, "digest", "0")
+    invocation = invoke(["evaluate", str(trained)])
+    run        = Run.read(trained)
+
+    assert (
+        invocation.code,
+        list(run.evaluated),
+        run.baseline.exists()
+    ) == (1, [], False)
+    assert f"of digest {run.digest}, where this cartridge leaves 0" in invocation.log
+
+
+@mark.usefixtures("evaluators")
+def test_an_evaluation_reports_the_agent_apart_from_its_baseline(
+    invoke  : Invoker,
+    trained : Path
+):
+    """
+    Asserts that the stand-in agent's return of 0.01 at step 10, below its
+    baseline's 0.125, prints a probability of 0 that the agent beats its
+    baseline, rather than the 1 the two swapped would print.
+    """
+    assert (
+        "The agent beats its baseline with a probability of 0 over 1 and 1 runs"
+        in invoke(["evaluate", str(trained)]).output
+    )
+
+
 def test_a_second_evaluation_reads_what_the_first_wrote(
     evaluators : list[EvaluatorStandIn],
     invoke     : Invoker,
@@ -178,22 +236,6 @@ def test_an_evaluation_reads_the_agent_member_of_the_checkpoint_alone(
         archive.writestr("actions.npy", b"\x93NUMPY\x01\x00")
 
     assert invoke(["evaluate", str(trained)]).code == 0
-
-
-@mark.usefixtures("evaluators")
-def test_an_evaluation_reports_the_agent_apart_from_its_baseline(
-    invoke  : Invoker,
-    trained : Path
-):
-    """
-    Asserts that the stand-in agent's return of 0.01 at step 10, below its
-    baseline's 0.125, prints a probability of 0 that the agent beats its
-    baseline, rather than the 1 the two swapped would print.
-    """
-    assert (
-        "The agent beats its baseline with a probability of 0 over 1 and 1 runs"
-        in invoke(["evaluate", str(trained)]).output
-    )
 
 
 def test_an_evaluation_writes_its_episodes_and_prints_the_report(

@@ -18,7 +18,7 @@ from squirtl.emulator.schemas   import EmulatorSettings, Record
 from squirtl.evaluation.report  import Estimate
 from squirtl.evaluation.schemas import Evaluation
 from squirtl.reward.schemas     import Event, Flag
-from squirtl.runs.schemas       import Run
+from squirtl.runs.schemas       import Run, RunListing
 
 
 class Score(Record):
@@ -50,15 +50,11 @@ class Score(Record):
         return cls.model_validate(evaluation, from_attributes=True)
 
 
-class Trained(Record):
+class Trained(RunListing):
     """
     One run the Results section draws, the agent's score at each of its
-    evaluations beside the random baseline's under the same seeds.
-    """
-
-    agent: Algorithm
-    """
-    The agent the run trained.
+    evaluations beside the random baseline's under the same seeds, its name
+    the folder under `docs/runs/` holding it.
     """
 
     baseline: Score
@@ -66,29 +62,14 @@ class Trained(Record):
     The random baseline's score under the run's evaluation seeds.
     """
 
-    curriculum: bool
-    """
-    Whether the run started its training episodes along a demonstration.
-    """
-
     goal: Flag
     """
     The flag whose first setting ended the run's episodes.
     """
 
-    name: str
-    """
-    The run's name, the folder under `docs/runs/` holding it.
-    """
-
     scores: tuple[Score, ...]
     """
     The agent's score at each evaluation, in the order the run played them.
-    """
-
-    seed: int
-    """
-    The seed the run's random draws derive from.
     """
 
     @property
@@ -129,14 +110,11 @@ class Trained(Record):
         if (baseline := run.baselined) is None:
             raise ValueError(f"{directory} holds no baseline")
 
-        return cls(
-            agent      = run.settings.agent.algorithm,
-            baseline   = Score.of(baseline),
-            curriculum = run.settings.curriculum.demonstration is not None,
-            goal       = run.settings.environment.goal,
-            name       = run.name,
-            scores     = scores,
-            seed       = run.settings.seed
+        return cls.of(
+            run,
+            baseline = Score.of(baseline),
+            goal     = run.settings.environment.goal,
+            scores   = scores
         )
 
     @classmethod

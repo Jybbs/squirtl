@@ -3,6 +3,7 @@ squirtl.agent
 squirtl.agent.schemas
 squirtl.cli
 squirtl.cli.logs
+squirtl.cli.runs
 squirtl.cli.stop
 squirtl.emulator
 squirtl.emulator.schemas

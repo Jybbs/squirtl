@@ -10,10 +10,13 @@ Defines the fixtures the tests of `squirtl.cli` request:
   a run of either that `squirtl train` takes through under them
 - `windows`, under which PyBoy draws no window whichever one a boot names,
   recording the one each boot named
+- `released`, the run `trained` holds as a release `github` publishes
+  attaches it
 """
 
 from collections.abc import Callable
 from common.cli      import Invocation, Invoker
+from common.releases import GitHub
 from pathlib         import Path
 from pyboy           import PyBoy
 from pytest          import CaptureFixture, FixtureRequest, MonkeyPatch, fixture, raises
@@ -21,6 +24,7 @@ from pytest          import CaptureFixture, FixtureRequest, MonkeyPatch, fixture
 from squirtl.cli              import app
 from squirtl.emulator         import console
 from squirtl.emulator.schemas import Cartridge
+from squirtl.releases.schemas import ReleaseManifest, ReleaseSettings
 from squirtl.runs.trainer     import Trainer
 
 
@@ -182,3 +186,23 @@ def stopped(
         )
 
         return Path(invoke(["train", *quick]).output.strip())
+
+
+@fixture
+def released(github: GitHub, trained: Path) -> Path:
+    """
+    Lists the run `trained` holds under `docs/runs/`, packs it as the
+    recommended run, publishes the release `0.2.0` attaching each file
+    the pack wrote, and moves the run's directory to `data/packed/`, so a
+    command reading the release fetches it.
+
+    Returns:
+        The directory the run is fetched into.
+    """
+    Path("docs/runs", trained.name).mkdir(parents=True)
+    github.publish(
+        ReleaseManifest.pack(ReleaseSettings(recommended_run=trained.name))
+    )
+    trained.rename(Path("data/packed"))
+
+    return trained

@@ -4,13 +4,13 @@ at the end of the episode it is playing or the rollout it is collecting.
 """
 
 from loguru  import logger
-from pathlib import Path
 
 from squirtl.cli.logs     import listen, refusing
+from squirtl.cli.runs     import RunDirectory
 from squirtl.runs.schemas import Run
 
 
-def stop(directory: Path):
+def stop(directory: RunDirectory):
     """
     Writes the stop file into a training run's directory from any shell,
     ending the run with a checkpoint and exit status 0, as a first interrupt
@@ -18,10 +18,6 @@ def stop(directory: Path):
     rollout's update ends for PQN and PPO.
 
     A directory holding no run exits 1.
-
-    Args:
-        directory: The run's directory, under `data/runs/` in the clone it
-                   trains in.
     """
     listen()
 

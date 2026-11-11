@@ -64,7 +64,9 @@ def test_the_inventory_lists_the_rendered_files_and_the_pages_it_writes():
     )}
     assert [path for path in pages if path.startswith("docs/pages/commands/")] == [
         f"docs/pages/commands/{name}.md"
-        for name in ("cite", "evaluate", "stop", "train", "watch", "write-docs")
+        for name in (
+            "cite", "evaluate", "fetch", "pack", "stop", "train", "watch", "write-docs"
+        )
     ]
     assert "docs/pages/methods/reward.md" in pages
     identity = loads(outputs["docs/.vitepress/lib/rendered/identity.json"].text)

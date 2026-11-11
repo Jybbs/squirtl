@@ -5,6 +5,8 @@ Defines the records one run reads and writes:
 - `Revision`, the code the run ran on
 - `Run`, the directory under `data/runs/` recording both, each episode, each
   evaluation, and the checkpoint
+- `RunListing`, the settings naming a run among others, and `Start`, where
+  its training episodes start
 - `Episode`, one episode as a line of the run's `episodes`
 - `Stream`, the streams of random draws the run makes
 """
@@ -343,6 +345,8 @@ class Run(Record):
     the instant it started.
     """
 
+    folder: ClassVar[Path] = Path("data/runs")
+
     digest: Hexadecimal
     """
     The SHA-256 digest of the state `GameBoy.start` leaves the console in,
@@ -435,7 +439,7 @@ class Run(Record):
         `read` read it from, or otherwise the one under `data/runs/` its
         name gives.
         """
-        return self._read_from or Path("data/runs", self.name)
+        return self._read_from or self.folder / self.name
 
     @property
     def episodes(self) -> Path:
@@ -515,6 +519,21 @@ class Run(Record):
 
             lines.writelines(
                 f"{record.model_dump_json()}\n".encode() for record in records
+            )
+
+    def check(self, digest: str):
+        """
+        Refuses `digest`, the digest of the state a console's intro left,
+        where it differs from the one the run recorded, as it does on a
+        cartridge other than the one the run trained on.
+
+        Raises:
+            ValueError: Where the two differ.
+        """
+        if digest != self.digest:
+            raise ValueError(
+                f"{self.directory} recorded the intro leaving the console in a state "
+                f"of digest {self.digest}, where this cartridge leaves {digest}"
             )
 
     def ended_by(self, step: int) -> list[str]:
@@ -676,6 +695,64 @@ class Run(Record):
         """
         with path.open("ab") as file:
             flush(file.fileno())
+
+
+class Start(StrEnum):
+    """
+    Where a run's training episodes start, in Blue's bedroom or along the
+    demonstration its curriculum names.
+    """
+
+    BEDROOM    = auto()
+    CURRICULUM = auto()
+
+
+class RunListing(Record):
+    """
+    The settings naming one run among others, its agent, whether it trained
+    along the curriculum, and its seed, beside its name.
+    """
+
+    agent: Algorithm
+    """
+    The agent the run trained.
+    """
+
+    curriculum: bool
+    """
+    Whether the run started its training episodes along a demonstration.
+    """
+
+    name: str
+    """
+    The run's name, the folder holding it.
+    """
+
+    seed: int
+    """
+    The seed the run's random draws derive from.
+    """
+
+    @property
+    def start(self) -> Start:
+        """
+        Names where the run's training episodes start.
+        """
+        return Start.CURRICULUM if self.curriculum else Start.BEDROOM
+
+    @classmethod
+    def of(cls, run: Run, **fields: object) -> Self:
+        """
+        Reads the listing of `run` from the settings it recorded, beside the
+        further `fields` a subclass declares.
+        """
+        return cls(
+            agent      = run.settings.agent.algorithm,
+            curriculum = run.settings.curriculum.demonstration is not None,
+            name       = run.name,
+            seed       = run.settings.seed,
+            **fields
+        )
 
 
 class Episode(Outcome):

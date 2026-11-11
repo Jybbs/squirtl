@@ -5,12 +5,12 @@ Defines `train`, the command that trains the agent in a run of its own under
 
 from cyclopts      import Parameter
 from datetime      import UTC, datetime
-from pathlib       import Path
 from rich.progress import Progress
 from subprocess    import CalledProcessError
 from typing        import Annotated
 
 from squirtl.cli.logs         import listen, refusing
+from squirtl.cli.runs         import RunDirectory
 from squirtl.emulator.schemas import Cartridge
 from squirtl.runs.schemas     import Run, RunSettings
 from squirtl.runs.trainer     import Handover, Trainer
@@ -19,7 +19,7 @@ from squirtl.runs.trainer     import Handover, Trainer
 def train(
     *,
     resume   : Annotated[
-        Path | None,
+        RunDirectory | None,
         Parameter(
             help = (
                 "The directory of a stopped run to continue from its last checkpoint, "

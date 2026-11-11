@@ -128,6 +128,14 @@ class Evaluator(AbstractContextManager):
         self.seed     = seed
         self.settings = settings
 
+    @property
+    def digest(self) -> str:
+        """
+        Reads the first environment's `digest`, the digest of the state its
+        intro left, which every environment shares.
+        """
+        return self.envs.get_attr("digest")[0]
+
     def baseline(self) -> Evaluation:
         """
         Plays the random baseline's episodes, every action sampled from the

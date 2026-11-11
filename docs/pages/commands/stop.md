@@ -12,4 +12,4 @@ squirtl stop DIRECTORY
 
 | **Flag** | **Default** | **What It Sets** |
 |---|---|---|
-| `DIRECTORY`, `--directory` | *required* | *The run's directory, under `data/runs/` in the clone it trains in.* |
+| `DIRECTORY`, `--directory` | *required* | *The run's directory under `data/runs/`.* |

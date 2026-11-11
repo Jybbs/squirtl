@@ -31,6 +31,8 @@ Pins the records one run reads and writes, covering:
   a required share above the completion share, and a run's settings refusing
   a demonstration for the deep Q-network and terms summing past 1 on the way
   to the run's goal
+- A run refusing a digest other than the one it recorded, and the listing
+  naming it among other runs
 """
 
 from collections.abc   import Callable, Mapping
@@ -53,7 +55,8 @@ from squirtl.emulator.schemas    import Record
 from squirtl.environment.schemas import EnvironmentSettings, Recording, Takeover
 from squirtl.evaluation.schemas  import Evaluation
 from squirtl.reward.schemas      import Event, RewardSettings
-from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunSettings, Stream
+from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunListing, RunSettings, Start
+from squirtl.runs.schemas        import Stream
 
 
 def test_a_checkpoint_at_the_runs_last_step_may_land_within_an_episode(
@@ -504,6 +507,20 @@ def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
         Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
 
 
+def test_a_run_refuses_another_digest_naming_both(run: Run):
+    """
+    Asserts that a run passes the digest it recorded and refuses any other,
+    naming its directory, its own digest, and the one it was handed.
+    """
+    run.check("0")
+
+    with raises(
+        ValueError,
+        match = f"{run.directory} .* digest 0, where this cartridge leaves 1"
+    ):
+        run.check("1")
+
+
 def test_a_run_skips_an_unfinished_last_line_with_a_warning(
     episode : Episode,
     holding : Callable[[str], Run],
@@ -520,22 +537,6 @@ def test_a_run_skips_an_unfinished_last_line_with_a_warning(
         [episode],
         [f"Skipping the unfinished last line of {run.episodes}"]
     )
-
-
-def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
-    """
-    Asserts that a run started at the same instant as an earlier one raises
-    rather than writing into the earlier run's directory, whose record stays
-    as the earlier run wrote it.
-    """
-    started = datetime(2026, 10, 4, tzinfo=UTC)
-    first   = Run.start("0", RunSettings(seed=1), started)
-    record  = first.record.read_text(encoding="utf-8")
-
-    with raises(FileExistsError):
-        Run.start("0", RunSettings(seed=2), started)
-
-    assert first.record.read_text(encoding="utf-8") == record
 
 
 @mark.parametrize(
@@ -663,6 +664,22 @@ def test_an_append_cuts_an_unfinished_last_line_alone(
         ],
         logged
     ) == ([12] * kept + [20], [f"Cutting the unfinished last line of {path}"] * cut)
+
+
+def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
+    """
+    Asserts that a run started at the same instant as an earlier one raises
+    rather than writing into the earlier run's directory, whose record stays
+    as the earlier run wrote it.
+    """
+    started = datetime(2026, 10, 4, tzinfo=UTC)
+    first   = Run.start("0", RunSettings(seed=1), started)
+    record  = first.record.read_text(encoding="utf-8")
+
+    with raises(FileExistsError):
+        Run.start("0", RunSettings(seed=2), started)
+
+    assert first.record.read_text(encoding="utf-8") == record
 
 
 def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
@@ -795,19 +812,6 @@ def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
     assert "\n".join(f"{stream} {seed}" for stream, seed in seeds.items()) == snapshot
 
 
-def test_the_default_warmup_ends_inside_an_anneal_outlasting_a_random_walk():
-    """
-    Asserts that at the default settings the chance of a random action
-    anneals over at least the 37,000 presses a uniform random walk from the
-    bedroom can take to reach the starter, and that the warm-up ends before
-    that anneal does.
-    """
-    settings = RunSettings()
-    anneal   = settings.agent.exploration_fraction * settings.steps
-
-    assert settings.agent.warmup_steps < anneal and anneal >= 37_000
-
-
 @mark.parametrize(
     ("epsilon", "update"),
     [
@@ -838,6 +842,19 @@ def test_an_episode_reads_back_the_measures_of_the_agent_that_played_it(
     written = episode.model_copy(update={"epsilon": epsilon, "update": update})
 
     assert Episode.model_validate_json(written.model_dump_json()) == written
+
+
+def test_the_default_warmup_ends_inside_an_anneal_outlasting_a_random_walk():
+    """
+    Asserts that at the default settings the chance of a random action
+    anneals over at least the 37,000 presses a uniform random walk from the
+    bedroom can take to reach the starter, and that the warm-up ends before
+    that anneal does.
+    """
+    settings = RunSettings()
+    anneal   = settings.agent.exploration_fraction * settings.steps
+
+    assert settings.agent.warmup_steps < anneal and anneal >= 37_000
 
 
 def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
@@ -930,15 +947,6 @@ def test_the_settings_accept_terms_one_step_sums_to_exactly_one_at_the_goal(
     assert RunSettings(reward=reward).reward == reward
 
 
-def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():
-    """
-    Asserts that the settings refuse a demonstration beside the deep
-    Q-network, which starts every episode in the bedroom.
-    """
-    with raises(ValidationError, match="takes no demonstration"):
-        RunSettings(curriculum=CurriculumSettings(demonstration=Path("data/runs/a")))
-
-
 @mark.parametrize(
     ("fields", "message"),
     [
@@ -973,6 +981,15 @@ def test_the_settings_take_a_demonstration_for_pqn_and_ppo(algorithm: Algorithm)
     )
 
 
+def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():
+    """
+    Asserts that the settings refuse a demonstration beside the deep
+    Q-network, which starts every episode in the bedroom.
+    """
+    with raises(ValidationError, match="takes no demonstration"):
+        RunSettings(curriculum=CurriculumSettings(demonstration=Path("data/runs/a")))
+
+
 def test_the_settings_refuse_a_negative_seed():
     """
     Asserts that a negative seed is refused, since `SeedSequence` takes a
@@ -980,3 +997,37 @@ def test_the_settings_refuse_a_negative_seed():
     """
     with raises(ValidationError, match="greater than or equal to 0"):
         RunSettings(seed=-1)
+
+
+@mark.parametrize(
+    ("demonstration", "start"),
+    [
+        param(None,                Start.BEDROOM,    id="the-bedroom"),
+        param(Path("data/runs/x"), Start.CURRICULUM, id="the-curriculum")
+    ]
+)
+def test_a_listing_reads_the_settings_naming_its_run(
+    demonstration : Path | None,
+    run           : Run,
+    start         : Start
+):
+    """
+    Asserts that a run's listing holds its name, its agent, and its seed,
+    and starts in the bedroom or along the curriculum as its settings name
+    a demonstration.
+    """
+    listed = RunListing.of(
+        run.model_copy(
+            update = {
+                "settings": RunSettings(
+                    agent      = AgentSettings(algorithm=Algorithm.PPO),
+                    curriculum = CurriculumSettings(demonstration=demonstration),
+                    seed       = 4
+                )
+            }
+        )
+    )
+
+    assert (listed.name, listed.agent, listed.seed, listed.start) == (
+        run.name, Algorithm.PPO, 4, start
+    )
