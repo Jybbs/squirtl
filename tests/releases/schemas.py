@@ -33,7 +33,8 @@ from zipfile           import ZipFile
 
 from squirtl.agent.checkpoint import Weights
 from squirtl.agent.schemas    import Algorithm
-from squirtl.releases.schemas import GithubRelease, ReleaseManifest, ReleaseSettings, RunSelection, Selector
+from squirtl.docs.results     import ReleaseSettings
+from squirtl.releases.schemas import GithubRelease, ReleaseManifest, RunSelection, Selector
 from squirtl.runs.schemas     import Run, Start
 
 

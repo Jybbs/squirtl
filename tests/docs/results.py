@@ -12,6 +12,8 @@ Pins what `Results` reads from the run directories under
   or of the random baseline, which `Trained.read` refuses
 - The goal each run ended its episodes at, and runs ending at more than one,
   which `Results.read` refuses
+- The README's sentence on the runs, each agent's share from each start
+  with the agents sharing a phrase joined
 """
 
 from collections.abc   import Callable, Iterable, Mapping
@@ -339,3 +341,77 @@ def test_the_curriculum_compares_against_the_same_agents_runs_from_the_bedroom(
         (Algorithm.PQN, False, None),
         (Algorithm.PQN, True, approx(1.0))
     ]
+
+
+def test_the_summary_joins_the_agents_sharing_a_phrase(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that agents whose runs reach the goal alike from the same starts
+    share one clause, the verb agreeing with them.
+    """
+    for second, algorithm in enumerate((Algorithm.DQN, Algorithm.PPO), start=1):
+        recorded(
+            checkout = checkout,
+            rewards  = [0.75],
+            second   = second,
+            seed     = 1,
+            settings = RunSettings(agent=AgentSettings(algorithm=algorithm))
+        )
+
+    assert Results.read().summary == (
+        "compares each agent against random presses under the same 1 seed, "
+        "where DQN and PPO reach `EVENT_GOT_STARTER` in every evaluation episode "
+        "from the bedroom, and random presses in no evaluation episode."
+    )
+
+
+def test_the_summary_of_no_run_names_no_share(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that results holding no run spell the comparison alone.
+    """
+    checkout({})
+
+    assert Results.read().summary == (
+        "compares each agent against random presses under the same seeds."
+    )
+
+
+def test_the_summary_spells_each_agents_share_from_each_start(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that the sentence names the seeds and the goal, then each agent's
+    share from the bedroom before along the curriculum, the agents reaching
+    more first, and random presses' share last.
+    """
+    for second, (algorithm, curriculum, reward) in enumerate(
+        (
+            (Algorithm.DQN, CurriculumSettings(), 0.25),
+            (Algorithm.PPO, CurriculumSettings(), 0.75),
+            (Algorithm.PQN, CurriculumSettings(), 0.25),
+            (Algorithm.PQN, CurriculumSettings(demonstration=Path("walk.json")), 0.75)
+        )
+    ):
+        for seed in (1, 2):
+            recorded(
+                baseline = (0.75, 0.25),
+                checkout = checkout,
+                rewards  = [reward],
+                second   = 2 * second + seed,
+                seed     = seed,
+                settings = RunSettings(
+                    agent      = AgentSettings(algorithm=algorithm),
+                    curriculum = curriculum
+                )
+            )
+
+    assert Results.read().summary == (
+        "compares each agent against random presses under the same 2 seeds, "
+        "where PPO reaches `EVENT_GOT_STARTER` in every evaluation episode from "
+        "the bedroom, PQN in no evaluation episode from the bedroom and in every "
+        "evaluation episode along the curriculum, DQN in no evaluation episode "
+        "from the bedroom, and random presses in 50% [50, 50]."
+    )

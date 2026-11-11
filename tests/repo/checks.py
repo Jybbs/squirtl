@@ -666,6 +666,32 @@ def test_footnotes_reports_a_bibliography_that_fails_to_read_at_its_line(scan: S
     assert (str(finding.file), finding.line) == ("docs/references.bib", 2)
 
 
+def test_footnotes_reports_a_file_that_fails_to_decode_on_that_file(
+    fp       : FakeProcess,
+    scan     : Scan,
+    tmp_path : Path
+):
+    """
+    Pins that the footnotes check raises `Unreadable` on a Markdown file
+    that fails to decode as UTF-8 rather than on `docs/references.bib`.
+    """
+    (tmp_path / "bad.md").write_bytes(b"\xff")
+    fp.register(["git", "ls-files", fp.any()], occurrences=1, stdout="bad.md\0")
+
+    with raises(Unreadable) as raised:
+        scan(
+            Footnotes,
+            {
+                "docs/references.bib": "@misc{smith2020, author = {Smith, A.}, title = {T}, "
+                                       "year = {2020}, eprint = {1}}"
+            }
+        )
+
+    finding, = raised.value.args
+
+    assert finding.file == Path("bad.md")
+
+
 def test_footnotes_reports_each_fault_at_its_file_and_line(
     fp   : FakeProcess,
     scan : Scan
@@ -743,10 +769,20 @@ def test_footnotes_reports_each_fault_at_its_file_and_line(
             id = "a-subject-reached-through-another"
         ),
         param(
-            "docs/outputs.py",
-            "from squirtl.releases.schemas import ReleaseSettings\n",
+            "releases/schemas.py",
+            "from squirtl.docs.results import Results\n",
             [],
             id = "a-subject-imported-directly"
+        ),
+        param(
+            "docs/outputs.py",
+            "from squirtl.releases.schemas import ReleaseManifest\n",
+            [(
+                1,
+                "`src/squirtl/docs/outputs.py` imports `squirtl.releases.schemas`, "
+                "which sits outside the subjects beneath `docs`"
+            )],
+            id = "a-subject-importing-one-that-imports-it"
         ),
         param(
             "cli/write.py",
@@ -912,6 +948,46 @@ def test_rendered_reports_an_identity_that_fails_validation(
         match = "`src/squirtl/identity/identity.toml` fails validation"
     ):
         scan(Rendered, {})
+
+
+@mark.parametrize(
+    ("path", "text", "line", "message"),
+    [
+        param(
+            "docs/pages/page.md",
+            "x\n<!-- settings:reward -->\n",
+            2,
+            "holds an unpaired marker",
+            id = "an-unpaired-marker"
+        ),
+        param(
+            "docs/pages/commands/stop.md",
+            "x\n<!-- settings -->\n<!-- /settings -->\n<!-- help -->\n<!-- /help -->\n",
+            2,
+            "holds markers naming settings, help",
+            id = "a-command-page-out-of-order"
+        )
+    ]
+)
+def test_rendered_reports_a_page_failing_to_read_on_the_page(
+    line    : int,
+    message : str,
+    path    : str,
+    scan    : Scan,
+    text    : str
+):
+    """
+    Pins that the rendered check raises `Unreadable` on a page whose
+    markers fail to read, at the line naming the fault, rather than on the
+    identity's declaration.
+    """
+    with raises(Unreadable) as raised:
+        scan(Rendered, {path: text})
+
+    finding, = raised.value.args
+
+    assert (finding.file, finding.line) == (Path(path), line)
+    assert f"`{path}` {message}" in finding.message
 
 
 @mark.parametrize(

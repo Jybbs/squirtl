@@ -1,8 +1,8 @@
 import { defineComponent, reactive, ref } from 'vue'
 
-import * as terminal     from '../../../lib/commands/terminal.ts'
-import { useAutoplay }   from '../../../lib/widgets/autoplay.ts'
-import { DETAIL, LABEL } from '../kit/widget.ts'
+import * as terminal           from '../../../lib/commands/terminal.ts'
+import { useAutoplay }         from '../../../lib/widgets/autoplay.ts'
+import { DETAIL, LABEL, LIST } from '../kit/widget.ts'
 
 /**
  * The classes laying out each part of the window: the bar across its top and
@@ -36,7 +36,7 @@ const TICKS = Array.from({ length: terminal.RUN.steps / terminal.RUN.checkpoint 
  */
 function drawFiles(run: terminal.Training) {
   return (
-    <ol>
+    <ol class={LIST}>
       {run.files().map((file, n) => (
         <li class={[PARTS.row, !file.there && 'opacity-45']}>
           <span aria-hidden="true" class={PARTS.sigil}>{n === terminal.FILES.length - 1 ? '└──' : '├──'}</span>

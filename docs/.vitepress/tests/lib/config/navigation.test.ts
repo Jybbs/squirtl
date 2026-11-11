@@ -41,15 +41,6 @@ describe('buildSidebar', () => {
     })
   })
 
-  test('sets the markup a code span holds as text', async ({ checkout }) => {
-    const { root } = checkout({ 'docs/pages/methods/run.md': '# `squirtl <command>`\n' })
-
-    expect(await buildSidebar(path.join(root, 'docs', 'pages'), DECLARED)).toHaveProperty(
-      ['/methods/', 0, 'items'],
-      [{ link: '/methods/run', text: '<code>squirtl &lt;command&gt;</code>' }]
-    )
-  })
-
   test('releases the renderer, so the next caller builds its own', async ({ checkout, onTestFinished }) => {
     const { root } = checkout({ 'docs/pages/methods/agent.md': '# The Agent\n' })
     const before   = await createMarkdownRenderer(root)
@@ -59,11 +50,39 @@ describe('buildSidebar', () => {
 
     expect(await createMarkdownRenderer(root)).not.toBe(before)
   })
+})
 
-  test('fails on a page opening on no level-1 heading', async ({ checkout }) => {
-    const { root } = checkout({ 'docs/pages/methods/agent.md': '## Only a Second Level\n' })
+describe('buildSidebar’s labels', () => {
+  test('sets the markup a code span holds as text', async ({ checkout }) => {
+    const { root } = checkout({ 'docs/pages/methods/run.md': '# `squirtl <command>`\n' })
+
+    expect(await buildSidebar(path.join(root, 'docs', 'pages'), DECLARED)).toHaveProperty(
+      ['/methods/', 0, 'items'],
+      [{ link: '/methods/run', text: '<code>squirtl &lt;command&gt;</code>' }]
+    )
+  })
+
+  test('labels an entry with its first heading outside the frontmatter and fences', async ({ checkout }) => {
+    const { root } = checkout({
+      'docs/pages/methods/agent.md':
+        '---\n# A note\ntitle: x\n---\n\n```bash\n# A comment\n```\n\n# The Agent\n'
+    })
+
+    expect(await buildSidebar(path.join(root, 'docs', 'pages'), DECLARED)).toHaveProperty(
+      ['/methods/', 0, 'items'],
+      [{ link: '/methods/agent', text: 'The Agent' }]
+    )
+  })
+
+  test.for([
+    ['a second level alone', '## Only a Second Level\n'],
+    ['a comment in a fence alone', '```bash\n# A comment\n```\n'],
+    ['a comment in the frontmatter alone', '---\n# A note\n---\n\nText.\n']
+  ] as const)('fails naming its path on a page holding %s', async ([, source], { checkout }) => {
+    const { root } = checkout({ 'docs/pages/methods/agent.md': source })
+    const page     = path.join(root, 'docs', 'pages', 'methods', 'agent.md')
 
     await expect(buildSidebar(path.join(root, 'docs', 'pages'), DECLARED))
-      .rejects.toThrow('opens on no level-1 heading')
+      .rejects.toThrow(`${page} holds no level-1 heading`)
   })
 })

@@ -11,15 +11,27 @@ import type { Group } from './results.ts'
 type Api = toggleGroup.Api<PropTypes>
 
 /**
- * The groups pressed before a reader presses any, PPO's runs from the bedroom
- * and along the curriculum, whose curves part furthest.
+ * Reads how far the curves of `group`'s agent part, as how far the probability
+ * that a run along the curriculum beats a run from the bedroom stands from even
+ * odds, zero for a group from the bedroom.
  */
-const PRESSED = ['ppo-bedroom', 'ppo-curriculum']
+const parting = (group: Group): number => Math.abs((group.comparison.bedroom?.value ?? 0.5) - 0.5)
+
+/**
+ * Picks the groups pressed before a reader presses any, the runs from the
+ * bedroom and along the curriculum of the agent whose curves part furthest,
+ * the first group's agent where none parts.
+ */
+function pressedOf(groups: readonly Group[]): string[] {
+  const [furthest] = groups.toSorted((left, right) => parting(right) - parting(left))
+  return groups.filter(group => group.agent === furthest!.agent).map(group => group.id)
+}
 
 /**
  * Makes the groups a group of toggles on Zag.js's toggle group machine, any
- * number pressed at once, which holds their pressed states, their ARIA
- * attributes, and the keys moving focus among them with one tab stop.
+ * number pressed at once and those `pressedOf` picks pressed first, which holds
+ * their pressed states, their ARIA attributes, and the keys moving focus among
+ * them with one tab stop.
  *
  * Returns:
  *   The keys of the groups pressed, the props of the group of toggles, and the
@@ -31,9 +43,7 @@ export function useToggles(groups: readonly Group[]): {
   root    : ComputedRef<ReturnType<Api['getRootProps']>>
 } {
   const id      = useId()
-  const keys    = groups.map(group => group.id)
-  const first   = PRESSED.filter(key => keys.includes(key))
-  const pressed = ref<ReadonlySet<string>>(new Set(first.length > 0 ? first : keys.slice(0, 1)))
+  const pressed = ref<ReadonlySet<string>>(new Set(pressedOf(groups)))
   const service = useMachine(toggleGroup.machine, computed(() => ({
     id            : id,
     multiple      : true,

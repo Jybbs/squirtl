@@ -20,9 +20,10 @@ from torch           import tensor
 
 from squirtl.agent.checkpoint    import ReplayCheckpoint
 from squirtl.agent.schemas       import AgentSettings, Algorithm
+from squirtl.docs.results        import ReleaseSettings
 from squirtl.emulator.schemas    import EmulatorSettings
 from squirtl.environment.schemas import Recording
-from squirtl.releases.schemas    import ReleaseManifest, ReleaseSettings
+from squirtl.releases.schemas    import ReleaseManifest
 from squirtl.reward.schemas      import Term
 from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunSettings
 

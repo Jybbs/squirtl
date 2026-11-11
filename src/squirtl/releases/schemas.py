@@ -8,28 +8,29 @@ Defines the records a release of SquiRtL carries its trained runs through:
   file attached to it, from which `squirtl fetch` unpacks the runs
 - `Selector` and `RunSelection`, the runs `squirtl watch` and `squirtl
   evaluate` read from a run directory or from a release
+
+It also defines `requested`, which builds a request GitHub's REST API
+accepts.
 """
 
-from collections.abc    import Container
-from functools          import cached_property
-from hashlib            import file_digest
-from http               import HTTPStatus
-from importlib.metadata import metadata
-from pathlib            import Path
-from pydantic           import AwareDatetime, Field, NonNegativeInt, model_validator
-from rich.console       import Console
-from rich.progress      import wrap_file
-from shutil             import copyfileobj
-from tarfile            import TarError, TarInfo, open as open_tar
-from tempfile           import TemporaryDirectory
-from typing             import ClassVar, Self
-from urllib.error       import HTTPError
-from urllib.parse       import urlparse
-from urllib.request     import Request, urlopen
+from functools      import cached_property
+from hashlib        import file_digest
+from http           import HTTPStatus
+from pathlib        import Path
+from pydantic       import AwareDatetime, Field, NonNegativeInt, model_validator
+from rich.console   import Console
+from rich.progress  import wrap_file
+from shutil         import copyfileobj
+from tarfile        import TarError, TarInfo, open as open_tar
+from tempfile       import TemporaryDirectory
+from typing         import ClassVar, Self
+from urllib.error   import HTTPError
+from urllib.parse   import urlparse
+from urllib.request import Request, urlopen
 
 from squirtl.agent.checkpoint import Weights
 from squirtl.agent.schemas    import Algorithm
-from squirtl.docs.results     import Results
+from squirtl.docs.results     import ReleaseSettings, Results, addresses
 from squirtl.emulator.schemas import EmulatorSettings, Record
 from squirtl.runs.schemas     import Run, RunListing, Start
 
@@ -176,30 +177,6 @@ class PackedRun(RunListing):
 
         with tar.open("rb") as file:
             return cls.of(run, sha256=file_digest(file, "sha256").hexdigest())
-
-
-class ReleaseSettings(Record):
-    """
-    The settings `squirtl pack` writes a release's runs under.
-    """
-
-    recommended_run: str = "20261111T020527.724383Z"
-    """
-    The name of the run a release plays where no selection names one.
-    """
-
-    def check_recommends(self, names: Container[str]):
-        """
-        Refuses a `recommended_run` naming none of `names`, the names of the
-        trained runs.
-
-        Raises:
-            ValueError: Where none bears that name.
-        """
-        if self.recommended_run not in names:
-            raise ValueError(
-                f"The recommended run {self.recommended_run} is no trained run"
-            )
 
 
 class ReleaseManifest(ReleaseSettings):
@@ -435,10 +412,7 @@ class GithubRelease(Record, extra="ignore"):
             HTTPError  : Where GitHub answers with an error other than 404.
             ValueError : Where GitHub publishes no such release.
         """
-        addresses = dict(
-            entry.split(", ") for entry in metadata("squirtl").get_all("Project-URL")
-        )
-        repository = urlparse(addresses["Repository"]).path
+        repository = urlparse(addresses()["Repository"]).path
         release    = f"tags/{tag}" if tag else "latest"
 
         try:
