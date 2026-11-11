@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# MISE description = "Create or refresh the draft release for `[project].version`"
+# MISE description = "Create or refresh the draft release and check the runs it lists"
 """
 Keeps the draft release for the version `pyproject.toml` carries current,
 as the `gha:cut` task the `🕹️ Draft` job of `🕹️ Draft` runs on the runner's
@@ -7,7 +7,9 @@ own interpreter and the `gh` it carries. `Draft` reads every release the
 repository holds as a `Release`, creates a draft where none carries the
 version, refreshes the generated notes of the draft that does, and fails
 where a published release carries it. The task then writes the path it took,
-the release's address, and the version to the step's outputs.
+the release's address, and the version to the step's outputs, and fails
+where the runs the draft's manifest lists differ from the runs `docs/runs/`
+commits.
 """
 
 from contextlib  import nullcontext
@@ -18,7 +20,7 @@ from os          import environ
 from pathlib     import Path
 from subprocess  import run
 from tomllib     import load
-from typing      import Self
+from typing      import ClassVar, Self
 
 
 def github(*arguments: str, body: str | None = None) -> str:
@@ -47,11 +49,38 @@ class Release:
     the fields the REST API lists for it under the names GitHub gives them.
     """
 
+    manifest: ClassVar[str] = "manifest.json"
+
+    assets           : list[dict]
     body             : str | None
     draft            : bool
     id               : int
     tag_name         : str
     target_commitish : str
+
+    @property
+    def attached(self) -> set[str]:
+        """
+        Reads the name of each trained run the release's manifest lists,
+        downloading the asset `manifest` names by its id, or none where the
+        release attaches no such asset.
+        """
+        asset = next(
+            (asset for asset in self.assets if asset["name"] == self.manifest),
+            None
+        )
+
+        if asset is None:
+            return set()
+
+        listing = github(
+            "api",
+            f"repos/{{owner}}/{{repo}}/releases/assets/{asset['id']}",
+            "--header",
+            "Accept: application/octet-stream"
+        )
+
+        return {run["name"] for run in loads(listing)["runs"]}
 
     @property
     def context(self) -> str:
@@ -103,8 +132,11 @@ class Draft:
     release the repository holds.
     """
 
-    releases : list[Release]
-    version  : str
+    folder: ClassVar[Path] = Path("docs/runs")
+
+    committed : set[str]
+    releases  : list[Release]
+    version   : str
 
     @property
     def release(self) -> Release | None:
@@ -145,9 +177,10 @@ class Draft:
     @classmethod
     def from_github(cls) -> Self:
         """
-        Reads the version from `pyproject.toml` and every release the
-        repository holds through one listing of every page, asking for each
-        field `Release` declares.
+        Reads the version from `pyproject.toml`, the name of each run
+        directory `folder` holds, and every release the repository holds
+        through one listing of every page, asking for each field `Release`
+        declares.
         """
         with Path("pyproject.toml").open("rb") as manifest:
             version = load(manifest)["project"]["version"]
@@ -161,8 +194,9 @@ class Draft:
         )
 
         return cls(
-            releases = [Release(**loads(line)) for line in listing.splitlines()],
-            version  = version
+            committed = {directory.name for directory in cls.folder.iterdir()},
+            releases  = [Release(**loads(line)) for line in listing.splitlines()],
+            version   = version
         )
 
     def maintain(self):
@@ -170,14 +204,17 @@ class Draft:
         Creates the draft where no release carries the version and refreshes
         the draft that does, then writes the path taken, the release's
         address, and the version to the file `GITHUB_OUTPUT` names, or
-        prints them where that variable is unset. Where a published release
-        carries the version, it stops the task with an error annotation
-        naming `mise bump`.
+        prints them where that variable is unset. It then stops the task
+        with one error annotation naming each run `committed` holds that the
+        draft's manifest leaves out and another naming each run the manifest
+        lists that `committed` leaves out, a created draft attaching no
+        manifest. Where a published release carries the version, it stops
+        the task first, with an error annotation naming `mise bump`.
         """
         match self.release:
-            case None: state, url = "created", self.create()
+            case None: state, url, attached = "created", self.create(), set()
             case Release(draft=True) as release:
-                state, url = "refreshed", release.refresh()
+                state, url, attached = "refreshed", release.refresh(), release.attached
             case Release():
                 raise SystemExit(
                     f"::error::{self.version} is already published, "
@@ -194,6 +231,25 @@ class Draft:
                 file = outputs,
                 sep  = "\n"
             )
+
+        manifest       = f"manifest of the draft release for {self.version}"
+        missing, stray = (
+            ", ".join(sorted(runs))
+            for runs in (self.committed - attached, attached - self.committed)
+        )
+
+        if annotations := [
+            f"::error::{sentence}, so run `mise attach`"
+            for sentence in (
+                missing and (
+                    f"docs/runs/ commits {missing}, which the {manifest} "
+                    "leaves out"
+                ),
+                stray and f"The {manifest} lists {stray}, which docs/runs/ leaves out"
+            )
+            if sentence
+        ]:
+            raise SystemExit("\n".join(annotations))
 
 
 if __name__ == "__main__":

@@ -32,7 +32,7 @@ jobs:
         uses : actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with : { persist-credentials: false }
 
-      - name : Create or refresh the draft release for the version
+      - name : Create or refresh the draft release and check its runs
         env  : { GH_TOKEN: "${{ github.token }}" }
         id   : cut
         run  : .mise/tasks/gha/cut.py
