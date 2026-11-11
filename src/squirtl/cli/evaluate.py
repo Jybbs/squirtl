@@ -56,12 +56,13 @@ def evaluate(
     any, on each run's mean return.
 
     Both directories and `--release`, or neither, a directory holding no
-    run, a release attaching no manifest, or a selection matching none of
-    its runs exits 1 before any evaluation. A run holding no checkpoint,
-    holding a damaged one, reading a cartridge the emulator refuses,
-    or recording another digest than the state its intro leaves on the
-    cartridge exits 1, keeping the evaluations already written for the runs
-    evaluated before it.
+    run, a release GitHub does not publish or one attaching no manifest, a
+    selection matching none of its runs, or a download whose digest differs
+    or whose tar does not unpack exits 1 before any evaluation. A run
+    holding no checkpoint, holding a damaged one, reading a cartridge the
+    emulator refuses, or recording another digest than the state its intro
+    leaves on the cartridge exits 1, keeping the evaluations already written
+    for the runs evaluated before it.
     """
     listen()
 

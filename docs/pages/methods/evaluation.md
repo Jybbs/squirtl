@@ -12,7 +12,7 @@ Each evaluation averages over each player's episodes the share reaching the star
 
 ## The Released Runs
 
-Each release attaches every run the [Results](../results/index.md) page measures, each holding its settings, its recorded episodes, and the weights of its last checkpoint, with no optimizer state and no replay memory. `squirtl fetch` unpacks a release's runs under `data/runs/`, and `squirtl evaluate --release <tag>` measures them again on a cartridge at `data/rom.gb`, refusing one whose intro leaves the console in another state than the run recorded. A fetched run holds no evaluation, so every episode plays afresh.
+Each release attaches every run the [Results](../results/index.md) page measures, each holding its settings, its recorded episodes, and the weights of its last checkpoint, with no optimizer state and no replay memory. `squirtl fetch` unpacks a release's runs under `data/runs/`, and `squirtl evaluate --release <tag>` measures again the runs `--agent`, `--start`, and `--seed` select, or every seed of the recommended run's agent and start without them, on a cartridge at `data/rom.gb`, refusing one whose intro leaves the console in another state than the run recorded. A fetched run holds no evaluation, so every episode plays afresh.
 
 ## Settings
 

@@ -69,6 +69,7 @@ def test_a_fetch_unpacks_the_run_as_it_was_packed(
         "checkpoint.npz", "episodes.jsonl", "run.json"
     ]
     assert run.episodes.read_bytes() == committed[0].episodes.read_bytes()
+    assert set(published.agents) == {"squirtl"}
     assert [path.name for path in (tmp_path / "runs").iterdir()] == [run.name]
 
     published.served.clear()
@@ -166,6 +167,17 @@ def test_a_release_github_does_not_publish_is_refused(
         GithubRelease.read(tag)
 
 
+def test_a_release_with_no_selector_matches_every_packed_run(
+    packed    : ReleaseManifest,
+    published : GitHub
+):
+    """
+    Asserts that a release matches every run a tar holds, the trained runs
+    and then the demonstration, where no selector names any.
+    """
+    assert GithubRelease.read().matched(None) == packed.packed
+
+
 def test_a_second_pack_writes_the_same_bytes(packed: ReleaseManifest):
     """
     Asserts that packing the same runs again writes each tar and the
@@ -184,44 +196,6 @@ def test_a_selection_matching_no_run_is_refused_by_the_tag(published: GitHub):
     """
     with raises(ValueError, match="No run of the release 0.2.0 matches"):
         RunSelection(release="0.2.0", selector=Selector(seed=5)).every()
-
-
-def test_a_tar_holds_the_record_the_episodes_and_the_weights_alone(
-    committed : list[Run],
-    packed    : ReleaseManifest
-):
-    """
-    Asserts that the tar of a run following a demonstration holds its
-    folder's record, naming the default cartridge and the demonstration
-    under `data/runs/`, its episodes as written, and a checkpoint holding
-    `agent.pt` alone, whose weights read back as the run's.
-    """
-    run = committed[1]
-
-    with open_tar(ReleaseManifest.folder / packed.runs[1].asset, "r:zst") as archive:
-        members = {
-            Path(name).name: archive.extractfile(name).read()
-            for name in archive.getnames()
-            if name.startswith(f"{run.name}/")
-        }
-
-    record = loads(members["run.json"])["settings"]
-    (ReleaseManifest.folder / "checkpoint.npz").write_bytes(members["checkpoint.npz"])
-
-    assert sorted(members) == ["checkpoint.npz", "episodes.jsonl", "run.json"]
-    assert (record["emulator"]["cartridge"], record["curriculum"]["demonstration"]) == (
-        "data/rom.gb",
-        f"data/runs/{committed[3].name}"
-    )
-    assert members["episodes.jsonl"] == run.episodes.read_bytes()
-    assert ZipFile(ReleaseManifest.folder / "checkpoint.npz").namelist() == ["agent.pt"]
-    assert [
-        (weights.online["weight"].tolist(), weights.step)
-        for weights in map(
-            Weights.from_path,
-            (ReleaseManifest.folder / "checkpoint.npz", run.checkpoint)
-        )
-    ] == [([1.0, 2.0], 8)] * 2
 
 
 @mark.parametrize(
@@ -263,39 +237,47 @@ def test_a_tar_differing_from_either_digest_is_refused_leaving_no_run(
     assert list((tmp_path / "runs").iterdir()) == []
 
 
-def test_a_tar_reaching_outside_its_folder_is_refused(
-    published : GitHub,
-    tmp_path  : Path
+def test_a_tar_holds_the_record_the_episodes_and_the_weights_alone(
+    committed : list[Run],
+    packed    : ReleaseManifest
 ):
     """
-    Asserts that a tar holding a member whose path leaves the folder
-    it unpacks into, which `tarfile`'s `data` filter refuses, raises
-    `ValueError`, leaving no directory behind.
+    Asserts that the tar of a run following a demonstration holds its
+    folder's record, naming the default cartridge and the demonstration
+    under `data/runs/`, its episodes as written, and a checkpoint holding
+    `agent.pt` alone, whose weights read back as the run's.
     """
-    release = GithubRelease.read()
-    listing = release.manifest.recommended
-    escape  = tmp_path / "escape.tar.zst"
+    run = committed[1]
 
-    with open_tar(escape, "w:zst") as archive:
-        archive.add(Run.folder / listing.name / "run.json", "../outside.json")
-
-    asset = release.attached(listing.asset)
-    published.served[asset.url] = escape.read_bytes()
-    digest  = sha256(published.served[asset.url]).hexdigest()
-    escaped = release.model_copy(
-        update = {
-            "assets": tuple(
-                attached.model_copy(update={"digest": f"sha256:{digest}"})
-                if attached is asset else attached
-                for attached in release.assets
-            )
+    with open_tar(ReleaseManifest.folder / packed.runs[1].asset, "r:zst") as archive:
+        members = {
+            Path(name).name: archive.extractfile(name).read()
+            for name in archive.getnames()
+            if name.startswith(f"{run.name}/")
         }
+        headers = {
+            (entry.gid, entry.gname, entry.mode, entry.mtime, entry.uid, entry.uname)
+            for entry in archive.getmembers()
+        }
+
+    record = loads(members["run.json"])["settings"]
+    (ReleaseManifest.folder / "checkpoint.npz").write_bytes(members["checkpoint.npz"])
+
+    assert sorted(members) == ["checkpoint.npz", "episodes.jsonl", "run.json"]
+    assert headers == {(0, "", 0o644, 0, 0, "")}
+    assert (record["emulator"]["cartridge"], record["curriculum"]["demonstration"]) == (
+        "data/rom.gb",
+        f"data/runs/{committed[3].name}"
     )
-
-    with raises(ValueError, match="does not unpack"):
-        escaped.fetch(listing.model_copy(update={"sha256": digest}), tmp_path / "runs")
-
-    assert list((tmp_path / "runs").iterdir()) == []
+    assert members["episodes.jsonl"] == run.episodes.read_bytes()
+    assert ZipFile(ReleaseManifest.folder / "checkpoint.npz").namelist() == ["agent.pt"]
+    assert [
+        (weights.online["weight"].tolist(), weights.step)
+        for weights in map(
+            Weights.from_path,
+            (ReleaseManifest.folder / "checkpoint.npz", run.checkpoint)
+        )
+    ] == [([1.0, 2.0], 8)] * 2
 
 
 @mark.parametrize(
@@ -344,7 +326,7 @@ def test_a_selection_names_a_directory_or_a_release_alone(fields: dict[str, obje
 @mark.parametrize(
     ("selector", "every", "one"),
     [
-        param(None,                  [0, 3],    0,    id="the-default"),
+        param(None,                  [0, 3],    3,    id="the-default"),
         param(Selector(seed=2),      [2],       2,    id="one-match"),
         param(Selector(agent="ppo"), [0, 1, 3], None, id="three-matches")
     ]
@@ -366,7 +348,7 @@ def test_a_release_selection_reads_the_runs_each_command_plays(
     """
     trained = [*committed[:3], recorded(4, seed=3)]
     github.publish(
-        ReleaseManifest.pack(ReleaseSettings(recommended_run=trained[0].name))
+        ReleaseManifest.pack(ReleaseSettings(recommended_run=trained[3].name))
     )
     Run.folder.rename("data/packed")
     selection = RunSelection(release="0.2.0", selector=selector)
@@ -383,6 +365,62 @@ def test_a_release_selection_reads_the_runs_each_command_plays(
             selection.one()
     else:
         assert selection.one().name == trained[one].name
+
+
+def test_a_tar_reaching_outside_its_folder_is_refused(
+    published : GitHub,
+    tmp_path  : Path
+):
+    """
+    Asserts that a tar holding a member whose path leaves the folder
+    it unpacks into, which `tarfile`'s `data` filter refuses, raises
+    `ValueError`, leaving no directory behind.
+    """
+    release = GithubRelease.read()
+    listing = release.manifest.recommended
+    escape  = tmp_path / "escape.tar.zst"
+
+    with open_tar(escape, "w:zst") as archive:
+        archive.add(Run.folder / listing.name / "run.json", "../outside.json")
+
+    asset = release.attached(listing.asset)
+    published.served[asset.url] = escape.read_bytes()
+    digest  = sha256(published.served[asset.url]).hexdigest()
+    escaped = release.model_copy(
+        update = {
+            "assets": tuple(
+                attached.model_copy(update={"digest": f"sha256:{digest}"})
+                if attached is asset else attached
+                for attached in release.assets
+            )
+        }
+    )
+
+    with raises(ValueError, match="does not unpack"):
+        escaped.fetch(listing.model_copy(update={"sha256": digest}), tmp_path / "runs")
+
+    assert list((tmp_path / "runs").iterdir()) == []
+
+
+def test_a_tar_whose_asset_carries_no_digest_is_checked_against_the_manifest(
+    published : GitHub,
+    tmp_path  : Path
+):
+    """
+    Asserts that a tar whose asset carries no digest, as GitHub leaves an
+    asset it computed none for, unpacks once it matches the manifest's.
+    """
+    release = GithubRelease.read()
+    listing = release.manifest.recommended
+    bare    = release.model_copy(
+        update = {
+            "assets": tuple(
+                asset.model_copy(update={"digest": None}) for asset in release.assets
+            )
+        }
+    )
+
+    assert bare.fetch(listing, tmp_path / "runs").name == listing.name
 
 
 def test_another_error_from_github_is_raised_as_it_came(monkeypatch: MonkeyPatch):

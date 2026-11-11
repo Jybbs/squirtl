@@ -39,6 +39,7 @@ def test_a_fetch_unpacks_each_run_it_selects_and_logs_it(
     invocation = invoke(["fetch", *flags])
 
     assert (invocation.code, invocation.messages[-1]) == (0, f"Fetched {released}")
+    assert f"{released.name}.tar.zst" in invocation.log
     assert Run.read(released).name == released.name
 
     github.served = {

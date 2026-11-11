@@ -395,14 +395,17 @@ class GithubRelease(Record, extra="ignore"):
 
         return Run.read(directory)
 
-    def matched(self, selector: Selector) -> tuple[PackedRun, ...]:
+    def matched(self, selector: Selector | None) -> tuple[PackedRun, ...]:
         """
         Lists the trained runs the release's manifest lists that `selector`
-        matches.
+        matches, or every run a tar holds where `selector` is `None`.
 
         Raises:
             ValueError: Where none does, naming the release's tag.
         """
+        if selector is None:
+            return self.manifest.packed
+
         if matches := tuple(filter(selector.matches, self.manifest.runs)):
             return matches
 

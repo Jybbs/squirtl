@@ -29,10 +29,6 @@ def fetch(*, release: ReleaseTag = None, selector: Selection = None):
 
     with refusing(OSError, ValueError):
         published = GithubRelease.read(release)
-        listings  = (
-            published.matched(selector) if selector is not None else
-            published.manifest.packed
-        )
 
-        for listing in listings:
+        for listing in published.matched(selector):
             logger.info("Fetched {}", published.fetch(listing).directory)

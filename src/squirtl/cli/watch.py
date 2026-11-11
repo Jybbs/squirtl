@@ -42,7 +42,9 @@ def watch(
     Each of these exits 1 before the window opens:
 
     - Both a directory and `--release`, or neither
-    - A directory holding no run, or a release attaching no manifest
+    - A directory holding no run, a release GitHub does not publish, or one
+      attaching no manifest
+    - A download whose digest differs or whose tar does not unpack
     - A selection matching no run of the release, or more than one, each
       of which it names
     - An episode the run never recorded, or a cartridge the emulator refuses

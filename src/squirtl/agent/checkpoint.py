@@ -19,7 +19,7 @@ from pydantic         import InstanceOf, ValidatorFunctionWrapHandler, WrapValid
 from torch            import Tensor, load, save
 from torch.serialization import safe_globals
 from typing              import Annotated, Self
-from zipfile             import BadZipFile, ZIP_ZSTANDARD, ZipFile, ZipInfo
+from zipfile             import BadZipFile, ZIP_ZSTANDARD, ZipFile
 
 from squirtl.agent.schemas    import flush
 from squirtl.emulator.schemas import Record
@@ -27,18 +27,6 @@ from squirtl.emulator.schemas import Record
 type StateDict = Annotated[
     dict[str, InstanceOf[Tensor]], WrapValidator(validate_in_place)
 ]
-
-
-def member(name: str) -> ZipInfo:
-    """
-    Names a member of an archive `zipfile` compresses with zstd, dated
-    1980-01-01, the earliest date a zip header holds and `ZipInfo`'s
-    default, in place of the time it is written.
-    """
-    entry               = ZipInfo(name)
-    entry.compress_type = ZIP_ZSTANDARD
-
-    return entry
 
 
 def validate_in_place(  # prose: ignore[unsorted-positionals]
@@ -131,8 +119,8 @@ class Weights(Record, extra="ignore"):
         Writes the checkpoint to `path` as an `.npz` whose members `zipfile`
         compresses with zstd, an `agent.pt` member that `torch.save` writes
         from `contents` beside an `.npy` member for each of `arrays`, each
-        member dated as `member` dates it, so the same fields always write
-        the same bytes.
+        dated 1980-01-01 as `ZipFile.open` dates a member it writes, so the
+        same fields always write the same bytes.
 
         The archive is written to the `.partial` file beside `path` and
         flushed through the drive's own cache, then takes the name `path`,
@@ -145,13 +133,13 @@ class Weights(Record, extra="ignore"):
         try:
             with partial.open("wb") as file:
                 with ZipFile(file, "w", ZIP_ZSTANDARD) as archive:
-                    with archive.open(member("agent.pt"), "w") as written:
+                    with archive.open("agent.pt", "w") as written:
                         save(self.contents, written)
 
                     for name, array in self.arrays.items():
                         # ZIP64 lets the frames of a large replay memory pass 2 GiB.
                         with archive.open(
-                            member(f"{name}.npy"),
+                            f"{name}.npy",
                             "w",
                             force_zip64 = True
                         ) as written:
