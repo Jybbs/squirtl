@@ -60,6 +60,10 @@ def test_writing_docs_over_an_unpaired_marker_exits_1_and_writes_nothing_else(
             {"a.md": "One.[^nobody1999]\n", "docs/references.bib": ENTRY},
             id = "unknown-key"
         ),
+        param(
+            {"a.md": "One.[^smith2020]\n\n```\nx\n", "docs/references.bib": ENTRY},
+            id = "open-fence"
+        ),
         param({"a.md": "One.\n"}, id="missing-bibliography"),
         param(
             {
@@ -77,9 +81,9 @@ def test_writing_docs_it_cannot_write_exits_1_and_writes_nothing(
     invoke   : Invoker
 ):
     """
-    Asserts that an unknown key, a missing `docs/references.bib`, and an
-    entry failing validation each exit 1 and leave the Markdown file and the
-    inventory's files unwritten.
+    Asserts that an unknown key, a file ending inside an open code fence, a
+    missing `docs/references.bib`, and an entry failing validation each exit
+    1 and leave the Markdown file and the inventory's files unwritten.
     """
     checkout(files)
     run(["git", "add", "a.md"], check=True, cwd=clone)

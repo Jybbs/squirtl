@@ -16,6 +16,7 @@ from bibtexparser.middlewares import (
 from bibtexparser.model       import Block, Entry
 from collections.abc          import Iterator
 from markdown_it              import MarkdownIt
+from markdown_it.token        import Token
 from mdit_py_plugins.footnote import footnote_plugin
 from operator                 import attrgetter
 from pathlib import Path
@@ -454,13 +455,9 @@ class Manuscript(Record):
         Writes the text without any definition labeled by a key or the
         newlines ending it.
         """
-        written = {line for definition in self.definitions for line in definition.lines}
+        lines = self.text.split("\n")
 
-        return "\n".join(
-            line
-            for number, line in enumerate(self.text.split("\n"), start=1)
-            if number not in written
-        ).rstrip("\n")
+        return "\n".join(lines[number - 1] for number in self.outside).rstrip("\n")
 
     @property
     def defined(self) -> set[str]:
@@ -481,6 +478,64 @@ class Manuscript(Record):
             firsts.setdefault(marker.key, marker)
 
         return firsts
+
+    @property
+    def footnoted(self) -> bool:
+        """
+        Tells whether the file holds a marker or a definition labeled by
+        a key.
+        """
+        return bool(self.markers or self.definitions)
+
+    @property
+    def outside(self) -> tuple[int, ...]:
+        """
+        Numbers each line outside a definition labeled by a key, counting
+        from 1.
+        """
+        written = {line for definition in self.definitions for line in definition.lines}
+
+        return tuple(
+            number
+            for number in range(1, self.text.count("\n") + 2)
+            if number not in written
+        )
+
+    @property
+    def start(self) -> int:
+        """
+        Counts the line the first definition opens on once a write closes
+        the file on them, counting from 1.
+        """
+        return self.body.count("\n") + 3
+
+    @property
+    def unclosed(self) -> int | None:
+        """
+        Finds the line opening the block that the text outside each
+        definition ends inside, such as a code fence or an HTML comment left
+        open, which would hold a definition written after it.
+
+        Returns:
+            The line, counting from 1, or `None` where the text ends outside
+            every block or the file cites no source, leaving nothing for a
+            write to append.
+        """
+        if not self.markers:
+            return None
+
+        start = self.start
+        block = next(
+            token
+            for token in self.parse(f"{self.body}\n\n[^end]: .\n")
+            if token.level == 0 and token.map and token.map[0] < start <= token.map[1]
+        )
+
+        return (
+            None
+            if block.type == "footnote_reference_open"
+            else self.outside[block.map[0]]
+        )
 
     def citing(self, bibliography: Bibliography) -> Iterator[Fault]:
         """
@@ -505,7 +560,7 @@ class Manuscript(Record):
         firsts = self.firsts
         lines  = self.text.split("\n")
         placed = [key for key in firsts if key in self.defined]
-        start  = self.body.count("\n") + 3
+        start  = self.start
 
         for definition in self.definitions:
             key = definition.key
@@ -548,16 +603,27 @@ class Manuscript(Record):
         - A key cited with no definition, at its first marker's line
         - A definition no marker cites, one differing from what its entry
           writes, or one standing anywhere but its place at the end of the file
-        - A file holding footnotes labeled by a key that ends on anything but
+        - A file holding footnotes labeled by a key that ends inside an open
+          block, at the line the block opens on, or that ends on anything but
           one newline
         """
         yield from self.citing(bibliography)
         yield from self.defining(bibliography)
 
-        if (
-            (self.markers or self.definitions)
-            and self.text != self.text.rstrip("\n") + "\n"
-        ):
+        if not self.footnoted:
+            return
+
+        if line := self.unclosed:
+            yield Fault(
+                line    = line,
+                message = (
+                    "The file ends inside the block opening here, so each definition "
+                    "`mise write` appends would fall inside the block, and the write "
+                    "refuses the file"
+                )
+            )
+
+        if self.text != self.text.rstrip("\n") + "\n":
             yield Fault(
                 line    = self.text.count("\n") + 1,
                 message = "The file ends on something other than one newline"
@@ -571,13 +637,26 @@ class Manuscript(Record):
         """
         return fullmatch(r"[a-z]+\d{4}[a-z]?", label) is not None
 
+    @staticmethod
+    def parse(text: str) -> list[Token]:
+        """
+        Parses `text` as CommonMark under the footnote plugin, a marker with
+        no definition still parsing as a marker and each definition holding
+        its place in the token stream.
+        """
+        return MarkdownIt("commonmark").use(
+            footnote_plugin,
+            always_match_refs = True,
+            inline            = False,
+            move_to_end       = False
+        ).parse(text)
+
     @classmethod
     def read(cls, path: Path) -> Self:
         """
-        Reads `path` through `markdown-it-py` and the footnote plugin,
-        under which a marker with no definition still reads as a marker and
-        a marker inside code reads as code, leaving out a marker inside a
-        definition labeled by a key, which a write replaces.
+        Reads `path` through `parse`, under which a marker inside code reads
+        as code, leaving out a marker inside a definition labeled by a key,
+        which a write replaces.
 
         Raises:
             SyntaxError: Where the file does not decode as UTF-8, naming it.
@@ -590,12 +669,7 @@ class Manuscript(Record):
                 (str(path), None, None, None)
             ) from error
 
-        tokens = MarkdownIt("commonmark").use(
-            footnote_plugin,
-            always_match_refs = True,
-            inline            = False,
-            move_to_end       = False
-        ).parse(text)
+        tokens      = cls.parse(text)
         definitions = tuple(
             Definition(
                 end  = token.map[1] + 1,
@@ -636,15 +710,25 @@ class Manuscript(Record):
         with no footnote labeled by a key as it stands.
 
         Raises:
-            LookupError: Where a marker names no source, naming the file and
-                         the line.
+            LookupError : Where a marker names no source, naming the file
+                          and the line.
+            SyntaxError : Where the file ends inside an open block, which
+                          would hold each definition the write appends,
+                          naming the file and the line the block opens on.
         """
-        if not self.markers and not self.definitions:
+        if not self.footnoted:
             return self.text
 
         for key, marker in self.firsts.items():
             if key not in bibliography.sources:
                 raise LookupError(f"{self.path}:{marker.line}: {marker.unknown}")
+
+        if line := self.unclosed:
+            raise SyntaxError(
+                "The file ends inside the block opening on this line, so each "
+                "definition the write appends would fall inside the block",
+                (str(self.path), line, None, None)
+            )
 
         return "\n\n".join((self.body, *bibliography.cite(*self.firsts))) + "\n"
 
