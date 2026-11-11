@@ -8,7 +8,7 @@ and the messages loguru logs during a test.
 """
 
 from collections.abc import Callable, Iterator, Mapping
-from common.search   import PoolStandIn
+from common.search   import PoolStandIn, finish, stop_at_thirty
 from contextlib      import ExitStack
 from datetime        import UTC, datetime, timedelta
 from itertools       import count
@@ -20,9 +20,10 @@ from squirtl.agent.schemas       import AgentSettings, Algorithm
 from squirtl.emulator.schemas    import Cartridge
 from squirtl.environment.schemas import EnvironmentSettings, Recording
 from squirtl.reward.schemas      import Term
-from squirtl.runs.schemas        import Episode, Revision, Run, RunSettings, SearchSettings
+from squirtl.runs.schemas        import Episode, Revision, Run, RunSettings
 from squirtl.runs.searcher       import SearchHandover, Searcher
 from squirtl.runs.trainer        import Handover, Trainer
+from squirtl.search.schemas      import SearchSettings
 
 
 @fixture
@@ -162,14 +163,12 @@ def searches(cartridge: Cartridge, settings: RunSettings) -> Callable[..., Searc
         Builds the searcher of the search `fields` describe, which continues
         the search `resumes` from its checkpoint where it is one.
         """
-        built = Searcher(
+        return Searcher(
             cartridge,
             settings.model_copy(update=fields),
             datetime(2026, 10, 4, tzinfo=UTC) + timedelta(seconds=next(seconds)),
             resumes and SearchHandover.from_run(resumes)
         )
-
-        return built
 
     return build
 
@@ -223,14 +222,7 @@ def halted(searcher: Callable[..., Searcher]) -> Run:
     Returns:
         The run it recorded.
     """
-    built = searcher()
-
-    with built:
-        for presses in built:
-            if presses >= 30:
-                built.run.stop.touch()
-
-    return built.run
+    return finish(searcher(), stop_at_thirty)
 
 
 @fixture

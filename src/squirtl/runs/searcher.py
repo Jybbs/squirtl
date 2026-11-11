@@ -9,7 +9,6 @@ from concurrent.futures import ProcessPoolExecutor
 from datetime           import datetime
 from functools          import partial
 from gymnasium          import make
-from itertools          import islice
 from loguru             import logger
 from multiprocessing    import get_context
 from pathlib            import Path
@@ -60,7 +59,8 @@ class SearchHandover(Record):
             ValueError        : Where `previous` is a training run, its
                                 checkpoint is damaged or already holds the
                                 goal or the run's `steps`, or the iterations
-                                `previous` recorded end short of it.
+                                `previous` recorded end short of it, as
+                                `Run.first` raises.
         """
         if not previous.searches:
             raise ValueError(
@@ -80,17 +80,11 @@ class SearchHandover(Record):
                 f"{frontier.presses:,}"
             )
 
-        iterations = list(
-            islice(previous.lines(previous.iterations), frontier.iterations)
+        return cls(
+            checkpoint = checkpoint,
+            iterations = previous.first(frontier.iterations, previous.iterations),
+            name       = previous.name
         )
-
-        if len(iterations) < frontier.iterations:
-            raise ValueError(
-                f"{previous.iterations} ends at iteration {len(iterations):,}, short "
-                f"of the checkpoint at iteration {frontier.iterations:,}"
-            )
-
-        return cls(checkpoint=checkpoint, iterations=iterations, name=previous.name)
 
 
 class Searcher(Driver):

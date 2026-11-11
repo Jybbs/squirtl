@@ -41,7 +41,7 @@ from squirtl.emulator              import console
 from squirtl.emulator.schemas      import Button, Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import Entry, EnvironmentSettings, Recording, Snapshot, Takeover
-from squirtl.reward.schemas        import Event, Position, RewardSettings, Tally, Term
+from squirtl.reward.schemas        import Event, Position, ProgressTally, RewardSettings, Term
 
 
 def test_a_build_plays_the_intro_before_any_reset(overworld: Overworld):
@@ -111,7 +111,7 @@ def test_a_reset_given_a_snapshot_alone_takes_up_its_progress_and_its_div(
     the DIV it holds as the episode's own.
     """
     calls = overworld.game_boy.emulator.calls
-    tally = Tally.read(overworld.game_boy).model_copy(update={"steps": 3})
+    tally = ProgressTally.read(overworld.game_boy).model_copy(update={"steps": 3})
     calls.clear()
     overworld.reset(
         options = {
@@ -193,7 +193,7 @@ def test_a_takeover_given_a_snapshot_restores_it_in_place_of_the_presses(
         ),
         timer_div = 7
     )
-    tally = Tally.read(overworld.game_boy).model_copy(update={"steps": 3})
+    tally = ProgressTally.read(overworld.game_boy).model_copy(update={"steps": 3})
     calls.clear()
     overworld.reset(
         options = {

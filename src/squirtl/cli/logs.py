@@ -3,7 +3,7 @@ Holds what each command reports through:
 
 - `listen`, which sends loguru's lines through a console writing to standard
   error, the console a progress bar shares so each line prints above it
-- `following`, which runs a run's loop beneath a progress bar on that console
+- `drive`, which runs a run's loop beneath a progress bar on that console
   and returns the run's directory
 - `refusing`, which turns an error a command's input raises into one logged
   line per reason it gives and exit status 1
@@ -19,7 +19,7 @@ from rich.progress   import Progress
 from squirtl.runs.driver import Driver
 
 
-def following(console: Console, driver: Driver) -> str:
+def drive(console: Console, driver: Driver) -> str:
     """
     Runs `driver` to its end beneath a progress bar on `console`, counting
     the environment steps of its run.

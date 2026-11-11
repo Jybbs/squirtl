@@ -1,6 +1,6 @@
 """
-Defines `Tree`, the lineage tree of a search, Mhammedi and Cohan's section
-4.1 with each node held as its parent and the presses reaching it.
+Defines `LineageTree`, the lineage tree of a search, Mhammedi and Cohan's
+section 4.1 with each node held as its parent and the presses reaching it.
 """
 
 from array           import array
@@ -9,10 +9,10 @@ from itertools       import takewhile
 from numpy           import asarray, ndarray
 
 from squirtl.environment.schemas import Snapshot
-from squirtl.search.schemas      import Rollout
+from squirtl.search.schemas      import SearchRollout
 
 
-class Tree:
+class LineageTree:
     """
     Every node a search has reached, the root numbered 0 and each later
     node numbered in the order the search added it. A node holds its parent
@@ -40,9 +40,10 @@ class Tree:
     @property
     def arrays(self) -> dict[str, ndarray]:
         """
-        Copies each array holding the nodes under its name, leaving out the
-        kept states, which a checkpoint writes as JSON. A view would stop
-        `add` from growing its `array` or `bytearray` while the view lives.
+        Copies each array holding the nodes under its name, leaving out
+        the kept states, which a checkpoint writes as JSON. Each is a copy,
+        since an `array` or a `bytearray` refuses to grow while a view of
+        it lives.
         """
         return {
             "ends"    : asarray(self.ends).copy(),
@@ -130,14 +131,14 @@ class Tree:
         """
         return self.between(0, node)
 
-    def restoring(self, node: int) -> Rollout:
+    def restoring(self, node: int) -> SearchRollout:
         """
         Builds the rollout that brings back `node`, the presses from the
         nearest node at or above it keeping a state.
         """
         kept = next(filter(self.states.__contains__, self.lineage(node)))
 
-        return Rollout(
+        return SearchRollout(
             halting  = False,
             presses  = self.between(kept, node),
             snapshot = self.states[kept]

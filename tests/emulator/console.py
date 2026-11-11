@@ -206,6 +206,58 @@ def test_a_read_past_a_symbol_reads_the_byte_at_its_offset(game_boy: GameBoy):
     assert game_boy.read(Symbol.W_EVENT_FLAGS, 4) == 0x5A
 
 
+@mark.parametrize(
+    ("hp", "place", "blacked_out"),
+    [
+        param([], 0x00, False, id="no-party"),
+        param([0, 0], 0x00, True, id="every-one-fainted"),
+        param([0, 0], 0x28, False, id="every-one-fainted-in-oaks-lab"),
+        param([0, 1], 0x00, False, id="low-byte-left"),
+        param([0, 256], 0x00, False, id="high-byte-left")
+    ]
+)
+def test_a_party_blacks_out_once_every_pokemon_holds_no_hp_outside_oaks_lab(
+    blacked_out : bool,
+    game_boy    : GameBoy,
+    hp          : list[int],
+    place       : int
+):
+    """
+    Asserts that a party blacks out where it holds a Pokémon and every one's
+    two bytes of HP, read $2C bytes apart, are zero on a map other than
+    Oak's lab, map $28, and that a party of none stands.
+    """
+    memory = game_boy.emulator.memory
+
+    memory[Symbol.W_CUR_MAP]     = place
+    memory[Symbol.W_PARTY_COUNT] = len(hp)
+
+    for mon, points in enumerate(hp):
+        address = Symbol.W_PARTY_MONS + 1 + 0x2C * mon
+
+        memory[address : address + 2] = points.to_bytes(2)
+
+    assert game_boy.blacked_out is blacked_out
+
+
+def test_a_reset_at_one_timer_div_leaves_a_state_of_one_digest(game_boy: GameBoy):
+    """
+    Asserts that a reset at one `timer_div` leaves the console in a state of
+    one digest, whatever the game's memory took since, that a write to the
+    memory changes the digest, and that another `timer_div` leaves another.
+    """
+    game_boy.start()
+    game_boy.reset(42)
+    first = game_boy.digest
+    game_boy.emulator.memory[Symbol.W_CUR_MAP] = 9
+    written = game_boy.digest
+    game_boy.reset(42)
+    again = game_boy.digest
+    game_boy.reset(43)
+
+    assert (written != first, again, game_boy.digest != first) == (True, first, True)
+
+
 @mark.parametrize("button", Button, ids=attrgetter("name"))
 def test_each_button_names_one_pyboy_presses(button: Button, game_boy: GameBoy):
     """
@@ -225,24 +277,6 @@ def test_each_symbol_reads_the_byte_at_its_address(game_boy: GameBoy, symbol: Sy
     game_boy.emulator.memory[symbol] = 0x5A
 
     assert game_boy.read(symbol) == 0x5A
-
-
-def test_a_reset_at_one_timer_div_leaves_a_state_of_one_digest(game_boy: GameBoy):
-    """
-    Asserts that a reset at one `timer_div` leaves the console in a state of
-    one digest, whatever the game's memory took since, that a write to the
-    memory changes the digest, and that another `timer_div` leaves another.
-    """
-    game_boy.start()
-    game_boy.reset(42)
-    first = game_boy.digest
-    game_boy.emulator.memory[Symbol.W_CUR_MAP] = 9
-    written = game_boy.digest
-    game_boy.reset(42)
-    again = game_boy.digest
-    game_boy.reset(43)
-
-    assert (written != first, again, game_boy.digest != first) == (True, first, True)
 
 
 def test_a_start_leaves_pythons_global_generator_undrawn(game_boy: GameBoy):
@@ -279,6 +313,27 @@ def test_a_window_the_setting_opens_is_one_pyboy_runs(
 
     with GameBoy.boot(cartridge, EmulatorSettings(open_window=True)) as game_boy:
         assert game_boy.emulator.tick(1)
+
+
+def test_the_frame_a_press_returns_holds_the_red_channel_alone(boot: Boot):
+    """
+    Asserts that the frame a press returns is a `(144, 160)` array of
+    `uint8` holding the red channel of PyBoy's RGBA frame alone, read from a
+    stand-in frame of bytes a generator seeded at 0 draws, whose red channel
+    no reduction across the channels gives.
+    """
+    game_boy                = boot(EmulatorSettings())
+    game_boy.emulator.frame = default_rng(0).integers(
+        256,
+        dtype = uint8,
+        size  = (144, 160, 4)
+    )
+
+    assert_array_equal(
+        game_boy.press(None, 1),
+        game_boy.emulator.frame[..., 0],
+        strict = True
+    )
 
 
 @mark.parametrize(
@@ -321,27 +376,6 @@ def test_a_reset_returns_to_the_start_with_its_timer_div_in_div(
     )
 
 
-def test_the_frame_a_press_returns_holds_the_red_channel_alone(boot: Boot):
-    """
-    Asserts that the frame a press returns is a `(144, 160)` array of
-    `uint8` holding the red channel of PyBoy's RGBA frame alone, read from a
-    stand-in frame of bytes a generator seeded at 0 draws, whose red channel
-    no reduction across the channels gives.
-    """
-    game_boy                = boot(EmulatorSettings())
-    game_boy.emulator.frame = default_rng(0).integers(
-        256,
-        dtype = uint8,
-        size  = (144, 160, 4)
-    )
-
-    assert_array_equal(
-        game_boy.press(None, 1),
-        game_boy.emulator.frame[..., 0],
-        strict = True
-    )
-
-
 def test_the_screen_holds_the_rgb_channels_alone(boot: Boot):
     """
     Asserts that the screen is a `(144, 160, 3)` array of `uint8` holding
@@ -354,3 +388,16 @@ def test_the_screen_holds_the_rgb_channels_alone(boot: Boot):
         tile(arange(3, dtype=uint8), (144, 160, 1)),
         strict = True
     )
+
+
+def test_the_tiles_are_the_screen_of_tiles_wtilemap_holds(game_boy: GameBoy):
+    """
+    Asserts that the tiles hold the 20 by 18 bytes from `wTileMap` on, the
+    last of them included and the byte past them left out.
+    """
+    memory = game_boy.emulator.memory
+
+    memory[Symbol.W_TILE_MAP + 359] = 0x5A
+    memory[Symbol.W_TILE_MAP + 360] = 0x5B
+
+    assert (len(game_boy.tiles), game_boy.tiles[-1]) == (360, 0x5A)

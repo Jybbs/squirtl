@@ -1,8 +1,9 @@
 """
 Defines the records the emulator reads:
 
-- `Record`, the frozen base every subject's records build on, and
-  `UnitInterval`, the 0-to-1 float bounding a probability or a reward
+- `Record`, the frozen base every subject's records build on,
+  `UnitInterval`, the 0-to-1 float bounding a probability or a reward, and
+  `Range`, the least and the most of a count or a move a setting bounds
 - `processors`, the count a setting of worker processes defaults to
 - `Button`, `Edition`, and `Symbol`, the buttons a step presses, the
   release a run plays, and the addresses it reads in the game's memory
@@ -14,9 +15,10 @@ from functools import cached_property
 from hashlib   import sha1
 from os        import process_cpu_count
 from pathlib   import Path
-from pydantic  import BaseModel, Field, PositiveInt, model_validator
+from pydantic  import AfterValidator, BaseModel, Field, PositiveInt, model_validator
 from typing    import Annotated, Self
 
+type Range[T]     = Annotated[tuple[T, T], AfterValidator(ascending)]
 type UnitInterval = Annotated[float, Field(ge=0, le=1)]
 
 
@@ -59,12 +61,21 @@ class Symbol(IntEnum):
 
     - `W_CUR_MAP`, the map the player stands on
     - `W_EVENT_FLAGS`, the first byte of the event flag array
+    - `W_PARTY_COUNT`, the Pokémon in the player's party
+    - `W_PARTY_MONS`, the first byte of the party's structs, one of
+      `PARTYMON_STRUCT_LENGTH` bytes for each Pokémon, its species first and
+      its HP after
+    - `W_TILE_MAP`, the first of the 20 by 18 tiles the game last drew
+      beneath the sprites, a row at a time
     - `W_X_COORD` and `W_Y_COORD`, the player's square of 2x2 tiles on the
       current map
     """
 
     W_CUR_MAP     = 0xD35E
     W_EVENT_FLAGS = 0xD747
+    W_PARTY_COUNT = 0xD163
+    W_PARTY_MONS  = 0xD16B
+    W_TILE_MAP    = 0xC3A0
     W_X_COORD     = 0xD362
     W_Y_COORD     = 0xD361
 
@@ -178,6 +189,21 @@ class EmulatorSettings(Record):
         `open_window` is set and otherwise `null`, which draws nothing.
         """
         return "SDL2" if self.open_window else "null"
+
+
+def ascending[T: float](bounds: tuple[T, T]) -> tuple[T, T]:
+    """
+    Refuses a range whose least passes its most, returning `bounds` as they
+    are otherwise.
+
+    Raises:
+        ValueError: Where it does, which Pydantic raises as a
+                    `ValidationError` naming the field.
+    """
+    if bounds[0] > bounds[1]:
+        raise ValueError(f"the least of {bounds[0]} passes the most of {bounds[1]}")
+
+    return bounds
 
 
 def processors() -> int:

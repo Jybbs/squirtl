@@ -14,11 +14,10 @@ from operator         import attrgetter
 from squirtl.agent.schemas       import AgentSettings
 from squirtl.environment.schemas import Recording, Snapshot
 from squirtl.reward.schemas      import Event
-from squirtl.runs.schemas        import SearchSettings
 from squirtl.search.checkpoint   import SearchCheckpoint
 from squirtl.search.novelty      import Novelty
-from squirtl.search.schemas      import Ending, Frontier, Particle, Rollout
-from squirtl.search.tree         import Tree
+from squirtl.search.schemas      import Ending, Frontier, Particle, SearchRollout, SearchSettings
+from squirtl.search.tree         import LineageTree
 
 
 def highest(particles: Iterable[Particle]) -> Particle:
@@ -70,7 +69,7 @@ class Search:
         actions  : int,
         agent    : AgentSettings,
         goal     : Event,
-        roll     : Callable[[Iterable[Rollout]], Iterable[Ending]],
+        roll     : Callable[[Iterable[SearchRollout]], Iterable[Ending]],
         root     : Snapshot,
         seed     : int,
         settings : SearchSettings,
@@ -113,7 +112,7 @@ class Search:
         self.roll       = roll
         self.settings   = settings
         self.steps      = steps
-        self.tree       = Tree(root)
+        self.tree       = LineageTree(root)
         self.winner     = start
 
     @property
@@ -167,7 +166,7 @@ class Search:
         """
         return self.goal in self.winner.snapshot.tally.events
 
-    def advance(self, group: Group, played: Sequence[tuple[Rollout, Ending]]):
+    def advance(self, group: Group, played: Sequence[tuple[SearchRollout, Ending]]):
         """
         Stores what each rollout of `group` observed for the predictor and
         counts its presses, then runs one outer step's lines of Algorithm
@@ -190,11 +189,10 @@ class Search:
 
         scores = iter(self.novelty.score(ending.snapshot for ending in survivors))
         moved  = [
-            None if ending.dead else Particle(
-                node     = self.tree.add(particle.node, ending.presses),
-                reward   = ending.reward,
-                score    = next(scores),
-                snapshot = ending.snapshot
+            None if ending.dead else Particle.of(
+                ending,
+                self.tree.add(particle.node, ending.presses),
+                next(scores)
             )
             for particle, (_, ending) in zip(group.particles, played, strict=True)
         ]
@@ -324,12 +322,7 @@ class Search:
         endings  = list(self.roll(map(self.tree.restoring, unique)))
         scores   = self.novelty.score(ending.snapshot for ending in endings)
         restored = {
-            node: Particle(
-                node     = node,
-                reward   = ending.reward,
-                score    = score,
-                snapshot = ending.snapshot
-            )
+            node: Particle.of(ending, node, score)
             for node, ending, score in zip(unique, endings, scores, strict=True)
         }
 
@@ -344,7 +337,7 @@ class Search:
         across the workers, and advances each group on its endings.
         """
         rollouts = [
-            Rollout(presses=self.plan(), snapshot=particle.snapshot)
+            SearchRollout(presses=self.plan(), snapshot=particle.snapshot)
             for group in active
             for particle in group.particles
         ]

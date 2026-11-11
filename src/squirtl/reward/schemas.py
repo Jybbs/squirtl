@@ -7,7 +7,7 @@ Defines the records the reward reads and writes:
 - `Position`, the square of the map the player stands on
 - `RewardSettings`, what each term pays a step
 - `Score`, the reward one step earns, split by term
-- `Tally`, what an episode's progress holds at one step, from which it
+- `ProgressTally`, what an episode's progress holds at one step, from which it
   resumes there
 """
 
@@ -170,87 +170,16 @@ class Score(Record):
         return fsum(self.shares.values())
 
 
-class RewardSettings(Record):
+class ProgressTally(Record, ser_json_bytes="base64", val_json_bytes="base64"):
     """
-    The settings the reward reads, each a field of `RunSettings.reward` and
-    a key under `[tool.squirtl.reward]` in `pyproject.toml`, holding what
-    each member of `Term` pays a step.
-    """
+    What an episode's progress holds once a step has run, from which
+    `Progress` resumes the episode at that step:
 
-    goal: UnitInterval = 0.35
-    """
-    The reward the step first setting the run's goal earns, which has to be
-    the largest term.
-    """
-
-    milestone: UnitInterval = 0.1
-    """
-    The reward a step earns for each flag on the way to the goal it first
-    sets.
-    """
-
-    novelty: UnitInterval = 0.00025
-    """
-    The reward a step earns for reaching a position the episode has not
-    reached before, whose default is a 400th of the default milestone, the
-    ratio Pleines et al. pay one new coordinate against one completed event.
-    """
-
-    def ceiling(self, goal: Event) -> float:
-        """
-        Totals the shares of a step reaching a new position and first
-        setting at once every flag an episode ending at `goal` is paid for,
-        the most any of its steps can earn, since every other step earns
-        each term no more often.
-        """
-        return fsum(self.shares(Counter([Term.NOVELTY, *goal.terms.values()])).values())
-
-    def pay(self, term: Term) -> float:
-        """
-        Reads what `term` pays a step.
-        """
-        return getattr(self, term)
-
-    def shares(self, earned: Mapping[Term, int]) -> dict[Term, float]:
-        """
-        Multiplies what each term pays by the number of times `earned`
-        counts it, giving zero for a term `earned` leaves out.
-        """
-        return {term: earned.get(term, 0) * self.pay(term) for term in Term}
-
-    def total(self, earned: Mapping[Term, int]) -> float:
-        """
-        Totals the shares of every term `earned` counts but `NOVELTY`,
-        meaning what an episode earns for the flags it sets.
-        """
-        return fsum(self.shares({**earned, Term.NOVELTY: 0}).values())
-
-    @model_validator(mode="after")
-    def verify(self) -> Self:
-        """
-        Refuses a goal paying no more than another term.
-
-        Raises:
-            ValueError: Where it does, which Pydantic raises as a
-                        `ValidationError`.
-        """
-        if self.goal <= max(self.milestone, self.novelty):
-            raise ValueError(
-                f"the goal pays {self.goal}, no more than the milestone at "
-                f"{self.milestone} or the novelty at {self.novelty}, where it has "
-                f"to be the largest term"
-            )
-
-        return self
-
-
-class Tally(Record, ser_json_bytes="base64", val_json_bytes="base64"):
-    """
-    What an episode's progress holds once a step has run, meaning how often
-    its steps have earned each term, each `Event` flag set and the step
-    first setting each its own steps set, the position the player stands
-    on, each position reached, and the steps taken, from which `Progress`
-    resumes the episode at that step.
+    - How often its steps have earned each term
+    - Each `Event` flag set, and the step first setting each flag its own
+      steps set
+    - The position the player stands on, and each position reached
+    - The steps taken
     """
 
     earned: dict[Term, int]
@@ -332,3 +261,77 @@ class Tally(Record, ser_json_bytes="base64", val_json_bytes="base64"):
         position = Position.read(game_boy)
 
         return cls.of({}, Event.read(game_boy), {}, position, [position], 0)
+
+
+class RewardSettings(Record):
+    """
+    The settings the reward reads, each a field of `RunSettings.reward` and
+    a key under `[tool.squirtl.reward]` in `pyproject.toml`, holding what
+    each member of `Term` pays a step.
+    """
+
+    goal: UnitInterval = 0.35
+    """
+    The reward the step first setting the run's goal earns, which has to be
+    the largest term.
+    """
+
+    milestone: UnitInterval = 0.1
+    """
+    The reward a step earns for each flag on the way to the goal it first
+    sets.
+    """
+
+    novelty: UnitInterval = 0.00025
+    """
+    The reward a step earns for reaching a position the episode has not
+    reached before, whose default is a 400th of the default milestone, the
+    ratio Pleines et al. pay one new coordinate against one completed event.
+    """
+
+    def ceiling(self, goal: Event) -> float:
+        """
+        Totals the shares of a step reaching a new position and first
+        setting at once every flag an episode ending at `goal` is paid for,
+        the most any of its steps can earn, since every other step earns
+        each term no more often.
+        """
+        return fsum(self.shares(Counter([Term.NOVELTY, *goal.terms.values()])).values())
+
+    def pay(self, term: Term) -> float:
+        """
+        Reads what `term` pays a step.
+        """
+        return getattr(self, term)
+
+    def shares(self, earned: Mapping[Term, int]) -> dict[Term, float]:
+        """
+        Multiplies what each term pays by the number of times `earned`
+        counts it, giving zero for a term `earned` leaves out.
+        """
+        return {term: earned.get(term, 0) * self.pay(term) for term in Term}
+
+    def total(self, earned: Mapping[Term, int]) -> float:
+        """
+        Totals the shares of every term `earned` counts but `NOVELTY`,
+        meaning what an episode earns for the flags it sets.
+        """
+        return fsum(self.shares({**earned, Term.NOVELTY: 0}).values())
+
+    @model_validator(mode="after")
+    def verify(self) -> Self:
+        """
+        Refuses a goal paying no more than another term.
+
+        Raises:
+            ValueError: Where it does, which Pydantic raises as a
+                        `ValidationError`.
+        """
+        if self.goal <= max(self.milestone, self.novelty):
+            raise ValueError(
+                f"the goal pays {self.goal}, no more than the milestone at "
+                f"{self.milestone} or the novelty at {self.novelty}, where it has "
+                f"to be the largest term"
+            )
+
+        return self

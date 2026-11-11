@@ -28,7 +28,7 @@ from pytest              import mark, param, raises
 from re import escape
 
 from squirtl.environment.schemas import EnvironmentSettings, Outcome, Recording, Snapshot, Takeover
-from squirtl.reward.schemas      import Event, Position, Tally, Term
+from squirtl.reward.schemas      import Event, Position, ProgressTally, Term
 
 
 @mark.parametrize(
@@ -181,7 +181,7 @@ def test_a_snapshot_reads_back_from_json_as_the_one_written():
     written  = Snapshot(
         frames = bytes(range(256)),
         state  = bytes(reversed(range(256))),
-        tally  = Tally.of(
+        tally  = ProgressTally.of(
             {Term.NOVELTY: 2},
             {Event.EVENT_GOT_STARTER},
             {Event.EVENT_GOT_STARTER: 5},

@@ -4,12 +4,13 @@ the protocols naming the PyBoy members it calls: `Emulator`, `GameWrapper`,
 `Memory`, and `Screen`.
 """
 
-from contextlib import AbstractContextManager
-from hashlib    import sha256
-from io         import BytesIO
-from numpy      import ndarray
-from pyboy      import PyBoy
-from typing     import BinaryIO, Protocol, Self
+from collections.abc import Sequence
+from contextlib      import AbstractContextManager
+from hashlib         import sha256
+from io              import BytesIO
+from numpy           import ndarray
+from pyboy           import PyBoy
+from typing          import BinaryIO, Protocol, Self
 
 from squirtl.emulator.schemas import Button, Cartridge, EmulatorSettings, Symbol
 
@@ -43,9 +44,9 @@ class Memory(Protocol):
     The view of the game's memory that `PyBoy.memory` holds.
     """
 
-    def __getitem__(self, address: int, /) -> int:
+    def __getitem__(self, address: int | slice, /) -> int | Sequence[int]:
         """
-        Reads the byte at `address`.
+        Reads the byte at `address`, or each byte of a `slice` of addresses.
         """
 
 
@@ -122,6 +123,28 @@ class GameBoy(AbstractContextManager):
         self.settings = settings
 
     @property
+    def blacked_out(self) -> bool:
+        """
+        Reads whether the player holds a party whose every Pokémon has no HP
+        left, as pret/pokered's `AnyPartyAlive` finds before a blackout, on
+        a map other than Oak's lab, where losing to the rival blacks nobody
+        out.
+        """
+        party = range(self.read(Symbol.W_PARTY_COUNT))
+
+        # Each struct is pret/pokered's `PARTYMON_STRUCT_LENGTH` of $2C bytes, its
+        # two bytes of HP following the species byte, and `OAKS_LAB` is map $28.
+        return (
+            bool(party)
+            and self.read(Symbol.W_CUR_MAP) != 0x28
+            and not any(
+                self.read(Symbol.W_PARTY_MONS, 0x2C * mon + byte)
+                for mon in party
+                for byte in (1, 2)
+            )
+        )
+
+    @property
     def digest(self) -> str:
         """
         Hashes the whole state of the console as `state` reads it, which is
@@ -168,6 +191,16 @@ class GameBoy(AbstractContextManager):
             self.emulator.save_state(saved)
 
             return saved.getvalue()
+
+    @property
+    def tiles(self) -> bytes:
+        """
+        Copies the 20 by 18 tiles `wTileMap` holds, the background and the
+        window the game last drew without the sprites above them.
+        """
+        return bytes(
+            self.emulator.memory[Symbol.W_TILE_MAP : Symbol.W_TILE_MAP + 20 * 18]
+        )
 
     @classmethod
     def boot(cls, cartridge: Cartridge, settings: EmulatorSettings) -> Self:

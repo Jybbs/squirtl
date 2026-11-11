@@ -1,16 +1,15 @@
 """
 Defines the worker each rollout of a search runs in, `boot` making the
-environment of its process and `roll` pressing through a `Rollout` on it,
-which imports nothing beyond what that worker needs, since a spawned process
-imports the module its worker sits in.
+environment of its process and `roll` pressing through a `SearchRollout`
+on it, which imports nothing beyond what that worker needs, since a spawned
+process imports the module its worker sits in.
 """
 
 from gymnasium.envs.registration import EnvSpec
-from numpy  import array_equal
 from signal import SIGINT, SIG_IGN, signal
 
 from squirtl.environment.schemas import Entry
-from squirtl.search.schemas      import Ending, Rollout
+from squirtl.search.schemas      import Ending, SearchRollout
 
 
 def boot(specification: EnvSpec):
@@ -28,39 +27,44 @@ def boot(specification: EnvSpec):
     environment = specification.make()
 
 
-def roll(rollout: Rollout) -> Ending:
+def roll(rollout: SearchRollout) -> Ending:
     """
     Restores the snapshot `rollout` starts from and presses each of its
     actions, stopping where `rollout` halts and a press has earned reward,
     since Mhammedi and Cohan's Algorithm 1 secures a reward as soon as
-    a rollout finds it. The result depends on `rollout` alone, whichever
-    process runs it.
+    a rollout finds it, and where Blue blacks out. The result depends on
+    `rollout` alone, whichever process runs it.
     """
     observation, _ = environment.reset(options={"snapshot": rollout.snapshot})
 
     overworld = environment.unwrapped
+    game_boy  = overworld.game_boy
     progress  = overworld.progress
     reward    = overworld.reward.total(progress.earned)
+    tiles     = game_boy.tiles  # prose: ignore[inlinable-bindings]
     frames    = [observation[Entry.FRAMES][-1]]
     pressed   = bytearray()
+    blackout  = False
 
     for action in rollout.presses:
         observation, *_ = environment.step(action)
         frames.append(observation[Entry.FRAMES][-1])
         pressed.append(action)
 
+        if blackout := game_boy.blacked_out:
+            break
+
         if rollout.halting and overworld.reward.total(progress.earned) > reward:
             break
 
-    earned = overworld.reward.total(progress.earned)
-
     return Ending(
-        dead =
-            earned                == reward
+        dead = blackout or (
+            progress.events       == rollout.snapshot.tally.events
             and progress.position == rollout.snapshot.tally.position
-            and array_equal(frames[0], frames[-1]),
+            and game_boy.tiles    == tiles
+        ),
         frames   = b"".join(frames[1:]),
         presses  = bytes(pressed),
-        reward   = earned,
+        reward   = overworld.reward.total(progress.earned),
         snapshot = environment.get_wrapper_attr("capture")()
     )

@@ -22,11 +22,10 @@ from squirtl.emulator.schemas      import Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Snapshot
 from squirtl.reward.schemas        import Event, RewardSettings
-from squirtl.runs.schemas          import SearchSettings
 from squirtl.search                import workers
 from squirtl.search.novelty        import Novelty
 from squirtl.search.particles      import Search
-from squirtl.search.schemas        import Ending, Rollout
+from squirtl.search.schemas        import Ending, SearchRollout, SearchSettings
 from squirtl.search.workers        import roll
 
 
@@ -115,14 +114,14 @@ def root(booted: Env) -> Snapshot:
 def playing(root: Snapshot) -> Callable[..., Ending]:
     """
     Builds a function playing the presses it is handed from `root`, any
-    keyword a field of `Rollout` to set in its place.
+    keyword a field of `SearchRollout` to set in its place.
     """
 
     def play(presses: bytes, **fields: object) -> Ending:
         """
         Plays `presses` as the rollout `fields` describe.
         """
-        return roll(Rollout(presses=presses, **{"snapshot": root, **fields}))
+        return roll(SearchRollout(presses=presses, **{"snapshot": root, **fields}))
 
     return play
 
@@ -137,7 +136,7 @@ def searching(small: SearchSettings, space: Box) -> Callable[..., Search]:
     """
 
     def build(
-        roll     : Callable[[Iterable[Rollout]], Iterable[Ending]],
+        roll     : Callable[[Iterable[SearchRollout]], Iterable[Ending]],
         goal     : Event    = Event.EVENT_GOT_STARTER,
         root     : Snapshot = snapshot(),
         seed     : int      = 7,
@@ -163,7 +162,7 @@ def searching(small: SearchSettings, space: Box) -> Callable[..., Search]:
 
 
 @fixture
-def rolled() -> Callable[..., Callable[[Iterable[Rollout]], Iterable[Ending]]]:
+def rolled() -> Callable[..., Callable[[Iterable[SearchRollout]], Iterable[Ending]]]:
     """
     Builds a function turning a list of endings into a `roll` that returns
     them in turn and records each rollout it receives.
@@ -171,14 +170,14 @@ def rolled() -> Callable[..., Callable[[Iterable[Rollout]], Iterable[Ending]]]:
 
     def script(
         endings : Iterable[Ending],
-        played  : list[Rollout] | None = None
-    ) -> Callable[[Iterable[Rollout]], Iterator[Ending]]:
+        played  : list[SearchRollout] | None = None
+    ) -> Callable[[Iterable[SearchRollout]], Iterator[Ending]]:
         """
         Builds the `roll` returning `endings`, appending to `played`.
         """
         remaining = iter(endings)
 
-        def play(rollouts: Iterable[Rollout]) -> Iterator[Ending]:
+        def play(rollouts: Iterable[SearchRollout]) -> Iterator[Ending]:
             """
             Records `rollouts` and returns one ending for each.
             """
@@ -194,7 +193,7 @@ def rolled() -> Callable[..., Callable[[Iterable[Rollout]], Iterable[Ending]]]:
 
 
 @fixture
-def rolling(booted: Env) -> Callable[[Iterable[Rollout]], Iterable[Ending]]:
+def rolling(booted: Env) -> Callable[[Iterable[SearchRollout]], Iterable[Ending]]:
     """
     Builds the `roll` of a search playing every rollout on `booted` in the
     process running the test.

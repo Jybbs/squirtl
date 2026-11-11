@@ -16,14 +16,13 @@ Pins what `squirtl search` does, covering:
 
 from collections.abc import Callable, Mapping
 from common.cli      import Invoker
-from common.search   import PoolStandIn, lines
+from common.search   import PoolStandIn, iterations, lines
 from pathlib         import Path
 from pytest          import MonkeyPatch, mark, param
 from signal          import SIGINT, raise_signal
 
-from squirtl.runs.schemas   import Run
-from squirtl.runs.searcher  import Searcher
-from squirtl.search.schemas import Iteration
+from squirtl.runs.schemas  import Run
+from squirtl.runs.searcher import Searcher
 
 
 def damaged(run: Run):
@@ -87,7 +86,7 @@ def test_a_finished_search_holds_an_iteration_reaching_its_steps(searched: Path)
     was given or the starter.
     """
     settings = Run.read(searched).settings
-    last     = Iteration.model_validate(lines(Run.read(searched))[-1])
+    last     = iterations(Run.read(searched))[-1]
 
     assert last.presses >= settings.steps or last.reward >= settings.reward.starter
 
@@ -116,7 +115,7 @@ def test_a_resume_continues_in_a_new_directory_under_the_recorded_settings(
     ("damage", "logged"),
     [
         param(damaged, "checkpoint.npz", id="a-damaged-checkpoint"),
-        param(short_of_it, "short of the checkpoint", id="iterations-short-of-it"),
+        param(short_of_it, "holds 0 lines", id="iterations-short-of-it"),
         param(lambda run: run.checkpoint.unlink(), "checkpoint.npz", id="no-checkpoint")
     ]
 )

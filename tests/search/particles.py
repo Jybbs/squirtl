@@ -29,13 +29,13 @@ from squirtl.environment.schemas   import Recording, Snapshot
 from squirtl.reward.schemas        import Event
 from squirtl.search.checkpoint     import SearchCheckpoint
 from squirtl.search.particles      import Group, Search
-from squirtl.search.schemas        import Ending, Particle, Rollout
+from squirtl.search.schemas        import Ending, Particle, SearchRollout
 from squirtl.search.workers        import roll
 
-type Script = Callable[..., Callable[[Iterable[Rollout]], Iterable[Ending]]]
+type Script = Callable[..., Callable[[Iterable[SearchRollout]], Iterable[Ending]]]
 
 
-def in_reverse(rollouts: Iterable[Rollout]) -> list[Ending]:
+def in_reverse(rollouts: Iterable[SearchRollout]) -> list[Ending]:
     """
     Plays `rollouts` from the last to the first, returning each ending in
     the order submitted, as workers finishing out of order do.
@@ -107,7 +107,7 @@ def test_a_group_below_the_winner_on_reward_moves_to_it_as_an_iteration_opens(
     played = []
     roller = search.roll
 
-    def spy(rollouts: Iterable[Rollout]) -> Iterable[Ending]:
+    def spy(rollouts: Iterable[SearchRollout]) -> Iterable[Ending]:
         """
         Records the node of each rollout's start through its snapshot.
         """
@@ -350,7 +350,7 @@ def test_each_group_plays_only_while_it_has_outer_steps_left(
     """
     played = []
 
-    def play(rollouts: Iterable[Rollout]) -> list[Ending]:
+    def play(rollouts: Iterable[SearchRollout]) -> list[Ending]:
         """
         Records how many rollouts each outer step submits.
         """
@@ -481,7 +481,7 @@ def test_every_particle_of_a_new_search_starts_on_the_root(
 @mark.usefixtures("game")
 def test_one_seed_finds_one_demonstration_whichever_order_the_rollouts_play_in(
     root      : Snapshot,
-    rolling   : Callable[[Iterable[Rollout]], Iterable[Ending]],
+    rolling   : Callable[[Iterable[SearchRollout]], Iterable[Ending]],
     searching : Callable[..., Search]
 ):
     """
@@ -509,7 +509,7 @@ def test_one_seed_finds_one_demonstration_whichever_order_the_rollouts_play_in(
 @mark.usefixtures("game")
 def test_a_search_resumed_from_its_checkpoint_goes_on_as_an_unbroken_one_does(
     root      : Snapshot,
-    rolling   : Callable[[Iterable[Rollout]], Iterable[Ending]],
+    rolling   : Callable[[Iterable[SearchRollout]], Iterable[Ending]],
     searching : Callable[..., Search],
     tmp_path  : Path
 ):
@@ -539,7 +539,7 @@ def test_a_search_resumed_from_its_checkpoint_goes_on_as_an_unbroken_one_does(
 def test_a_restore_of_another_capacity_is_refused(
     rolled    : Script,
     root      : Snapshot,
-    rolling   : Callable[[Iterable[Rollout]], Iterable[Ending]],
+    rolling   : Callable[[Iterable[SearchRollout]], Iterable[Ending]],
     searching : Callable[..., Search],
     tmp_path  : Path
 ):
@@ -559,7 +559,7 @@ def test_a_restore_of_another_capacity_is_refused(
 def test_the_demonstration_plays_back_to_what_the_winner_reached(
     booted    : Env,
     root      : Snapshot,
-    rolling   : Callable[[Iterable[Rollout]], Iterable[Ending]],
+    rolling   : Callable[[Iterable[SearchRollout]], Iterable[Ending]],
     searching : Callable[..., Search]
 ):
     """

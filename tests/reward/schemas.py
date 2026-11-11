@@ -21,7 +21,7 @@ from pytest          import approx, mark, param, raises
 
 from squirtl.emulator.console import GameBoy
 from squirtl.emulator.schemas import Symbol
-from squirtl.reward.schemas   import Event, Flag, Position, RewardSettings, Score, Tally, Term
+from squirtl.reward.schemas   import Event, Flag, Position, ProgressTally, RewardSettings, Score, Term
 
 
 def test_a_position_reads_the_map_and_coordinates_their_symbols_hold(
@@ -102,7 +102,7 @@ def test_a_tally_packs_what_a_step_holds_leaving_out_a_term_none_earned():
     positions it packs at three bytes each read back as the ones packed.
     """
     positions = {Position(map=1, x=2, y=3), Position(map=4, x=5, y=6)}
-    tally     = Tally.of(
+    tally     = ProgressTally.of(
         {Term.MILESTONE: 0, Term.NOVELTY: 2},
         {Event.EVENT_GOT_STARTER},
         {Event.EVENT_GOT_STARTER: 4},
@@ -146,7 +146,7 @@ def test_a_tally_reads_back_from_json_as_the_one_written():
     positions and its flags included.
     """
     position = Position(map=255, x=0, y=7)
-    written  = Tally.of(
+    written  = ProgressTally.of(
         {Term.NOVELTY: 1},
         {Event.EVENT_OAK_ASKED_TO_CHOOSE_MON},
         {Event.EVENT_OAK_ASKED_TO_CHOOSE_MON: 2},
@@ -155,7 +155,7 @@ def test_a_tally_reads_back_from_json_as_the_one_written():
         2
     )
 
-    assert Tally.model_validate_json(written.model_dump_json()) == written
+    assert ProgressTally.model_validate_json(written.model_dump_json()) == written
 
 
 def test_a_tally_reads_the_start_of_an_episode_from_the_games_memory(
@@ -173,7 +173,7 @@ def test_a_tally_reads_the_start_of_an_episode_from_the_games_memory(
     move(position)
     flag(Event.EVENT_FOLLOWED_OAK_INTO_LAB)
 
-    tally = Tally.read(game_boy)
+    tally = ProgressTally.read(game_boy)
 
     assert (
         tally.earned, tally.events, tally.firsts,

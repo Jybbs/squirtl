@@ -2,14 +2,18 @@
 Defines the records a search reads and writes, none of which needs PyTorch,
 since a worker process imports this module:
 
-- `Rollout`, the presses one worker plays from a snapshot, and `Ending`, what
-  they reach
+- `SearchRollout`, the presses one worker plays from a snapshot, and
+  `Ending`, what they reach
 - `Particle`, one copy of the game the search plays forward
 - `Frontier`, the particles and counters a checkpoint holds
 - `Iteration`, one iteration as a line of a run's `iterations`
+- `SearchSettings`, the settings a search reads
 """
 
-from squirtl.emulator.schemas    import Record
+from pydantic import Field, PositiveFloat, PositiveInt
+from typing   import Self
+
+from squirtl.emulator.schemas    import Range, Record, UnitInterval, processors
 from squirtl.environment.schemas import Snapshot
 
 
@@ -20,8 +24,8 @@ class Ending(Record):
 
     dead: bool
     """
-    Whether the rollout earned no reward and ended on the screen and the map
-    position it started from.
+    Whether the rollout blacked out, or set no flag and ended on the map
+    position and the `wTileMap` it started from.
     """
 
     frames: bytes
@@ -95,6 +99,103 @@ class Iteration(Record):
     """
 
 
+class SearchRollout(Record):
+    """
+    What one worker plays, the actions it presses from a snapshot.
+    """
+
+    presses: bytes
+    """
+    The action each press takes, one byte a press.
+    """
+
+    snapshot: Snapshot
+    """
+    The environment the presses start from.
+    """
+
+    halting: bool = True
+    """
+    Whether the presses stop once they earn reward, where otherwise every
+    one of them plays, as bringing back a node of the tree does.
+    """
+
+
+class SearchSettings(Record):
+    """
+    The settings a search over save states reads, each a field of
+    `RunSettings.search` and a key under `[tool.squirtl.search]` in
+    `pyproject.toml`. The population's defaults are the Montezuma's Revenge
+    column of Table 5 in Mhammedi and Cohan's "Decoupling Exploration and
+    Policy Optimization", and the predictor's are their Appendix A.3.
+    """
+
+    batch_size: PositiveInt = 128
+    """
+    The frame stacks each update of the predictor draws, whose default
+    follows Mhammedi and Cohan's Appendix A.3.
+    """
+
+    capacity: PositiveInt = 100_000
+    """
+    The frames replay memory holds for the predictor, one per slot, under
+    1 GB at the default frame shape.
+    """
+
+    epsilon: UnitInterval = 0.2
+    """
+    The chance a press takes a random action in place of the one its
+    rollout holds, whose default follows Mhammedi and Cohan's Appendix A.2.
+    """
+
+    groups: PositiveInt = 4
+    """
+    The groups of particles the search evolves, Mhammedi and Cohan's M.
+    """
+
+    inner_steps: Range[PositiveInt] = (5, 15)
+    """
+    The fewest and the most presses of one rollout, Mhammedi and Cohan's
+    range of T.
+    """
+
+    learning_rate: PositiveFloat = 3e-4
+    """
+    The step size Adam takes on the predictor, whose default follows
+    Mhammedi and Cohan's Appendix A.3.
+    """
+
+    outer_steps: Range[PositiveInt] = (10, 20)
+    """
+    The fewest and the most rollouts each particle plays in one iteration,
+    Mhammedi and Cohan's range of K.
+    """
+
+    particles: PositiveInt = 32
+    """
+    The particles each group holds, Mhammedi and Cohan's N.
+    """
+
+    rollback: Range[PositiveInt] = (1, 3)
+    """
+    The fewest and the most generations a particle moves up the tree once
+    every particle of its group is dead, Mhammedi and Cohan's range of k.
+    """
+
+    update_steps: PositiveInt = 44
+    """
+    The presses between updates of the predictor, whose default is the
+    ratio of Mhammedi and Cohan's Table 6, 2.28 million updates over 400
+    million frames at their action repeat of 4.
+    """
+
+    workers: PositiveInt = Field(default_factory=processors)
+    """
+    The worker processes the rollouts run across, which defaults to the
+    CPUs the process may use.
+    """
+
+
 class Particle(Record):
     """
     One copy of the game the search plays forward, which a group ranks by
@@ -129,27 +230,19 @@ class Particle(Record):
         """
         return self.reward, self.score
 
-
-class Rollout(Record):
-    """
-    What one worker plays, the actions it presses from a snapshot.
-    """
-
-    presses: bytes
-    """
-    The action each press takes, one byte a press.
-    """
-
-    snapshot: Snapshot
-    """
-    The environment the presses start from.
-    """
-
-    halting: bool = True
-    """
-    Whether the presses stop once they earn reward, where otherwise every
-    one of them plays, as bringing back a node of the tree does.
-    """
+    @classmethod
+    def of(cls, ending: Ending, node: int, score: float) -> Self:
+        """
+        Places the particle a rollout's `ending` leaves on `node`, holding
+        the reward and the environment it reached and the uncertainty
+        `score`.
+        """
+        return cls(
+            node     = node,
+            reward   = ending.reward,
+            score    = score,
+            snapshot = ending.snapshot
+        )
 
 
 class Frontier(Record):

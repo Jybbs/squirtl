@@ -9,7 +9,7 @@ from datetime   import UTC, datetime
 from subprocess import CalledProcessError
 from typing     import Annotated
 
-from squirtl.cli.logs         import following, listen, refusing
+from squirtl.cli.logs         import drive, listen, refusing
 from squirtl.cli.runs         import RunDirectory
 from squirtl.emulator.schemas import Cartridge
 from squirtl.runs.schemas     import Run, RunSettings
@@ -27,10 +27,7 @@ def search(
             )
         )
     ] = None,
-    settings : Annotated[RunSettings | None, Parameter(name="*")] = None,
-    verbose  : Annotated[
-        bool, Parameter(help="Log each step beside the line each iteration logs.")
-    ] = False
+    settings : Annotated[RunSettings | None, Parameter(name="*")] = None
 ) -> str:
     """
     Searches for a path from Blue's bedroom to `--environment.goal` over
@@ -57,7 +54,7 @@ def search(
     - A cartridge the emulator refuses
     - A working directory no git clone holds
     """
-    console = listen(verbose)
+    console = listen()
 
     with refusing(CalledProcessError, OSError, ValueError):
         previous  = resume and Run.read(resume)
@@ -67,4 +64,4 @@ def search(
         searcher  = Searcher(cartridge, settings, datetime.now(UTC), handover)
 
     with searcher:
-        return following(console, searcher)
+        return drive(console, searcher)

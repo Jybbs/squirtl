@@ -12,16 +12,16 @@ Pins the lineage tree of a search, covering:
 from common.search import snapshot
 from pytest        import fixture, mark, param
 
-from squirtl.search.tree import Tree
+from squirtl.search.tree import LineageTree
 
 
 @fixture
-def tree() -> Tree:
+def tree() -> LineageTree:
     """
     Builds a tree holding a root, its children 1 and 3, and 2 beneath 1 and
     4 beneath 2, each reached by presses naming it.
     """
-    built = Tree(snapshot())
+    built = LineageTree(snapshot())
 
     built.add(0, b"\x01\x01")
     built.add(1, b"\x02")
@@ -31,7 +31,7 @@ def tree() -> Tree:
     return built
 
 
-def test_a_lineage_walks_up_to_the_root_last(tree: Tree):
+def test_a_lineage_walks_up_to_the_root_last(tree: LineageTree):
     """
     Asserts that a lineage yields the node, each ancestor, and the root
     last.
@@ -45,7 +45,7 @@ def test_a_new_tree_holds_its_root_alone():
     path is empty.
     """
     root = snapshot()
-    tree = Tree(root)
+    tree = LineageTree(root)
 
     assert (len(tree), tree.states, tree.path(0)) == (1, {0: root}, b"")
 
@@ -62,7 +62,7 @@ def test_a_new_tree_holds_its_root_alone():
 def test_a_nodes_path_joins_the_presses_of_its_lineage_in_order(
     node : int,
     path : bytes,
-    tree : Tree
+    tree : LineageTree
 ):
     """
     Asserts that a node's path holds the presses reaching it from the root
@@ -71,7 +71,7 @@ def test_a_nodes_path_joins_the_presses_of_its_lineage_in_order(
     assert tree.path(node) == path
 
 
-def test_a_tree_goes_on_growing_while_its_arrays_are_held(tree: Tree):
+def test_a_tree_goes_on_growing_while_its_arrays_are_held(tree: LineageTree):
     """
     Asserts that adding a node while its arrays are still held leaves those
     arrays as they were rather than raising on the view of a resized buffer.
@@ -95,7 +95,7 @@ def test_a_tree_goes_on_growing_while_its_arrays_are_held(tree: Tree):
 def test_an_ancestor_moves_up_and_stops_at_the_root(
     generations : int,
     reached     : int,
-    tree        : Tree
+    tree        : LineageTree
 ):
     """
     Asserts that moving up reaches the node that many generations above, and
@@ -104,14 +104,14 @@ def test_an_ancestor_moves_up_and_stops_at_the_root(
     assert tree.ancestor(generations, 4) == reached
 
 
-def test_each_node_takes_the_next_number(tree: Tree):
+def test_each_node_takes_the_next_number(tree: LineageTree):
     """
     Asserts that a node added next takes the number after the last.
     """
     assert (len(tree), tree.add(3, b"\x05"), len(tree)) == (5, 5, 6)
 
 
-def test_restoring_a_node_keeping_a_state_presses_nothing(tree: Tree):
+def test_restoring_a_node_keeping_a_state_presses_nothing(tree: LineageTree):
     """
     Asserts that the rollout bringing back a node keeping its own state
     holds no press.
@@ -123,7 +123,7 @@ def test_restoring_a_node_keeping_a_state_presses_nothing(tree: Tree):
     assert (tree.restoring(4).presses, tree.restoring(4).snapshot) == (b"", state)
 
 
-def test_restoring_a_node_plays_from_the_nearest_state_kept_above_it(tree: Tree):
+def test_restoring_a_node_plays_from_the_nearest_state_kept_above_it(tree: LineageTree):
     """
     Asserts that the rollout bringing back a node starts from the nearest
     kept state at or above it, plays every press between them, and plays on
@@ -139,7 +139,7 @@ def test_restoring_a_node_plays_from_the_nearest_state_kept_above_it(tree: Tree)
     ) == (False, b"\x04", state)
 
 
-def test_retaining_drops_each_state_on_no_occupied_lineage(tree: Tree):
+def test_retaining_drops_each_state_on_no_occupied_lineage(tree: LineageTree):
     """
     Asserts that retaining the occupied nodes keeps each state on a lineage
     of one of them, the root's included, and drops the rest.
@@ -152,12 +152,12 @@ def test_retaining_drops_each_state_on_no_occupied_lineage(tree: Tree):
     assert [*tree.states] == [0, 1, 4]
 
 
-def test_the_arrays_load_into_a_tree_reading_the_same(tree: Tree):
+def test_the_arrays_load_into_a_tree_reading_the_same(tree: LineageTree):
     """
     Asserts that a tree loading the arrays and the states of another holds
     the same nodes, paths, and states.
     """
-    loaded = Tree(snapshot())
+    loaded = LineageTree(snapshot())
 
     tree.states[2] = snapshot(shade=5)
     loaded.load(tree.arrays, tree.states)
@@ -169,7 +169,7 @@ def test_the_arrays_load_into_a_tree_reading_the_same(tree: Tree):
     ) == (5, b"\x01\x01\x02\x04", tree.states)
 
 
-def test_the_bytes_count_the_nodes_and_the_compressed_states(tree: Tree):
+def test_the_bytes_count_the_nodes_and_the_compressed_states(tree: LineageTree):
     """
     Asserts that the bytes count each of the 5 nodes' parent and end at 8
     bytes each, the 7 presses, and both compressed members of each state.

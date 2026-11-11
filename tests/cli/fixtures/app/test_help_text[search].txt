@@ -359,6 +359,4 @@ Each of these exits 1 before any directory is made:
 │                               that reaches them, whose default is ten of the │
 │                               250,000-step iterations Dopamine's DQN         │
 │                               evaluates after. [default: 2500000]            │
-│ --verbose                     Log each step beside the line each iteration   │
-│                               logs. [default: False]                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯

@@ -21,7 +21,7 @@ from pydantic         import model_validator
 from typing           import Annotated, Self
 
 from squirtl.emulator.schemas import Record
-from squirtl.reward.schemas   import Event, Flag, Tally, Term
+from squirtl.reward.schemas   import Event, Flag, ProgressTally, Term
 
 type Compressed = Annotated[
     bytes,
@@ -272,7 +272,7 @@ class Snapshot(Record, ser_json_bytes="base64", val_json_bytes="base64"):
     it last rendered among it, compressed.
     """
 
-    tally: Tally
+    tally: ProgressTally
     """
     The episode's progress.
     """

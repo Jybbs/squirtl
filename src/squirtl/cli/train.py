@@ -8,7 +8,7 @@ from datetime   import UTC, datetime
 from subprocess import CalledProcessError
 from typing     import Annotated
 
-from squirtl.cli.logs         import following, listen, refusing
+from squirtl.cli.logs         import drive, listen, refusing
 from squirtl.cli.runs         import RunDirectory
 from squirtl.emulator.schemas import Cartridge
 from squirtl.runs.schemas     import Run, RunSettings
@@ -70,4 +70,4 @@ def train(
         trainer   = Trainer.start(cartridge, settings, datetime.now(UTC), handover)
 
     with trainer:
-        return following(console, trainer)
+        return drive(console, trainer)

@@ -26,10 +26,11 @@ from subprocess import check_output
 from sys        import executable
 
 from squirtl.emulator.console    import GameBoy
+from squirtl.emulator.schemas    import Symbol
 from squirtl.environment.schemas import Entry, Snapshot
 from squirtl.reward.schemas      import Event
 from squirtl.search              import workers
-from squirtl.search.schemas      import Ending, Rollout
+from squirtl.search.schemas      import Ending, SearchRollout
 from squirtl.search.workers      import boot, roll
 
 
@@ -103,14 +104,35 @@ def test_a_rollout_moving_the_player_on_one_screen_is_alive(
 
 
 @mark.usefixtures("booted")
-def test_a_rollout_changing_the_screen_in_place_is_alive(
+def test_a_rollout_changing_the_tile_map_in_place_is_alive(
     monkeypatch : MonkeyPatch,
     playing     : Callable[..., Ending]
 ):
     """
     Asserts that a rollout leaving the player on the square it started on
-    survives where the screen has changed, as advancing dialogue does, which
-    the press here does by inverting the palette at `0xFF47`.
+    survives where `wTileMap` has changed, as advancing dialogue changes it.
+    """
+    def draw(game_boy: GameBoy):
+        """
+        Changes the first tile `wTileMap` holds.
+        """
+        game_boy.emulator.memory[Symbol.W_TILE_MAP] ^= 0xFF
+
+    pressing_after(draw, monkeypatch)
+
+    assert not playing(b"\x00").dead
+
+
+@mark.usefixtures("booted")
+def test_a_rollout_changing_the_screen_alone_in_place_is_dead(
+    monkeypatch : MonkeyPatch,
+    playing     : Callable[..., Ending]
+):
+    """
+    Asserts that a rollout leaving the player on the square and the tile
+    map it started on ends dead where only the screen has changed, as Blue
+    turning in place changes his sprite alone, which the press here stands
+    in for by inverting the palette at `0xFF47`.
     """
     def invert(game_boy: GameBoy):
         """
@@ -120,7 +142,39 @@ def test_a_rollout_changing_the_screen_in_place_is_alive(
 
     pressing_after(invert, monkeypatch)
 
-    assert not playing(b"\x00").dead
+    assert playing(b"\x00").dead
+
+
+@mark.parametrize(
+    ("map", "dead"),
+    [param(0x00, True, id="pallet-town"), param(0x28, False, id="oaks-lab")]
+)
+@mark.usefixtures("booted", "game")
+def test_a_rollout_whose_party_faints_blacks_out_outside_oaks_lab(
+    dead        : bool,
+    map         : int,
+    monkeypatch : MonkeyPatch,
+    playing     : Callable[..., Ending]
+):
+    """
+    Asserts that a rollout moving the player ends dead on the press its one
+    Pokémon faints on, stopping there, where the map is any but Oak's lab,
+    in which the game lets Blue lose to the rival, and plays on alive there.
+    """
+    def faint(game_boy: GameBoy):
+        """
+        Puts the player on `map` with one Pokémon holding no HP.
+        """
+        memory = game_boy.emulator.memory
+
+        memory[Symbol.W_CUR_MAP]     = map
+        memory[Symbol.W_PARTY_COUNT] = 1
+
+    pressing_after(faint, monkeypatch)
+
+    ended = playing(b"\x01\x01\x01")
+
+    assert (ended.dead, len(ended.presses)) == (dead, 1 if dead else 3)
 
 
 @mark.usefixtures("booted")
@@ -247,7 +301,9 @@ def test_a_pool_returns_each_ending_in_the_order_submitted(
     rollout reaches in the process running the test, whatever the worker
     count.
     """
-    rollouts = [Rollout(presses=bytes([n % 7]) * 3, snapshot=root) for n in range(6)]
+    rollouts = [SearchRollout(presses=bytes([n % 7]) * 3, snapshot=root) for n in range(
+        6
+    )]
 
     with ProcessPoolExecutor(
         initargs    = (specification,),

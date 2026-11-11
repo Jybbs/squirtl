@@ -19,41 +19,16 @@ Pins the loop of one search, covering:
 """
 
 from collections.abc import Callable
-from common.search   import PoolStandIn, assert_same_checkpoint, lines
+from common.search   import PoolStandIn, assert_same_checkpoint, finish, iterations, lines, stop_at_thirty
 from itertools       import pairwise
 from pytest          import MonkeyPatch, mark, raises
 from signal          import SIGINT, SIGTERM, Signals, getsignal, raise_signal
 
-from squirtl.runs.schemas      import Run, SearchSettings, Stream
+from squirtl.runs.schemas      import Run, Stream
 from squirtl.runs.searcher     import SearchHandover, Searcher
 from squirtl.search.checkpoint import SearchCheckpoint
-from squirtl.search.schemas    import Iteration
+from squirtl.search.schemas    import Iteration, SearchSettings
 from squirtl.search.workers    import boot
-
-
-def finish(
-    searcher : Searcher,
-    stop     : Callable[[int, Searcher], None] = lambda *_: None
-) -> Run:
-    """
-    Runs `searcher` to its end, calling `stop` with the presses taken and
-    the searcher after each outer step.
-
-    Returns:
-        The run it recorded.
-    """
-    with searcher:
-        for presses in searcher:
-            stop(presses, searcher)
-
-    return searcher.run
-
-
-def iterations(run: Run) -> list[Iteration]:
-    """
-    Reads each iteration `run` recorded.
-    """
-    return [Iteration.model_validate_json(line) for line in run.lines(run.iterations)]
 
 
 def landing(built: Searcher, monkeypatch: MonkeyPatch) -> list[int]:
@@ -89,14 +64,6 @@ def signaling(number: Signals) -> Callable[[int, Searcher], None]:
             raise_signal(number)
 
     return stop
-
-
-def stop_at_thirty(presses: int, searcher: Searcher):
-    """
-    Writes the run's `stop` file once `searcher` has taken 30 presses.
-    """
-    if presses >= 30:
-        searcher.run.stop.touch()
 
 
 def test_a_checkpoint_follows_the_iterations_it_holds_onto_the_disk(
@@ -215,7 +182,10 @@ def test_a_handover_refuses_iterations_short_of_the_checkpoint(halted: Run):
     """
     halted.iterations.write_text("", encoding="utf-8")
 
-    with raises(ValueError, match="short of the checkpoint"):
+    with raises(
+        ValueError,
+        match = r"iterations.jsonl holds 0 lines, short of the \d+ the"
+    ):
         SearchHandover.from_run(halted)
 
 
@@ -242,8 +212,8 @@ def test_a_search_builds_a_pool_of_spawned_workers_booting_its_environment(
     searcher : Callable[..., Searcher]
 ):
     """
-    Asserts that the search asks for the workers its settings name, spawned
-    rather than forked, each booted on the run's environment.
+    Asserts that the search builds its pool with the workers its settings
+    name, spawned rather than forked, each booted on the run's environment.
     """
     built = searcher()
 

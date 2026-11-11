@@ -61,8 +61,9 @@ from squirtl.emulator.schemas    import Record
 from squirtl.environment.schemas import EnvironmentSettings, Recording, Takeover
 from squirtl.evaluation.schemas  import Evaluation
 from squirtl.reward.schemas      import Event, RewardSettings
-from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunListing, RunSettings
-from squirtl.runs.schemas        import SearchSettings, Start, Stream
+from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunListing, RunSettings, Start
+from squirtl.runs.schemas        import Stream
+from squirtl.search.schemas      import SearchSettings
 
 
 def test_a_checkpoint_at_the_runs_last_step_may_land_within_an_episode(
@@ -122,7 +123,7 @@ def test_a_log_holding_fewer_episodes_than_a_count_is_refused(
 
     with raises(
         ValueError,
-        match = "holds 1 episodes, short of the 2 the checkpoint follows"
+        match = "holds 1 lines, short of the 2 the checkpoint follows"
     ):
         run.first(2)
 

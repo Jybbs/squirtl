@@ -8,7 +8,7 @@ from collections import Counter
 from numpy       import array, int8, ndarray, zeros
 
 from squirtl.emulator.console import GameBoy
-from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Tally, Term
+from squirtl.reward.schemas   import Event, Position, ProgressTally, RewardSettings, Score, Term
 
 
 class Progress:
@@ -24,7 +24,7 @@ class Progress:
         game_boy : GameBoy,
         goal     : Event,
         settings : RewardSettings,
-        tally    : Tally | None = None
+        tally    : ProgressTally | None = None
     ):
         """
         Takes up the episode where `tally` leaves it, or otherwise records
@@ -32,7 +32,7 @@ class Progress:
         set, neither of which a step earns, and the term each flag up to
         `goal` pays.
         """
-        tally = tally or Tally.read(game_boy)
+        tally = tally or ProgressTally.read(game_boy)
 
         self.earned    = Counter(tally.earned)
         self.events    = set(tally.events)
@@ -61,12 +61,12 @@ class Progress:
         return self.settings.shares(self.earned)
 
     @property
-    def tally(self) -> Tally:
+    def tally(self) -> ProgressTally:
         """
-        Packs the progress so far into the `Tally` that `Progress` resumes
-        from.
+        Packs the progress so far into the `ProgressTally` that `Progress`
+        resumes from.
         """
-        return Tally.of(
+        return ProgressTally.of(
             self.earned,
             self.events,
             self.firsts,

@@ -15,5 +15,7 @@ squirtl.reward
 squirtl.reward.schemas
 squirtl.runs
 squirtl.runs.schemas
+squirtl.search
+squirtl.search.schemas
 squirtl.startup
 squirtl.startup.imports

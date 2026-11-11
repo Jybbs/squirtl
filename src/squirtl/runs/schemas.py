@@ -1,9 +1,8 @@
 """
 Defines the records one run reads and writes:
 
-- `RunSettings`, every setting the run reads, `CurriculumSettings` and
-  `SearchSettings` among them, and `Range`, the least and the most of a
-  count or a move a setting bounds
+- `RunSettings`, every setting the run reads, `CurriculumSettings` among
+  them
 - `Revision`, the code the run ran on
 - `Run`, the directory under `data/runs/` recording both, each episode, each
   evaluation, and the checkpoint, or each iteration of a search
@@ -26,37 +25,21 @@ from numpy.random    import SeedSequence
 from operator        import attrgetter
 from os              import SEEK_END, pread
 from pathlib         import Path
-from pydantic        import AfterValidator, AwareDatetime, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat
-from pydantic        import PositiveInt, PrivateAttr, StringConstraints, model_validator
+from pydantic        import AwareDatetime, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt
+from pydantic        import PrivateAttr, StringConstraints, model_validator
 from subprocess      import check_output
 from typing          import Annotated, ClassVar, Self
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm, PolicyUpdate, Update, flush
-from squirtl.emulator.schemas    import EmulatorSettings, Record, UnitInterval, processors
+from squirtl.emulator.schemas    import EmulatorSettings, Range, Record, UnitInterval
 from squirtl.environment.schemas import EnvironmentSettings, Outcome, Recording
 from squirtl.evaluation.schemas  import Evaluation, EvaluationSettings
 from squirtl.reward.schemas      import RewardSettings
+from squirtl.search.schemas      import SearchSettings
 
 type Hexadecimal = Annotated[
     str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
 ]
-
-type Range[T] = Annotated[tuple[T, T], AfterValidator(ascending)]
-
-
-def ascending[T: float](bounds: tuple[T, T]) -> tuple[T, T]:
-    """
-    Refuses a range whose least passes its most, returning `bounds` as they
-    are otherwise.
-
-    Raises:
-        ValueError: Where it does, which Pydantic raises as a
-                    `ValidationError` naming the field.
-    """
-    if bounds[0] > bounds[1]:
-        raise ValueError(f"the least of {bounds[0]} passes the most of {bounds[1]}")
-
-    return bounds
 
 
 class CurriculumSettings(Record):
@@ -163,81 +146,6 @@ class CurriculumSettings(Record):
             )
 
         return self
-
-
-class SearchSettings(Record):
-    """
-    The settings a search over save states reads, each a field of
-    `RunSettings.search` and a key under `[tool.squirtl.search]` in
-    `pyproject.toml`. The population's defaults are the Montezuma's Revenge
-    column of Table 5 in Mhammedi and Cohan's "Decoupling Exploration and
-    Policy Optimization", and the predictor's are their Appendix A.3.
-    """
-
-    batch_size: PositiveInt = 128
-    """
-    The frame stacks each update of the predictor draws, whose default
-    follows Mhammedi and Cohan's Appendix A.3.
-    """
-
-    capacity: PositiveInt = 100_000
-    """
-    The frames replay memory holds for the predictor, one per slot, under
-    1 GB at the default frame shape.
-    """
-
-    epsilon: UnitInterval = 0.2
-    """
-    The chance a press takes a random action in place of the one its
-    rollout holds, whose default follows Mhammedi and Cohan's Appendix A.2.
-    """
-
-    groups: PositiveInt = 4
-    """
-    The groups of particles the search evolves, Mhammedi and Cohan's M.
-    """
-
-    inner_steps: Range[PositiveInt] = (5, 15)
-    """
-    The fewest and the most presses of one rollout, Mhammedi and Cohan's
-    range of T.
-    """
-
-    learning_rate: PositiveFloat = 3e-4
-    """
-    The step size Adam takes on the predictor, whose default follows
-    Mhammedi and Cohan's Appendix A.3.
-    """
-
-    outer_steps: Range[PositiveInt] = (10, 20)
-    """
-    The fewest and the most rollouts each particle plays in one iteration,
-    Mhammedi and Cohan's range of K.
-    """
-
-    particles: PositiveInt = 32
-    """
-    The particles each group holds, Mhammedi and Cohan's N.
-    """
-
-    rollback: Range[PositiveInt] = (1, 3)
-    """
-    The fewest and the most generations a particle moves up the tree once
-    every particle of its group is dead, Mhammedi and Cohan's range of k.
-    """
-
-    update_steps: PositiveInt = 44
-    """
-    The presses between updates of the predictor, whose default is the
-    ratio of Mhammedi and Cohan's Table 6, 2.28 million updates over 400
-    million frames at their action repeat of 4.
-    """
-
-    workers: PositiveInt = Field(default_factory=processors)
-    """
-    The worker processes the rollouts run across, which defaults to the
-    CPUs the process may use.
-    """
 
 
 class Revision(Record):
@@ -718,19 +626,21 @@ class Run(Record):
         """
         return takewhile(lambda evaluation: evaluation.step <= step, self.evaluated)
 
-    def first(self, count: int) -> list[str]:
+    def first(self, count: int, path: Path | None = None) -> list[str]:
         """
-        Reads the line of each of the first `count` episodes `episodes`
-        holds, validating no line.
+        Reads the first `count` lines of `path`, one of the run's JSON Lines
+        files, or of `episodes` where it is `None`, validating no line.
 
         Raises:
-            ValueError: Where `episodes` holds fewer, as where a crash lost
+            ValueError: Where the file holds fewer, as where a crash lost
                         the log's last lines.
         """
-        if len(lines := list(islice(self.lines(self.episodes), count))) < count:
+        path = path or self.episodes
+
+        if len(lines := list(islice(self.lines(path), count))) < count:
             raise ValueError(
-                f"{self.episodes} holds {len(lines):,} episodes, short of the "
-                f"{count:,} the checkpoint follows"
+                f"{path} holds {len(lines):,} lines, short of the {count:,} the "
+                f"checkpoint follows"
             )
 
         return lines

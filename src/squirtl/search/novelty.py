@@ -13,17 +13,17 @@ from numpy               import array, asarray, frombuffer, ndarray, uint8
 from numpy.random        import Generator
 from statistics          import fmean
 from torch               import Tensor, as_tensor, default_generator, float32, inference_mode, zeros
-from torch.nn            import Conv2d, Identity, LazyLinear, Linear, ReLU, Sequential
+from torch.nn            import Identity, LazyLinear, Linear, ReLU, Sequential
 from torch.nn.functional import mse_loss
 from torch.nn.init       import orthogonal_, zeros_
 from torch.optim         import Adam
 from torch.random        import fork_rng
 
-from squirtl.agent.networks      import Encoder, configure
+from squirtl.agent.networks      import Encoder, configure, weighted
 from squirtl.agent.replay        import Replay
 from squirtl.agent.schemas       import AgentSettings
 from squirtl.environment.schemas import Entry, Snapshot
-from squirtl.runs.schemas        import SearchSettings
+from squirtl.search.schemas      import SearchSettings
 
 
 class Novelty:
@@ -166,10 +166,9 @@ class Novelty:
         )
         network(zeros(1, *shape))
 
-        for module in network[0]:
-            if isinstance(module, Conv2d):
-                orthogonal_(module.weight, sqrt(2))
-                zeros_(module.bias)
+        for layer in weighted(network[0]):
+            orthogonal_(layer.weight, sqrt(2))
+            zeros_(layer.bias)
 
         return network
 
