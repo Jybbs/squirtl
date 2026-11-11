@@ -4,7 +4,8 @@ a declaration in the package, which `squirtl write docs` writes between
 a pair of HTML comments named for the table: the settings one subject of
 a run reads, from the help `squirtl train` prints for each, the addresses
 `Symbol` declares, or the flags `Event` declares. `Page` holds the page of
-one command, whose markers hold the parts `Command` writes from its help.
+one command, whose markers hold the parts `Command` writes from its help,
+and `Summary` the README, whose markers hold its sentence on the results.
 """
 
 from collections.abc import Iterable, Iterator
@@ -14,7 +15,9 @@ from re              import Match, Pattern, compile
 from typing          import ClassVar, Self
 
 from squirtl.docs.commands    import Command
+from squirtl.docs.results     import Results
 from squirtl.emulator.schemas import Record, Symbol
+from squirtl.releases.schemas import addresses
 from squirtl.reward.schemas   import Event
 
 
@@ -171,6 +174,44 @@ class Page(Region):
             )
 
         return "".join(self.pieces(command, pairs))
+
+
+class Summary(Region):
+    """
+    The README, holding its sentence on the results between `<!-- results
+    -->` and `<!-- /results -->`, linked to the site's Results section at
+    the `Homepage` address the package metadata names.
+    """
+
+    marker: ClassVar[Pattern[str]] = compile(r"<!-- (/?)(results) -->")
+
+    results: Results
+    """
+    The runs the sentence spells.
+    """
+
+    def fill(self, command: Command, name: str) -> str:
+        """
+        Spells the sentence on `results`, after the link to the site's
+        Results section.
+        """
+        site = addresses()["Homepage"]
+
+        return f"**[Results]({site}results/)** {self.results.summary}"
+
+    @classmethod
+    def found(cls, results: Results) -> Iterator[Self]:
+        """
+        Reads the README beside the `results` its sentence spells, where it
+        holds a marker.
+        """
+        path = Path(".github/README.md")
+
+        if (
+            path.is_file()
+            and cls.marker.search(text := path.read_text(encoding="utf-8"))
+        ):
+            yield cls(path=path, results=results, text=text)
 
 
 def table(name: str, train: Command) -> str:

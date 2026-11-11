@@ -43,6 +43,14 @@ describe('the run', () => {
     expect(strict.flat().every((shown, n) => shown.start <= ends[n % ends.length]!)).toBe(true)
   })
 
+  it.for([0, 0.25, 0.5, 0.75, 1])('shows a start in each batch at a required share of %s', required => {
+    const ends   = curriculum.SEGMENTS.map(each => each.end)
+    const starts = curriculum.runOf({ ...curriculum.CURRICULUM, required }).flat().map(shown => shown.start)
+
+    expect(starts.every(start => Number.isInteger(start))).toBe(true)
+    expect(starts.every((start, n) => start <= ends[n % ends.length]!)).toBe(true)
+  })
+
   it('reads the odds of reaching a goal as falling with the steps left and rising with training, within their bounds', () => {
     expect([curriculum.odds(1000, 0), curriculum.odds(0, 100), curriculum.odds(8, 0)]).toStrictEqual([0.02, 0.99, 0.5])
   })

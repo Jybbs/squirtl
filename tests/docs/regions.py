@@ -1,9 +1,11 @@
 """
 Pins how `Region` writes each table into a page, covering the pages it
-finds, a table written between its pair of markers in place of what the pair
-held, the tables of the addresses and the flags, and a marker left unpaired,
-and how `Page` writes the parts of a command's page around its own prose,
-covering a page not yet written and markers naming other parts.
+finds, a table written between its pair of markers in place of what the
+pair held, the tables of the addresses and the flags, and a marker left
+unpaired, how `Page` writes the parts of a command's page around its own
+prose, covering a page not yet written and markers naming other parts, and
+how `Summary` writes the README's sentence on the results, covering a README
+holding no marker.
 """
 
 from collections.abc import Callable, Mapping
@@ -12,7 +14,8 @@ from pytest          import mark, param, raises
 
 from squirtl.cli           import app
 from squirtl.docs.commands import Command
-from squirtl.docs.regions  import Page, Region, table
+from squirtl.docs.regions  import Page, Region, Summary, table
+from squirtl.docs.results  import Results
 
 STOP = Command.read(app, ("stop",))
 """
@@ -222,3 +225,46 @@ def test_a_page_whose_markers_name_other_parts_is_refused(text: str, names: str)
         match = f"^page.md: markers naming {names} where the page holds help, settings$"
     ):
         Page(path=Path("page.md"), text=text).written(STOP)
+
+
+@mark.parametrize(
+    "files",
+    [
+        param({}, id="missing"),
+        param({".github/README.md": "# SquiRtL\n"}, id="no-markers")
+    ]
+)
+def test_a_readme_holding_no_marker_holds_no_summary(
+    checkout : Callable[[Mapping[str, str]], None],
+    files    : Mapping[str, str]
+):
+    """
+    Pins that a checkout whose README is missing or holds no marker yields
+    no summary to write.
+    """
+    checkout(files)
+
+    assert [*Summary.found(Results.read())] == []
+
+
+def test_the_summary_links_the_results_before_its_sentence(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that the README's pair of markers holds the link to the site's
+    Results section at the package's `Homepage` before the sentence on the
+    results, whatever it held before, the prose around it kept.
+    """
+    checkout(
+        {
+            ".github/README.md":
+                "# SquiRtL\n\n<!-- results -->\nstale\n<!-- /results -->\n"
+        }
+    )
+    results   = Results.read()
+    [summary] = Summary.found(results)
+
+    assert summary.written(TRAIN) == (
+        "# SquiRtL\n\n<!-- results -->\n\n**[Results](https://squirtl.fyi/results/)** "
+        f"{results.summary}\n\n<!-- /results -->\n"
+    )

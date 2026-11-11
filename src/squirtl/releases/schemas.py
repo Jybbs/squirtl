@@ -8,6 +8,9 @@ Defines the records a release of SquiRtL carries its trained runs through:
   file attached to it, from which `squirtl fetch` unpacks the runs
 - `Selector` and `RunSelection`, the runs `squirtl watch` and `squirtl
   evaluate` read from a run directory or from a release
+
+It also defines `addresses`, which reads the addresses the package metadata
+names, and `requested`, which builds a request GitHub's REST API accepts.
 """
 
 from functools          import cached_property
@@ -31,6 +34,16 @@ from squirtl.agent.schemas    import Algorithm
 from squirtl.docs.results     import Results
 from squirtl.emulator.schemas import EmulatorSettings, Record
 from squirtl.runs.schemas     import Run, RunListing, Start
+
+
+def addresses() -> dict[str, str]:
+    """
+    Reads each address the package metadata's `Project-URL` entries name,
+    under its label, such as `Homepage` and `Repository`.
+    """
+    return dict(
+        entry.split(", ") for entry in metadata("squirtl").get_all("Project-URL")
+    )
 
 
 def requested(url: str) -> Request:
@@ -423,10 +436,7 @@ class GithubRelease(Record, extra="ignore"):
             HTTPError  : Where GitHub answers with an error other than 404.
             ValueError : Where GitHub publishes no such release.
         """
-        addresses = dict(
-            entry.split(", ") for entry in metadata("squirtl").get_all("Project-URL")
-        )
-        repository = urlparse(addresses["Repository"]).path
+        repository = urlparse(addresses()["Repository"]).path
         release    = f"tags/{tag}" if tag else "latest"
 
         try:

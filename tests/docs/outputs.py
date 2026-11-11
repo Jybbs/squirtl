@@ -101,11 +101,14 @@ def test_the_inventory_lists_the_rendered_files_and_the_pages_it_writes():
     under `docs/.vitepress/lib/rendered/`, the identity's JSON carrying
     every field beside the values the identity derives, which the site
     reads rather than deriving again, then each command's page under
-    `docs/pages/commands/`, then each page holding a table of settings.
+    `docs/pages/commands/`, then each page holding a table of settings, then
+    the README holding its sentence on the results.
     """
-    outputs = {output.path.as_posix(): output for output in Inventory.read(app).outputs}
-    pages   = [path for path in outputs if path.startswith("docs/pages/")]
+    *listed, readme = Inventory.read(app).outputs
+    outputs         = {output.path.as_posix(): output for output in listed}
+    pages           = [path for path in outputs if path.startswith("docs/pages/")]
 
+    assert readme.path == Path(".github/README.md")
     assert [Path(path).name for path in outputs if path not in pages] == [
         "events.json", "identity.json", "results.json", "release.json",
         "settings.json", "symbols.json", "theme.css"

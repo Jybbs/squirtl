@@ -1,11 +1,12 @@
 """
 Defines `Results`, the measured runs the site's Results section draws, read
 from the run directories committed under `docs/runs/`, which `squirtl write
-docs` writes into the site as JSON, beside `Trained`, one of those runs, and
-`Comparison`, the runs of one agent set against their baselines.
+docs` writes into the site as JSON and spells as the README's sentence on
+them, beside `Trained`, one of those runs, and `Comparison`, the runs of one
+agent set against their baselines.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from itertools       import groupby
 from numpy           import array
 from numpy.random    import default_rng
@@ -169,6 +170,13 @@ class Comparison(Record):
     their goal.
     """
 
+    @property
+    def start(self) -> str:
+        """
+        Names where the runs started their training episodes.
+        """
+        return "along the curriculum" if self.curriculum else "from the bedroom"
+
     @classmethod
     def across(cls, runs: Iterable[Trained], bedroom: Iterable[Trained] = ()) -> Self:
         """
@@ -232,6 +240,42 @@ class Results(Record):
     Each run, in the order of its name.
     """
 
+    @property
+    def summary(self) -> str:
+        """
+        Spells the sentence the README opens its results on, each agent's
+        share reaching the runs' goal from each start, the agents reaching
+        more first and those sharing a phrase joined, beside random presses'
+        share, or the comparison alone where no run is committed.
+        """
+        if self.random is None:
+            return "compares each agent against random presses under the same seeds."
+
+        agents = sorted(
+            (
+                tuple(members)
+                for _, members in groupby(self.comparisons, key=attrgetter("agent"))
+            ),
+            key     = lambda members: max(member.reached.value for member in members),
+            reverse = True
+        )
+        clauses: dict[str, list[str]] = {}
+
+        for members in agents:
+            clauses.setdefault(spelled(members), []).append(members[0].agent.name)
+
+        (first, names), *rest = clauses.items()
+        seeds                 = len({run.seed for run in self.runs})
+        verb = "reach" if len(names) > 1 else "reaches"
+        head = f"{' and '.join(names)} {verb} `{self.runs[0].goal.name}` {first}"
+
+        return (
+            f"compares each agent against random presses under the same {seeds} "
+                f"{'seed' if seeds == 1 else 'seeds'}, where {head}, "
+            + "".join(f"{' and '.join(names)} {text}, " for text, names in rest)
+            + f"and random presses {self.random.share}."
+        )
+
     @classmethod
     def read(cls, folder: Path = folder) -> Self:
         """
@@ -265,3 +309,14 @@ class Results(Record):
             ) if runs else None,
             runs = runs
         )
+
+
+def spelled(comparisons: Sequence[Comparison]) -> str:
+    """
+    Spells the share of one agent's `comparisons` from each start, once
+    before every start where each holds the same share.
+    """
+    if len(phrases := {each.reached.share for each in comparisons}) == 1:
+        return f"{phrases.pop()} {' and '.join(each.start for each in comparisons)}"
+
+    return " and ".join(f"{each.reached.share} {each.start}" for each in comparisons)
