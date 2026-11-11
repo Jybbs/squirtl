@@ -32,13 +32,7 @@ A step that ends the episode at the starter takes $`y = r`$, whereas a step the 
 
 PQN, Gallici et al.'s[^gallici2025] parallel Q-network, values each press as the deep Q-network does but keeps neither replay memory nor a target network. It acts across 8 environments run in parallel, choosing each press epsilon-greedily, and once each environment has taken 512 steps, it trains for 2 passes over the rollout on half the squared error between its values and the λ-returns computed backward through it, with layer normalization after every layer as Gallici et al.'s Atari network normalizes.
 
-Each environment's chance of a random press falls linearly from 1 over the run's first tenth of steps, as Gallici et al.'s Atari settings anneal it, to a floor of its own. The floors fall geometrically from 0.4 in the first of $`N`$ environments to Gallici et al.'s 0.001 in the last, as Horgan et al.[^horgan2018] spread the chances of Ape-X's actors:
-
-```math
-\epsilon_i = 0.4^{1 - i/(N - 1)} \cdot 0.001^{i/(N - 1)}
-```
-
-Gallici et al. note that the randomness of an environment's own dynamics spreads even a greedy policy across several states at once, whereas the emulator plays each press out the same way from the same state, so environments sharing one floor of 0.001 would follow a single walk. Across the default 8 environments, the floors run 0.4, 0.17, 0.072, 0.031, 0.013, 0.0055, 0.0024, and 0.001.
+From Blue's bedroom, PQN at these settings does not learn the walk to the starter. The network's value of each press is mostly an offset shared by every state, so the press it values highest is nearly the same in every state, and that press changes at each update. Training episodes reach new positions only as the press changes between updates, whereas an evaluation plays one checkpoint whose highest-valued press holds, so across 2.5 million steps on each of five seeds, no evaluation episode reaches the starter and each covers 1 to 31 positions, against random presses reaching it in 20% to 33% of episodes and covering about 160. PQN keeps Gallici et al.'s design as they publish it, with neither a target network nor replay memory.
 
 ## PPO
 
@@ -82,10 +76,9 @@ The table below is written from the help `squirtl train` prints for each `--agen
 | `--agent.ppo.trace-decay` | `0.95` | *The λ that weights each generalized advantage estimate of Schulman et al., whose default is the one Pleines et al. train with.* |
 | `--agent.ppo.value-coefficient` | `0.5` | *The weight of the value's loss beside the clipped objective, whose default is the coefficient Pleines et al. train with.* |
 | `--agent.pqn.epochs` | `2` | *The passes each update takes over the rollout, whose default is the epochs of Gallici et al.'s Atari settings.* |
-| `--agent.pqn.epsilon-end` | `0.001` | *The chance of a random action the last environment anneals to, the lowest of the environments' floors, whose default is the one Gallici et al.'s Atari settings finish at.* |
-| `--agent.pqn.epsilon-end-first` | `0.4` | *The chance of a random action the first environment anneals to, the highest of the environments' floors, whose default is the epsilon Horgan et al.'s Ape-X gives its most exploring actor.* |
+| `--agent.pqn.epsilon-end` | `0.001` | *The chance of a random action once exploration has annealed, whose default is the one Gallici et al.'s Atari settings finish at.* |
 | `--agent.pqn.epsilon-start` | `1.0` | *The chance of a random action at the run's first step, whose default is the one Gallici et al.'s Atari settings start at.* |
-| `--agent.pqn.exploration-fraction` | `0.1` | *The share of the run's steps over which each environment's chance of a random action falls linearly from `epsilon_start` to its floor, whose default is the decay of Gallici et al.'s Atari settings.* |
+| `--agent.pqn.exploration-fraction` | `0.1` | *The share of the run's steps over which the chance of a random action falls linearly from `epsilon_start` to `epsilon_end`, whose default is the decay of Gallici et al.'s Atari settings.* |
 | `--agent.pqn.learning-rate` | `0.00025` | *The step size RAdam takes on every minibatch, held constant across the run, whose default is the learning rate of Gallici et al.'s Atari settings.* |
 | `--agent.pqn.max-grad-norm` | `10.0` | *The norm each minibatch's gradient is clipped to, whose default is the maximum gradient norm of Gallici et al.'s Atari settings.* |
 | `--agent.pqn.minibatches` | `32` | *The minibatches each epoch splits the rollout into, whose default is the count of Gallici et al.'s Atari settings.* |
@@ -105,8 +98,6 @@ The table below is written from the help `squirtl train` prints for each `--agen
 [^vanhasselt2016]: van Hasselt et al. 2016. "Deep Reinforcement Learning with Double Q-Learning." *Proceedings of the AAAI Conference on Artificial Intelligence* 30(1). <https://doi.org/10.1609/aaai.v30i1.10295>
 
 [^gallici2025]: Gallici et al. 2025. "Simplifying Deep Temporal Difference Learning." *International Conference on Learning Representations* 2025: 78148–78190. <https://proceedings.iclr.cc/paper_files/paper/2025/hash/c23f3852601f6dd7f0b39223d031806f-Abstract-Conference.html>
-
-[^horgan2018]: Horgan et al. 2018. "Distributed Prioritized Experience Replay." *International Conference on Learning Representations*. <https://openreview.net/forum?id=H1Dy---0Z>
 
 [^schulman2017]: Schulman et al. 2017. "Proximal Policy Optimization Algorithms." arXiv:1707.06347. <https://arxiv.org/abs/1707.06347>
 

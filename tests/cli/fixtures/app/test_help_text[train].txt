@@ -128,25 +128,19 @@ Each of these exits 1 before any directory is made:
 │ --agent.pqn.epochs INT        The passes each update takes over the rollout, │
 │                               whose default is the epochs of Gallici et      │
 │                               al.'s Atari settings. [default: 2]             │
-│ --agent.pqn.epsilon-end       The chance of a random action the last         │
-│   FLOAT                       environment anneals to, the lowest of the      │
-│                               environments' floors, whose default is the one │
-│                               Gallici et al.'s Atari settings finish at.     │
-│                               [default: 0.001]                               │
-│ --agent.pqn                   The chance of a random action the first        │
-│   .epsilon-end-first FLOAT    environment anneals to, the highest of the     │
-│                               environments' floors, whose default is the     │
-│                               epsilon Horgan et al.'s Ape-X gives its most   │
-│                               exploring actor. [default: 0.4]                │
+│ --agent.pqn.epsilon-end       The chance of a random action once exploration │
+│   FLOAT                       has annealed, whose default is the one Gallici │
+│                               et al.'s Atari settings finish at. [default:   │
+│                               0.001]                                         │
 │ --agent.pqn.epsilon-start     The chance of a random action at the run's     │
 │   FLOAT                       first step, whose default is the one Gallici   │
 │                               et al.'s Atari settings start at. [default:    │
 │                               1.0]                                           │
-│ --agent.pqn                   The share of the run's steps over which each   │
-│   .exploration-fraction       environment's chance of a random action falls  │
-│   FLOAT                       linearly from epsilon_start to its floor,      │
-│                               whose default is the decay of Gallici et al.'s │
-│                               Atari settings. [default: 0.1]                 │
+│ --agent.pqn                   The share of the run's steps over which the    │
+│   .exploration-fraction       chance of a random action falls linearly from  │
+│   FLOAT                       epsilon_start to epsilon_end, whose default is │
+│                               the decay of Gallici et al.'s Atari settings.  │
+│                               [default: 0.1]                                 │
 │ --agent.pqn.learning-rate     The step size RAdam takes on every minibatch,  │
 │   FLOAT                       held constant across the run, whose default is │
 │                               the learning rate of Gallici et al.'s Atari    │

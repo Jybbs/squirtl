@@ -15,10 +15,10 @@ Pins the records the agents read and write, covering:
 from collections.abc import Callable
 from common.agents   import each_agent
 from pydantic        import ValidationError
-from pytest          import MonkeyPatch, approx, mark, param, raises
+from pytest          import MonkeyPatch, mark, param, raises
 from torch           import device
 
-from squirtl.agent.schemas import AgentSettings, Algorithm, Measures, PQNSettings, PolicyUpdate, Update, flush
+from squirtl.agent.schemas import AgentSettings, Algorithm, Measures, PolicyUpdate, Update, flush
 
 
 @mark.parametrize(
@@ -295,52 +295,3 @@ def test_each_agent_names_its_measures_and_how_it_chooses(
     from a policy or chooses epsilon-greedily.
     """
     assert (algorithm.measures, algorithm.sampled) == (record, sampled)
-
-
-@mark.parametrize(
-    ("environments", "ends", "floors"),
-    [
-        param(
-            1,
-            {},
-            [0.4],
-            id = "one-environment-at-the-first-end"
-        ),
-        param(2, {},                 [0.4, 0.001], id="two-environments-at-either-end"),
-        param(3, {"epsilon_end": 0}, [0.4, 0, 0],  id="an-end-of-zero"),
-        param(
-            8,
-            {"epsilon_end": 0.4**8},
-            [0.4 ** (1 + slot) for slot in range(8)],
-            id = "eight-environments-as-ape-x-spreads-its-actors"
-        )
-    ]
-)
-def test_pqns_floors_fall_geometrically_from_the_first_end_to_the_last(
-    ends         : dict[str, float],
-    environments : int,
-    floors       : list[float]
-):
-    """
-    Asserts that the environments' floors fall geometrically from 0.4 to
-    `epsilon_end`, which at 0.4 raised to the eighth gives environment i of
-    eight the 0.4 raised to 1 + i that Horgan et al. give actor i of Ape-X,
-    and that a single environment anneals to 0.4.
-    """
-    assert PQNSettings(**ends).floors(environments).tolist() == approx(floors)
-
-
-@mark.parametrize(
-    ("field", "value"),
-    [
-        param("epsilon_end",       -0.1, id="a-negative-last-end"),
-        param("epsilon_end_first", 1.01, id="a-first-end-past-one")
-    ]
-)
-def test_pqns_floors_refuse_a_value_outside_their_range(field: str, value: float):
-    """
-    Asserts that each end of PQN's floors refuses a value outside the range
-    its field declares, the error located at that field.
-    """
-    with raises(ValidationError, match=rf"(?m)^{field}$"):
-        PQNSettings(**{field: value})

@@ -767,30 +767,28 @@ def test_ppo_reads_each_advantage_and_clips_each_value_from_the_value_it_stored(
 
 
 @mark.parametrize(
-    ("step", "epsilons"),
+    ("step", "epsilon"),
     [
-        param(0,    [1.0, 1.0],    id="the-first-step"),
-        param(50,   [0.7, 0.5005], id="halfway-through-exploration"),
-        param(100,  [0.4, 0.001],  id="the-end-of-exploration"),
-        param(1000, [0.4, 0.001],  id="the-last-step")
+        param(0,    1.0,    id="the-first-step"),
+        param(50,   0.5005, id="halfway-through-exploration"),
+        param(100,  0.001,  id="the-end-of-exploration"),
+        param(1000, 0.001,  id="the-last-step")
     ]
 )
-def test_each_of_pqns_environments_anneals_to_its_own_floor(
-    epsilons : list[float],
-    rolling  : Callable[..., RolloutAgent],
-    step     : int
+def test_pqns_chance_of_a_random_action_falls_as_gallici_et_al_set_it(
+    epsilon : float,
+    rolling : Callable[..., RolloutAgent],
+    step    : int
 ):
     """
-    Asserts that each of PQN's two environments anneals linearly from
-    a chance of 1 over the first tenth of a 1,000-step run, counted in
-    environment steps, the first to 0.4 and the second to 0.001, and holds
-    there, `chance` reading each environment's own.
+    Asserts that PQN's chance falls linearly from 1 to 0.001 over the first
+    tenth of a 1,000-step run, counted in environment steps, and holds at
+    0.001 after it.
     """
     agent      = rolling(Algorithm.PQN)
     agent.step = step
 
-    assert agent.epsilon.tolist() == approx(epsilons)
-    assert [agent.chance(slot) for slot in range(2)] == approx(epsilons)
+    assert agent.epsilon == approx(epsilon)
 
 
 def test_ppo_samples_each_action_from_its_policy(
@@ -807,7 +805,7 @@ def test_ppo_samples_each_action_from_its_policy(
     flat(100 * one_hot(tensor(3), 7), agent.network.policy)
     flat([2.5], agent.network.critic)
 
-    assert agent.chance(0) is None
+    assert agent.epsilon is None
     assert agent.act(batched).tolist() == [3, 3]
     assert agent.rollout.actions[0].tolist() == [3, 3]
     assert agent.rollout.log_probs[0].tolist() == approx([0.0, 0.0])
@@ -1088,12 +1086,7 @@ def test_pqn_takes_the_action_its_network_values_highest_at_a_chance_of_zero(
     highest in each environment and stores the action and its value in the
     rollout's first row.
     """
-    agent = rolling(
-        Algorithm.PQN,
-        epsilon_end       = 0.0,
-        epsilon_end_first = 0.0,
-        epsilon_start     = 0.0
-    )
+    agent = rolling(Algorithm.PQN, epsilon_end=0.0, epsilon_start=0.0)
     flat(3 * one_hot(tensor(2), 7), agent.network.head)
 
     assert agent.act(batched).tolist() == [2, 2]

@@ -81,6 +81,14 @@ class Learner[C: Checkpoint](ABC):
         """
 
     @property
+    @abstractmethod
+    def epsilon(self) -> float | None:
+        """
+        Reads the chance of a random action at the current step, or `None`
+        for an agent sampling each action from its policy.
+        """
+
+    @property
     def hyperparameters(self) -> AgentSettings | PPOSettings | PQNSettings:
         """
         Reads the record holding the learning rate and the gradient's
@@ -98,32 +106,18 @@ class Learner[C: Checkpoint](ABC):
         """
         return Weights(online=self.network.state_dict(), step=self.step)
 
-    def annealed[T: float | ndarray](
-        self,
-        end      : T,
-        schedule : AgentSettings | PQNSettings
-    ) -> T:
+    def annealed(self, schedule: AgentSettings | PQNSettings) -> float:
         """
         Reads the chance of a random action at the current step, falling
-        linearly from the `epsilon_start` of `schedule` to `end` over the
-        first `exploration_fraction` of the run's steps and holding there,
-        one chance per entry where `end` holds one per environment.
+        linearly from the `epsilon_start` of `schedule` to its `epsilon_end`
+        over the first `exploration_fraction` of the run's steps and holding
+        there.
         """
-        start = schedule.epsilon_start
-
-        return start + interp(
+        return interp(
             self.step,
             [0, schedule.exploration_fraction * self.steps],
-            [0, 1]
-        ) * (end - start)
-
-    @abstractmethod
-    def chance(self, slot: int) -> float | None:
-        """
-        Reads the chance of a random action the environment at `slot` takes
-        at the current step, or `None` for an agent sampling each action
-        from its policy.
-        """
+            [schedule.epsilon_start, schedule.epsilon_end]
+        )
 
     def descend(self, loss: Tensor):
         """
@@ -208,7 +202,7 @@ class DQN(Learner[ReplayCheckpoint]):
         """
         Reads the chance of a random action at the current step.
         """
-        return self.annealed(self.settings.epsilon_end, self.settings)
+        return self.annealed(self.settings)
 
     @inference_mode()
     def act(self, observation: Mapping[str, ndarray]) -> int:
@@ -236,13 +230,6 @@ class DQN(Learner[ReplayCheckpoint]):
         Stores the reset observation of the episode starting.
         """
         self.replay.begin(observation)
-
-    def chance(self, slot: int) -> float:
-        """
-        Reads the chance of a random action at the current step, `epsilon`,
-        in the one environment the deep Q-network plays.
-        """
-        return self.epsilon
 
     def remember(
         self,
@@ -532,7 +519,8 @@ class PPO(RolloutAgent):
 
     optimizer_class = AdamW
 
-    def chance(self, slot: int):
+    @property
+    def epsilon(self):
         """
         Reads no chance of a random action, since PPO samples each action
         from its policy.
@@ -619,30 +607,11 @@ class PQN(RolloutAgent):
     optimizer_class = RAdam
 
     @property
-    def epsilon(self) -> ndarray:
+    def epsilon(self) -> float:
         """
-        Reads each environment's chance of a random action at the current
-        step, annealing toward its entry of `floors`.
-
-        Returns:
-            A `(environments,)` array of `float64`.
+        Reads the chance of a random action at the current step.
         """
-        return self.annealed(self.floors, self.settings.pqn)
-
-    @property
-    def floors(self) -> ndarray:
-        """
-        Reads the chance of a random action each environment anneals to, as
-        `PQNSettings.floors` spreads them.
-        """
-        return self.settings.pqn.floors(self.settings.environments)
-
-    def chance(self, slot: int) -> float:
-        """
-        Reads the chance of a random action the environment at `slot` takes
-        at the current step.
-        """
-        return self.epsilon[slot].item()
+        return self.annealed(self.settings.pqn)
 
     def choose(
         self,
@@ -650,10 +619,10 @@ class PQN(RolloutAgent):
     ) -> tuple[ndarray, ndarray, None]:
         """
         Takes a random action in each environment where a draw of the
-        generator falls below its entry of `epsilon`, and otherwise the
-        action the network values highest, drawing both a chance and a
-        random action for every environment, so each step draws alike
-        whatever `epsilon` holds.
+        generator falls below `epsilon`, and otherwise the action the
+        network values highest, drawing both a chance and a random action
+        for every environment, so each step draws alike whatever `epsilon`
+        holds.
         """
         values  = self.network(observations).numpy(force=True)
         explore = self.generator.random(len(values)) < self.epsilon

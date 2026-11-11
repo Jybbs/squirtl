@@ -524,23 +524,17 @@ class Trainer(AbstractContextManager, ABC):
         evaluate, or stop, yielding the agent's step count after each step.
         """
 
-    def record(
-        self,
-        outcome   : Outcome,
-        recording : Recording,
-        slot      : int,
-        update    : Measures | None
-    ):
+    def record(self, outcome: Outcome, recording: Recording, update: Measures | None):
         """
-        Appends the episode the environment at `slot` played to the run's
-        `episodes` as one line, from what it reached, the agent's chance
-        of a random action in that environment at its last step, its
-        `recording`, and the averaged measures of each `update` taken while
-        it played, counting it among those `finished`, and logs its summary.
+        Appends the episode to the run's `episodes` as one line, from what
+        it reached, the agent's chance of a random action at its last step,
+        its `recording`, and the averaged measures of each `update` taken
+        while it played, counting it among those `finished`, and logs its
+        summary.
         """
         episode = Episode(
             **dict(outcome),
-            epsilon   = self.agent.chance(slot),
+            epsilon   = self.agent.epsilon,
             recording = recording,
             update    = update
         )
@@ -557,7 +551,7 @@ class Trainer(AbstractContextManager, ABC):
             episode.seconds,
             episode.reward,
             episode.positions,
-            "none" if episode.epsilon is None else f"{episode.epsilon:.3g}",
+            "none" if episode.epsilon is None else f"{episode.epsilon:.3f}",
             episode.update or "no update"
         )
 
@@ -720,7 +714,7 @@ class EpisodeTrainer(Trainer):
             yield self.agent.step
 
             if terminated or truncated:
-                self.record(info["outcome"], info["recording"], 0, tally.take(0))
+                self.record(info["outcome"], info["recording"], tally.take(0))
 
                 return
 
@@ -964,7 +958,7 @@ class RolloutTrainer(Trainer):
                         takeover  = takeover
                     )
 
-                self.record(outcome, recording, slot, self.tally.take(slot))
+                self.record(outcome, recording, self.tally.take(slot))
 
             yield self.agent.step
 
