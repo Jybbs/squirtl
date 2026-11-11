@@ -233,6 +233,19 @@ def test_each_agent_plays_its_network_at_its_epsilon(
     assert_close(policies[0].network.state_dict(), built.state_dict(), atol=0, rtol=0)
 
 
+def test_a_worker_plays_on_through_an_interrupt(evaluator: Callable[..., Evaluator]):
+    """
+    Asserts that the interrupt signal reaching each worker process, as a
+    terminal sends it every process in its foreground group, leaves the
+    evaluation playing its episodes rather than ending it.
+    """
+    with evaluator(environments=2, episodes=2) as started:
+        for process in started.envs.processes:
+            kill(process.pid, SIGINT)
+
+        assert len(started.baseline().outcomes) == 2
+
+
 def test_an_evaluation_refuses_weights_another_agents_network_holds(
     evaluator: Callable[..., Evaluator]
 ):
@@ -253,19 +266,6 @@ def test_an_evaluation_refuses_weights_another_agents_network_holds(
             match = "the checkpoint's networks differ from the agent's"
         ):
             started.evaluate(Weights(online=online, step=9))
-
-
-def test_a_worker_plays_on_through_an_interrupt(evaluator: Callable[..., Evaluator]):
-    """
-    Asserts that the interrupt signal reaching each worker process, as a
-    terminal sends it every process in its foreground group, leaves the
-    evaluation playing its episodes rather than ending it.
-    """
-    with evaluator(environments=2, episodes=2) as started:
-        for process in started.envs.processes:
-            kill(process.pid, SIGINT)
-
-        assert len(started.baseline().outcomes) == 2
 
 
 @mark.parametrize(
