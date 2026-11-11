@@ -1,5 +1,5 @@
 import WORLD            from '../../art/world.json' with { type: 'json' }
-import type { Flag }    from '../../game/episode.ts'
+import type { Flag }    from '../../game/flags.ts'
 import type * as rooms  from '../../game/rooms.ts'
 import { SQUARE }       from '../../game/screen.ts'
 import { spriteShades } from '../../identity/identity.ts'

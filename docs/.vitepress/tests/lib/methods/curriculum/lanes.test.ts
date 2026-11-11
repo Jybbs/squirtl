@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { along }   from '../../../../lib/methods/curriculum.ts'
-import { placeOf } from '../../../../lib/methods/curriculum/lanes.ts'
+import { LAST, along } from '../../../../lib/methods/curriculum.ts'
+import { placeOf }     from '../../../../lib/methods/curriculum/lanes.ts'
 
 const SIZES = { far: 100, gap: 8, screen: 80, track: 600 }
 
@@ -14,7 +14,7 @@ describe('a lane', () => {
   })
 
   it('holds the screen inside the track at either end', () => {
-    expect([placeOf(SIZES, 0, 10, 'right').screen, placeOf(SIZES, 163, 163, 'left').screen]).toStrictEqual([0, 520])
+    expect([placeOf(SIZES, 0, 10, 'right').screen, placeOf(SIZES, LAST, LAST, 'left').screen]).toStrictEqual([0, 520])
   })
 
   it('keeps the figure on its side while it fits there, and moves it only once the screen leaves it no room', () => {

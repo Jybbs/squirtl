@@ -1,11 +1,12 @@
-import { termMark }             from '../game/actors.ts'
-import * as episode             from '../game/episode.ts'
-import { RoomImages }           from '../game/images.ts'
-import { Player, type Playing } from '../game/player.ts'
-import { GameScreen }           from '../game/screen.ts'
-import type * as autoplay       from '../widgets/autoplay.ts'
-import type { ChipContent }     from '../widgets/chips.ts'
-import * as numbers             from '../widgets/numbers.ts'
+import { termMark }              from '../game/actors.ts'
+import * as episode              from '../game/episode.ts'
+import { type Flag, milestones } from '../game/flags.ts'
+import { RoomImages }            from '../game/images.ts'
+import { Player, type Playing }  from '../game/player.ts'
+import { GameScreen }            from '../game/screen.ts'
+import type * as autoplay        from '../widgets/autoplay.ts'
+import type { ChipContent }      from '../widgets/chips.ts'
+import * as numbers              from '../widgets/numbers.ts'
 
 /**
  * The figures the widget shows at one step: the return so far, the step out of
@@ -42,8 +43,8 @@ export interface Showing {
 
 /**
  * How the widget plays its episode, in milliseconds: the beat between two
- * presses and the beat while Oak leads Blue, the glide of one step, and the
- * rest on the starter before the episode plays again.
+ * presses and the beat while Oak leads Blue or speaks, the glide of one step,
+ * and the rest on the starter before the episode plays again.
  */
 export interface Tempo {
   beat  : number
@@ -55,16 +56,18 @@ export interface Tempo {
 /**
  * One step of the episode the widget plays, recorded once its press ends: the
  * flags set, the jumps the press made, whether Oak leads Blue, what the press
- * paid, the squares reached, and what each term and the whole return have paid.
+ * paid, the squares reached, what each term and the whole return have paid,
+ * and whether Oak is speaking.
  */
 export interface Traced {
-  flags   : readonly episode.Flag[]
-  jumps   : readonly Jump[]
-  led     : boolean
-  paid    : readonly episode.Paid[]
-  reached : number
-  shares  : Readonly<Record<episode.Term, number>>
-  total   : number
+  flags    : readonly Flag[]
+  jumps    : readonly Jump[]
+  led      : boolean
+  paid     : readonly episode.Paid[]
+  reached  : number
+  shares   : Readonly<Record<episode.Term, number>>
+  speaking : boolean
+  total    : number
 }
 
 /**
@@ -72,13 +75,13 @@ export interface Traced {
  * it paid nothing, by where the episode stands.
  */
 const PAID = {
-  following  : 'Following Oak',
-  milestone  : 'A milestone',
-  milestones : 'Two milestones',
-  nothing    : 'Already reached',
-  novelty    : 'A new position',
-  starter    : 'The starter',
-  waking     : 'Blue wakes'
+  following : 'Following Oak',
+  milestone : 'A milestone',
+  nothing   : 'Already reached',
+  novelty   : 'A new position',
+  speaking  : 'Oak speaks',
+  starter   : 'The starter',
+  waking    : 'Blue wakes'
 }
 
 /**
@@ -123,16 +126,15 @@ export const marks = Object.fromEntries(terms.map(term => [term, termMark(term)]
 
 /**
  * Reads the chip of the press that ended the step `at`, marked by the term that
- * paid the most, two milestones paid together named as such.
+ * paid the most, or where it paid nothing named by whether Blue wakes, follows
+ * Oak, or listens to him.
  */
 function paidChip(traced: Traced, at: number): ChipContent {
-  const lead       = traced.paid.toSorted((left, right) => right.pay - left.pay)[0]?.term
-  const milestones = traced.paid.filter(item => item.term === 'milestone').length
-  const named      = lead === 'milestone' && milestones > 1 ? PAID.milestones : lead && PAID[lead]
-  const resting    = at === 0 ? PAID.waking : traced.led ? PAID.following : PAID.nothing
+  const lead    = traced.paid.toSorted((left, right) => right.pay - left.pay)[0]?.term
+  const resting = at === 0 ? PAID.waking : traced.led ? PAID.following : traced.speaking ? PAID.speaking : PAID.nothing
   return {
     mark  : lead ? marks[lead] : '',
-    name  : named ?? resting,
+    name  : lead ? PAID[lead] : resting,
     note  : null,
     role  : lead ?? 'none',
     value : numbers.signed(traced.paid.reduce((sum, item) => sum + item.pay, 0), PLACES)
@@ -144,15 +146,16 @@ function paidChip(traced: Traced, at: number): ChipContent {
  * `jumps` the press made.
  */
 function recorded(player: Player, jumps: readonly Jump[]): Traced {
-  const { flags, reached, script, shares, total } = player.episode
+  const { flags, leading, reached, shares, speaking, total } = player.episode
   return {
-    flags   : [...flags],
-    jumps   : jumps,
-    led     : script.length > 0,
-    paid    : player.paid,
-    reached : reached.size,
-    shares  : { ...shares },
-    total   : total
+    flags    : [...flags],
+    jumps    : jumps,
+    led      : leading,
+    paid     : player.paid,
+    reached  : reached.size,
+    shares   : { ...shares },
+    speaking : speaking,
+    total    : total
   }
 }
 
@@ -162,9 +165,9 @@ function recorded(player: Player, jumps: readonly Jump[]): Traced {
  * of them, and the starter once chosen.
  */
 function termNotes(settings: episode.EpisodeSettings, traced: Traced): Record<episode.Term, string> {
-  const met = traced.flags.filter(flag => episode.milestones.includes(flag)).length
+  const met = traced.flags.filter(flag => milestones.includes(flag)).length
   return {
-    milestone : `${met} of ${episode.milestones.length}`,
+    milestone : `${met} of ${milestones.length}`,
     novelty   : `${numbers.count(traced.reached - 1)} × ${numbers.fixed(settings.pay.novelty, PLACES)}`,
     starter   : traced.flags.includes('starter') ? STARTER.chosen : STARTER.waiting
   }
@@ -222,9 +225,9 @@ export function keyTerms(settings: episode.EpisodeSettings = episode.EPISODE): C
 
 /**
  * Plays `player`'s episode through an autoplay at `tempo`, a press each beat
- * and a longer beat while Oak leads Blue, the episode again from the bedroom
- * once it has rested on its end, and its end at once where motion is off,
- * calling `show` after each with the milliseconds the screen glides over.
+ * and a longer beat while Oak leads Blue or speaks, the episode again from the
+ * bedroom once it has rested on its end, and its end at once where motion is
+ * off, calling `show` after each with the milliseconds the screen glides over.
  */
 export function playingOf(
   player : Player,
@@ -232,7 +235,7 @@ export function playingOf(
   tempo  : Tempo = TEMPO
 ): autoplay.Ticking {
   return {
-    beat : () => player.episode.script.length > 0 ? tempo.lead : tempo.beat,
+    beat : () => player.episode.scripted ? tempo.lead : tempo.beat,
     done : () => player.done,
     rest : tempo.rest,
 

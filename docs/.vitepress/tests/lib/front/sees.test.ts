@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import * as sees                            from '../../../lib/front/sees.ts'
-import { type Flag, eventFlags, squareKey } from '../../../lib/game/episode.ts'
+import { squareKey }                        from '../../../lib/game/episode.ts'
+import { type Flag, eventFlags }            from '../../../lib/game/flags.ts'
 import { Player, type Playing }             from '../../../lib/game/player.ts'
 import { SCREEN }                           from '../../../lib/game/screen.ts'
 import * as identity                        from '../../../lib/identity/identity.ts'

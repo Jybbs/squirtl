@@ -1,6 +1,7 @@
 import { clamp } from '@vueuse/core'
 
-import type { Flag, Term } from '../game/episode.ts'
+import type { Term }    from '../game/episode.ts'
+import type { Flag }    from '../game/flags.ts'
 import { seeded }          from '../game/random.ts'
 import type * as rooms     from '../game/rooms.ts'
 import SETTINGS            from '../rendered/settings.json' with { type: 'json' }

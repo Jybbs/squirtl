@@ -5,7 +5,7 @@ import * as watching from '../../../lib/commands/watch.ts'
 describe('RECORDING', () => {
   it('opens on the reset and ends on the starter’s return', () => {
     expect([watching.RECORDING[0], watching.returned(watching.RECORDING.at(-1)!.total), watching.LAST])
-      .toStrictEqual([{ press: null, total: 0 }, '0.9150', 163])
+      .toStrictEqual([{ press: null, total: 0 }, '0.9150', 181])
   })
 })
 
@@ -38,10 +38,10 @@ describe('the phases', () => {
   })
 
   it('reads the step a time reaches and the time that stands on a step', () => {
-    expect([watching.stepAt(0), watching.stepAt(watching.timeOf(40)), watching.stepAt(close)]).toStrictEqual([0, 40, 163])
+    expect([watching.stepAt(0), watching.stepAt(watching.timeOf(40)), watching.stepAt(close)]).toStrictEqual([0, 40, 181])
   })
 
   it('splits the digest into four lines of sixteen and names each press', () => {
-    expect([watching.DIGEST_LINES.length, watching.describe(1)]).toStrictEqual([4, 'Press 1 of 163, Right'])
+    expect([watching.DIGEST_LINES.length, watching.describe(1)]).toStrictEqual([4, 'Press 1 of 181, Right'])
   })
 })
