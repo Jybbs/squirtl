@@ -5,8 +5,11 @@ Pins what the `squirtl` command itself defines, covering:
   docstring, beside the version the package metadata carries, which
   `--version` prints at every level of the command tree
 - The script `[project.scripts]` points at the app
-- The modules `squirtl --help` and `squirtl stop` import, which leave out
-  `torch`, SciPy, `pyboy`, and the packages reading `docs/references.bib`
+- The modules `squirtl --help`, `squirtl stop`, and an unknown command
+  import, which leave out `torch`, SciPy, `pyboy`, and the packages reading
+  `docs/references.bib`
+- The error a command line naming no command or no option prints, and the
+  status it exits with
 - How a command reads its settings:
 
    - Each setting comes from its flag, then the `[tool.squirtl]` table of
@@ -297,23 +300,26 @@ def test_each_commands_help_is_the_docstring_of_the_function_it_runs():
 
 
 @mark.parametrize(
-    "command",
+    ("command", "code"),
     [
-        param(lambda _: ["--help"], id="help"),
-        param(lambda started: ["stop", str(started.directory)], id="stop")
+        param(lambda _: ["--help"], 0, id="help"),
+        param(lambda started: ["stop", str(started.directory)], 0, id="stop"),
+        param(lambda _: ["nonesuch"], 2, id="an-unknown-command")
     ]
 )
 @mark.usefixtures("clone")
-def test_help_and_stop_import_neither_torch_nor_scipy_nor_pyboy(
+def test_help_stop_and_an_unknown_command_import_neither_torch_nor_scipy_nor_pyboy(
+    code     : int,
     command  : Callable[[Run], list[str]],
     snapshot : SnapshotAssertion
 ):
     """
-    Asserts that `squirtl --help` and `squirtl stop` on a run's directory,
-    each started in an interpreter of its own whose `-v` flag logs every
-    module it imports, exit zero with none of `torch`, SciPy, `pyboy`,
-    `bibtexparser`, `mdit_py_plugins`, or `pylatexenc` among those modules
-    and only the modules of the package their fixture file holds.
+    Asserts that `squirtl --help`, `squirtl stop` on a run's directory, and
+    `squirtl nonesuch`, each started in an interpreter of its own whose `-v`
+    flag logs every module it imports, exit with the status each case names,
+    with none of `torch`, SciPy, `pyboy`, `bibtexparser`, `mdit_py_plugins`,
+    or `pylatexenc` among those modules and only the modules of the package
+    their fixture file holds.
     """
     finished = run(
         [
@@ -321,17 +327,44 @@ def test_help_and_stop_import_neither_torch_nor_scipy_nor_pyboy(
             *command(Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC)))
         ],
         capture_output = True,
-        check          = True,
         text           = True
     )
     modules = findall(r"^import '(.+?)'", finished.stderr, MULTILINE)
 
+    assert finished.returncode == code
     assert {module.partition(".")[0] for module in modules}.isdisjoint(
         {"bibtexparser", "mdit_py_plugins", "pyboy", "pylatexenc", "scipy", "torch"}
     )
     assert "\n".join(
         sorted(module for module in modules if module.startswith("squirtl"))
     ) == snapshot
+
+
+@mark.parametrize(
+    "command",
+    [
+        param(["nonesuch"],          id="an-unknown-command"),
+        param(["tran"],              id="a-misspelled-command"),
+        param(["nonesuch", "--help"], id="an-unknown-command-before-help"),
+        param(["write", "nonesuch"], id="an-unknown-command-of-a-group"),
+        param(["stop", "--nonesuch"], id="an-unknown-option")
+    ]
+)
+def test_an_error_exits_two_on_the_panel_its_fixture_file_holds(
+    command  : list[str],
+    invoke   : Invoker,
+    snapshot : SnapshotAssertion
+):
+    """
+    Asserts that a command line naming no command of the app or of a group,
+    or an option no command declares, exits two and logs the error its
+    fixture file holds, an unknown command's error listing every command and
+    naming any its name sits close to.
+    """
+    invocation = invoke(command)
+
+    assert invocation.code == 2
+    assert invocation.log == snapshot
 
 
 def test_reading_the_settings_writes_nothing(read: Reader, tmp_path: Path):
