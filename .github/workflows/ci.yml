@@ -33,6 +33,7 @@ jobs:
             tools  : &package python uv
           - name  : 📦 Lockfile
             task  : lock:check
+            token : true
             tools : bun python uv
           - name   : 🪻 Prose
             caches : uv
@@ -80,7 +81,7 @@ jobs:
         with : { caches: "${{ matrix.caches }}", tools: "${{ matrix.tools }}" }
 
       - name : mise run ${{ matrix.task }}
-        env  : { TASK: "${{ matrix.task }}" }
+        env  : { MISE_GITHUB_TOKEN: "${{ matrix.token && github.token || '' }}", TASK: "${{ matrix.task }}" }
         run  : mise run "$TASK"
 
       - name : Attach the coverage report
