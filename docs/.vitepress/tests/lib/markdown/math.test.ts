@@ -12,6 +12,14 @@ async function rendered(source: string): Promise<string> {
   return md.renderAsync(source)
 }
 
+/**
+ * Replaces the `mjx-` id `markdown-it-mathjax3` draws at random for each math
+ * span with one fixed name, so two renders of the same math compare equal.
+ */
+function withoutIds(html: string): string {
+  return html.replaceAll(/(?<=id="|#)mjx-[\da-f]+/gu, 'mjx-id')
+}
+
 describe('githubMath', () => {
   it.each([
     ['the inline form', 'Each step decays by $`\\gamma`$ before the next.'],
@@ -24,7 +32,12 @@ describe('githubMath', () => {
   })
 
   it('renders the inline form as the plugin renders the same math between bare dollars', async () => {
-    expect(await rendered('Decays by $`\\gamma`$.')).toBe(await rendered('Decays by $\\gamma$.'))
+    const [inline, dollars] = await Promise.all([
+      rendered('Decays by $`\\gamma`$.'),
+      rendered('Decays by $\\gamma$.')
+    ])
+
+    expect(withoutIds(inline)).toBe(withoutIds(dollars))
   })
 
   it('leaves a code span with no dollar beside it as code', async () => {
