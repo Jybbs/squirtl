@@ -1131,7 +1131,7 @@ def test_rendered_reports_each_file_drifted_from_its_declaration(scan: Scan):
     missing, each on its own path.
     """
     outputs = {str(output.path): output.text for output in Inventory.read().outputs}
-    *kept, edited, missing = outputs
+    edited, *kept, missing = outputs
 
     drifted = scan(
         Rendered,

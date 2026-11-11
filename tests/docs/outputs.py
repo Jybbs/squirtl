@@ -1,7 +1,8 @@
 """
-Pins what `Inventory` writes into `docs/`, covering the files it lists, a
-file it writes only where the file has drifted from its declaration, and the
-folder it makes where a file's folder is missing.
+Pins what `Inventory` writes into `docs/`, covering the files it lists,
+a file it writes only where the file has drifted from its declaration,
+the folder it makes where a file's folder is missing, and the prose of a
+command's page it keeps.
 """
 
 from collections.abc import Callable, Mapping
@@ -9,6 +10,8 @@ from json            import loads
 from pathlib         import Path
 from pytest          import fixture
 
+from squirtl.cli              import app
+from squirtl.docs.commands    import Command
 from squirtl.docs.outputs     import Inventory, Output
 from squirtl.emulator.schemas import Symbol
 from squirtl.identity.schemas import Face, Identity
@@ -21,6 +24,36 @@ def written() -> dict[str, str]:
     the file's name.
     """
     return {output.path.name: output.text for output in Inventory.read().outputs}
+
+
+def test_a_command_page_keeps_its_prose_once_its_help_is_written_again(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that a command's page holding stale help beside prose of its own
+    has drifted, and that the inventory writes its help again and keeps
+    the prose.
+    """
+    stop = Command.read(app, ("stop",))
+    checkout(
+        {
+            str(stop.path): (
+                "<!-- help -->\nstale\n<!-- /help -->\n\nA point of its own.\n\n"
+                "<!-- settings -->\n<!-- /settings -->\n"
+            )
+        }
+    )
+
+    page = next(
+        output for output in Inventory.read().outputs if output.path == stop.path
+    )
+
+    assert page.drifted
+    assert page.text == (
+        "<!-- help -->\n\n" + stop.parts["help"] + "\n\n<!-- /help -->\n\n"
+        "A point of its own.\n\n<!-- settings -->\n\n" + stop.parts["settings"]
+        + "\n\n<!-- /settings -->\n"
+    )
 
 
 def test_the_events_follow_the_order_the_network_reads_them_in(written: dict[str, str]):
