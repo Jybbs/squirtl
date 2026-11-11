@@ -124,9 +124,7 @@ class Handover(Record):
         line as the stopped run wrote it, each evaluation, and the random
         baseline's where it played one.
         """
-        with run.episodes.open("a", encoding="utf-8") as lines:
-            lines.writelines(self.episodes)
-
+        run.carry(self.episodes, run.episodes)
         run.append(run.evaluations, *self.evaluations)
 
         if self.baseline is not None:

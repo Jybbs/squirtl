@@ -13,7 +13,7 @@ Defines the records one run reads and writes:
 """
 
 from collections     import deque
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from datetime        import UTC, datetime
 from enum            import StrEnum, auto
 from hashlib         import sha256
@@ -536,6 +536,15 @@ class Run(Record):
             lines.writelines(
                 f"{record.model_dump_json()}\n".encode() for record in records
             )
+
+    def carry(self, lines: Iterable[str], path: Path):
+        """
+        Writes `lines`, each a line the stopped run a resume continues wrote
+        to the file of the same name, into `path`, one of this run's JSON
+        Lines files, as the stopped run wrote them, so a resumed run's file
+        opens on the lines it carries over.
+        """
+        path.write_text("".join(lines), encoding="utf-8")
 
     def check(self, digest: str):
         """

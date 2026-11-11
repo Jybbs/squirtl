@@ -263,7 +263,7 @@ class Searcher(Driver):
         so the search goes on as though the search it continues had never
         stopped.
         """
-        self.run.iterations.write_text("".join(handover.iterations), encoding="utf-8")
+        self.run.carry(handover.iterations, self.run.iterations)
         self.saved = self.step
 
         logger.info(
