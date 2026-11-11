@@ -1,30 +1,41 @@
 Usage: squirtl COMMAND
 
-Trains a deep Q-network to play Pokémon Blue from the screen, through PyBoy and 
-PyTorch.
+Trains an agent to play Pokémon Blue from the screen, through PyBoy and PyTorch.
 
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ evaluate     Evaluates the agent of each run at its last checkpoint, at the  │
-│              epsilon and over the episodes the run's settings record, beside │
-│              the random baseline under the same seeds, and writes each       │
-│              evaluation into its run's directory, reading in place of        │
-│              playing any the run already holds.                              │
-│ search       Searches for a path from Blue's bedroom to the starter over     │
-│              saved states, across --search.workers processes, ending once a  │
-│              particle sets EVENT_GOT_STARTER or the presses reach the run's  │
+│ cite         Prints the footnote definition of each given key in the order   │
+│              given, a blank line between two, for the body of an issue or a  │
+│              pull request.                                                   │
+│ evaluate     Evaluates the agent of each run at its last checkpoint, over    │
+│              the episodes the run's settings record, beside the random       │
+│              baseline under the same seeds, and writes each evaluation into  │
+│              its run's directory, reading in place of playing any the run    │
+│              already holds. The deep Q-network and PQN play at the epsilon   │
+│              those settings record, and PPO takes its most likely action at  │
+│              every step.                                                     │
+│ fetch        Downloads the runs a release attaches and unpacks each into     │
+│              data/runs/, from the release --release names or else the latest │
+│              one.                                                            │
+│ pack         Writes each run docs/runs/ lists, and each demonstration those  │
+│              runs follow, into dist/runs/ as the Zstandard tar a release     │
+│              attaches, beside the manifest.json listing each tar and its     │
+│              SHA-256 digest.                                                 │
+│ search       Searches for a path from Blue's bedroom to --environment.goal   │
+│              over saved states, across --search.workers processes, ending    │
+│              once a particle sets the goal or the presses reach the run's    │
 │              --steps, logging a line per iteration above a progress bar.     │
 │ stop         Writes the stop file into a run's directory from any shell,     │
-│              ending a training run at the end of the episode it is playing,  │
-│              or a search at the end of its iteration, with a checkpoint and  │
-│              exit status 0, as a first interrupt does.                       │
-│ train        Trains the agent for the run's --steps environment steps,       │
-│              headless unless --emulator.open-window is set, logging a line   │
-│              per episode above a progress bar.                               │
+│              ending the run with a checkpoint and exit status 0, as a first  │
+│              interrupt does, at the end of its episode for the deep          │
+│              Q-network, once a rollout's update ends for PQN and PPO, and at │
+│              the end of its iteration for a search.                          │
+│ train        Trains the agent --agent.algorithm names for the run's --steps  │
+│              environment steps, headless unless --emulator.open-window is    │
+│              set, logging a line per episode above a progress bar.           │
 │ watch        Opens the emulator's window and plays back one episode the run  │
-│              recorded, or the demonstration a search found, from the reset   │
-│              at the timer_div recorded for it to the return recorded, at the │
-│              sixty steps a second the window paces. A search's return leaves │
-│              out the novelty of each position.                               │
+│              recorded, from the reset at the timer_div the run recorded for  │
+│              it to the return the run recorded, at the sixty steps a second  │
+│              the window paces.                                               │
 │ write        Writes files the package declares into the checkout.            │
 │ --help (-h)  Display this message and exit.                                  │
 │ --version    Display application version.                                    │

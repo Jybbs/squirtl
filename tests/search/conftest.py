@@ -21,11 +21,12 @@ from squirtl.agent.schemas         import AgentSettings
 from squirtl.emulator.schemas      import Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Snapshot
-from squirtl.reward.schemas        import RewardSettings
+from squirtl.reward.schemas        import Event, RewardSettings
+from squirtl.runs.schemas          import SearchSettings
 from squirtl.search                import workers
 from squirtl.search.novelty        import Novelty
 from squirtl.search.particles      import Search
-from squirtl.search.schemas        import Ending, Rollout, SearchSettings
+from squirtl.search.schemas        import Ending, Rollout
 from squirtl.search.workers        import roll
 
 
@@ -129,13 +130,15 @@ def playing(root: Snapshot) -> Callable[..., Ending]:
 @fixture
 def searching(small: SearchSettings, space: Box) -> Callable[..., Search]:
     """
-    Builds a factory of searches of `small` on the CPU from seed 7, starting
-    on an empty `snapshot`, seven actions, a `steps` of 10,000, and a `roll`
-    each test hands it, any other keyword a field of `SearchSettings`.
+    Builds a factory of searches of `small` on the CPU from seed 7 toward
+    `EVENT_GOT_STARTER`, starting on an empty `snapshot`, seven actions, a
+    `steps` of 10,000, and a `roll` each test hands it, any other keyword a
+    field of `SearchSettings`.
     """
 
     def build(
         roll     : Callable[[Iterable[Rollout]], Iterable[Ending]],
+        goal     : Event    = Event.EVENT_GOT_STARTER,
         root     : Snapshot = snapshot(),
         seed     : int      = 7,
         steps    : int      = 10_000,
@@ -147,6 +150,7 @@ def searching(small: SearchSettings, space: Box) -> Callable[..., Search]:
         return Search(
             actions  = 7,
             agent    = AgentSettings(device="cpu"),
+            goal     = goal,
             roll     = roll,
             root     = root,
             seed     = seed,

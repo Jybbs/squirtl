@@ -2,24 +2,29 @@
   "$defs": {
     "AgentSettings": {
       "additionalProperties": false,
-      "description": "The settings the agent reads, each a field of `RunSettings.agent` and a\nkey under `[tool.squirtl.agent]` in `pyproject.toml`.",
+      "description": "The settings the agents read, each a field of `RunSettings.agent` and\na key under `[tool.squirtl.agent]` in `pyproject.toml`, where a field\nPQN and PPO share sits beside the deep Q-network's own and each reads a\nrecord of its own besides.",
       "properties": {
+        "algorithm": {
+          "$ref": "#/$defs/Algorithm",
+          "default": "dqn",
+          "description": "The agent the run trains, the deep Q-network, PQN, or PPO."
+        },
         "batch_size": {
           "default": 32,
-          "description": "The transitions each update draws from replay memory, whose default\nfollows Mnih et al.",
+          "description": "The transitions each update of the deep Q-network draws from replay\nmemory, whose default follows Mnih et al.",
           "exclusiveMinimum": 0,
           "title": "Batch Size",
           "type": "integer"
         },
         "capacity": {
           "default": 100000,
-          "description": "The slots replay memory holds before overwriting the oldest, four per\nreset observation and one per step, whose default takes 606 MB for a 72\nby 80 frame, a 48 by 48 grid, and four flags, the grid and the flags\npacked eight cells to a byte.",
+          "description": "The slots the deep Q-network's replay memory holds before overwriting\nthe oldest, four per reset observation and one per step, whose default\ntakes 606 MB for a 72 by 80 frame, a 48 by 48 grid, and a flag for each\nmember of `Event`, the grid and the flags packed eight cells to a byte.",
           "exclusiveMinimum": 0,
           "title": "Capacity",
           "type": "integer"
         },
         "device": {
-          "description": "The device both networks and every batch sit on, which defaults to the\naccelerator torch reports and to the CPU where it reports none.",
+          "description": "The device every network and batch sit on, which defaults to the\naccelerator torch reports and to the CPU where it reports none.",
           "title": "Device",
           "type": "string"
         },
@@ -30,42 +35,71 @@
         },
         "double_q": {
           "default": true,
-          "description": "Whether the online network chooses the action at the state each step\nreaches and the target network values it, as van Hasselt et al.'s\nDouble DQN does, where otherwise the target network does both, as Mnih\net al.'s deep Q-network does.",
+          "description": "Whether the deep Q-network's online network chooses the action at the\nstate each step reaches and the target network values it, as van\nHasselt et al.'s Double DQN does, where otherwise the target network\ndoes both, as Mnih et al.'s deep Q-network does.",
           "title": "Double Q",
           "type": "boolean"
+        },
+        "environments": {
+          "default": 8,
+          "description": "The environments PQN and PPO collect each rollout across in parallel,\neach in a worker process of its own, whose default suits the ten-core\nmachine the runs train on, where both agents step more slowly across 4\nand PQN across 6, while neither steps measurably faster across 10 or 12.",
+          "exclusiveMinimum": 0,
+          "title": "Environments",
+          "type": "integer"
         },
         "epsilon_end": {
           "$ref": "#/$defs/UnitInterval",
           "default": 0.01,
-          "description": "The chance of a random action once exploration has annealed, whose\ndefault follows CleanRL's `dqn_atari.py`."
+          "description": "The deep Q-network's chance of a random action once exploration has\nannealed, whose default follows CleanRL's `dqn_atari.py`."
         },
         "epsilon_start": {
           "$ref": "#/$defs/UnitInterval",
           "default": 1.0,
-          "description": "The chance of a random action at the run's first step, whose default\nfollows CleanRL's `dqn_atari.py`."
+          "description": "The deep Q-network's chance of a random action at the run's first step,\nwhose default follows CleanRL's `dqn_atari.py`."
         },
         "exploration_fraction": {
           "$ref": "#/$defs/Fraction",
           "default": 0.1,
-          "description": "The share of the run's steps over which the chance of a random action\nfalls linearly from `epsilon_start` to `epsilon_end`, whose default\nfollows CleanRL's `dqn_atari.py`."
+          "description": "The share of the run's steps over which the deep Q-network's chance of\na random action falls linearly from `epsilon_start` to `epsilon_end`,\nwhose default follows CleanRL's `dqn_atari.py`."
         },
         "learning_rate": {
           "default": 0.0001,
-          "description": "The step size Adam takes on every update, held constant across the run,\nwhose default follows CleanRL's `dqn_atari.py`.",
+          "description": "The step size Adam takes on every update of the deep Q-network, held\nconstant across the run, whose default follows CleanRL's `dqn_atari.py`.",
           "exclusiveMinimum": 0,
           "title": "Learning Rate",
           "type": "number"
         },
+        "max_concurrency": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The most of PQN's and PPO's environments that step at once, which\n`AsyncVectorEnv` caps through a semaphore its workers share, or `None`\nfor no cap, whose default leaves them uncapped, since a cap of 4, 6, or\n8 gives PPO no consistent gain in steps per second on the ten-core\nmachine the runs train on.",
+          "title": "Max Concurrency"
+        },
         "max_grad_norm": {
           "default": 10.0,
-          "description": "The norm each update's gradient is clipped to, whose default follows\nStable-Baselines3's DQN.",
+          "description": "The norm each update of the deep Q-network clips its gradient to, whose\ndefault follows Stable-Baselines3's DQN.",
           "exclusiveMinimum": 0,
           "title": "Max Grad Norm",
           "type": "number"
         },
+        "ppo": {
+          "$ref": "#/$defs/PPOSettings",
+          "description": "The settings PPO alone reads."
+        },
+        "pqn": {
+          "$ref": "#/$defs/PQNSettings",
+          "description": "The settings PQN alone reads."
+        },
         "sync_steps": {
           "default": 1000,
-          "description": "The environment steps between two copies of the online network into the\ntarget network, whose default follows CleanRL's `dqn_atari.py`.",
+          "description": "The environment steps between two copies of the deep Q-network's online\nnetwork into its target network, whose default follows CleanRL's\n`dqn_atari.py`.",
           "exclusiveMinimum": 0,
           "title": "Sync Steps",
           "type": "integer"
@@ -86,20 +120,118 @@
         },
         "update_steps": {
           "default": 4,
-          "description": "The environment steps between two updates of the online network, whose\ndefault is the update frequency Mnih et al. set.",
+          "description": "The environment steps between two updates of the deep Q-network, whose\ndefault is the update frequency Mnih et al. set.",
           "exclusiveMinimum": 0,
           "title": "Update Steps",
           "type": "integer"
         },
         "warmup_steps": {
           "default": 50000,
-          "description": "The environment steps whose transitions replay memory gathers before the\nfirst update, no fewer than `batch_size`, whose default is the replay\nstart size Mnih et al. set.",
+          "description": "The environment steps whose transitions the deep Q-network's replay\nmemory gathers before its first update, no fewer than `batch_size`,\nwhose default is the replay start size Mnih et al. set.",
           "exclusiveMinimum": 0,
           "title": "Warmup Steps",
           "type": "integer"
         }
       },
       "title": "AgentSettings",
+      "type": "object"
+    },
+    "Algorithm": {
+      "description": "The agents a run trains, each valued at its lowercase name.",
+      "enum": [
+        "dqn",
+        "ppo",
+        "pqn"
+      ],
+      "title": "Algorithm",
+      "type": "string"
+    },
+    "CurriculumSettings": {
+      "additionalProperties": false,
+      "description": "The settings of the curriculum that starts each training episode\nalong a demonstration and moves the start back toward Blue's\nbedroom, each a field of `RunSettings.curriculum` and a key under\n`[tool.squirtl.curriculum]` in `pyproject.toml`. Every default but\n`demonstration` is the one Mhammedi and Cohan's Table 8 sets for the\nbackward algorithm of their Appendix B.",
+      "properties": {
+        "back": {
+          "$ref": "#/$defs/Range_Annotated_float__Gt__",
+          "default": [
+            0.25,
+            0.75
+          ],
+          "description": "The least and the most a window moves back, each a multiple of `window`,\nbetween which each move draws uniformly, whose default is the decrease\nmultipliers of Mhammedi and Cohan's Table 8."
+        },
+        "buffer": {
+          "default": 500,
+          "description": "The steps an episode from a start takes beyond `multiplier` times the\nmoving average of successful lengths before it truncates, whose default\nis the rollout length buffer of Mhammedi and Cohan's Table 8.",
+          "exclusiveMinimum": 0,
+          "title": "Buffer",
+          "type": "integer"
+        },
+        "completion": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.95,
+          "description": "The share of the recent episodes from a window reaching Blue's bedroom\nthat have to succeed before its segment counts as solved, whose default\nis the completion threshold of Mhammedi and Cohan's Table 8."
+        },
+        "demonstration": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The directory of the run whose shortest episode reaching the goal each\ntraining episode starts along, a run ending its episodes at the same\ngoal, or `None` to start every episode in Blue's bedroom.",
+          "title": "Demonstration"
+        },
+        "forward": {
+          "$ref": "#/$defs/Range_Annotated_float__Gt__",
+          "default": [
+            0.5,
+            1.0
+          ],
+          "description": "The least and the most a window moves forward, each a multiple of\n`window`, between which each move draws uniformly, whose default is the\nincrease multipliers of Mhammedi and Cohan's Table 8."
+        },
+        "multiplier": {
+          "default": 2.0,
+          "description": "The multiple of the moving average of successful lengths an episode\nfrom a start takes before `buffer` and then truncates, whose default is\nthe early termination multiplier of Mhammedi and Cohan's Table 8.",
+          "exclusiveMinimum": 0,
+          "title": "Multiplier",
+          "type": "number"
+        },
+        "recent": {
+          "default": 32,
+          "description": "The episodes from a window whose share of successes moves it, after\nwhich the count starts again, whose default is the minimum rollouts for\nan update of Mhammedi and Cohan's Table 8.",
+          "exclusiveMinimum": 0,
+          "title": "Recent",
+          "type": "integer"
+        },
+        "required": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.2,
+          "description": "The share of the recent episodes from a window that have to succeed for\nit to move back, where a smaller share moves it forward, whose default\nis the required success rate of Mhammedi and Cohan's Table 8."
+        },
+        "smoothing": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.9,
+          "description": "The weight the moving average of successful lengths gives each new\nlength, the smoothing constant of single exponential smoothing in\nsection 6.4.3.1 of the NIST/SEMATECH e-Handbook of Statistical Methods,\nwhose default is the smoothing factor of Mhammedi and Cohan's Table 8."
+        },
+        "tolerance": {
+          "default": 0.0,
+          "description": "The reward an episode from a start may fall short of the\ndemonstration's from the same step and still succeed, whose default is\nthe failure reward tolerance of Mhammedi and Cohan's Table 8.",
+          "minimum": 0,
+          "title": "Tolerance",
+          "type": "number"
+        },
+        "window": {
+          "default": 25,
+          "description": "The steps of the demonstration each segment's window spans back from\nits latest start, whose default is the start delta window of Mhammedi\nand Cohan's Table 8.",
+          "exclusiveMinimum": 0,
+          "title": "Window",
+          "type": "integer"
+        }
+      },
+      "title": "CurriculumSettings",
       "type": "object"
     },
     "EmulatorSettings": {
@@ -169,6 +301,11 @@
           "title": "Frames Per Step",
           "type": "integer"
         },
+        "goal": {
+          "$ref": "#/$defs/Flag",
+          "default": 34,
+          "description": "The flag whose first setting ends an episode, each flag `Event` declares\nbefore it paying the milestone, whose default is the starter and whose\nfarthest is the Pokédex, since the old man lying across Viridian City's\nroad north turns Blue back until `EVENT_GOT_POKEDEX` is set, as pret/pokered's\n`scripts/ViridianCity.asm` holds."
+        },
         "grid_size": {
           "default": 48,
           "description": "The side in squares of the grid of reached positions centered on the\nplayer, by default one square per cell of the 48 by 48 crop Pleines et\nal. observe.",
@@ -207,18 +344,175 @@
         "epsilon": {
           "$ref": "#/$defs/UnitInterval",
           "default": 0.05,
-          "description": "The chance of a random action at each step of the agent's evaluation\nepisodes, whose default follows Mnih et al."
+          "description": "The chance of a random action at each step of an evaluation episode of\nthe deep Q-network or of PQN, whose default follows Mnih et al. PPO takes\nits most likely action at every step."
         }
       },
       "title": "EvaluationSettings",
       "type": "object"
+    },
+    "Event": {
+      "description": "A flag in `wEventFlags` for each moment of the opening from\nBlue's bedroom to the Pokédex, declared in the order the opening\nsets them, each member named for its constant in pret/pokered's\n`constants/event_constants.asm` and its value that constant's index in\nthe flag array.",
+      "enum": [
+        39,
+        0,
+        33,
+        34,
+        35,
+        57,
+        37
+      ],
+      "title": "Event",
+      "type": "integer"
+    },
+    "Flag": {
+      "$ref": "#/$defs/Event"
     },
     "Fraction": {
       "exclusiveMinimum": 0,
       "maximum": 1,
       "type": "number"
     },
-    "Range": {
+    "PPOSettings": {
+      "additionalProperties": false,
+      "description": "The settings PPO alone reads, each a field of `AgentSettings.ppo` and a\nkey under `[tool.squirtl.agent.ppo]` in `pyproject.toml`.",
+      "properties": {
+        "clip_range": {
+          "default": 0.2,
+          "description": "The distance from 1 at which each update clips the ratio of the new\npolicy's probability of an action to the old one's, and from the old\nvalue at which it clips the new value, whose default is the clip range\nPleines et al. train with on Pokémon Red.",
+          "exclusiveMinimum": 0,
+          "title": "Clip Range",
+          "type": "number"
+        },
+        "epochs": {
+          "default": 3,
+          "description": "The passes each update takes over the rollout, whose default is the\nepochs Pleines et al. train with.",
+          "exclusiveMinimum": 0,
+          "title": "Epochs",
+          "type": "integer"
+        },
+        "learning_rate": {
+          "default": 0.0003,
+          "description": "The step size AdamW takes on every minibatch, held constant across the\nrun, whose default is the learning rate Pleines et al. train with.",
+          "exclusiveMinimum": 0,
+          "title": "Learning Rate",
+          "type": "number"
+        },
+        "max_grad_norm": {
+          "default": 0.5,
+          "description": "The norm each minibatch's gradient is clipped to, whose default is the\nmaximum gradient norm Pleines et al. train with.",
+          "exclusiveMinimum": 0,
+          "title": "Max Grad Norm",
+          "type": "number"
+        },
+        "minibatches": {
+          "default": 8,
+          "description": "The minibatches each epoch splits the rollout into, whose default is the\ncount Pleines et al. train with.",
+          "exclusiveMinimum": 0,
+          "title": "Minibatches",
+          "type": "integer"
+        },
+        "rollout_steps": {
+          "default": 2048,
+          "description": "The steps each environment takes in a rollout, which each update then\nreads whole, whose default is the horizon Section III-B of Pleines et\nal. reports as more effective than horizons of 512 or 1024 steps.",
+          "exclusiveMinimum": 0,
+          "title": "Rollout Steps",
+          "type": "integer"
+        },
+        "trace_decay": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.95,
+          "description": "The λ that weights each generalized advantage estimate of Schulman et\nal., whose default is the one Pleines et al. train with."
+        },
+        "value_coefficient": {
+          "default": 0.5,
+          "description": "The weight of the value's loss beside the clipped objective, whose\ndefault is the coefficient Pleines et al. train with.",
+          "exclusiveMinimum": 0,
+          "title": "Value Coefficient",
+          "type": "number"
+        }
+      },
+      "title": "PPOSettings",
+      "type": "object"
+    },
+    "PQNSettings": {
+      "additionalProperties": false,
+      "description": "The settings PQN alone reads, each a field of `AgentSettings.pqn` and a\nkey under `[tool.squirtl.agent.pqn]` in `pyproject.toml`.",
+      "properties": {
+        "epochs": {
+          "default": 2,
+          "description": "The passes each update takes over the rollout, whose default is the\nepochs of Gallici et al.'s Atari settings.",
+          "exclusiveMinimum": 0,
+          "title": "Epochs",
+          "type": "integer"
+        },
+        "epsilon_end": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.001,
+          "description": "The chance of a random action once exploration has annealed, whose\ndefault is the one Gallici et al.'s Atari settings finish at."
+        },
+        "epsilon_start": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 1.0,
+          "description": "The chance of a random action at the run's first step, whose default is\nthe one Gallici et al.'s Atari settings start at."
+        },
+        "exploration_fraction": {
+          "$ref": "#/$defs/Fraction",
+          "default": 0.1,
+          "description": "The share of the run's steps over which the chance of a random action\nfalls linearly from `epsilon_start` to `epsilon_end`, whose default is\nthe decay of Gallici et al.'s Atari settings."
+        },
+        "learning_rate": {
+          "default": 0.00025,
+          "description": "The step size RAdam takes on every minibatch, held constant across the\nrun, whose default is the learning rate of Gallici et al.'s Atari\nsettings.",
+          "exclusiveMinimum": 0,
+          "title": "Learning Rate",
+          "type": "number"
+        },
+        "max_grad_norm": {
+          "default": 10.0,
+          "description": "The norm each minibatch's gradient is clipped to, whose default is the\nmaximum gradient norm of Gallici et al.'s Atari settings.",
+          "exclusiveMinimum": 0,
+          "title": "Max Grad Norm",
+          "type": "number"
+        },
+        "minibatches": {
+          "default": 32,
+          "description": "The minibatches each epoch splits the rollout into, whose default is the\ncount of Gallici et al.'s Atari settings.",
+          "exclusiveMinimum": 0,
+          "title": "Minibatches",
+          "type": "integer"
+        },
+        "rollout_steps": {
+          "default": 512,
+          "description": "The steps each environment takes in a rollout, which each update then\nreads whole, whose default gives 8 environments the 4,096 samples of\nGallici et al.'s Atari settings, their 128 environments of 32 steps.",
+          "exclusiveMinimum": 0,
+          "title": "Rollout Steps",
+          "type": "integer"
+        },
+        "trace_decay": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.65,
+          "description": "The λ that weights each λ-return the network's values are trained\ntoward, whose default is the one of Gallici et al.'s Atari settings."
+        }
+      },
+      "title": "PQNSettings",
+      "type": "object"
+    },
+    "Range_Annotated_float__Gt__": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "type": "array"
+    },
+    "Range_Annotated_int__Gt__": {
       "maxItems": 2,
       "minItems": 2,
       "prefixItems": [
@@ -237,20 +531,20 @@
       "additionalProperties": false,
       "description": "The settings the reward reads, each a field of `RunSettings.reward` and\na key under `[tool.squirtl.reward]` in `pyproject.toml`, holding what\neach member of `Term` pays a step.",
       "properties": {
+        "goal": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.35,
+          "description": "The reward the step first setting the run's goal earns, which has to be\nthe largest term."
+        },
         "milestone": {
           "$ref": "#/$defs/UnitInterval",
           "default": 0.1,
-          "description": "The reward a step earns for each milestone on the way to the starter\nwhose flag it first sets."
+          "description": "The reward a step earns for each flag on the way to the goal it first\nsets."
         },
         "novelty": {
           "$ref": "#/$defs/UnitInterval",
           "default": 0.00025,
           "description": "The reward a step earns for reaching a position the episode has not\nreached before, whose default is a 400th of the default milestone, the\nratio Pleines et al. pay one new coordinate against one completed event."
-        },
-        "starter": {
-          "$ref": "#/$defs/UnitInterval",
-          "default": 0.6,
-          "description": "The reward the step first setting `EVENT_GOT_STARTER` earns, which has\nto be the largest term."
         }
       },
       "title": "RewardSettings",
@@ -258,7 +552,7 @@
     },
     "SearchSettings": {
       "additionalProperties": false,
-      "description": "The settings a search reads, each a field of `RunSettings.search` and a\nkey under `[tool.squirtl.search]` in `pyproject.toml`. The population's\ndefaults are the Montezuma's Revenge column of Table 5 in Mhammedi\nand Cohan's \"Decoupling Exploration and Policy Optimization\", and the\npredictor's are their Appendix A.3.",
+      "description": "The settings a search over save states reads, each a field of\n`RunSettings.search` and a key under `[tool.squirtl.search]` in\n`pyproject.toml`. The population's defaults are the Montezuma's Revenge\ncolumn of Table 5 in Mhammedi and Cohan's \"Decoupling Exploration and\nPolicy Optimization\", and the predictor's are their Appendix A.3.",
       "properties": {
         "batch_size": {
           "default": 128,
@@ -287,7 +581,7 @@
           "type": "integer"
         },
         "inner_steps": {
-          "$ref": "#/$defs/Range",
+          "$ref": "#/$defs/Range_Annotated_int__Gt__",
           "default": [
             5,
             15
@@ -302,7 +596,7 @@
           "type": "number"
         },
         "outer_steps": {
-          "$ref": "#/$defs/Range",
+          "$ref": "#/$defs/Range_Annotated_int__Gt__",
           "default": [
             10,
             20
@@ -317,7 +611,7 @@
           "type": "integer"
         },
         "rollback": {
-          "$ref": "#/$defs/Range",
+          "$ref": "#/$defs/Range_Annotated_int__Gt__",
           "default": [
             1,
             3
@@ -356,10 +650,14 @@
     },
     "checkpoint_steps": {
       "default": 250000,
-      "description": "The environment steps between checkpoints, each written at the first\nepisode end reaching a multiple of them, whose default is the 250,000\nsteps of each iteration Dopamine's DQN checkpoints after.",
+      "description": "The environment steps between checkpoints, each written at the first\nepisode end, or the end of a rollout's update for PQN and PPO, reaching\na multiple of them, whose default is the 250,000 steps of each iteration\nDopamine's DQN checkpoints after.",
       "exclusiveMinimum": 0,
       "title": "Checkpoint Steps",
       "type": "integer"
+    },
+    "curriculum": {
+      "$ref": "#/$defs/CurriculumSettings",
+      "description": "The settings of the curriculum starting each training episode along a\ndemonstration."
     },
     "emulator": {
       "$ref": "#/$defs/EmulatorSettings",
@@ -375,7 +673,7 @@
     },
     "evaluation_steps": {
       "default": 250000,
-      "description": "The environment steps between the evaluations a run plays, each where\nan episode end or the run's last step first reaches a multiple of them,\nwhose default is the 250,000 steps of each iteration Dopamine's DQN\nevaluates after.",
+      "description": "The environment steps between the evaluations a run plays, each where\nan episode end, the end of a rollout's update for PQN and PPO, or the\nrun's last step first reaches a multiple of them, whose default is the\n250,000 steps of each iteration Dopamine's DQN evaluates after.",
       "exclusiveMinimum": 0,
       "title": "Evaluation Steps",
       "type": "integer"
@@ -397,7 +695,7 @@
     },
     "steps": {
       "default": 2500000,
-      "description": "The environment steps the run takes, whose default is ten of the\n250,000-step iterations Dopamine's DQN evaluates after.",
+      "description": "The environment steps the run takes, a run of PQN or PPO going on to\nthe end of the rollout that reaches them, whose default is ten of the\n250,000-step iterations Dopamine's DQN evaluates after.",
       "exclusiveMinimum": 0,
       "title": "Steps",
       "type": "integer"

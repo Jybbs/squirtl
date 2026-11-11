@@ -7,6 +7,9 @@ Pins how `Overworld` keeps Gymnasium's environment contract, covering:
 - The recording each episode keeps, the reset that starts from one, and the
   return playing it back reaches, to the last bit `RecordEpisodeStatistics`
   records
+- The start of an episode taking over from a demonstration, played from
+  the bedroom or restored from a snapshot, the DIV it writes, and the return of
+  its own steps alone that playing it back reaches
 - Each step's reward, termination, and shares, and the truncation and the
   statistics each episode records
 - The gray frame each step observes, which Gymnasium's
@@ -16,7 +19,8 @@ Pins how `Overworld` keeps Gymnasium's environment contract, covering:
 """
 
 from collections.abc  import Callable
-from common.console   import set_event, shade, stand
+from common.console   import StandIn, set_event, shade, stand
+from compression.zstd import compress
 from gymnasium        import Env, make
 from gymnasium.spaces import Box, Discrete
 from gymnasium.utils.env_checker import check_env
@@ -25,18 +29,19 @@ from hashlib        import sha256
 from numpy          import argwhere, uint8, unique
 from numpy.random   import default_rng
 from numpy.testing  import assert_array_equal
-from pytest         import approx, mark, param
+from pytest         import MonkeyPatch, approx, mark, param
 from subprocess     import check_output
 from sys            import executable
 from torch          import equal
 from torch.nn.utils import parameters_to_vector
 
-from squirtl.agent.learner         import Agent
+from squirtl.agent.learner         import DQN
 from squirtl.agent.schemas         import AgentSettings
-from squirtl.emulator.schemas      import Button
+from squirtl.emulator              import console
+from squirtl.emulator.schemas      import Button, Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
-from squirtl.environment.schemas   import Entry, Recording
-from squirtl.reward.schemas        import Event, Position, RewardSettings, Term
+from squirtl.environment.schemas   import Entry, EnvironmentSettings, Recording, Snapshot, Takeover
+from squirtl.reward.schemas        import Event, Position, RewardSettings, Tally, Term
 
 
 def test_a_build_plays_the_intro_before_any_reset(overworld: Overworld):
@@ -97,21 +102,30 @@ def test_a_reset_given_a_recording_matches_a_seeded_reset_at_its_timer_div(
     assert resets[0] == resets[1]
 
 
-def test_a_reset_starts_the_progress_afresh(overworld: Overworld):
+def test_a_reset_given_a_snapshot_alone_takes_up_its_progress_and_its_div(
+    overworld: Overworld
+):
     """
-    Asserts that a position an earlier episode reached earns novelty again
-    in the episode after a reset, since each reset starts its own progress.
+    Asserts that a reset given a snapshot and no recording loads its state
+    with no press and no tick, takes up the progress it holds, and records
+    the DIV it holds as the episode's own.
     """
-    memory  = overworld.game_boy.emulator.memory
-    rewards = []
+    calls = overworld.game_boy.emulator.calls
+    tally = Tally.read(overworld.game_boy).model_copy(update={"steps": 3})
+    calls.clear()
+    overworld.reset(
+        options = {
+            "snapshot": Snapshot(
+                frames    = compress(bytes(4)),
+                state     = compress(bytes(0x10000)),
+                tally     = tally,
+                timer_div = 7
+            )
+        }
+    )
 
-    for _ in range(2):
-        stand(memory, Position(map=0, x=0, y=0))
-        overworld.reset(seed=0)
-        stand(memory, Position(map=0, x=1, y=0))
-        rewards.append(overworld.step(0)[1])
-
-    assert rewards == [0.0625, 0.0625]
+    assert calls == [("load_state",), ("screen",)]
+    assert (overworld.progress.tally, overworld.recording.timer_div) == (tally, 7)
 
 
 @mark.parametrize(
@@ -141,39 +155,62 @@ def test_each_action_makes_its_press_then_advances_the_steps_frames(
     assert overworld.game_boy.emulator.calls == [*pressed, ("tick", 20), ("screen",)]
 
 
-def test_an_agent_learns_from_the_observations_the_environment_makes(
-    made: Callable[..., Env]
+def test_a_reset_starts_the_progress_afresh(overworld: Overworld):
+    """
+    Asserts that a position an earlier episode reached earns novelty again
+    in the episode after a reset, since each reset starts its own progress.
+    """
+    memory  = overworld.game_boy.emulator.memory
+    rewards = []
+
+    for _ in range(2):
+        stand(memory, Position(map=0, x=0, y=0))
+        overworld.reset(seed=0)
+        stand(memory, Position(map=0, x=1, y=0))
+        rewards.append(overworld.step(0)[1])
+
+    assert rewards == [0.0625, 0.0625]
+
+
+def test_a_takeover_given_a_snapshot_restores_it_in_place_of_the_presses(
+    overworld: Overworld
 ):
     """
-    Asserts that an agent built over the environment's own spaces stores
-    each observation its steps reach and takes an update on a batch of them
-    that changes its online network.
+    Asserts that a reset given a snapshot beside a recording that took over
+    loads the snapshot's state, reads its frame, and writes the takeover's
+    DIV, with no press and no tick, starting a progress of its own steps
+    alone and holding the presses before the takeover in its recording.
     """
-    env   = made()
-    agent = Agent(
-        actions  = env.action_space.n,
-        seed     = 0,
-        settings = AgentSettings(
-            batch_size   = 4,
-            capacity     = 64,
-            device       = "cpu",
-            warmup_steps = 4
+    memory    = overworld.game_boy.emulator.memory
+    calls     = overworld.game_boy.emulator.calls
+    recording = Recording(
+        presses  = bytes([3]),
+        takeover = Takeover(
+            limit     = 9,
+            segment   = 1,
+            step      = 1,
+            timer_div = 4
         ),
-        space = env.observation_space,
-        steps = 8
+        timer_div = 7
     )
-    observation, _ = env.reset(seed=0)
-    agent.begin(observation)
+    tally = Tally.read(overworld.game_boy).model_copy(update={"steps": 3})
+    calls.clear()
+    overworld.reset(
+        options = {
+            "recording" : recording,
+            "snapshot"  : Snapshot(
+                frames    = compress(bytes(4)),
+                state     = compress(bytes(9) + b"\x05" + bytes(0xFFF6)),
+                tally     = tally,
+                timer_div = 7
+            )
+        }
+    )
 
-    for _ in range(8):
-        action = agent.act(observation)
-        observation, reward, terminated, _, _ = env.step(action)
-        agent.remember(action, observation, reward, terminated)
-
-    online = parameters_to_vector(agent.online.parameters())
-    agent.update()
-
-    assert not equal(parameters_to_vector(agent.online.parameters()), online)
+    assert calls == [("load_state",), ("screen",), ("_set_timer_div", 4)]
+    assert (memory[9], overworld.recording, overworld.progress.steps) == (
+        5, recording, 0
+    )
 
 
 @mark.parametrize("seed", [param(0, id="seed-0"), param(1, id="seed-1")])
@@ -197,6 +234,98 @@ def test_a_reset_writes_a_div_its_seed_draws_then_draws_one_idle_frame(
     ]
 
 
+def test_an_agent_learns_from_the_observations_the_environment_makes(
+    made: Callable[..., Env]
+):
+    """
+    Asserts that an agent built over the environment's own spaces stores
+    each observation its steps reach and takes an update on a batch of them
+    that changes its online network.
+    """
+    env   = made()
+    agent = DQN(
+        actions  = env.action_space.n,
+        seed     = 0,
+        settings = AgentSettings(
+            batch_size   = 4,
+            capacity     = 64,
+            device       = "cpu",
+            warmup_steps = 4
+        ),
+        space = env.observation_space,
+        steps = 8
+    )
+    observation, _ = env.reset(seed=0)
+    agent.begin(observation)
+
+    for _ in range(8):
+        action = agent.act(observation)
+        observation, reward, terminated, _, _ = env.step(action)
+        agent.remember(action, observation, reward, terminated)
+
+    online = parameters_to_vector(agent.network.parameters())
+    agent.update()
+
+    assert not equal(parameters_to_vector(agent.network.parameters()), online)
+
+
+def test_an_episode_ends_at_the_goal_its_settings_name(
+    cartridge   : Cartridge,
+    monkeypatch : MonkeyPatch,
+    settings    : RewardSettings
+):
+    """
+    Asserts that an environment whose settings name `EVENT_GOT_POKEDEX` as
+    its goal pays the starter as a milestone without ending the episode, and
+    the Pokédex as the goal, which ends it.
+    """
+    monkeypatch.setattr(console, "PyBoy", StandIn)
+    overworld = Overworld(
+        cartridge,
+        EmulatorSettings(hold=3),
+        EnvironmentSettings(frames_per_step=20, goal=Event.EVENT_GOT_POKEDEX),
+        settings
+    )
+    overworld.reset(seed=0)
+    steps = []
+
+    for event in (Event.EVENT_GOT_STARTER, Event.EVENT_GOT_POKEDEX):
+        set_event(event, overworld.game_boy.emulator.memory)
+        steps.append(overworld.step(0)[1:3])
+
+    assert steps == [(settings.milestone, False), (settings.goal, True)]
+
+
+@mark.parametrize(
+    ("event", "reward", "terminated"),
+    [
+        param(Event.EVENT_OAK_APPEARED_IN_PALLET, 0.125, False, id="a-milestone"),
+        param(Event.EVENT_GOT_STARTER,            0.5,   True,  id="the-starter")
+    ]
+)
+def test_a_step_returns_its_score_and_never_truncates(
+    event      : Event,
+    overworld  : Overworld,
+    reward     : float,
+    terminated : bool
+):
+    """
+    Asserts that a step returns the gray frame it ends on, the reward
+    its score totals, whether it reached the goal, no truncation, which
+    `TimeLimit` reports, and each term's share as its info dict.
+    """
+    overworld.reset(seed=0)
+    set_event(event, overworld.game_boy.emulator.memory)
+    frame, earned, ended, truncated, info = overworld.step(0)
+
+    assert_array_equal(frame, overworld.game_boy.grayscale, strict=True)
+    assert (earned, ended, truncated) == (reward, terminated, False)
+    assert info == {
+        term: reward if term is Event.EVENT_GOT_STARTER.terms[event] else 0.0
+        for term in Term
+    }
+
+
 def test_resets_with_no_seed_draw_on_from_the_seeded_generator(overworld: Overworld):
     """
     Asserts that resets after a seeded one draw each episode's `timer_div`
@@ -218,33 +347,6 @@ def test_the_action_space_offers_no_press_and_each_button(overworld: Overworld):
     assert overworld.action_space == Discrete(len(Button) + 1)
 
 
-@mark.parametrize(
-    ("event", "reward", "terminated"),
-    [
-        param(Event.EVENT_OAK_APPEARED_IN_PALLET, 0.125, False, id="a-milestone"),
-        param(Event.EVENT_GOT_STARTER,            0.5,   True,  id="the-starter")
-    ]
-)
-def test_a_step_returns_its_score_and_never_truncates(
-    event      : Event,
-    overworld  : Overworld,
-    reward     : float,
-    terminated : bool
-):
-    """
-    Asserts that a step returns the gray frame it ends on, the reward
-    its score totals, whether it found the starter, no truncation, which
-    `TimeLimit` reports, and each term's share as its info dict.
-    """
-    overworld.reset(seed=0)
-    set_event(event, overworld.game_boy.emulator.memory)
-    frame, earned, ended, truncated, info = overworld.step(0)
-
-    assert_array_equal(frame, overworld.game_boy.grayscale, strict=True)
-    assert (earned, ended, truncated) == (reward, terminated, False)
-    assert info == {term: reward if term is event.term else 0.0 for term in Term}
-
-
 def test_the_environment_imports_nothing_from_the_agent():
     """
     Asserts that importing the environment's modules in a fresh interpreter
@@ -259,43 +361,25 @@ def test_the_environment_imports_nothing_from_the_agent():
     )
 
 
-def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
-    made: Callable[..., Env]
-):
-    """
-    Asserts that the environment's spec names it, every wrapper shaping its
-    observation, and the two recording each episode, in the order each wraps
-    the last, and that `gymnasium.make` remakes from it an environment of an
-    equal spec.
-    """
-    spec = made().spec
-
-    assert (
-        spec.id, spec.max_episode_steps,
-        [wrapper.name for wrapper in spec.additional_wrappers]
-    ) == (
-        "squirtl/Overworld-v0", 10_240,
-        [
-            "ShrinkObservation", "FrameStackObservation", "ProgressObservation",
-            "RecordEpisodeStatistics", "RecordOutcome"
-        ]
-    )
-
-    with make(spec) as remade:
-        assert remade.spec == spec
-
-
 @mark.parametrize(
     ("fields", "shapes"),
     [
         param(
             {},
-            {Entry.FLAGS: (1, 4), Entry.FRAMES: (4, 72, 80), Entry.GRID: (1, 48, 48)},
+            {
+                Entry.FLAGS  : (1, len(Event)),
+                Entry.FRAMES : (4, 72, 80),
+                Entry.GRID   : (1, 48, 48)
+            },
             id = "the-defaults"
         ),
         param(
             {"frame_stack": 2, "grid_size": 9, "frame_shape": (36, 40)},
-            {Entry.FLAGS: (1, 4), Entry.FRAMES: (2, 36, 40), Entry.GRID: (1, 9, 9)},
+            {
+                Entry.FLAGS  : (1, len(Event)),
+                Entry.FRAMES : (2, 36, 40),
+                Entry.GRID   : (1, 9, 9)
+            },
             id = "other-shapes"
         )
     ]
@@ -326,6 +410,32 @@ def test_the_observation_lies_in_its_space_at_the_shapes_the_settings_name(
         shapes[Entry.FRAMES],
         uint8
     )
+
+
+def test_the_environment_is_made_through_its_spec_with_gymnasiums_wrappers(
+    made: Callable[..., Env]
+):
+    """
+    Asserts that the environment's spec names it, every wrapper shaping its
+    observation, and the two recording each episode, in the order each wraps
+    the last, and that `gymnasium.make` remakes from it an environment of an
+    equal spec.
+    """
+    spec = made().spec
+
+    assert (
+        spec.id, spec.max_episode_steps,
+        [wrapper.name for wrapper in spec.additional_wrappers]
+    ) == (
+        "squirtl/Overworld-v0", 10_240,
+        [
+            "ShrinkObservation", "FrameStackObservation", "ProgressObservation",
+            "RecordEpisodeStatistics", "RecordOutcome", "ReplayRecording"
+        ]
+    )
+
+    with make(spec) as remade:
+        assert remade.spec == spec
 
 
 def test_the_frame_a_step_observes_is_gymnasiums_grayscale_of_its_render(
@@ -402,24 +512,6 @@ def test_the_render_rate_is_one_frame_per_step_at_the_consoles_speed(
     assert made(frames_per_step=20).metadata["render_fps"] == approx(59.7275 / 20)
 
 
-def test_the_time_limit_truncates_the_episode_and_records_it(made: Callable[..., Env]):
-    """
-    Asserts that the environment truncates an episode on its
-    `max_episode_steps`-th step and not before, never terminating it, and
-    reports its length in the statistics `RecordEpisodeStatistics` adds.
-    """
-    env = made(max_episode_steps=3)
-    env.reset(seed=0)
-    steps = [env.step(0) for _ in range(3)]
-
-    assert [(terminated, truncated) for _, _, terminated, truncated, _ in steps] == [
-        (False, False),
-        (False, False),
-        (False, True)
-    ]
-    assert steps[-1][-1]["episode"]["l"] == 3
-
-
 @mark.usefixtures("walking")
 def test_an_episode_keeps_its_timer_div_and_each_action_as_its_recording(
     overworld: Overworld
@@ -439,15 +531,22 @@ def test_an_episode_keeps_its_timer_div_and_each_action_as_its_recording(
     )
 
 
-def test_the_unwrapped_environment_passes_gymnasiums_checks(made: Callable[..., Env]):
+def test_the_time_limit_truncates_the_episode_and_records_it(made: Callable[..., Env]):
     """
-    Asserts that Gymnasium's `check_env` passes on the unwrapped
-    environment with every warning it issues raised as an error under the
-    `filterwarnings` that `[tool.pytest]` sets, covering its spaces, a
-    seeded reset's determinism, a step's returns, the RGB render, and a
-    second close.
+    Asserts that the environment truncates an episode on its
+    `max_episode_steps`-th step and not before, never terminating it, and
+    reports its length in the statistics `RecordEpisodeStatistics` adds.
     """
-    check_env(made().unwrapped)
+    env = made(max_episode_steps=3)
+    env.reset(seed=0)
+    steps = [env.step(0) for _ in range(3)]
+
+    assert [(terminated, truncated) for _, _, terminated, truncated, _ in steps] == [
+        (False, False),
+        (False, False),
+        (False, True)
+    ]
+    assert steps[-1][-1]["episode"]["l"] == 3
 
 
 @mark.usefixtures("walking")
@@ -476,7 +575,7 @@ def test_playing_a_recording_reaches_the_return_its_episode_earned(
 @mark.parametrize(
     "settings",
     [param(
-        RewardSettings(milestone=0.125, novelty=0.1, starter=0.5),
+        RewardSettings(goal=0.5, milestone=0.125, novelty=0.1),
         id = "a-tenth-a-square"
     )]
 )
@@ -497,3 +596,59 @@ def test_playing_a_recording_reaches_the_return_gymnasium_records_to_the_last_bi
     assert [overworld.play(overworld.recording), info["episode"]["r"]] == [
         0.7999999999999999
     ] * 2
+
+
+@mark.usefixtures("walking")
+def test_a_takeover_plays_the_demonstrations_presses_then_writes_its_div(
+    overworld: Overworld
+):
+    """
+    Asserts that a reset given a recording that took over from a
+    demonstration at its second step plays the demonstration's first two
+    presses from the bedroom, then writes the takeover's DIV, and starts
+    the progress there, so playing the recording back steps through the
+    episode's own presses alone and reaches the return of its two new
+    squares.
+    """
+    calls     = overworld.game_boy.emulator.calls
+    recording = Recording(
+        presses  = bytes([1, 4, 2, 2]),
+        takeover = Takeover(
+            limit     = 9,
+            segment   = 0,
+            step      = 2,
+            timer_div = 200
+        ),
+        timer_div = 7
+    )
+    calls.clear()
+    overworld.reset(options={"recording": recording})
+
+    assert calls == [
+        ("reset_game", 7),
+        ("tick", 1),
+        ("screen",),
+        ("button", Button.A, 3),
+        ("tick", 20),
+        ("screen",),
+        ("button", Button.LEFT, 3),
+        ("tick", 20),
+        ("screen",),
+        ("_set_timer_div", 200)
+    ]
+    assert overworld.progress.positions == {overworld.progress.position}
+    assert overworld.recording == recording.model_copy(
+        update = {"presses": bytes([1, 4])}
+    )
+    assert overworld.play(recording) == 0.125
+
+
+def test_the_unwrapped_environment_passes_gymnasiums_checks(made: Callable[..., Env]):
+    """
+    Asserts that Gymnasium's `check_env` passes on the unwrapped
+    environment with every warning it issues raised as an error under the
+    `filterwarnings` that `[tool.pytest]` sets, covering its spaces, a
+    seeded reset's determinism, a step's returns, the RGB render, and a
+    second close.
+    """
+    check_env(made().unwrapped)

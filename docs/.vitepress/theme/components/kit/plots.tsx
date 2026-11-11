@@ -39,7 +39,7 @@ export function drawAxis(d: string): VNode {
  */
 export function drawLabel(label: PlotLabel, look: string = TICK): VNode {
   return (
-    <text class={look} key={`${label.text}:${label.x}`} text-anchor={label.anchor} x={label.x} y={label.y}>
+    <text class={look} key={`${label.text}:${label.x}:${label.y}`} text-anchor={label.anchor} x={label.x} y={label.y}>
       {label.text}
     </text>
   )

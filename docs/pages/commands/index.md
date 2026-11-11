@@ -1,0 +1,11 @@
+# Commands
+
+*SquiRtL* runs as the `squirtl` command, which trains an agent, searches for a path to the run's goal over saved states, stops a run, plays an episode back in the emulator's window, evaluates a trained agent against random presses, packs the trained runs a release attaches and fetches them back, prints a source's citation, and writes the files the docs site reads from the package. Each page in this section opens on the help its command prints, which `mise write` rewrites around the page's own prose, so every setting below carries the default and the description `squirtl <command> --help` shows, or *the machine's* where the default follows the machine.
+
+## At the Terminal
+
+A run starts from a fresh clone once the ROM sits at `data/rom.gb`, trains for the steps `--steps` names, and prints its directory under `data/runs/`, which `squirtl evaluate` then reads. `squirtl stop` ends a run in another terminal with a checkpoint, and `squirtl train --resume` continues it from there. `squirtl fetch` unpacks the runs a release attaches under `data/runs/` instead, and `squirtl watch --release` and `squirtl evaluate --release` read them, fetching any that is missing.
+
+## Every Setting Is a Flag
+
+Each setting of a run is one flag of `squirtl train`, named for the subject it belongs to and the field it sets, such as `--agent.discount` or `--reward.goal`. A setting on by default turns off as `--agent.double-q=false` does, and a pair such as `--environment.frame-shape` takes both its values in turn.

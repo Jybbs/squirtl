@@ -94,7 +94,7 @@ describe('StorySees at rest', () => {
     expect(shownStep(wrapper)).toBe(stepAt(0))
     expect(pixels.views).toHaveLength(sees.OBSERVING.stack + 1)
     expect([...pixels.views[0]!.data.subarray(0, 3)]).toStrictEqual(white)
-    expect(flagValues(wrapper)).toStrictEqual(['0', '0', '0', '0'])
+    expect(flagValues(wrapper)).toStrictEqual(['0', '0', '0', '0', '0', '0', '0'])
   })
 
   test('leaves every canvas blank where a room’s image fails to decode', async () => {
@@ -129,9 +129,21 @@ describe('StorySees at rest', () => {
     sight.show(true)
     await flushPromises()
 
-    expect([shownStep(wrapper), flagValues(wrapper)]).toStrictEqual([stepAt(last), ['1', '1', '1', '1']])
+    expect([shownStep(wrapper), flagValues(wrapper)]).toStrictEqual([stepAt(last), ['1', '1', '1', '1', '0', '0', '0']])
     expect(['bg-amethyst-1', 'bg-heath-1'].map(tint => wrapper.findAll(`.sees-flags .${tint}`).length))
       .toStrictEqual([1, 3])
+  })
+})
+
+describe('StorySees past the goal', () => {
+  test('sets the flags past the goal after a rule naming them, as quiet chips the episode never sets', async () => {
+    const { wrapper } = await mounted()
+    const past        = wrapper.findAll('.sees-flags .py-chip-quiet-block')
+
+    expect(wrapper.get('.sees-flags .border-dashed').text()).toBe('Past the goal, paying nothing')
+    expect(past.map(each => [each.get('.tracking-caps').text(), each.get('.ml-auto').text()])).toStrictEqual([
+      ['Battled the rival', '0'], ['Got Oak’s parcel', '0'], ['Got the Pokédex', '0']
+    ])
   })
 })
 
@@ -142,18 +154,26 @@ describe('StorySees playing', () => {
 
     sight.show(true)
     const first = shownStep(wrapper)
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.beat)
+    vi.advanceTimersByTime(SEES_TEMPO.beat)
+    await wrapper.vm.$nextTick()
 
     expect([first, shownStep(wrapper), seek.mock.calls]).toStrictEqual([stepAt(0), stepAt(1), []])
   })
 
   test('rests on the starter, then plays again from the bedroom', async () => {
     const { sight, wrapper } = await mounted()
+    const thumb              = wrapper.get('[role="slider"]')
 
+    await thumb.trigger('focusin')
+    await thumb.trigger('keydown', { key: 'End' })
+    await thumb.trigger('keydown', { key: 'ArrowLeft' })
+    await thumb.trigger('focusout')
     sight.show(true)
-    await vi.advanceTimersByTimeAsync((last + 1) * SEES_TEMPO.beat)
+    vi.advanceTimersByTime(SEES_TEMPO.beat + SEES_TEMPO.rest - 1)
+    await wrapper.vm.$nextTick()
     const end = shownStep(wrapper)
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.rest - SEES_TEMPO.beat)
+    vi.advanceTimersByTime(1)
+    await wrapper.vm.$nextTick()
 
     expect([end, shownStep(wrapper)]).toStrictEqual([stepAt(last), stepAt(0)])
   })
@@ -166,10 +186,12 @@ describe('StorySees held by a reader', () => {
 
     sight.show(true)
     await pointer.sweep(control, [20, 100, 140])
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.beat * 4)
+    vi.advanceTimersByTime(SEES_TEMPO.beat * 4)
+    await wrapper.vm.$nextTick()
     const held = shownStep(wrapper)
     await control.trigger('pointerleave', { pointerType: 'mouse' })
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.beat * 2)
+    vi.advanceTimersByTime(SEES_TEMPO.beat * 2)
+    await wrapper.vm.$nextTick()
 
     expect([held, shownStep(wrapper)]).toStrictEqual([stepAt(1), stepAt(3)])
   })
@@ -201,11 +223,11 @@ describe('StorySees unmounted', () => {
     vi.clearAllTimers()
 
     sight.show(true)
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.beat / 2)
+    vi.advanceTimersByTime(SEES_TEMPO.beat / 2)
     wrapper.unmount()
     const ended = vi.getTimerCount()
     const drawn = pixels.images.length
-    await vi.advanceTimersByTimeAsync(SEES_TEMPO.beat * 4)
+    vi.advanceTimersByTime(SEES_TEMPO.beat * 4)
 
     expect([ended, next.mock.calls.length, pixels.images.length]).toStrictEqual([0, 1, drawn])
   })

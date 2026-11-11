@@ -7,37 +7,53 @@ Defines the fixtures the tests of `squirtl.agent` request:
   of that space, stacked as a frame stack stacks them
 - `play` and `resume`, which play an episode through an agent and restore
   its checkpoint into another built under the same settings
+- `rolling`, `batched`, and `collect`, PQN and PPO over that space, a batch
+  of its observations, and a function filling such an agent's rollout
 """
 
-from collections.abc  import Callable, Mapping
-from gymnasium.spaces import Box, Dict, MultiBinary, flatten_space
-from itertools        import pairwise
-from numpy            import arange, ndarray, pad, uint8
-from numpy.random     import default_rng
-from pathlib          import Path
-from pytest           import fixture
+from collections.abc        import Callable, Mapping
+from gymnasium.spaces       import Box, Dict, MultiBinary, flatten_space
+from gymnasium.vector.utils import batch_space
+from itertools              import pairwise
+from numpy        import arange, float32, full, ndarray, pad, uint8, zeros
+from numpy.random import default_rng
+from pathlib      import Path
+from pytest       import fixture
 
-from squirtl.agent.learner       import Agent
-from squirtl.agent.schemas       import AgentSettings, Checkpoint
+from squirtl.agent.checkpoint    import ReplayCheckpoint
+from squirtl.agent.learner       import DQN, RolloutAgent
+from squirtl.agent.schemas       import AgentSettings, Algorithm
 from squirtl.environment.schemas import Entry
 
 type Observations = list[dict[str, ndarray]]
 
 
 @fixture
-def build(space: Dict) -> Callable[..., Agent]:
+def batched(space: Dict) -> dict[str, ndarray]:
+    """
+    Samples one observation of `space` for each of two environments, from
+    seed 0.
+    """
+    batch = batch_space(space, 2)
+    batch.seed(0)
+
+    return batch.sample()
+
+
+@fixture
+def build(space: Dict) -> Callable[..., DQN]:
     """
     Builds a factory of agents for seven actions over `space` on the CPU,
     from seed 1 for a 1,000-step run unless the call names another seed or
     length, any other keyword setting a field of its settings.
     """
 
-    def build(seed: int = 1, steps: int = 1000, **settings: object) -> Agent:
+    def build(seed: int = 1, steps: int = 1000, **settings: object) -> DQN:
         """
         Builds the agent `seed` and `steps` describe, its settings the
         defaults on the CPU with `settings` applied over them.
         """
-        return Agent(
+        return DQN(
             actions  = 7,
             seed     = seed,
             settings = AgentSettings(device="cpu", **settings),
@@ -46,6 +62,29 @@ def build(space: Dict) -> Callable[..., Agent]:
         )
 
     return build
+
+
+@fixture
+def collect(batched: dict[str, ndarray]) -> Callable[[RolloutAgent], None]:
+    """
+    Builds a function filling an agent's rollout from `batched`, each step
+    earning each environment a reward of one and ending no episode.
+    """
+
+    def collect(agent: RolloutAgent):
+        """
+        Takes a rollout's steps through `agent`, as the fixture describes.
+        """
+        for _ in range(agent.settings.hyperparameters.rollout_steps):
+            agent.act(batched)
+            agent.remember(
+                bootstraps = zeros(2, float32),
+                rewards    = full(2, 1.0, float32),
+                terminated = zeros(2, bool),
+                truncated  = zeros(2, bool)
+            )
+
+    return collect
 
 
 @fixture
@@ -98,7 +137,7 @@ def play(episode: Callable[[int], Observations]) -> Callable[..., None]:
     stored as terminating wherever `terminated` is set, with no update.
     """
 
-    def play(agent: Agent, steps: int, terminated: bool = False):
+    def play(agent: DQN, steps: int, terminated: bool = False):
         """
         Plays those steps through `agent`, as the fixture describes.
         """
@@ -112,7 +151,7 @@ def play(episode: Callable[[int], Observations]) -> Callable[..., None]:
 
 
 @fixture
-def resume(space: Dict, tmp_path: Path) -> Callable[[Agent], Agent]:
+def resume(space: Dict, tmp_path: Path) -> Callable[[DQN], DQN]:
     """
     Builds a function saving an agent's checkpoint under `tmp_path` and
     restoring it into an agent built from seed 2 under the saved agent's
@@ -120,7 +159,7 @@ def resume(space: Dict, tmp_path: Path) -> Callable[[Agent], Agent]:
     settings its run recorded.
     """
 
-    def resume(agent: Agent) -> Agent:
+    def resume(agent: DQN) -> DQN:
         """
         Saves `agent`'s checkpoint and restores it into the new agent.
 
@@ -128,14 +167,14 @@ def resume(space: Dict, tmp_path: Path) -> Callable[[Agent], Agent]:
             The agent the checkpoint was restored into.
         """
         agent.checkpoint.save(tmp_path / "checkpoint.npz")
-        restored = Agent(
+        restored = DQN(
             actions  = agent.actions,
             seed     = 2,
             settings = agent.settings,
             space    = space,
             steps    = agent.steps
         )
-        restored.restore(Checkpoint.from_path(tmp_path / "checkpoint.npz"))
+        restored.restore(ReplayCheckpoint.from_path(tmp_path / "checkpoint.npz"))
 
         return restored
 
@@ -143,10 +182,55 @@ def resume(space: Dict, tmp_path: Path) -> Callable[[Agent], Agent]:
 
 
 @fixture
+def rolling(space: Dict) -> Callable[..., RolloutAgent]:
+    """
+    Builds a factory of PQN and PPO agents for seven actions over `space` on
+    the CPU, each splitting rollouts of four steps across two environments
+    into two minibatches, from seed 1 for a 1,000-step run unless the call
+    names another seed, length, or count of minibatches, any other keyword
+    setting a field of the agent's own settings.
+    """
+
+    def rolling(
+        algorithm   : Algorithm,
+        minibatches : int = 2,
+        seed        : int = 1,
+        steps       : int = 1000,
+        **fields    : object
+    ) -> RolloutAgent:
+        """
+        Builds the agent of `algorithm` the arguments describe.
+        """
+        return RolloutAgent.named(algorithm)(
+            actions      = 7,
+            environments = 2,
+            seed         = seed,
+            settings     = AgentSettings(
+                **{
+                    algorithm.value: {
+                        "minibatches"   : minibatches,
+                        "rollout_steps" : 4,
+                        **fields
+                    }
+                },
+                algorithm    = algorithm,
+                device       = "cpu",
+                environments = 2
+            ),
+            space = space,
+            steps = steps
+        )
+
+    return rolling
+
+
+@fixture
 def space() -> Dict:
     """
     Declares the environment's observation, four stacked 72 by 80 frames
-    beside a binary 48 by 48 grid and four binary flags, those two one deep.
+    beside a binary 48 by 48 grid and four binary flags, those two one deep,
+    as a network written before `Event` declared the flags past the starter
+    reads.
     """
     return Dict(
         {

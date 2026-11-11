@@ -68,6 +68,14 @@ class Symbol(IntEnum):
     W_X_COORD     = 0xD362
     W_Y_COORD     = 0xD361
 
+    @property
+    def label(self) -> str:
+        """
+        Spells the member's name as its `ram/wram.asm` label, `wCurMap`
+        for `W_CUR_MAP`.
+        """
+        return "w" + "".join(map(str.capitalize, self.name.split("_")[1:]))
+
 
 class Cartridge(Record):
     """

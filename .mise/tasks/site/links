@@ -22,4 +22,4 @@ lychee \
   --remap "^file://$dist${base%/}(/|\$) file://$dist/" \
   --root-dir "$dist" \
   "$@" \
-  .vitepress/dist ../README.md ../.github/CONTRIBUTING.md
+  .vitepress/dist ../.github/README.md ../.github/CONTRIBUTING.md

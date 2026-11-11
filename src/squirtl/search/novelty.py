@@ -13,17 +13,17 @@ from numpy               import array, asarray, frombuffer, ndarray, uint8
 from numpy.random        import Generator
 from statistics          import fmean
 from torch               import Tensor, as_tensor, default_generator, float32, inference_mode, zeros
-from torch.nn            import Conv2d, LazyLinear, Linear, ReLU, Sequential
+from torch.nn            import Conv2d, Identity, LazyLinear, Linear, ReLU, Sequential
 from torch.nn.functional import mse_loss
 from torch.nn.init       import orthogonal_, zeros_
 from torch.optim         import Adam
 from torch.random        import fork_rng
 
-from squirtl.agent.networks      import QNetwork
+from squirtl.agent.networks      import Encoder, configure
 from squirtl.agent.replay        import Replay
 from squirtl.agent.schemas       import AgentSettings
 from squirtl.environment.schemas import Entry, Snapshot
-from squirtl.search.schemas      import SearchSettings
+from squirtl.runs.schemas        import SearchSettings
 
 
 class Novelty:
@@ -52,7 +52,7 @@ class Novelty:
             seed: The unsigned 64-bit seed both networks' weights start
                   from.
         """
-        agent.configure()
+        configure(agent)
 
         with fork_rng(devices=[]):
             default_generator.manual_seed(seed)
@@ -151,14 +151,15 @@ class Novelty:
     @staticmethod
     def network(shape: tuple[int, int, int]) -> Sequential:
         """
-        Builds the convolutions `QNetwork.encoder` builds for an image entry
-        beneath the appendix's head, two 1024-unit linear layers separated
-        by a ReLU. An observation of zeros sets each lazy layer's depth and
-        width, and the convolutions take the orthogonal weights at a gain of
-        the square root of 2 and the zero biases of Burda et al.'s `conv`.
+        Builds the convolutions `Encoder.encoder` builds for a stack of
+        images, unnormalized, beneath the appendix's head, two 1024-unit
+        linear layers separated by a ReLU. An observation of zeros sets
+        each lazy layer's depth and width, and the convolutions take the
+        orthogonal weights at a gain of the square root of 2 and the zero
+        biases of Burda et al.'s `conv`.
         """
         network = Sequential(
-            QNetwork.encoder(shape),
+            Encoder.encoder(Identity, Identity, shape),
             LazyLinear(1024),
             ReLU(),
             Linear(1024, 1024)

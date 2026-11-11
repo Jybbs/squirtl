@@ -1,6 +1,6 @@
 # SquiRtL
 
-*A deep Q-network that learns the walk to Oak’s lab.*
+*An agent that learns the walk to Oak’s lab.*
 
 *SquiRtL* trains an agent to play Pokémon Blue from the screen alone. A deep Q-network reads the frames the PyBoy emulator draws, presses one of the Game Boy's buttons each step, and learns from a reward read out of the game's memory, until Blue walks from his bedroom to Oak's lab and chooses his starter. Each part of the story below plays on a model of the game's first rooms in the page, so it runs with no emulator and no ROM.
 
@@ -10,7 +10,7 @@ Every step of an episode pays a little for each position Blue has not reached be
 
 ## What the Network Sees
 
-The network never reads where Blue stands, reading instead the last four frames of the screen shrunk to gray, the squares he has reached around him, and four flags for the moments that pay.
+The network never reads where Blue stands, reading instead the last four frames of the screen shrunk to gray, the squares he has reached around him, and a flag for each moment of the opening from Oak appearing to the Pokédex.
 
 ## Learning in the Page
 

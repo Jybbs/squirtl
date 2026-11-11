@@ -11,7 +11,7 @@ import { Key }           from '../../../../theme/components/kit/key.tsx'
  */
 const ENTRIES: readonly KeyEntry[] = [
   { hue: 'fern', label: 'The first walk', name: 'First', value: '12' },
-  { label: 'The second walk', name: 'Second', note: 'twice', role: 'starter' }
+  { label: 'The second walk', name: 'Second', note: 'twice', role: 'goal' }
 ]
 
 enableAutoUnmount(afterEach)
@@ -70,14 +70,14 @@ describe('Key pressed and figured', () => {
     expect([key.emitted('hover'), key.emitted('press')]).toStrictEqual([[[1], [null]], [[0]]])
   })
 
-  it('sets each entry’s two figures under the key’s heads, a chip beside them', () => {
+  it('sets each entry’s two figures under the key’s heads, a chip beside them, each figure carrying its head for a narrow key', () => {
     const entries = ENTRIES.map((entry, n) =>
       Object.assign({ figures: [`${n} of 2`, String(n * 10)] as const }, entry))
     const key   = mount(Key, { props: { entries, heads: ['Reached it', 'Steps'] } })
     const cells = key.findAll('.key-figures > span').map(cell => cell.text())
 
     expect(cells)
-      .toStrictEqual(['', 'Reached it', 'Steps', 'First12', '0 of 2', '0', 'Secondtwice', '1 of 2', '10'])
+      .toStrictEqual(['', 'Reached it', 'Steps', 'First12', 'Reached it0 of 2', 'Steps0', 'Secondtwice', 'Reached it1 of 2', 'Steps10'])
     expect(key.findAllComponents(Chip).map(chip => chip.props('name'))).toStrictEqual(['First', 'Second'])
   })
 })

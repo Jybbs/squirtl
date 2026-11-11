@@ -14,21 +14,24 @@ from gymnasium.vector            import AutoresetMode
 from itertools    import count
 from numpy        import array, flatnonzero, ndarray, ones, uint64, where
 from numpy.random import SeedSequence
-from torch        import Tensor, as_tensor, inference_mode
+from torch        import Tensor, inference_mode
 from torch.random import fork_rng
 
-from squirtl.agent.networks      import QNetwork
-from squirtl.agent.schemas       import Weights
+from squirtl.agent.checkpoint    import Weights
+from squirtl.agent.learner       import matching_networks
+from squirtl.agent.networks      import acting_network, tensors
+from squirtl.agent.schemas       import Algorithm
 from squirtl.emulator.schemas    import Record, UnitInterval
 from squirtl.environment.schemas import Outcome
+from squirtl.environment.workers import ignore_interrupts
 from squirtl.evaluation.schemas  import Evaluation, EvaluationSettings
-from squirtl.evaluation.workers  import ignore_interrupts
 
 
 class Policy(Record):
     """
     The policy an evaluation plays, choosing a random action with
-    probability `epsilon` and otherwise the action `network` values highest,
+    probability `epsilon` and otherwise the action `network` scores highest,
+    the highest value of a Q-network or the largest logit of PPO's policy,
     or a random action at every step where it holds no network. Each
     environment's random actions come from that environment's own action
     space, which the evaluation seeds for each episode.
@@ -46,7 +49,7 @@ class Policy(Record):
 
     network: Callable[[dict[str, Tensor]], Tensor] | None = None
     """
-    The Q-network valuing each action of a batch of observations, or `None`
+    The network scoring each action of a batch of observations, or `None`
     for the random baseline.
     """
 
@@ -56,7 +59,7 @@ class Policy(Record):
         Chooses each environment's action from the batch of `observations`,
         sampling one from its space in `spaces` and then, where a network is
         held, drawing from that space's generator whether to keep it or take
-        the action the network values highest, which it evaluates without
+        the action the network scores highest, which it evaluates without
         building an autograd graph.
 
         Returns:
@@ -68,12 +71,7 @@ class Policy(Record):
             return actions
 
         explore = array([space.np_random.random() < self.epsilon for space in spaces])
-        greedy  = self.network(
-            {
-                key: as_tensor(stack, device=self.device)
-                for key, stack in observations.items()
-            }
-        )
+        greedy  = self.network(tensors(self.device, observations))
 
         return where(explore, actions, greedy.argmax(1).numpy(force=True))
 
@@ -90,13 +88,18 @@ class Evaluator(AbstractContextManager):
 
     def __exit__(self, *raised: object):
         """
-        Closes the environments and the processes running them, whether or
-        not the `with` block raised.
+        Closes the environments and the processes running them, terminating
+        the workers where the `with` block raised. Without `terminate`,
+        `AsyncVectorEnv.close` calls `step_wait` again to finish a pending
+        step. An interrupt raised inside `step_wait` leaves some of the
+        workers' pipes already read, so that call blocks forever on a pipe
+        no worker writes to again.
         """
-        self.envs.close()
+        self.envs.close(terminate=any(raised))
 
     def __init__(
         self,
+        algorithm     : Algorithm,
         device        : str,
         seed          : int,
         settings      : EvaluationSettings,
@@ -105,15 +108,18 @@ class Evaluator(AbstractContextManager):
         """
         Starts the environments `specification` describes, which reset
         an episode only when `play` asks, so the evaluation chooses each
-        episode's seed.
+        episode's seed, and reads the goal its environment settings name.
 
         Args:
-            device : The device the agent's network evaluates each batch on.
-            seed   : The unsigned 64-bit seed of the run's evaluation
-                     stream.
+            algorithm : The agent whose network each evaluation builds.
+            device    : The device the agent's network evaluates each batch
+                        on.
+            seed      : The unsigned 64-bit seed of the run's evaluation
+                        stream.
         """
-        self.device = device
-        self.envs   = make_vec(
+        self.algorithm = algorithm
+        self.device    = device
+        self.envs      = make_vec(
             specification,
             num_envs      = min(settings.environments, settings.episodes),
             vector_kwargs = {
@@ -122,8 +128,17 @@ class Evaluator(AbstractContextManager):
             },
             vectorization_mode = "async"
         )
+        self.goal     = specification.kwargs["environment"].goal
         self.seed     = seed
         self.settings = settings
+
+    @property
+    def digest(self) -> str:
+        """
+        Reads the first environment's `digest`, the digest of the state its
+        intro left, which every environment shares.
+        """
+        return self.envs.get_attr("digest")[0]
 
     def baseline(self) -> Evaluation:
         """
@@ -131,30 +146,41 @@ class Evaluator(AbstractContextManager):
         seeded action space.
         """
         return Evaluation(
+            goal     = self.goal,
             outcomes = self.play(Policy()),
             step     = None
         )
 
     def evaluate(self, weights: Weights) -> Evaluation:
         """
-        Plays the episodes of the epsilon-greedy policy over a Q-network
-        holding `weights`, the agent's online network at their step. The
-        network is built anew, under a fork of PyTorch's global generator,
-        so the evaluation leaves the agent and that generator as they were.
+        Plays the episodes of the agent's network holding `weights`, at
+        their step, epsilon-greedily for the deep Q-network and PQN and
+        taking PPO's most likely action at every step, as Mhammedi and Cohan
+        evaluate the agents their PPO trains. The network is built anew,
+        under a fork of PyTorch's global generator, so the evaluation leaves
+        the agent and that generator as they were.
+
+        Raises:
+            ValueError: Where the entries of `weights` differ from the
+                        network's, as a checkpoint another agent wrote holds
+                        them.
         """
         with fork_rng(devices=[]):
-            network = QNetwork(
+            network = acting_network(
                 self.envs.single_action_space.n,
+                self.algorithm,
                 self.envs.single_observation_space
             )
 
-        network.load_state_dict(weights.online)
+        with matching_networks():
+            network.load_state_dict(weights.online)
 
         return Evaluation(
+            goal     = self.goal,
             outcomes = self.play(
                 Policy(
                     device  = self.device,
-                    epsilon = self.settings.epsilon,
+                    epsilon = 0.0 if self.algorithm.sampled else self.settings.epsilon,
                     network = network.to(self.device)
                 )
             ),
@@ -214,4 +240,3 @@ class Evaluator(AbstractContextManager):
             .generate_state(2, uint64)
             .tolist()
         )
-

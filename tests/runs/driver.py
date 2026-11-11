@@ -2,11 +2,13 @@
 Pins what a training run and a search share as the loop of one run, covering
 what no loop's own tests hold:
 
-- A `Driver` naming no `step` or `state` refused
+- A `Driver` naming no `step` refused
 - The first step past each multiple of an interval
 """
 
-from pytest import mark, param, raises
+from collections.abc import Iterator
+from pathlib         import Path
+from pytest          import mark, param, raises
 
 from squirtl.runs.driver  import Driver
 from squirtl.runs.schemas import Run
@@ -17,7 +19,7 @@ class Counting(Driver):
     The smallest loop a test runs, reading its steps from a field.
     """
 
-    unit = "count"
+    pause = "count"
 
     def __init__(self, run: Run, step: int):
         """
@@ -27,11 +29,24 @@ class Counting(Driver):
 
         self.count = step
 
+    def __iter__(self) -> Iterator[int]:
+        """
+        Yields the count once.
+        """
+        yield self.count
+
     @property
-    def state(self):
+    def checkpointed(self):
         """
         Gathers nothing.
         """
+
+    @property
+    def logs(self) -> tuple[Path, ...]:
+        """
+        Lists no file.
+        """
+        return ()
 
     @property
     def step(self) -> int:

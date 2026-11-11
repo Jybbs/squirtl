@@ -137,6 +137,13 @@ class Face(Declared):
     The family's name, as Google Fonts lists it.
     """
 
+    x_height: float
+    """
+    The height of the face's lowercase letters as a share of its em, the
+    `sxHeight` its OS/2 table records, the body's at the optical size body
+    text sets at.
+    """
+
     @computed_field
     @property
     def query(self) -> str:
@@ -211,7 +218,7 @@ class Lengths(Declared):
     The corner radii, each under the step its utility names.
     """
 
-    sizes: dict[str, int]
+    sizes: dict[str, float]
     """
     The fixed sizes the settled widgets set a part at, such as the slot a
     chip's mark sits in, each under the name its spacing utility takes.
@@ -307,12 +314,33 @@ class Motion(Declared):
     The length of a transition, in milliseconds.
     """
 
+    travel: tuple[float, float, float, float]
+    """
+    The control points of the cubic Bézier a mark moving from one place to
+    another eases along, slow at both ends.
+    """
+
     @property
     def easing(self) -> str:
         """
         Writes the curve as a CSS `cubic-bezier()` function.
         """
-        return f"cubic-bezier({', '.join(f'{point:g}' for point in self.curve)})"
+        return self.bezier(self.curve)
+
+    @property
+    def traveling(self) -> str:
+        """
+        Writes the travel curve as a CSS `cubic-bezier()` function.
+        """
+        return self.bezier(self.travel)
+
+    @staticmethod
+    def bezier(points: tuple[float, float, float, float]) -> str:
+        """
+        Writes the control points of a cubic Bézier as a CSS
+        `cubic-bezier()` function, each at its shortest.
+        """
+        return f"cubic-bezier({', '.join(f'{point:g}' for point in points)})"
 
 
 class Ramp(Declared):
@@ -466,6 +494,15 @@ class Faces(Declared):
     """
     The face of display text, whose dots the logo is set in.
     """
+
+    @property
+    def code_size(self) -> float:
+        """
+        The size code sets at in ems of the text around it, the body's
+        x-height over the code face's, so the lowercase letters of either
+        stand at one height.
+        """
+        return self.body.x_height / self.code.x_height
 
 
 class Hue(Declared):
@@ -629,6 +666,12 @@ class Identity(Declared):
     The gym badges in the order the game awards them.
     """
 
+    citation: dict[str, Swatch]
+    """
+    The colors a footnote's phone draws in, each under the name its
+    `--color-citation-*` variable takes, which mark citations alone.
+    """
+
     colors: dict[str, Color]
     """
     The palette's colors, each under its token.
@@ -757,6 +800,8 @@ class Identity(Declared):
             "default-transition-duration"        : f"{self.motion.duration}ms",
             "default-transition-timing-function" : self.motion.easing,
             "ease-glide"    : self.motion.easing,
+            "ease-travel"   : self.motion.traveling,
+            "text-code"     : f"{self.faces.code_size:.4g}em",
             "tracking-caps" : f"{lengths.track:g}em"
         }
 
@@ -787,6 +832,7 @@ class Identity(Declared):
                 token: Swatch(dark=palette[on_dark].hex, light=palette[on_light].hex)
                 for token, (on_light, on_dark) in self.logo.named.items()
             },
+            {f"citation-{name}": swatch for name, swatch in self.citation.items()},
             {token: color.swatch for token, color in self.colors.items()},
             {
                 color.name.lower().replace(" ", "-"): color.swatch

@@ -13,9 +13,11 @@ from operator         import attrgetter
 
 from squirtl.agent.schemas       import AgentSettings
 from squirtl.environment.schemas import Recording, Snapshot
+from squirtl.reward.schemas      import Event
+from squirtl.runs.schemas        import SearchSettings
 from squirtl.search.checkpoint   import SearchCheckpoint
 from squirtl.search.novelty      import Novelty
-from squirtl.search.schemas      import Ending, Frontier, Particle, Rollout, SearchSettings
+from squirtl.search.schemas      import Ending, Frontier, Particle, Rollout
 from squirtl.search.tree         import Tree
 
 
@@ -67,6 +69,7 @@ class Search:
         self,
         actions  : int,
         agent    : AgentSettings,
+        goal     : Event,
         roll     : Callable[[Iterable[Rollout]], Iterable[Ending]],
         root     : Snapshot,
         seed     : int,
@@ -82,6 +85,7 @@ class Search:
             actions : The actions a press chooses from.
             agent   : The settings naming the device and threads the
                       predictor runs on.
+            goal    : The flag whose setting ends the search.
             roll    : Plays each rollout and returns its ending, in the
                       order they came.
             seed    : The unsigned 64-bit seed every random draw starts
@@ -99,6 +103,7 @@ class Search:
         )
 
         self.actions = actions
+        self.goal    = goal
         self.groups  = [
             Group(start, settings.particles) for _ in range(settings.groups)
         ]
@@ -144,12 +149,23 @@ class Search:
     @property
     def finished(self) -> bool:
         """
-        Reads whether a particle has set `EVENT_GOT_STARTER` or the presses
-        have reached `steps`.
+        Reads whether a particle has set the goal or the presses have
+        reached `steps`.
         """
         return self.presses >= self.steps or any(
-            particle.terminated for group in self.groups for particle in group.particles
+            self.goal in particle.snapshot.tally.events
+            for group in self.groups
+            for particle in group.particles
         )
+
+    @property
+    def reached(self) -> bool:
+        """
+        Reads whether the winner has set the goal, as it has once a particle
+        sets it and the iteration consolidates, since the goal pays the most
+        of any flag.
+        """
+        return self.goal in self.winner.snapshot.tally.events
 
     def advance(self, group: Group, played: Sequence[tuple[Rollout, Ending]]):
         """

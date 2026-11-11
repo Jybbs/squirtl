@@ -17,6 +17,12 @@ import * as widget      from '../kit/widget.ts'
 const ART = 'sees-art pixelated block h-auto w-full rounded-1'
 
 /**
+ * The classes of each grid of the flags' chips, one column on a narrow frame,
+ * two on a wider one, and four on the widest.
+ */
+const CHIPS = 'grid grid-cols-1 gap-2 @sm:grid-cols-2 @lg:grid-cols-4'
+
+/**
  * The classes of the tag naming the step of each gray frame, set over the
  * frame's bottom left corner.
  */
@@ -40,6 +46,12 @@ const flags = labels.flagsOf()
  * beside its name for a screen reader and the tag set over it.
  */
 const names = labels.frameNamesOf()
+
+/**
+ * Each event flag past the default goal, which the episode never sets, in the
+ * order the network reads them.
+ */
+const past = labels.pastOf()
 
 /**
  * Draws the caption `label` beside `figure` in the grid area the class `place`
@@ -103,7 +115,9 @@ function frameStripOf(frames: readonly Canvas[], scrub: Scrub): VNode {
 
 /**
  * Draws the screen, the gray frames, and the grid at one height above their
- * captions, and the flags' chips beneath, each set chip in its term's hue.
+ * captions, and the flags' chips beneath, each set chip in its term's hue, the
+ * flags past the default goal after a rule as quiet chips the episode never
+ * sets.
  */
 function viewOf(root: Ref<HTMLElement | undefined>, scrub: Scrub, stage: playthrough.Playthrough): VNode {
   const flagged = stage.flagged.value
@@ -121,7 +135,7 @@ function viewOf(root: Ref<HTMLElement | undefined>, scrub: Scrub, stage: playthr
         {captionOf(captions.grid, 'Grid', 'sees-grid-say')}
         <div class="sees-flags mt-2 grid gap-2">
           {captionOf(captions.flags, 'Flags', '', row)}
-          <div class="grid grid-cols-1 gap-2 @sm:grid-cols-2 @lg:grid-cols-4">
+          <div class={CHIPS}>
             {flags.map((each, i) => (
               <Chip
                 class="w-full"
@@ -132,6 +146,12 @@ function viewOf(root: Ref<HTMLElement | undefined>, scrub: Scrub, stage: playthr
                 value={flagged[i] ? '1' : '0'}
               />
             ))}
+          </div>
+          <div class="mt-1 flex items-center border-t-hairline border-dashed border-rule pt-1">
+            <span class={widget.LABEL}>Past the goal, paying nothing</span>
+          </div>
+          <div class={CHIPS}>
+            {past.map(each => <Chip class="w-full" key={each.index} name={each.name} quiet value="0" />)}
           </div>
         </div>
       </div>

@@ -38,26 +38,29 @@ def roll(rollout: Rollout) -> Ending:
     """
     observation, _ = environment.reset(options={"snapshot": rollout.snapshot})
 
-    progress = environment.unwrapped.progress
-    reward   = progress.milestones
-    frames   = [observation[Entry.FRAMES][-1]]
-    pressed  = bytearray()
+    overworld = environment.unwrapped
+    progress  = overworld.progress
+    reward    = overworld.reward.total(progress.earned)
+    frames    = [observation[Entry.FRAMES][-1]]
+    pressed   = bytearray()
 
     for action in rollout.presses:
         observation, *_ = environment.step(action)
         frames.append(observation[Entry.FRAMES][-1])
         pressed.append(action)
 
-        if rollout.halting and progress.milestones > reward:
+        if rollout.halting and overworld.reward.total(progress.earned) > reward:
             break
+
+    earned = overworld.reward.total(progress.earned)
 
     return Ending(
         dead =
-            progress.milestones   == reward
+            earned                == reward
             and progress.position == rollout.snapshot.tally.position
             and array_equal(frames[0], frames[-1]),
         frames   = b"".join(frames[1:]),
         presses  = bytes(pressed),
-        reward   = progress.milestones,
+        reward   = earned,
         snapshot = environment.get_wrapper_attr("capture")()
     )

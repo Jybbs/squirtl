@@ -16,7 +16,7 @@ describe('cardPath', () => {
 
 describe('splitInTwo', () => {
   it.each([
-    [IDENTITY.tagline, ['A deep Q-network that learns', 'the walk to Oak’s lab.']],
+    [IDENTITY.tagline, ['An agent that learns', 'the walk to Oak’s lab.']],
     ['one two three four', ['one two', 'three four']],
     ['aa b cc', ['aa', 'b cc']],
     ['alone', ['alone', '']]

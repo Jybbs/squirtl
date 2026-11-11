@@ -5,7 +5,6 @@ positions and flags out for the observation.
 """
 
 from collections import Counter
-from math        import fsum
 from numpy       import array, int8, ndarray, zeros
 
 from squirtl.emulator.console import GameBoy
@@ -14,31 +13,36 @@ from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Tal
 
 class Progress:
     """
-    The progress one episode has made toward the starter, meaning each
-    position reached, the one the player stands on, each `Event` flag set,
-    and how often its steps have earned each term, against which `score`
-    pays each step.
+    The progress one episode has made toward its goal, meaning each position
+    reached, the one the player stands on, each `Event` flag set, the step
+    first setting each flag the episode's own steps set, and how often its
+    steps have earned each term, against which `score` pays each step.
     """
 
     def __init__(
         self,
         game_boy : GameBoy,
+        goal     : Event,
         settings : RewardSettings,
         tally    : Tally | None = None
     ):
         """
         Takes up the episode where `tally` leaves it, or otherwise records
         the position the player starts the episode on and each flag already
-        set, neither of which a step earns.
+        set, neither of which a step earns, and the term each flag up to
+        `goal` pays.
         """
         tally = tally or Tally.read(game_boy)
 
         self.earned    = Counter(tally.earned)
         self.events    = set(tally.events)
+        self.firsts    = dict(tally.firsts)
         self.game_boy  = game_boy
         self.position  = tally.position
         self.positions = tally.reached
         self.settings  = settings
+        self.steps     = tally.steps
+        self.terms     = goal.terms
 
     @property
     def flags(self) -> ndarray:
@@ -47,16 +51,6 @@ class Progress:
         the order `Event` declares them, in the `int8` `MultiBinary` holds.
         """
         return array([event in self.events for event in Event], int8)
-
-    @property
-    def milestones(self) -> float:
-        """
-        Totals the reward the flags set in the episode have earned, each
-        paid as its term pays it, leaving out the novelty of every position.
-        """
-        return fsum(
-            share for term, share in self.shares.items() if term is not Term.NOVELTY
-        )
 
     @property
     def shares(self) -> dict[Term, float]:
@@ -72,7 +66,14 @@ class Progress:
         Packs the progress so far into the `Tally` that `Progress` resumes
         from.
         """
-        return Tally.of(self.earned, self.events, self.position, self.positions)
+        return Tally.of(
+            self.earned,
+            self.events,
+            self.firsts,
+            self.position,
+            self.positions,
+            self.steps
+        )
 
     def grid(self, size: int) -> ndarray:
         """
@@ -101,19 +102,25 @@ class Progress:
         """
         Reads the position the player stands on and the flags set once a
         step has run, paying novelty where the episode has not reached that
-        position before and each flag's term for each flag first set, then
-        records the position, the flags, and the terms earned.
+        position before and, for each flag first set up to the goal, the
+        term `Event.terms` names, then records the position, the flags,
+        the step first setting each, and the terms earned. The step first
+        setting the goal ends the episode.
         """
+        self.steps   += 1
         self.position = Position.read(self.game_boy)
         reached       = Event.read(self.game_boy) - self.events
-        earned        = Counter(event.term for event in reached)
+        earned        = Counter(
+            self.terms[event] for event in reached & self.terms.keys()
+        )
 
         earned[Term.NOVELTY] += self.position not in self.positions
         self.events          |= reached
         self.earned.update(earned)
+        self.firsts.update(dict.fromkeys(reached, self.steps))
         self.positions.add(self.position)
 
         return Score(
             shares     = self.settings.shares(earned),
-            terminated = Event.EVENT_GOT_STARTER in reached
+            terminated = Term.GOAL in earned
         )

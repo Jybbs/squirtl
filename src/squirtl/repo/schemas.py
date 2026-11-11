@@ -34,7 +34,7 @@ from pydantic            import (
     AliasPath, BeforeValidator, Field, HttpUrl, InstanceOf, JsonValue,
     StringConstraints, TypeAdapter, ValidationError
 )
-from re         import escape, finditer, fullmatch, search, sub
+from re         import escape, findall, finditer, fullmatch, search, sub
 from shlex      import shlex, split
 from stat       import S_IXUSR
 from subprocess import SubprocessError, check_output, run
@@ -42,7 +42,7 @@ from tomllib    import loads
 from typing     import Annotated, Any, ClassVar, Literal, Self
 from yaml                import (
     DocumentEndEvent, MappingNode, Node, NodeEvent, SafeLoader, SequenceNode,
-    YAMLError, compose_all, parse
+    YAMLError, compose_all, parse, safe_load
 )
 
 from squirtl.emulator.schemas import Record
@@ -420,12 +420,18 @@ class License(Record):
 
 class LockedPackage(Record, extra="ignore"):
     """
-    One package `uv.lock` resolves, read for its name and its version.
+    One package `uv.lock` resolves, read for its name, its version, and the
+    packages it depends on.
     """
 
     name: str
     """
     The package's name as the lockfile writes it.
+    """
+
+    dependencies: list[LockedPackage] = []
+    """
+    The row of each package it depends on, which names that package.
     """
 
     version: VersionNumber | None = None
@@ -731,6 +737,54 @@ class SiteManifest(JsonFile, extra="ignore"):
     """
 
 
+class SiteLockfile(JsonFile, extra="ignore"):
+    """
+    The paths `file` installs a package at for the docs site, read from
+    the JSONC Bun writes, whose trailing commas JSON refuses and the flow
+    collections of YAML accept.
+    """
+
+    file: ClassVar[Path] = Path("docs/bun.lock")
+
+    packages: dict[str, JsonValue]
+    """
+    The entry recorded for each path under `node_modules` a package is
+    installed at, under the path, which for a nested copy is the path of the
+    package it is nested under, a `/`, and the copy's own name.
+    """
+
+    @classmethod
+    def from_path(cls, path: Path) -> Self:
+        """
+        Reads the record the lockfile at `path` holds as YAML, raising
+        `Unreadable` where the file fails to parse, on the line the parser
+        names, or fails to validate.
+        """
+        with Finding.reading(path):
+            return cls.model_validate(safe_load(path.read_text(encoding="utf-8")))
+
+    def nested(self, name: str) -> list[str]:
+        """
+        Lists each path but the top-level one that a copy of the package
+        `name` is installed at, where the lockfile installs the package at
+        more than one path.
+
+        Returns:
+            Each such path in sorted order, or an empty list where the
+            package is installed at one path or none.
+        """
+        # Reads the name off the end of each path, a scoped name taking its
+        # `@scope/` segment with it.
+        paths = {
+            path for path in self.packages if search(
+                r"(@[^/]+/)?[^/]+$",
+                path
+            )[0] == name
+        }
+
+        return sorted(paths - {name}) if len(paths) > 1 else []
+
+
 class TomlFile(Record):
     """
     The base of a record one TOML file holds whole, which `read` validates
@@ -740,13 +794,15 @@ class TomlFile(Record):
     file: ClassVar[Path]
 
     @classmethod
-    def read(cls) -> Self:
+    def read(cls, root: Path = Path(".")) -> Self:
         """
-        Reads the record at `file`, raising `Unreadable` where the file
-        fails to parse or to validate.
+        Reads the record at `file` under `root`, raising `Unreadable` where
+        the file fails to parse or to validate.
         """
         with Finding.reading(cls.file):
-            return cls.model_validate(loads(cls.file.read_text(encoding="utf-8")))
+            return cls.model_validate(
+                loads((root / cls.file).read_text(encoding="utf-8"))
+            )
 
 
 class Tree(Record):
@@ -1458,6 +1514,17 @@ class Lockfile(TomlFile, extra="ignore"):
     Every package the lockfile resolves, in its order.
     """
 
+    def dependents(self, name: str) -> set[str]:
+        """
+        Collects the name of each package whose row depends on the package
+        `name` names.
+        """
+        return {
+            package.name
+            for package in self.packages
+            if name in {dependency.name for dependency in package.dependencies}
+        }
+
     def resolved(self, name: str) -> list[Version]:
         """
         Lists each version the lockfile resolves for the package `name`
@@ -1567,6 +1634,18 @@ class Manifest(TomlFile, extra="ignore"):
             )
         )
 
+    @staticmethod
+    def exact_pin(requirement: Requirement) -> str | None:
+        """
+        Reads the one version `requirement` pins, or returns `None` where it
+        holds anything but a single `==` specifier naming a whole version.
+        """
+        match list(requirement.specifier):
+            case [pin] if pin.operator == "==" and "*" not in pin.version:
+                return pin.version
+
+        return None
+
     def mirrors(self, test: Path) -> list[Path]:
         """
         Names the module of each package that the test module at `test`
@@ -1586,6 +1665,12 @@ class MiseConfig(TomlFile, extra="ignore"):
     """
 
     file: ClassVar[Path] = Path(".mise/config.toml")
+
+    min_version: VersionNumber
+    """
+    The oldest mise release the config runs on, which the provisioning
+    action installs on every row.
+    """
 
     node: VersionNumber = Field(validation_alias=AliasPath("tools", "node"))
     """
@@ -1942,6 +2027,17 @@ class Action(StepFile):
     """
 
     directory: ClassVar[Path] = Path(".github/actions")
+
+    @property
+    def hashed(self) -> list[str]:
+        """
+        Reads each glob a `hashFiles` call in the manifest names.
+        """
+        return [
+            glob
+            for call in findall(r"hashFiles\(([^)]*)\)", self.text)
+            for glob in findall(r"'([^']+)'", call)
+        ]
 
     @property
     def inputs(self) -> list[str]:

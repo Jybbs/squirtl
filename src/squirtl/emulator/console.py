@@ -19,6 +19,12 @@ class GameWrapper(Protocol):
     The members of `PyBoy.game_wrapper` that `GameBoy` calls.
     """
 
+    def _set_timer_div(self, timer_div: int | None):
+        """
+        Writes `timer_div` into DIV, keeping the low byte of the counter
+        beneath it.
+        """
+
     def reset_game(self, timer_div: int | None = None):
         """
         Loads the state `start_game` saved, then writes `timer_div` into
@@ -71,8 +77,8 @@ class Emulator(Protocol):
 
     def load_state(self, file_like_object: BinaryIO):
         """
-        Reads the whole state of the emulator back from `file_like_object`,
-        which `save_state` wrote.
+        Reads the whole state of the emulator from `file_like_object`, the
+        rendered screen included.
         """
 
     def save_state(self, file_like_object: BinaryIO):
@@ -118,7 +124,7 @@ class GameBoy(AbstractContextManager):
     @property
     def digest(self) -> str:
         """
-        Hashes the whole state of the console as `state` saves it, which is
+        Hashes the whole state of the console as `state` reads it, which is
         the same after every `reset` at one `timer_div`.
 
         Returns:
@@ -155,13 +161,13 @@ class GameBoy(AbstractContextManager):
     @property
     def state(self) -> bytes:
         """
-        Saves the whole state of the console as PyBoy saves it, the frame it
-        last rendered among it, which `load` puts back.
+        Saves the whole state of the console as PyBoy writes it, which
+        `load` loads again.
         """
-        with BytesIO() as state:
-            self.emulator.save_state(state)
+        with BytesIO() as saved:
+            self.emulator.save_state(saved)
 
-            return state.getvalue()
+            return saved.getvalue()
 
     @classmethod
     def boot(cls, cartridge: Cartridge, settings: EmulatorSettings) -> Self:
@@ -191,8 +197,8 @@ class GameBoy(AbstractContextManager):
 
     def load(self, state: bytes):
         """
-        Puts back the whole state `state` saved, so the console renders the
-        frame it held then and plays on from there as it did then.
+        Loads `state`, which the `state` property saved, the frame it last
+        rendered included.
         """
         with BytesIO(state) as saved:
             self.emulator.load_state(saved)
@@ -239,6 +245,14 @@ class GameBoy(AbstractContextManager):
         numbers each frame.
         """
         self.emulator.game_wrapper.reset_game(timer_div)
+
+    def set_div(self, timer_div: int):
+        """
+        Writes `timer_div` into DIV through the method `reset` calls inside
+        PyBoy's game wrapper, the one way to set it, since a write to its
+        address in memory clears it.
+        """
+        self.emulator.game_wrapper._set_timer_div(timer_div)
 
     def start(self):
         """

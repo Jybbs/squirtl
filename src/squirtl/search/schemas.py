@@ -2,8 +2,6 @@
 Defines the records a search reads and writes, none of which needs PyTorch,
 since a worker process imports this module:
 
-- `Range`, the fewest and the most of a count a search draws
-- `SearchSettings`, every setting a search reads
 - `Rollout`, the presses one worker plays from a snapshot, and `Ending`, what
   they reach
 - `Particle`, one copy of the game the search plays forward
@@ -11,29 +9,8 @@ since a worker process imports this module:
 - `Iteration`, one iteration as a line of a run's `iterations`
 """
 
-from pydantic import AfterValidator, Field, PositiveFloat, PositiveInt
-from typing   import Annotated
-
-from squirtl.emulator.schemas    import Record, UnitInterval, processors
+from squirtl.emulator.schemas    import Record
 from squirtl.environment.schemas import Snapshot
-from squirtl.reward.schemas      import Event
-
-type Range = Annotated[tuple[PositiveInt, PositiveInt], AfterValidator(ascending)]
-
-
-def ascending(bounds: tuple[int, int]) -> tuple[int, int]:
-    """
-    Refuses a range whose fewest exceeds its most, returning `bounds` as
-    they are otherwise.
-
-    Raises:
-        ValueError: Where it does, which Pydantic raises as a
-                    `ValidationError` naming the field.
-    """
-    if bounds[0] > bounds[1]:
-        raise ValueError(f"the range {bounds} runs backward")
-
-    return bounds
 
 
 class Ending(Record):
@@ -152,13 +129,6 @@ class Particle(Record):
         """
         return self.reward, self.score
 
-    @property
-    def terminated(self) -> bool:
-        """
-        Reads whether `EVENT_GOT_STARTER` is set at its node.
-        """
-        return Event.EVENT_GOT_STARTER in self.snapshot.tally.events
-
 
 class Rollout(Record):
     """
@@ -179,81 +149,6 @@ class Rollout(Record):
     """
     Whether the presses stop once they earn reward, where otherwise every
     one of them plays, as bringing back a node of the tree does.
-    """
-
-
-class SearchSettings(Record):
-    """
-    The settings a search reads, each a field of `RunSettings.search` and a
-    key under `[tool.squirtl.search]` in `pyproject.toml`. The population's
-    defaults are the Montezuma's Revenge column of Table 5 in Mhammedi
-    and Cohan's "Decoupling Exploration and Policy Optimization", and the
-    predictor's are their Appendix A.3.
-    """
-
-    batch_size: PositiveInt = 128
-    """
-    The frame stacks each update of the predictor draws, whose default
-    follows Mhammedi and Cohan's Appendix A.3.
-    """
-
-    capacity: PositiveInt = 100_000
-    """
-    The frames replay memory holds for the predictor, one per slot, under
-    1 GB at the default frame shape.
-    """
-
-    epsilon: UnitInterval = 0.2
-    """
-    The chance a press takes a random action in place of the one its
-    rollout holds, whose default follows Mhammedi and Cohan's Appendix A.2.
-    """
-
-    groups: PositiveInt = 4
-    """
-    The groups of particles the search evolves, Mhammedi and Cohan's M.
-    """
-
-    inner_steps: Range = (5, 15)
-    """
-    The fewest and the most presses of one rollout, Mhammedi and Cohan's
-    range of T.
-    """
-
-    learning_rate: PositiveFloat = 3e-4
-    """
-    The step size Adam takes on the predictor, whose default follows
-    Mhammedi and Cohan's Appendix A.3.
-    """
-
-    outer_steps: Range = (10, 20)
-    """
-    The fewest and the most rollouts each particle plays in one iteration,
-    Mhammedi and Cohan's range of K.
-    """
-
-    particles: PositiveInt = 32
-    """
-    The particles each group holds, Mhammedi and Cohan's N.
-    """
-
-    rollback: Range = (1, 3)
-    """
-    The fewest and the most generations a particle moves up the tree once
-    every particle of its group is dead, Mhammedi and Cohan's range of k.
-    """
-
-    update_steps: PositiveInt = 44
-    """
-    The presses between updates of the predictor, whose default is the
-    ratio of Mhammedi and Cohan's Table 6, 2.28 million updates over 400
-    million frames at their action repeat of 4.
-    """
-
-    workers: PositiveInt = Field(default_factory=processors)
-    """
-    The worker processes the rollouts run across, which defaults to the
-    CPUs the process may use.
     """
 
 

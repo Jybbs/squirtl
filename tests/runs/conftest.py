@@ -1,10 +1,10 @@
 """
 Defines the fixtures the tests of `squirtl.runs` request, meaning the
 stand-in records a test reading no clone builds on, the record of one
-episode, a writer of a run's episodes, the settings of a short run beside
-a factory of trainers starting one, a factory of searchers on the fake game
-of `game` beside one on real worker processes, and the messages loguru logs
-during a test.
+episode, a writer of a run's episodes, a run holding a demonstration, the
+settings of a short run beside factories of trainers starting one, a factory
+of searchers on the fake game of `game` beside one on real worker processes,
+and the messages loguru logs during a test.
 """
 
 from collections.abc import Callable, Iterator, Mapping
@@ -16,14 +16,13 @@ from loguru          import logger
 from pathlib         import Path
 from pytest          import fixture
 
-from squirtl.agent.schemas       import AgentSettings
+from squirtl.agent.schemas       import AgentSettings, Algorithm
 from squirtl.emulator.schemas    import Cartridge
 from squirtl.environment.schemas import EnvironmentSettings, Recording
 from squirtl.reward.schemas      import Term
-from squirtl.runs.schemas        import Episode, Handover, Revision, Run, RunSettings, SearchHandover
-from squirtl.runs.searcher       import Searcher
-from squirtl.runs.trainer        import Trainer
-from squirtl.search.schemas      import SearchSettings
+from squirtl.runs.schemas        import Episode, Revision, Run, RunSettings, SearchSettings
+from squirtl.runs.searcher       import SearchHandover, Searcher
+from squirtl.runs.trainer        import Handover, Trainer
 
 
 @fixture
@@ -51,6 +50,35 @@ def run(revision: Revision) -> Run:
 
 
 @fixture
+def demonstrated(clone: Path) -> Path:
+    """
+    Starts a run in `clone` the day before every run `trainer` starts, whose
+    one episode reaches the starter of the cartridge `timed` writes after 13
+    idle presses at a `timer_div` of 0, each advancing 64 frames.
+
+    Returns:
+        The run's directory.
+    """
+    run = Run.start("0", RunSettings(), datetime(2026, 10, 3, tzinfo=UTC))
+    run.append(
+        run.episodes,
+        Episode(
+            epsilon    = None,
+            length     = 13,
+            positions  = 1,
+            recording  = Recording(presses=bytes(13), timer_div=0),
+            reward     = 0.8,
+            seconds    = 1.0,
+            shares     = {Term.GOAL: 0.6, Term.MILESTONE: 0.2, Term.NOVELTY: 0.0},
+            terminated = True,
+            update     = None
+        )
+    )
+
+    return run.directory
+
+
+@fixture
 def episode() -> Episode:
     """
     Builds the record of a truncated three-step episode that earned a
@@ -59,14 +87,13 @@ def episode() -> Episode:
     return Episode(
         epsilon    = 1.0,
         length     = 3,
-        loss       = None,
         positions  = 3,
         recording  = Recording(presses=bytes([1, 4, 4]), timer_div=9),
         reward     = 0.125,
         seconds    = 0.5,
-        shares     = {Term.MILESTONE: 0.0, Term.NOVELTY: 0.125, Term.STARTER: 0.0},
+        shares     = {Term.GOAL: 0.0, Term.MILESTONE: 0.0, Term.NOVELTY: 0.125},
         terminated = False,
-        value      = None
+        update     = None
     )
 
 
@@ -101,12 +128,18 @@ def trainer(cartridge: Cartridge, short: RunSettings) -> Callable[..., Trainer]:
     """
     seconds = count()
 
-    def build(resumes: Run | None = None, **fields: object) -> Trainer:
+    def build(
+        resumes   : Run | None = None,
+        *,
+        cartridge : Cartridge  = cartridge,
+        **fields  : object
+    ) -> Trainer:
         """
-        Builds the trainer of the run `fields` describe, which continues the
-        run `resumes` from its checkpoint where it is one.
+        Builds the trainer of the run `fields` describe on `cartridge`,
+        which continues the run `resumes` from its checkpoint where it is
+        one.
         """
-        return Trainer(
+        return Trainer.start(
             cartridge,
             short.model_copy(update=fields),
             datetime(2026, 10, 4, tzinfo=UTC) + timedelta(seconds=next(seconds)),
@@ -212,6 +245,46 @@ def actual(cartridge: Cartridge, searching: RunSettings) -> Callable[..., Search
             update = {"search": searching.search.model_copy(update={"workers": 2})}
         )
     )
+
+
+@fixture
+def rolling(trainer: Callable[..., Trainer]) -> Callable[..., Trainer]:
+    """
+    Builds a factory starting a 32-step run of `short` under PQN or PPO,
+    each of its rollouts four steps across two environments, whose eight
+    samples each update splits into two minibatches.
+    """
+
+    def build(
+        algorithm : Algorithm,
+        *,
+        agent     : Mapping[str, object] = {},
+        resumes   : Run | None           = None,
+        **fields  : object
+    ) -> Trainer:
+        """
+        Builds the trainer of the run of `algorithm` that `fields` describe,
+        any key of `agent` a field of `AgentSettings` to set in its place,
+        which continues the run `resumes` from its checkpoint where it is
+        one.
+        """
+        return trainer(
+            resumes,
+            **{
+                "agent" : AgentSettings.model_validate(
+                    {
+                        "algorithm"    : algorithm,
+                        "device"       : "cpu",
+                        "environments" : 2,
+                        "ppo"          : {"minibatches": 2, "rollout_steps": 4},
+                        "pqn"          : {"minibatches": 2, "rollout_steps": 4}
+                    } | agent
+                ),
+                "steps" : 32
+            } | fields
+        )
+
+    return build
 
 
 @fixture

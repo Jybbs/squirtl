@@ -1,0 +1,5 @@
+ Pin              | In                | Current                                  | Newest | Major | Days | Clears
+------------------|-------------------|------------------------------------------|--------|-------|------|---------------------------------
+ setuptools       | uv.lock           | 84.0.0                                   | 84.2.1 |       | 12   | GHSA-xmj3-9gf7-h52w, GHSA-other
+ python           | .mise/config.toml | 3.14.6                                   | 3.15.1 | yes   |      |
+ actions/checkout | .github           | aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | v5.0.0 |       | 0    |

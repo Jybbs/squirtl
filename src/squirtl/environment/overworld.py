@@ -1,6 +1,6 @@
 """
 Defines `Overworld`, the environment an agent plays Pokémon Blue in,
-from the bedroom of Blue, the player character, to the starter, which
+from the bedroom of Blue, the player character, to the run's goal, which
 `Overworld.specification` specifies with its wrappers.
 """
 
@@ -16,18 +16,20 @@ from typing   import Any
 
 from squirtl.emulator.console     import GameBoy
 from squirtl.emulator.schemas     import Button, Cartridge, EmulatorSettings
-from squirtl.environment.schemas  import EnvironmentSettings, Recording, Snapshot
-from squirtl.environment.wrappers import ProgressObservation, RecordOutcome, ShrinkObservation
+from squirtl.environment.schemas  import EnvironmentSettings, Recording
+from squirtl.environment.wrappers import FollowDemonstration, ProgressObservation, RecordOutcome, ReplayRecording
+from squirtl.environment.wrappers import ShrinkObservation
 from squirtl.reward.progress      import Progress
 from squirtl.reward.schemas       import RewardSettings, Term
 
 
 class Overworld(Env):
     """
-    The game from Blue's bedroom to the starter as a Gymnasium `Env`, whose
-    actions are `presses`, whose observation is the gray frame a step ends
-    on, and whose episode terminates at the starter, each episode kept as
-    the `recording` that `play` steps through again.
+    The game from Blue's bedroom to the goal `EnvironmentSettings.goal`
+    names as a Gymnasium `Env`, whose actions are `presses`, whose
+    observation is the gray frame a step ends on, and whose episode
+    terminates at the goal, each episode kept as the `recording` that `play`
+    steps through again.
     """
 
     metadata = {"render_modes": ["rgb_array"]}
@@ -73,9 +75,14 @@ class Overworld(Env):
     def recording(self) -> Recording:
         """
         Records the episode so far as the `timer_div` its reset wrote and
-        each step's action.
+        each step's action, after the presses of the demonstration it took
+        over from where it started along one.
         """
-        return Recording(presses=self.actions, timer_div=self.timer_div)
+        return Recording(
+            presses   = self.actions,
+            takeover  = self.takeover,
+            timer_div = self.timer_div
+        )
 
     def close(self):
         """
@@ -85,8 +92,9 @@ class Overworld(Env):
 
     def play(self, recording: Recording) -> float:
         """
-        Resets to the start of `recording` and steps through each action it
-        holds, which the emulator plays to the frames the episode drew.
+        Resets to the start of `recording` and steps through each action its
+        own steps took, which the emulator plays to the frames the episode
+        drew.
 
         Returns:
             The reward its steps total, each added in turn to 0.0 as
@@ -95,7 +103,7 @@ class Overworld(Env):
         """
         self.reset(options={"recording": recording})
 
-        return reduce(add, (self.step(action)[1] for action in recording.presses), 0.0)
+        return reduce(add, (self.step(action)[1] for action in recording.played), 0.0)
 
     def render(self) -> ndarray:
         """
@@ -110,48 +118,78 @@ class Overworld(Env):
         seed    : int | None            = None
     ) -> tuple[ndarray, dict[str, Any]]:
         """
-        Puts back the emulator's state and the episode's progress that
-        `options` holds under `snapshot`, with no frame advanced. Otherwise
-        it loads Blue's bedroom with the DIV of the `Recording` that
-        `options` holds under `recording`, or one from the environment's
-        generator, which `seed` reseeds, and starts the episode's
-        progress, then advances one frame with no press, since the state
-        `GameBoy.start` saves holds no rendered screen. Either way the
-        episode's record starts empty.
+        Starts an episode from the `Recording` that `options` holds under
+        `recording`, or otherwise at the DIV of the `Snapshot` it holds
+        under `snapshot` or from Blue's bedroom at a DIV drawn from the
+        environment's generator, which `seed` reseeds, and starts the
+        episode's record:
+
+        - Loads the emulator's state that `snapshot` holds, where `options`
+          holds one, with no frame advanced, and takes up the progress it
+          holds, unless the recording took over from a demonstration, whose
+          episode counts its own steps alone, as its playback from the
+          bedroom does
+        - Otherwise loads Blue's bedroom with the recording's DIV, advances
+          one frame with no press, since the state `GameBoy.start` saves
+          holds no rendered screen, plays the presses the demonstration
+          made before the recording's `takeover`, and starts the episode's
+          progress
+        - Writes the takeover's DIV, where the recording holds one
 
         Returns:
-            The frame the emulator last rendered, in gray, beside an empty
-            info dict.
+            The frame the start shows in gray beside an empty info dict.
         """
         super().reset(seed=seed)
 
-        self.actions = bytearray()
+        options  = options or {}
+        snapshot = options.get("snapshot")
 
-        match options:
-            case {"snapshot": Snapshot() as snapshot}:
-                self.game_boy.load(decompress(snapshot.state))
-                self.progress  = Progress(self.game_boy, self.reward, snapshot.tally)
-                self.timer_div = snapshot.timer_div
+        # DIV holds 8 bits, so its 256 values are every start a reset gives.
+        recording = options.get("recording") or Recording(
+            presses   = b"",
+            timer_div =
+                snapshot.timer_div if snapshot else int(
+                    self.np_random.integers(256)
+                )
+        )
 
-                return self.game_boy.grayscale, {}
-            case {"recording": Recording() as recording}:
-                self.timer_div = recording.timer_div
-            case _:
-                # DIV holds 8 bits, so its 256 values are every start a reset gives.
-                self.timer_div = int(self.np_random.integers(256))
+        if snapshot:
+            self.game_boy.load(decompress(snapshot.state))
+            frame = self.game_boy.grayscale
+        else:
+            self.game_boy.reset(recording.timer_div)
+            frame = self.game_boy.press(None, 1)
 
-        self.game_boy.reset(self.timer_div)
-        self.progress = Progress(self.game_boy, self.reward)
+            for action in recording.demonstrated:
+                frame = self.game_boy.press(
+                    self.presses[action],
+                    self.settings.frames_per_step
+                )
 
-        return self.game_boy.press(None, 1), {}
+        if takeover := recording.takeover:
+            self.game_boy.set_div(takeover.timer_div)
+
+        self.actions  = bytearray(recording.demonstrated)
+        self.progress = Progress(
+            self.game_boy,
+            self.settings.goal,
+            self.reward,
+            None if takeover or not snapshot else snapshot.tally
+        )
+        self.takeover  = takeover
+        self.timer_div = recording.timer_div
+
+        return frame, {}
 
     @classmethod
     def specification(
         cls,
-        cartridge   : Cartridge,
-        emulator    : EmulatorSettings,
-        environment : EnvironmentSettings,
-        reward      : RewardSettings
+        cartridge     : Cartridge,
+        emulator      : EmulatorSettings,
+        environment   : EnvironmentSettings,
+        reward        : RewardSettings,
+        demonstration : Recording | None = None,
+        tolerance     : float            = 0.0
     ) -> EnvSpec:
         """
         Specifies the environment for `gymnasium.make` and
@@ -162,18 +200,30 @@ class Overworld(Env):
         - `ShrinkObservation` to `frame_shape` and `FrameStackObservation`
           of `frame_stack` frames
         - `ProgressObservation`, setting the progress beside the frames
+        - `FollowDemonstration`, starting each episode along `demonstration`
+          under `tolerance`, where one is given
         - `RecordEpisodeStatistics`, recording each episode's return, length,
           and time
         - `RecordOutcome`, reporting what each episode reached
+        - `ReplayRecording`, playing an unfinished episode back at a reset
         """
+        following = (
+            FollowDemonstration.wrapper_spec(
+                demonstration = demonstration,
+                tolerance     = tolerance
+            ),
+        ) if demonstration else ()
+
         return EnvSpec(
             "squirtl/Overworld-v0",
             additional_wrappers = (
                 ShrinkObservation.wrapper_spec(shape=environment.frame_shape),
                 FrameStackObservation.wrapper_spec(stack_size=environment.frame_stack),
                 ProgressObservation.wrapper_spec(size=environment.grid_size),
+                *following,
                 RecordEpisodeStatistics.wrapper_spec(),
-                RecordOutcome.wrapper_spec()
+                RecordOutcome.wrapper_spec(),
+                ReplayRecording.wrapper_spec()
             ),
             entry_point = cls,
             kwargs      = {
@@ -196,7 +246,7 @@ class Overworld(Env):
 
             - The gray frame the step ends on
             - Its reward
-            - Whether it found the starter
+            - Whether it first set the goal
             - `False` for truncation, which `TimeLimit` reports
             - Each term's share of the reward, as the info dict
         """

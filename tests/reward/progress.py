@@ -3,16 +3,21 @@ Pins how `Progress` scores each step of an episode, covering:
 
 - The novelty a position earns the first time an episode reaches it, and
   nothing for a position it reached before or started on
-- The milestone each flag earns once, on the step it first sets, and the
-  starter, which ends the episode
-- A flag already set when the episode starts, which earns nothing
+- The milestone each flag before the goal earns once, on the step it first
+  sets, and the goal, which ends the episode, whichever flag it is
+- A flag past the goal, or already set when the episode starts, which earns
+  nothing
+- The step of the episode first setting each flag
 - The share every term reports on every step, the most one step earns, and
   each term's total across the episode's steps
 - The grid of reached positions centered on the player, the squares it
   leaves out, and the vector of flags in the order `Event` declares
+- The tally holding the progress as it stands, and a progress taken up from
+  one going on as the progress it came from would have
 """
 
 from collections.abc import Callable
+from itertools       import takewhile
 from numpy           import argwhere
 from operator        import attrgetter
 from pytest          import mark, param
@@ -20,6 +25,8 @@ from pytest          import mark, param
 from squirtl.emulator.console import GameBoy
 from squirtl.reward.progress  import Progress
 from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Term
+
+MILESTONES = [*takewhile(lambda event: event is not Event.EVENT_GOT_STARTER, Event)]
 
 
 def earning(terminated: bool = False, **earned: float) -> Score:
@@ -84,7 +91,7 @@ def test_a_step_earns_nothing_for_a_position_the_episode_reached_before(
 
 @mark.parametrize(
     "event",
-    [event for event in Event if event.term is Term.MILESTONE],
+    MILESTONES,
     ids = attrgetter("name")
 )
 def test_each_milestone_earns_once_on_the_step_its_flag_first_sets(
@@ -111,20 +118,23 @@ def test_a_flag_set_when_the_episode_starts_earns_nothing(
     event    : Event,
     flag     : Callable[[Event], None],
     game_boy : GameBoy,
+    goal     : Event,
     settings : RewardSettings
 ):
     """
-    Asserts that a flag already set when the episode starts earns nothing
-    and ends nothing, the starter's included, since no step of the episode
-    set it.
+    Asserts that a flag already set when the episode starts earns nothing,
+    ends nothing, and records no first step, the goal's included, since no
+    step of the episode set it.
     """
     flag(event)
+    progress = Progress(game_boy, goal, settings)
 
-    assert Progress(game_boy, settings).score() == earning()
+    assert (progress.score(), progress.firsts) == (earning(), {})
 
 
 def test_a_new_episode_earns_novelty_again_for_a_position_an_earlier_one_reached(
     game_boy : GameBoy,
+    goal     : Event,
     move     : Callable[[Position], None],
     progress : Progress,
     settings : RewardSettings
@@ -137,7 +147,7 @@ def test_a_new_episode_earns_novelty_again_for_a_position_an_earlier_one_reached
     move(Position(map=0, x=1, y=0))
     progress.score()
     move(Position(map=0, x=0, y=0))
-    restarted = Progress(game_boy, settings)
+    restarted = Progress(game_boy, goal, settings)
     move(Position(map=0, x=1, y=0))
 
     assert [
@@ -146,58 +156,60 @@ def test_a_new_episode_earns_novelty_again_for_a_position_an_earlier_one_reached
     ] == [earning(novelty=settings.novelty), earning()]
 
 
-def test_a_progress_resumed_from_its_tally_goes_on_as_it_would_have(
-    flag     : Callable[[Event], None],
+def test_a_progress_taken_up_from_a_tally_goes_on_as_the_one_it_came_from(
     game_boy : GameBoy,
+    goal     : Event,
     move     : Callable[[Position], None],
     progress : Progress,
     settings : RewardSettings
 ):
     """
-    Asserts that a progress taken up from another's tally holds its shares,
-    its flags, and its positions, so each step scores as the other's next
-    step does, earning nothing for a position or a flag already earned.
+    Asserts that a progress taken up from another's tally holds its terms,
+    its flags, its firsts, its positions, and its steps, so each step scores
+    as the other's next step does, earning nothing for a position already
+    reached and the novelty for a new one.
     """
     move(Position(map=0, x=1, y=0))
     progress.score()
-    flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
     progress.score()
 
-    resumed = Progress(game_boy, settings, progress.tally)
+    resumed = Progress(game_boy, goal, settings, progress.tally)
 
-    assert (resumed.shares, resumed.events, resumed.position, resumed.positions) == (
-        progress.shares, progress.events, progress.position, progress.positions
-    )
+    assert resumed.tally == progress.tally
 
     move(Position(map=0, x=0, y=0))
+
     assert resumed.score() == earning()
 
     move(Position(map=0, x=2, y=0))
+
     assert resumed.score() == earning(novelty=settings.novelty)
     assert progress.positions != resumed.positions
 
 
+@mark.parametrize("goal", Event, ids=attrgetter("name"))
 @mark.parametrize(
     "settings",
     [
         param(
-            RewardSettings(milestone=0.125, novelty=0.0625, starter=0.5),
+            RewardSettings(goal=0.5, milestone=0.125, novelty=0.0625),
             id = "powers-of-two"
         ),
-        param(RewardSettings(milestone=0.09, novelty=0.04, starter=0.69), id="decimals")
+        param(RewardSettings(goal=0.69, milestone=0.09, novelty=0.04), id="decimals")
     ]
 )
-def test_the_most_one_step_earns_is_the_ceiling_the_settings_hold(
+def test_the_most_one_step_earns_is_the_ceiling_the_settings_hold_for_its_goal(
     flag     : Callable[[Event], None],
+    goal     : Event,
     move     : Callable[[Position], None],
     progress : Progress,
     settings : RewardSettings
 ):
     """
-    Asserts that a step reaching a new position and first setting every
-    flag at once earns exactly the `ceiling` of its settings, which stays
-    within 1, and ends the episode, whether each value is a power of two or
-    a decimal whose shares round.
+    Asserts that a step reaching a new position and first setting every flag
+    at once earns exactly the `ceiling` its settings hold for the episode's
+    goal and ends the episode, whichever flag the goal is and whether each
+    value is a power of two or a decimal whose shares round.
     """
     move(Position(map=0, x=1, y=0))
 
@@ -206,8 +218,7 @@ def test_the_most_one_step_earns_is_the_ceiling_the_settings_hold(
 
     score = progress.score()
 
-    assert (score.total, score.terminated) == (settings.ceiling, True)
-    assert score.total <= 1
+    assert (score.total, score.terminated) == (settings.ceiling(goal), True)
 
 
 def test_a_step_reaching_a_new_position_and_a_milestone_earns_both(
@@ -232,7 +243,7 @@ def test_a_step_reaching_a_new_position_and_a_milestone_earns_both(
 
 @mark.parametrize(
     "event",
-    [event for event in Event if event.term is Term.MILESTONE],
+    MILESTONES,
     ids = attrgetter("name")
 )
 def test_a_milestone_whose_flag_clears_and_sets_again_earns_nothing_more(
@@ -289,6 +300,7 @@ def test_the_grid_of_a_new_episode_marks_the_players_square_alone(
 def test_the_grid_marks_each_reached_square_inside_it_at_its_offset(
     cells    : list[list[int]],
     game_boy : GameBoy,
+    goal     : Event,
     move     : Callable[[Position], None],
     reached  : Position,
     settings : RewardSettings
@@ -300,7 +312,7 @@ def test_the_grid_marks_each_reached_square_inside_it_at_its_offset(
     out a square one past those edges or on another map.
     """
     move(Position(map=0, x=30, y=30))
-    progress = Progress(game_boy, settings)
+    progress = Progress(game_boy, goal, settings)
 
     for position in (reached, Position(map=0, x=30, y=30)):
         move(position)
@@ -321,19 +333,59 @@ def test_the_flags_mark_each_set_event_in_the_order_event_declares(
     events   : set[Event],
     flag     : Callable[[Event], None],
     game_boy : GameBoy,
+    goal     : Event,
     settings : RewardSettings
 ):
     """
     Asserts that the flags hold 1 for each flag `Event` names that is set
     and 0 for each that is not, one entry per member in the order `Event`
-    declares them.
+    declares them, the flags past the goal included.
     """
     for event in events:
         flag(event)
 
-    assert Progress(game_boy, settings).flags.tolist() == [
+    assert Progress(game_boy, goal, settings).flags.tolist() == [
         int(event in events) for event in Event
     ]
+
+
+@mark.parametrize("goal", Event, ids=attrgetter("name"))
+def test_the_goal_earns_its_term_and_ends_the_episode(
+    flag     : Callable[[Event], None],
+    goal     : Event,
+    progress : Progress,
+    settings : RewardSettings
+):
+    """
+    Asserts that the step first setting the episode's goal earns the goal
+    term and ends the episode, whichever flag the goal is.
+    """
+    flag(goal)
+
+    assert progress.score() == earning(goal=settings.goal, terminated=True)
+
+
+@mark.parametrize(
+    "event",
+    [
+        Event.EVENT_BATTLED_RIVAL_IN_OAKS_LAB, Event.EVENT_GOT_OAKS_PARCEL,
+        Event.EVENT_GOT_POKEDEX
+    ],
+    ids = attrgetter("name")
+)
+def test_a_flag_past_the_goal_earns_nothing_and_ends_nothing(
+    event    : Event,
+    flag     : Callable[[Event], None],
+    progress : Progress
+):
+    """
+    Asserts that the step first setting a flag `Event` declares after the
+    default goal, `EVENT_GOT_STARTER`, earns nothing and leaves the episode
+    running.
+    """
+    flag(event)
+
+    assert progress.score() == earning()
 
 
 def test_a_tally_holds_the_progress_as_it_stands(
@@ -343,7 +395,8 @@ def test_a_tally_holds_the_progress_as_it_stands(
 ):
     """
     Asserts that a tally holds how often each term was earned, each flag
-    set, the position the player stands on, and each position reached.
+    set, the step first setting each, the position the player stands on,
+    each position reached, and the steps taken.
     """
     move(Position(map=0, x=1, y=0))
     flag(Event.EVENT_FOLLOWED_OAK_INTO_LAB)
@@ -351,35 +404,41 @@ def test_a_tally_holds_the_progress_as_it_stands(
 
     tally = progress.tally
 
-    assert tally.earned == {Term.MILESTONE: 1, Term.NOVELTY: 1}
-    assert tally.events == {Event.EVENT_FOLLOWED_OAK_INTO_LAB}
-    assert tally.position == Position(map=0, x=1, y=0)
-    assert tally.reached == {Position(map=0, x=0, y=0), Position(map=0, x=1, y=0)}
+    assert (
+        tally.earned, tally.events, tally.firsts,
+        tally.position, tally.reached, tally.steps
+    ) == (
+        {Term.MILESTONE: 1, Term.NOVELTY: 1},
+        {Event.EVENT_FOLLOWED_OAK_INTO_LAB},
+        {Event.EVENT_FOLLOWED_OAK_INTO_LAB: 1},
+        Position(map=0, x=1, y=0),
+        {Position(map=0, x=0, y=0), Position(map=0, x=1, y=0)},
+        1
+    )
 
 
-def test_the_milestones_total_each_flags_pay_leaving_out_the_novelty(
+def test_the_progress_records_the_step_first_setting_each_flag(
     flag     : Callable[[Event], None],
-    move     : Callable[[Position], None],
-    progress : Progress,
-    settings : RewardSettings
+    progress : Progress
 ):
     """
-    Asserts that the milestones hold what each flag earned, as a search
-    reads its reward, whatever novelty each new position paid.
+    Asserts that the progress holds, for each flag its steps set, the step
+    of the episode first setting it, counting from 1, the flags one step
+    sets sharing that step and a flag past the goal included.
     """
-    assert progress.milestones == 0.0
-
-    move(Position(map=0, x=1, y=0))
     progress.score()
-
-    assert progress.milestones == 0.0
-
     flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
     progress.score()
-    flag(Event.EVENT_GOT_STARTER)
+    flag(Event.EVENT_FOLLOWED_OAK_INTO_LAB)
+    flag(Event.EVENT_GOT_POKEDEX)
+    progress.score()
     progress.score()
 
-    assert progress.milestones == settings.milestone + settings.starter
+    assert progress.firsts == {
+        Event.EVENT_FOLLOWED_OAK_INTO_LAB  : 3,
+        Event.EVENT_GOT_POKEDEX            : 3,
+        Event.EVENT_OAK_APPEARED_IN_PALLET : 2
+    }
 
 
 def test_the_shares_total_what_each_term_earned_across_the_episodes_steps(
@@ -390,8 +449,8 @@ def test_the_shares_total_what_each_term_earned_across_the_episodes_steps(
 ):
     """
     Asserts that the episode's shares total each term across its steps, two
-    new positions paying the novelty twice and a milestone and the starter
-    once each, and zero for no step at all.
+    new positions paying the novelty twice and a milestone and the goal once
+    each, and zero for no step at all.
     """
     totals = [progress.shares]
 
@@ -406,22 +465,24 @@ def test_the_shares_total_what_each_term_earned_across_the_episodes_steps(
     assert totals == [
         dict.fromkeys(Term, 0),
         {
+            Term.GOAL      : settings.goal,
             Term.MILESTONE : settings.milestone,
-            Term.NOVELTY   : 2 * settings.novelty,
-            Term.STARTER   : settings.starter
+            Term.NOVELTY   : 2 * settings.novelty
         }
     ]
 
 
-def test_the_starter_earns_its_term_and_ends_the_episode(
+def test_the_starter_earns_a_milestone_on_the_way_to_the_pokedex(
     flag     : Callable[[Event], None],
-    progress : Progress,
+    game_boy : GameBoy,
     settings : RewardSettings
 ):
     """
-    Asserts that the step first setting `EVENT_GOT_STARTER` earns the
-    starter term and ends the episode.
+    Asserts that `EVENT_GOT_STARTER` earns the milestone and ends nothing
+    for an episode ending at `EVENT_GOT_POKEDEX`, as each flag before the
+    goal does.
     """
+    progress = Progress(game_boy, Event.EVENT_GOT_POKEDEX, settings)
     flag(Event.EVENT_GOT_STARTER)
 
-    assert progress.score() == earning(starter=settings.starter, terminated=True)
+    assert progress.score() == earning(milestone=settings.milestone)

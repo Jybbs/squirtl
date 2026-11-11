@@ -8,6 +8,10 @@ Pins what the `repo` tasks decide from their inputs, covering:
 - The part of the version `repo:bump` moves, and the version it writes
   into `CITATION.cff`
 - The status `repo:audit` exits with for the findings it prints
+- The upload `repo:attach` sends for each file the pack wrote, once the
+  reader confirms it
+- The flags `repo:lift` reads from mise's variables and the status it exits
+  with
 
 Each registry case runs its task script in-process from the worktree
 root, where the script reads the shipped files, and the `fp` fixture
@@ -15,21 +19,27 @@ pytest-subprocess provides answers every `gh` command, so no case reaches
 GitHub. Each `repo:bump` case runs the task through the real `mise` from a
 placeholder checkout under `tmp_path`, where the stand-in under `fixtures/`
 answers for `uv`. The `repo:audit` case hands the task the findings it
-prints in place of the audit's own read.
+prints in place of the audit's own read, and each `repo:lift` case hands the
+task a lift that records what it receives, but for the one running the task
+through the real `mise`, whose stand-in `uv` prints the variables mise sets.
 """
 
-from collections.abc   import Callable
-from json              import dumps
-from pathlib           import Path
-from pytest            import CaptureFixture, Config, MonkeyPatch, fixture, mark, param, raises
-from pytest_subprocess import FakeProcess
-from runpy             import run_path
-from shlex             import split
-from subprocess        import CompletedProcess, run
-from syrupy.assertion  import SnapshotAssertion
+from collections.abc    import Callable
+from importlib.metadata import version
+from json               import dumps
+from pathlib            import Path
+from pytest             import CaptureFixture, Config, MonkeyPatch, fixture, mark, param, raises
+from pytest_subprocess  import FakeProcess
+from runpy              import run_path
+from shlex              import split
+from subprocess         import CompletedProcess, run
+from syrupy.assertion   import SnapshotAssertion
 
-from squirtl.repo.checks  import Audit
-from squirtl.repo.schemas import Finding, Labels, Severity
+from squirtl.agent.schemas    import Algorithm
+from squirtl.releases.schemas import PackedRun, ReleaseManifest
+from squirtl.repo.checks      import Audit
+from squirtl.repo.lifts       import Lifts
+from squirtl.repo.schemas     import Finding, Labels, Severity
 
 
 @fixture
@@ -174,6 +184,55 @@ def test_labels_lists_each_live_label_the_registry_leaves_out(
 
 
 @mark.parametrize(
+    ("reply", "status"),
+    [param("y\n", 0, id="y"), param("n\n", 1, id="n")]
+)
+def test_attach_uploads_each_packed_file_to_the_draft_once_confirmed(
+    answered    : Callable[[str], None],
+    fp          : FakeProcess,
+    monkeypatch : MonkeyPatch,
+    reply       : str,
+    status      : int,
+    task        : Callable[[str], int]
+):
+    """
+    Pins that `repo:attach` packs the runs, then sends one `gh release
+    upload --clobber` to the draft of the package's version carrying each
+    tar and then the manifest once the reader answers `y`, and sends nothing
+    otherwise.
+    """
+    listing = PackedRun(
+        agent      = Algorithm.PPO,
+        curriculum = False,
+        name       = "a",
+        seed       = 1,
+        sha256     = "0"
+    )
+    manifest = ReleaseManifest(
+        demonstrations  = (listing.model_copy(update={"name": "b"}),),
+        recommended_run = "a",
+        runs            = (listing,)
+    )
+    monkeypatch.setattr(
+        ReleaseManifest,
+        "pack",
+        classmethod(lambda cls, settings: manifest)
+    )
+    answered(reply)
+    fp.register(["gh", "release", "upload", fp.any()])
+
+    assert task("attach") == status
+    assert list(fp.calls)[1:] == [
+        [
+            "gh", "release", "upload",
+            version("squirtl"),
+            "dist/runs/a.tar.zst", "dist/runs/b.tar.zst",
+            "dist/runs/manifest.json", "--clobber"
+        ]
+    ][: 1 - status]
+
+
+@mark.parametrize(
     ("severity", "status"),
     [
         param(Severity.ERROR, 1, id="an-error"),
@@ -207,6 +266,86 @@ def test_audit_exits_with_the_verdict_its_findings_carry(
 
     assert task("audit") == status
     assert capsys.readouterr().out == f"{finding.annotation}\n"
+
+
+def test_lift_parses_its_flags_under_its_alias_through_the_real_mise(
+    checkout          : Callable[..., None],
+    confine_mise      : Callable[[Path, Path], None],
+    install_stand_ins : Callable[..., Path],
+    pytestconfig      : Config,
+    tmp_path          : Path
+):
+    """
+    Pins the `#USAGE` block mise parses for the `lift` alias, a repeated
+    `--hold` arriving as one spaced value, by reading the variables mise
+    hands the stand-in answering for `uv`.
+    """
+    checkout({".mise/config.toml": ""})
+    (tmp_path / ".mise/tasks/repo").mkdir(parents=True)
+    (tmp_path / ".mise/tasks/repo/lift.py").symlink_to(
+        pytestconfig.rootpath / ".mise/tasks/repo/lift.py"
+    )
+    confine_mise(tmp_path, install_stand_ins("variables.sh", "uv"))
+
+    assert run(
+        ["mise", "run", "lift", "--hold", "python", "--hold", "uv", "--try", "--write"],
+        capture_output = True,
+        text           = True
+    ).stdout.splitlines() == [
+        "usage_hold=python uv", "usage_try=true", "usage_write=true"
+    ]
+
+
+@mark.parametrize(
+    ("variables", "held", "trying", "writing"),
+    [
+        param({}, [], False, False, id="no-flag"),
+        param({"usage_hold": "python"}, ["python"], False, False, id="one-hold"),
+        param(
+            {"usage_hold": "python uv"},
+            ["python", "uv"],
+            False,
+            False,
+            id = "two-holds"
+        ),
+        param({"usage_try": "true"}, [], True, False, id="try"),
+        param({"usage_write": "true"}, [], False, True, id="write"),
+        param(
+            {"usage_try": "true", "usage_write": "true"},
+            [],
+            True,
+            True,
+            id = "try-and-write"
+        )
+    ]
+)
+def test_lift_passes_each_flag_mise_sets_to_the_lift_and_exits_with_its_status(
+    held        : list[str],
+    monkeypatch : MonkeyPatch,
+    task        : Callable[[str], int],
+    trying      : bool,
+    variables   : dict[str, str],
+    writing     : bool
+):
+    """
+    Pins that `repo:lift` reads each flag from the variable mise sets for
+    it, a repeated `--hold` arriving as one spaced value, and exits with the
+    status the lift returns.
+    """
+    received = {}
+
+    for name, value in variables.items():
+        monkeypatch.setenv(name, value)
+
+    monkeypatch.setattr(Lifts, "read", classmethod(lambda cls: cls(found=())))
+    monkeypatch.setattr(
+        Lifts,
+        "lift",
+        lambda self, **flags: received.update(flags) or 7
+    )
+
+    assert task("lift") == 7
+    assert received == {"held": held, "trying": trying, "writing": writing}
 
 
 @mark.parametrize(

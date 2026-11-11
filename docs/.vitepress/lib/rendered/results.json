@@ -1,0 +1,1641 @@
+{
+  "comparisons": [
+    {
+      "agent": "dqn",
+      "baseline": {
+        "interval": [
+          0.14444444444444446,
+          0.3122222222222061
+        ],
+        "runs": [
+          5
+        ],
+        "value": 0.2111111111111111
+      },
+      "beats": {
+        "interval": [
+          0.0,
+          0.0
+        ],
+        "runs": [
+          5,
+          5
+        ],
+        "value": 0.0
+      },
+      "bedroom": null,
+      "curriculum": false,
+      "reached": {
+        "interval": [
+          0.0,
+          0.0
+        ],
+        "runs": [
+          5
+        ],
+        "value": 0.0
+      }
+    },
+    {
+      "agent": "ppo",
+      "baseline": {
+        "interval": [
+          0.14444444444444446,
+          0.3122222222222061
+        ],
+        "runs": [
+          5
+        ],
+        "value": 0.2111111111111111
+      },
+      "beats": {
+        "interval": [
+          1.0,
+          1.0
+        ],
+        "runs": [
+          5,
+          5
+        ],
+        "value": 1.0
+      },
+      "bedroom": null,
+      "curriculum": false,
+      "reached": {
+        "interval": [
+          1.0,
+          1.0
+        ],
+        "runs": [
+          5
+        ],
+        "value": 1.0
+      }
+    },
+    {
+      "agent": "ppo",
+      "baseline": {
+        "interval": [
+          0.14444444444444446,
+          0.3122222222222061
+        ],
+        "runs": [
+          5
+        ],
+        "value": 0.2111111111111111
+      },
+      "beats": {
+        "interval": [
+          1.0,
+          1.0
+        ],
+        "runs": [
+          5,
+          5
+        ],
+        "value": 1.0
+      },
+      "bedroom": {
+        "interval": [
+          0.5,
+          1.0
+        ],
+        "runs": [
+          5,
+          5
+        ],
+        "value": 0.82
+      },
+      "curriculum": true,
+      "reached": {
+        "interval": [
+          1.0,
+          1.0
+        ],
+        "runs": [
+          5
+        ],
+        "value": 1.0
+      }
+    },
+    {
+      "agent": "pqn",
+      "baseline": {
+        "interval": [
+          0.14444444444444446,
+          0.3122222222222061
+        ],
+        "runs": [
+          5
+        ],
+        "value": 0.2111111111111111
+      },
+      "beats": {
+        "interval": [
+          0.0,
+          0.0
+        ],
+        "runs": [
+          5,
+          5
+        ],
+        "value": 0.0
+      },
+      "bedroom": null,
+      "curriculum": false,
+      "reached": {
+        "interval": [
+          0.0,
+          0.0
+        ],
+        "runs": [
+          5
+        ],
+        "value": 0.0
+      }
+    },
+    {
+      "agent": "pqn",
+      "baseline": {
+        "interval": [
+          0.14444444444444446,
+          0.3122222222222061
+        ],
+        "runs": [
+          5
+        ],
+        "value": 0.2111111111111111
+      },
+      "beats": {
+        "interval": [
+          0.0,
+          0.0
+        ],
+        "runs": [
+          5,
+          5
+        ],
+        "value": 0.0
+      },
+      "bedroom": {
+        "interval": [
+          0.24,
+          1.0
+        ],
+        "runs": [
+          5,
+          5
+        ],
+        "value": 0.64
+      },
+      "curriculum": true,
+      "reached": {
+        "interval": [
+          0.0,
+          0.0
+        ],
+        "runs": [
+          5
+        ],
+        "value": 0.0
+      }
+    }
+  ],
+  "random": {
+    "interval": [
+      0.14444444444444446,
+      0.3122222222222061
+    ],
+    "runs": [
+      5
+    ],
+    "value": 0.2111111111111111
+  },
+  "runs": [
+    {
+      "agent": "ppo",
+      "curriculum": true,
+      "name": "20261111T020524.458497Z",
+      "seed": 1,
+      "baseline": {
+        "reached": 0.16666666666666666,
+        "reward": 0.17040833333333333,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0,
+          "step": 262144
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0005,
+          "step": 507904
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0015,
+          "step": 753664
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66525,
+          "step": 1015808
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66525,
+          "step": 1261568
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66525,
+          "step": 1507328
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66525,
+          "step": 1753088
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66525,
+          "step": 2015232
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6642500000000001,
+          "step": 2260992
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6642500000000001,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": false,
+      "name": "20261111T020527.724383Z",
+      "seed": 1,
+      "baseline": {
+        "reached": 0.16666666666666666,
+        "reward": 0.17040833333333333,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.00075,
+          "step": 262144
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0035000000000000014,
+          "step": 507904
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.31475000000000003,
+          "step": 753664
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 1015808
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 1261568
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 1507328
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 1753088
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 2015232
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 2260992
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": true,
+      "name": "20261111T020549.763312Z",
+      "seed": 4,
+      "baseline": {
+        "reached": 0.36666666666666664,
+        "reward": 0.29354166666666653,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0005083333333333334,
+          "step": 253952
+        },
+        {
+          "reached": 0.23333333333333334,
+          "reward": 0.251475,
+          "step": 503808
+        },
+        {
+          "reached": 0.43333333333333335,
+          "reward": 0.4356083333333333,
+          "step": 753664
+        },
+        {
+          "reached": 0.3333333333333333,
+          "reward": 0.25698333333333334,
+          "step": 1003520
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.006091666666666671,
+          "step": 1253376
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005125000000000003,
+          "step": 1503232
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005125000000000003,
+          "step": 1753088
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005125000000000003,
+          "step": 2002944
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005125000000000003,
+          "step": 2252800
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005125000000000003,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": false,
+      "name": "20261111T020551.710189Z",
+      "seed": 4,
+      "baseline": {
+        "reached": 0.36666666666666664,
+        "reward": 0.29354166666666653,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0036250000000000015,
+          "step": 253952
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.001091666666666667,
+          "step": 503808
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0038916666666666687,
+          "step": 753664
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0018083333333333332,
+          "step": 1003520
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.006308333333333337,
+          "step": 1253376
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0025000000000000005,
+          "step": 1503232
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.001533333333333334,
+          "step": 1753088
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0005083333333333334,
+          "step": 2002944
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0064500000000000035,
+          "step": 2252800
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.006533333333333337,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": true,
+      "name": "20261111T020601.343882Z",
+      "seed": 5,
+      "baseline": {
+        "reached": 0.2,
+        "reward": 0.17651666666666666,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0,
+          "step": 262144
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0022500000000000003,
+          "step": 507904
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00025,
+          "step": 753664
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0035000000000000014,
+          "step": 1015808
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0035000000000000014,
+          "step": 1261568
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.006000000000000004,
+          "step": 1507328
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6642500000000001,
+          "step": 1753088
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6645,
+          "step": 2015232
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6645,
+          "step": 2260992
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6645,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": true,
+      "name": "20261111T020603.026756Z",
+      "seed": 5,
+      "baseline": {
+        "reached": 0.2,
+        "reward": 0.17651666666666666,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.001575,
+          "step": 253952
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0024000000000000007,
+          "step": 503808
+        },
+        {
+          "reached": 0.43333333333333335,
+          "reward": 0.3730666666666666,
+          "step": 753664
+        },
+        {
+          "reached": 0.26666666666666666,
+          "reward": 0.28355833333333336,
+          "step": 1003520
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005408333333333336,
+          "step": 1253376
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005408333333333336,
+          "step": 1503232
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005408333333333336,
+          "step": 1753088
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005408333333333336,
+          "step": 2002944
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005408333333333336,
+          "step": 2252800
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.000325,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "dqn",
+      "curriculum": false,
+      "name": "20261111T020603.100736Z",
+      "seed": 1,
+      "baseline": {
+        "reached": 0.16666666666666666,
+        "reward": 0.17040833333333333,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0007083333333333334,
+          "step": 251743
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0008333333333333334,
+          "step": 507743
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00010833333333333334,
+          "step": 753503
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": false,
+      "name": "20261111T020604.499845Z",
+      "seed": 5,
+      "baseline": {
+        "reached": 0.2,
+        "reward": 0.17651666666666666,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.00025,
+          "step": 262144
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.006750000000000004,
+          "step": 507904
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 753664
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 1015808
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 1261568
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 1507328
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 1753088
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 2015232
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 2260992
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": false,
+      "name": "20261111T020604.873861Z",
+      "seed": 5,
+      "baseline": {
+        "reached": 0.2,
+        "reward": 0.17651666666666666,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.00125,
+          "step": 253952
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.003033333333333334,
+          "step": 503808
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0007500000000000002,
+          "step": 753664
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.003225000000000001,
+          "step": 1003520
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.002016666666666667,
+          "step": 1253376
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0011666666666666668,
+          "step": 1503232
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0006083333333333333,
+          "step": 1753088
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00534166666666667,
+          "step": 2002944
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.006608333333333338,
+          "step": 2252800
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0007333333333333334,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "dqn",
+      "curriculum": false,
+      "name": "20261111T020604.912486Z",
+      "seed": 2,
+      "baseline": {
+        "reached": 0.13333333333333333,
+        "reward": 0.13859166666666667,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0027000000000000006,
+          "step": 254906
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.003008333333333334,
+          "step": 500666
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0010833333333333335,
+          "step": 756666
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": true,
+      "name": "20261111T020608.205783Z",
+      "seed": 3,
+      "baseline": {
+        "reached": 0.26666666666666666,
+        "reward": 0.23399999999999993,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0,
+          "step": 262144
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0,
+          "step": 507904
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0,
+          "step": 753664
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0,
+          "step": 1015808
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0,
+          "step": 1261568
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6657500000000002,
+          "step": 1507328
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6657500000000002,
+          "step": 1753088
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6657500000000002,
+          "step": 2015232
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6657500000000002,
+          "step": 2260992
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6657500000000002,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": true,
+      "name": "20261111T020608.585943Z",
+      "seed": 4,
+      "baseline": {
+        "reached": 0.36666666666666664,
+        "reward": 0.29354166666666653,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0,
+          "step": 262144
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0,
+          "step": 507904
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00025,
+          "step": 753664
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 1015808
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 1261568
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1507328
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1753088
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2015232
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2260992
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "dqn",
+      "curriculum": false,
+      "name": "20261111T020609.898794Z",
+      "seed": 3,
+      "baseline": {
+        "reached": 0.26666666666666666,
+        "reward": 0.23399999999999993,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.000775,
+          "step": 256531
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.004100000000000002,
+          "step": 501490
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0006916666666666667,
+          "step": 752566
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": true,
+      "name": "20261111T020610.606240Z",
+      "seed": 2,
+      "baseline": {
+        "reached": 0.13333333333333333,
+        "reward": 0.13859166666666667,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0,
+          "step": 262144
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0,
+          "step": 507904
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00025,
+          "step": 753664
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00025,
+          "step": 1015808
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6645,
+          "step": 1261568
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.664,
+          "step": 1507328
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.664,
+          "step": 1753088
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.664,
+          "step": 2015232
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.664,
+          "step": 2260992
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.664,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": false,
+      "name": "20261111T020611.174691Z",
+      "seed": 3,
+      "baseline": {
+        "reached": 0.26666666666666666,
+        "reward": 0.23399999999999993,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0035000000000000014,
+          "step": 262144
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.31325000000000003,
+          "step": 507904
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.31300000000000006,
+          "step": 753664
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1015808
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1261568
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1507328
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1753088
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2015232
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2260992
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": false,
+      "name": "20261111T020611.435245Z",
+      "seed": 4,
+      "baseline": {
+        "reached": 0.36666666666666664,
+        "reward": 0.29354166666666653,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0005,
+          "step": 262144
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00175,
+          "step": 507904
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.664,
+          "step": 753664
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.664,
+          "step": 1015808
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.664,
+          "step": 1261568
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.664,
+          "step": 1507328
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6637500000000001,
+          "step": 1753088
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.6637500000000001,
+          "step": 2015232
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.664,
+          "step": 2260992
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.664,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": false,
+      "name": "20261111T020613.777404Z",
+      "seed": 2,
+      "baseline": {
+        "reached": 0.13333333333333333,
+        "reward": 0.13859166666666667,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.00025,
+          "step": 262144
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00025,
+          "step": 507904
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.31300000000000006,
+          "step": 753664
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1015808
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1261568
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1507328
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1753088
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2015232
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2260992
+        },
+        {
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "dqn",
+      "curriculum": false,
+      "name": "20261111T020614.873002Z",
+      "seed": 4,
+      "baseline": {
+        "reached": 0.36666666666666664,
+        "reward": 0.29354166666666653,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.00045,
+          "step": 258208
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0035333333333333345,
+          "step": 503968
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0006833333333333333,
+          "step": 759968
+        }
+      ]
+    },
+    {
+      "agent": "dqn",
+      "curriculum": false,
+      "name": "20261111T020619.922380Z",
+      "seed": 5,
+      "baseline": {
+        "reached": 0.2,
+        "reward": 0.17651666666666666,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0008500000000000001,
+          "step": 259048
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.000325,
+          "step": 500529
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0004916666666666667,
+          "step": 755609
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": true,
+      "name": "20261111T020644.679152Z",
+      "seed": 1,
+      "baseline": {
+        "reached": 0.16666666666666666,
+        "reward": 0.17040833333333333,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0015,
+          "step": 253952
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0020250000000000003,
+          "step": 503808
+        },
+        {
+          "reached": 0.5,
+          "reward": 0.48825833333333335,
+          "step": 753664
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 1003520
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 1253376
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 1503232
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 1753088
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 2002944
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 2252800
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": false,
+      "name": "20261111T020647.886274Z",
+      "seed": 1,
+      "baseline": {
+        "reached": 0.16666666666666666,
+        "reward": 0.17040833333333333,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0033083333333333346,
+          "step": 253952
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0005833333333333334,
+          "step": 503808
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0009750000000000001,
+          "step": 753664
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0005833333333333334,
+          "step": 1003520
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0008416666666666667,
+          "step": 1253376
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.006966666666666671,
+          "step": 1503232
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.003233333333333334,
+          "step": 1753088
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.004225000000000002,
+          "step": 2002944
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0009083333333333334,
+          "step": 2252800
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0007333333333333333,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": true,
+      "name": "20261111T021753.346516Z",
+      "seed": 2,
+      "baseline": {
+        "reached": 0.13333333333333333,
+        "reward": 0.13859166666666667,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.00048333333333333334,
+          "step": 253952
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0028416666666666673,
+          "step": 503808
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0010916666666666668,
+          "step": 753664
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.31628333333333314,
+          "step": 1003520
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.2542583333333333,
+          "step": 1253376
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.004875000000000003,
+          "step": 1503232
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.004875000000000003,
+          "step": 1753088
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.004875000000000003,
+          "step": 2002944
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005183333333333336,
+          "step": 2252800
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.004875000000000003,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": true,
+      "name": "20261111T021755.026391Z",
+      "seed": 3,
+      "baseline": {
+        "reached": 0.26666666666666666,
+        "reward": 0.23399999999999993,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0009333333333333333,
+          "step": 253952
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005375000000000003,
+          "step": 503808
+        },
+        {
+          "reached": 0.36666666666666664,
+          "reward": 0.4449749999999998,
+          "step": 753664
+        },
+        {
+          "reached": 0.1,
+          "reward": 0.35116666666666657,
+          "step": 1003520
+        },
+        {
+          "reached": 0.13333333333333333,
+          "reward": 0.17503333333333326,
+          "step": 1253376
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.01705,
+          "step": 1503232
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005883333333333337,
+          "step": 1753088
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00571666666666667,
+          "step": 2002944
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005458333333333337,
+          "step": 2252800
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.005525000000000003,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": false,
+      "name": "20261111T021755.393320Z",
+      "seed": 2,
+      "baseline": {
+        "reached": 0.13333333333333333,
+        "reward": 0.13859166666666667,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.0021333333333333343,
+          "step": 253952
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00075,
+          "step": 503808
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0018166666666666667,
+          "step": 753664
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0013583333333333334,
+          "step": 1003520
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0016750000000000005,
+          "step": 1253376
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.000875,
+          "step": 1503232
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.006900000000000004,
+          "step": 1753088
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00589166666666667,
+          "step": 2002944
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.004583333333333336,
+          "step": 2252800
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0013,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": false,
+      "name": "20261111T021756.525800Z",
+      "seed": 3,
+      "baseline": {
+        "reached": 0.26666666666666666,
+        "reward": 0.23399999999999993,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "reached": 0.0,
+          "reward": 0.01615,
+          "step": 253952
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.004850000000000003,
+          "step": 503808
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.00551666666666667,
+          "step": 753664
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0045083333333333355,
+          "step": 1003520
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.001708333333333334,
+          "step": 1253376
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.000825,
+          "step": 1503232
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0011916666666666668,
+          "step": 1753088
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.0012083333333333334,
+          "step": 2002944
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.006308333333333337,
+          "step": 2252800
+        },
+        {
+          "reached": 0.0,
+          "reward": 0.000775,
+          "step": 2502656
+        }
+      ]
+    }
+  ]
+}

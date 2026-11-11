@@ -1,59 +1,24 @@
 """
-Pins the records the agent reads and writes, covering:
+Pins the records the agents read and write, covering:
 
 - The device the settings default to, and the values they refuse, a
   warm-up short of a batch among them
 - The values the settings accept at a bound, a fraction of one and a
   warm-up as long as a batch
-- The value a batch reads for each draw, and its target under the action
-  one network chooses and another values
-- What configuring the process sets, NNPACK off and any thread count named
-- A checkpoint reading back as written with each `state_dict`'s metadata
-  and replay memory's arrays, refusing a file holding more than tensors
-  and plain values or a network entry that is no tensor
-- The `.npz` a checkpoint is written as, each member compressed with zstd,
-  the checkpoint an interrupted write leaves as it was, the partial file a
-  killed one leaves, a file cut short or holding a damaged zstd frame,
-  which it refuses naming it, the flush that writes it through the drive's
-  cache, and the archive a save flushes whole before the directory
-- The weights read from a checkpoint's `agent.pt` member alone
+- The flush that writes a file through the drive's cache
+- The agents a run trains, the record of measures each reads, how each
+  chooses, the settings each alone reads, and a rollout each refuses as too
+  small for its minibatches
+- The sums, the averages, and the logged form of an update's measures
 """
 
-from collections.abc import Callable, Mapping
-from numpy           import load as load_npz, zeros
-from numpy.testing   import assert_array_equal
-from os              import fstat, truncate
-from pathlib         import Path
-from pickle          import UnpicklingError
+from collections.abc import Callable
+from common.agents   import each_agent
 from pydantic        import ValidationError
 from pytest          import MonkeyPatch, mark, param, raises
-from stat            import S_ISDIR
-from torch           import Tensor, arange, device, equal, save, tensor, uint8
-from torch.nn        import Linear
-from zipfile         import ZIP_ZSTANDARD, ZipFile
+from torch           import device
 
-from squirtl.agent               import schemas
-from squirtl.agent.schemas       import AgentSettings, Batch, Checkpoint, Weights, flush
-from squirtl.environment.schemas import Entry
-
-
-def blank(**fields: object) -> Checkpoint:
-    """
-    Builds a checkpoint holding nothing at step 0, any keyword setting a
-    field in its place.
-    """
-    return Checkpoint(
-        **{
-            "step"        : 0,
-            "exploration" : {},
-            "online"      : {},
-            "optimizer"   : {},
-            "replay"      : {},
-            "sampling"    : {},
-            "target"      : {}
-        }
-        | fields
-    )
+from squirtl.agent.schemas import AgentSettings, Algorithm, Measures, PolicyUpdate, Update, flush
 
 
 @mark.parametrize(
@@ -140,249 +105,6 @@ def test_a_warmup_short_of_the_batch_size_is_refused(
         AgentSettings(batch_size=batch_size, warmup_steps=warmup_steps)
 
 
-def cut_in_half(path: Path):
-    """
-    Cuts the file at `path` to its first half.
-    """
-    truncate(path, path.stat().st_size // 2)
-
-
-def cut_to_nothing(path: Path):
-    """
-    Cuts the file at `path` to no bytes at all.
-    """
-    truncate(path, 0)
-
-
-def flip_agent_frame(path: Path):
-    """
-    Flips the first byte of the zstd frame the `agent.pt` member of the
-    archive at `path` holds, its local header taking 30 bytes beside the
-    member's name.
-    """
-    with ZipFile(path) as archive:
-        member = archive.getinfo("agent.pt")
-
-    data = bytearray(path.read_bytes())
-    data[member.header_offset + 30 + len(member.filename)] ^= 0xFF
-    path.write_bytes(data)
-
-
-def frames(observations: Mapping[str, Tensor]) -> Tensor:
-    """
-    Values each frame of a one-pixel stack as one action, at the value its
-    pixel holds.
-    """
-    return observations[Entry.FRAMES][:, :, 0, 0].float()
-
-
-def mark_an_unknown_method(path: Path):
-    """
-    Writes into the central directory entry of the archive's first member at
-    `path` a compression method `zipfile` supports none of, at the 10 bytes
-    past that entry's signature where the method sits.
-    """
-    data    = bytearray(path.read_bytes())
-    central = data.index(b"PK\x01\x02")
-    data[central + 10 : central + 12] = b"\xff\x00"
-    path.write_bytes(data)
-
-
-def misname_agent(path: Path):
-    """
-    Changes the last letter of the `agent.pt` member's name in both of the
-    archive's headers at `path`, as damage to those bytes reads.
-    """
-    path.write_bytes(path.read_bytes().replace(b"agent.pt", b"agent.pX"))
-
-
-def pack(agent: dict[str, object], path: Path, **members: bytes):
-    """
-    Writes an `.npz` holding `agent` as its `agent.pt` member, the way
-    `Checkpoint.save` writes every field but `replay`, beside each of
-    `members` under its name.
-    """
-    with ZipFile(path, "w") as archive:
-        with archive.open("agent.pt", "w") as member:
-            save(agent, member)
-
-        for name, data in members.items():
-            archive.writestr(name, data)
-
-
-def reversed_frames(observations: Mapping[str, Tensor]) -> Tensor:
-    """
-    Values each frame of a one-pixel stack as one action, at the negative of
-    the value its pixel holds, so it values the first frame highest.
-    """
-    return -frames(observations)
-
-
-@mark.parametrize(
-    ("threads", "counts"),
-    [param(None, [], id="unset"), param(3, [3], id="named")]
-)
-def test_configuring_turns_nnpack_off_and_sets_the_threads_the_settings_name(
-    counts      : list[int],
-    monkeypatch : MonkeyPatch,
-    threads     : int | None
-):
-    """
-    Asserts that configuring the process turns NNPACK off, and sets the
-    thread count only where the settings name one.
-    """
-    flags, named = [], []
-
-    monkeypatch.setattr(schemas.nnpack, "set_flags", flags.append)
-    monkeypatch.setattr(schemas, "set_num_threads", named.append)
-
-    AgentSettings(device="cpu", threads=threads).configure()
-
-    assert (flags, named) == ([False], counts)
-
-
-def test_a_batch_runs_a_network_choosing_for_itself_once():
-    """
-    Asserts that a batch whose choosing and valuing network are one network
-    runs it once on the observation reached, reading both the choice and its
-    value from that pass.
-    """
-    passes = []
-
-    def network(observations: Mapping[str, Tensor]) -> Tensor:
-        """
-        Values each frame as `frames` does, counting each pass.
-        """
-        passes.append(observations)
-
-        return frames(observations)
-
-    targets = Batch(
-        actions    = tensor([0]),
-        rewards    = tensor([1.0]),
-        terminated = tensor([False]),
-        windows    = {Entry.FRAMES: arange(5, dtype=uint8).reshape(1, 5, 1, 1)}
-    ).targets(network, 0.5, network)
-
-    assert (targets.tolist(), len(passes)) == ([3.0], 1)
-
-
-def test_a_batch_values_each_draw_at_the_action_it_took():
-    """
-    Asserts that a batch reads the value a network gives each draw's action
-    on the stack that action was taken on, from a network valuing each of a
-    stack's four frames as one action, so action 2 on frames 0 to 3 reads 2
-    and action 0 on frames 5 to 8 reads 5.
-    """
-    batch = Batch(
-        actions    = tensor([2, 0]),
-        rewards    = tensor([0.0, 0.0]),
-        terminated = tensor([False, False]),
-        windows    = {Entry.FRAMES: arange(10, dtype=uint8).reshape(2, 5, 1, 1)}
-    )
-
-    assert batch.values(frames).tolist() == [2.0, 5.0]
-
-
-def test_a_checkpoint_is_an_npz_whose_members_zstd_compresses(tmp_path: Path):
-    """
-    Asserts that a checkpoint's file is an `.npz` NumPy's own `load` reads
-    replay memory's arrays from, beside the `agent.pt` member, with every
-    member compressed with zstd.
-    """
-    blank(replay={"actions": zeros(4, "int64"), "held": zeros(4, bool)}).save(
-        tmp_path / "checkpoint.npz"
-    )
-
-    with load_npz(tmp_path / "checkpoint.npz") as archive:
-        assert (sorted(archive.files), archive["held"].dtype) == (
-            ["actions", "agent.pt", "held"],
-            bool
-        )
-        assert {member.compress_type for member in archive.zip.infolist()} == {
-            ZIP_ZSTANDARD
-        }
-
-
-@mark.parametrize(
-    "network",
-    [param("online", id="the-online-network"), param("target", id="the-target-network")]
-)
-def test_a_checkpoint_refuses_a_network_entry_that_is_no_tensor(
-    network  : str,
-    tmp_path : Path
-):
-    """
-    Asserts that reading a checkpoint refuses a file whose online or target
-    network holds a list where a tensor goes, naming that entry.
-    """
-    pack(
-        agent = {
-            "step"        : 0,
-            "exploration" : {},
-            "online"      : {},
-            "optimizer"   : {},
-            "sampling"    : {},
-            "target"      : {}
-        }
-        | {network: {"weight": [1.0, 2.0]}},
-        path = tmp_path / "checkpoint.npz"
-    )
-
-    with raises(ValidationError, match=rf"{network}\.weight"):
-        Checkpoint.from_path(tmp_path / "checkpoint.npz")
-
-
-@mark.parametrize(
-    ("chooser", "terminated", "target"),
-    [
-        param(frames,          False, 3.0, id="the-valuing-networks-own-choice"),
-        param(reversed_frames, False, 1.5, id="another-networks-choice"),
-        param(frames,          True,  1.0, id="a-terminated-step")
-    ]
-)
-def test_a_batch_targets_its_reward_plus_the_discounted_value_of_the_chosen_action(
-    chooser    : Callable[[Mapping[str, Tensor]], Tensor],
-    target     : float,
-    terminated : bool
-):
-    """
-    Asserts that a batch targets a draw at its reward of one plus 0.5 times
-    the value a network gives the stack its action reached under the action
-    `chooser` values highest there, recording no autograd graph. The network
-    values each of the stack's frames 1 to 4 as one action, so the 4 of its
-    own choice targets 3, the 1 of the first action, which a chooser valuing
-    the frames in reverse picks, targets 1.5, and a terminated step targets
-    its reward alone.
-    """
-    targets = Batch(
-        actions    = tensor([0]),
-        rewards    = tensor([1.0]),
-        terminated = tensor([terminated]),
-        windows    = {Entry.FRAMES: arange(5, dtype=uint8).reshape(1, 5, 1, 1)}
-    ).targets(chooser, 0.5, lambda observations: frames(observations).requires_grad_())
-
-    assert (targets.tolist(), targets.requires_grad) == ([target], False)
-
-
-def test_a_checkpoint_keeps_the_metadata_each_state_dict_carries(tmp_path: Path):
-    """
-    Asserts that a checkpoint holds each network's `state_dict` itself, and
-    that one read back from its file still carries the `_metadata` holding
-    each module's version, which `load_state_dict` reads.
-    """
-    online, target = Linear(2, 1).state_dict(), Linear(2, 1).state_dict()
-    written        = blank(online=online, target=target)
-    written.save(tmp_path / "checkpoint.npz")
-    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
-
-    assert written.online is online and written.target is target
-    assert (read.online._metadata, read.target._metadata) == (
-        {"": {"version": 1}},
-        {"": {"version": 1}}
-    )
-
-
 @mark.parametrize(
     "field",
     [
@@ -398,150 +120,14 @@ def test_the_settings_accept_a_fraction_of_one(field: str):
     assert getattr(AgentSettings(**{field: 1}), field) == 1
 
 
-def test_a_checkpoint_reads_back_as_the_one_written(tmp_path: Path):
+def test_a_run_trains_the_deep_q_network_unless_it_names_another_agent():
     """
-    Asserts that a checkpoint written to a file reads back with every field
-    equal to the one written, each array of replay memory in its own dtype.
+    Asserts that the settings default to the deep Q-network, whose own
+    settings sit on the record itself.
     """
-    written = blank(
-        exploration = {"bit_generator": "PCG64", "state": {"inc": 1, "state": 2**100}},
-        online      = {"weight": tensor([1.0, 2.0])},
-        optimizer   = {"param_groups": [{"lr": 1e-4, "params": [0]}], "state": {}},
-        replay      = {"frames": arange(24, dtype=uint8).reshape(2, 3, 4).numpy()},
-        sampling    = {"bit_generator": "PCG64", "state": {"inc": 5, "state": 3}},
-        step        = 12,
-        target      = {"weight": tensor([0.5, 2.0])}
-    )
-    written.save(tmp_path / "checkpoint.npz")
-    read = Checkpoint.from_path(tmp_path / "checkpoint.npz")
+    settings = AgentSettings()
 
-    assert equal(read.online["weight"], written.online["weight"])
-    assert equal(read.target["weight"], written.target["weight"])
-    assert_array_equal(read.replay["frames"], written.replay["frames"], strict=True)
-    assert (read.exploration, read.optimizer, read.sampling, read.step) == (
-        written.exploration, written.optimizer, written.sampling, written.step
-    )
-
-
-def test_a_checkpoint_refuses_a_file_holding_an_arbitrary_object(tmp_path: Path):
-    """
-    Asserts that reading a checkpoint refuses a file whose `agent.pt` member
-    holds an object beyond tensors and plain values, which `torch.load`'s
-    default `weights_only=True` unpickles alone.
-    """
-    pack({"online": Path("online.pt")}, tmp_path / "checkpoint.npz")
-
-    with raises(UnpicklingError, match="Weights only load failed"):
-        Checkpoint.from_path(tmp_path / "checkpoint.npz")
-
-
-def test_a_save_flushes_the_whole_archive_then_the_directory_it_lands_in(
-    monkeypatch : MonkeyPatch,
-    tmp_path    : Path
-):
-    """
-    Asserts that a save flushes the `.partial` file through the drive's
-    cache once the archive's end record is written, the file then taking the
-    checkpoint's path with no byte past what was flushed, and then flushes
-    the directory the checkpoint lands in.
-    """
-    flushed     = []
-    directories = []
-    monkeypatch.setattr(
-        "squirtl.agent.schemas.flush",
-        lambda descriptor: flushed.append(
-            (fstat(descriptor).st_ino, fstat(descriptor).st_size)
-        )
-    )
-    monkeypatch.setattr(
-        "squirtl.agent.schemas.fsync",
-        lambda descriptor: directories.append(S_ISDIR(fstat(descriptor).st_mode))
-    )
-    path = tmp_path / "checkpoint.npz"
-    blank(replay={"actions": zeros(4, "int64")}, step=3).save(path)
-
-    assert (flushed, directories) == (
-        [(path.stat().st_ino, path.stat().st_size)],
-        [True]
-    )
-
-
-def test_a_save_writes_over_the_partial_file_a_killed_save_left(tmp_path: Path):
-    """
-    Asserts that a save beside the `.partial` file a killed save left behind
-    writes over it and leaves the checkpoint alone in its directory.
-    """
-    (tmp_path / "checkpoint.npz.partial").write_bytes(b"left by a killed save")
-    blank().save(tmp_path / "checkpoint.npz")
-
-    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
-
-
-@mark.parametrize(
-    "damage",
-    [
-        param(cut_to_nothing,   id="an-empty-file"),
-        param(cut_in_half,      id="its-first-half"),
-        param(flip_agent_frame, id="a-damaged-zstd-frame"),
-        param(misname_agent,          id="a-damaged-member-name"),
-        param(mark_an_unknown_method, id="a-damaged-compression-method")
-    ]
-)
-def test_a_damaged_checkpoint_is_refused_naming_its_file(
-    damage   : Callable[[Path], None],
-    tmp_path : Path
-):
-    """
-    Asserts that reading a checkpoint whose file holds nothing, its
-    first half alone, a damaged zstd frame, or a zip header damaged in a
-    member's name or its compression method, which raise `KeyError` and
-    `NotImplementedError`, raises `ValueError` naming the file, the error
-    the commands refuse.
-    """
-    path = tmp_path / "checkpoint.npz"
-    blank(replay={"actions": zeros(64, "int64")}, step=3).save(path)
-    damage(path)
-
-    with raises(ValueError, match=f"{path} holds no whole checkpoint"):
-        Checkpoint.from_path(path)
-
-
-def test_a_warmup_as_long_as_the_batch_size_is_accepted():
-    """
-    Asserts that a warm-up of exactly `batch_size` steps, the shortest the
-    settings take, is accepted.
-    """
-    settings = AgentSettings(batch_size=8, warmup_steps=8)
-
-    assert settings.warmup_steps == settings.batch_size == 8
-
-
-def test_a_write_interrupted_partway_leaves_the_last_checkpoint_as_it_was(
-    monkeypatch : MonkeyPatch,
-    tmp_path    : Path
-):
-    """
-    Asserts that an interrupt landing while a checkpoint writes replay
-    memory's arrays leaves the checkpoint at its path as the last write left
-    it, and no partial file beside it.
-    """
-    checkpoint = blank(replay={"actions": zeros(4, "int64")}, step=3)
-    checkpoint.save(tmp_path / "checkpoint.npz")
-    written = (tmp_path / "checkpoint.npz").read_bytes()
-
-    def interrupt(*_: object):
-        """
-        Stands in for an interrupt landing during the write of an array.
-        """
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr("squirtl.agent.schemas.save_npy", interrupt)
-
-    with raises(KeyboardInterrupt):
-        checkpoint.model_copy(update={"step": 4}).save(tmp_path / "checkpoint.npz")
-
-    assert [path.name for path in tmp_path.iterdir()] == ["checkpoint.npz"]
-    assert (tmp_path / "checkpoint.npz").read_bytes() == written
+    assert (settings.algorithm, settings.hyperparameters) == (Algorithm.DQN, None)
 
 
 @mark.parametrize(
@@ -581,29 +167,131 @@ def test_a_flush_takes_f_fullfsync_where_fcntl_has_it_and_fsync_elsewhere(
     assert calls == [call]
 
 
-def test_weights_read_the_agent_member_alone_leaving_replay_memory_unread(
-    tmp_path: Path
+def test_a_warmup_as_long_as_the_batch_size_is_accepted():
+    """
+    Asserts that a warm-up of exactly `batch_size` steps, the shortest the
+    settings take, is accepted.
+    """
+    settings = AgentSettings(batch_size=8, warmup_steps=8)
+
+    assert settings.warmup_steps == settings.batch_size == 8
+
+
+@mark.parametrize(
+    ("algorithm", "read"),
+    [
+        param(Algorithm.PPO, lambda settings: settings.ppo, id="ppo"),
+        param(Algorithm.PQN, lambda settings: settings.pqn, id="pqn")
+    ]
+)
+def test_each_rollout_agent_reads_the_settings_of_its_own(
+    algorithm : Algorithm,
+    read      : Callable[[AgentSettings], object]
 ):
     """
-    Asserts that `Weights` reads the online network and the step from a
-    checkpoint's `agent.pt` member alone, even where a member of replay
-    memory holds an array header cut short, which `Checkpoint` refuses to
-    read.
+    Asserts that `hyperparameters` reads the record of the agent the
+    settings name.
     """
-    agent = {
-        "step"        : 12,
-        "online"      : {"weight": tensor([1.0, 2.0])},
-        "exploration" : {},
-        "optimizer"   : {},
-        "sampling"    : {},
-        "target"      : {}
-    }
+    settings = AgentSettings(algorithm=algorithm)
 
-    pack(agent, tmp_path / "checkpoint.npz", **{"actions.npy": b"\x93NUMPY\x01\x00"})
+    assert settings.hyperparameters is read(settings)
 
-    weights = Weights.from_path(tmp_path / "checkpoint.npz")
 
-    assert (weights.online["weight"].tolist(), weights.step) == ([1.0, 2.0], 12)
+@each_agent
+def test_a_rollout_of_two_samples_per_minibatch_is_the_least_each_agent_accepts(
+    algorithm: Algorithm
+):
+    """
+    Asserts that each agent reads its own count of minibatches and its own
+    rollout length, three minibatches accepting a rollout of six samples
+    and refusing one of five while the other agent's record stands at its
+    defaults.
+    """
+    own = algorithm.value
 
-    with raises(ValueError):
-        Checkpoint.from_path(tmp_path / "checkpoint.npz")
+    assert AgentSettings(
+        **{own: {"minibatches": 3, "rollout_steps": 2}},
+        algorithm    = algorithm,
+        environments = 3
+    ).hyperparameters.rollout_steps == 2
+
+    with raises(ValidationError, match="a rollout of 5 samples gives some of its 3"):
+        AgentSettings(
+            **{own: {"minibatches": 3, "rollout_steps": 1}},
+            algorithm    = algorithm,
+            environments = 5
+        )
+
+
+def test_measures_log_each_name_beside_its_value_at_four_significant_digits():
+    """
+    Asserts that a record of measures reads as each name beside its value at
+    four significant digits, the form an episode's line logs.
+    """
+    assert str(Update(loss=2.0, value=-6.54321)) == "loss 2, value -6.543"
+
+
+@mark.parametrize(
+    ("record", "fields"),
+    [
+        param(Update, {"loss": 1.0, "value": 2.0}, id="the-loss-and-the-value"),
+        param(
+            PolicyUpdate,
+            {
+                "clipped"     : 0.25,
+                "entropy"     : 1.5,
+                "kl"          : 0.01,
+                "policy_loss" : -0.5,
+                "value_loss"  : 3.0
+            },
+            id = "ppos-measures"
+        )
+    ]
+)
+def test_measures_list_their_totals_and_average_over_a_count(
+    fields : dict[str, float],
+    record : type[Measures]
+):
+    """
+    Asserts that `totals` lists each measure in the order the record
+    declares them, and that `averaged` divides each of them by the count
+    back into the record holding the mean of each.
+    """
+    measures = record(**fields)
+
+    assert measures.totals == tuple(fields.values())
+    assert record.averaged(4, [4 * total for total in measures.totals]) == measures
+
+
+def test_the_deep_q_network_reads_no_minibatches():
+    """
+    Asserts that a rollout too small for PQN's and PPO's minibatches is
+    accepted for the deep Q-network, which collects no rollout.
+    """
+    short = {"rollout_steps": 1}
+
+    assert AgentSettings(
+        environments = 1,
+        ppo          = short,
+        pqn          = short
+    ).algorithm is Algorithm.DQN
+
+
+@mark.parametrize(
+    ("algorithm", "record", "sampled"),
+    [
+        param(Algorithm.DQN, Update,       False, id="the-deep-q-network"),
+        param(Algorithm.PPO, PolicyUpdate, True,  id="ppo"),
+        param(Algorithm.PQN, Update,       False, id="pqn")
+    ]
+)
+def test_each_agent_names_its_measures_and_how_it_chooses(
+    algorithm : Algorithm,
+    record    : type[Measures],
+    sampled   : bool
+):
+    """
+    Asserts that each agent reads its own record of measures and samples
+    from a policy or chooses epsilon-greedily.
+    """
+    assert (algorithm.measures, algorithm.sampled) == (record, sampled)

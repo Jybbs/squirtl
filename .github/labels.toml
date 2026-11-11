@@ -1,6 +1,6 @@
 [[labels]]
 color       = "3aa6f0"
-description = "The deep Q-network, replay memory, the update and its schedules, and the checkpoint"
+description = "The deep Q-network, PQN, and PPO, their networks and updates, and the checkpoint"
 name        = "🧢 agent"
 
 [[labels]]

@@ -1,7 +1,12 @@
 name        : Provision
-description : Installs through mise the subset of the tools `.mise/config.toml` pins that `tools` names, restoring that subset's archive from the Actions cache and saving it back wherever the job's `cache-mode` grants a write.
+description : Installs through mise the subset of the tools `.mise/config.toml` pins that `tools` names, restoring that subset's archive and the package caches `caches` names from the Actions cache and saving each back wherever the job's `cache-mode` grants a write.
 
 inputs:
+  caches:
+    default     : ""
+    description : The package cache to restore, either `uv` for a job that syncs the project, whose cache holds the wheels uv builds from source, or nothing.
+    required    : false
+
   tools:
     description : The space-separated subset of the tools `.mise/config.toml` pins that the job's command reads. `jdx/mise-action` hashes the names into its cache key, so each subset is an archive of its own.
     required    : true
@@ -16,7 +21,16 @@ runs:
       shell : bash
 
     - name : Install the subset through mise
-      uses : jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492
+      uses : jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c
       with:
-        install_args : ${{ inputs.tools }}
-        version      : ${{ steps.floor.outputs.version }}
+        cache_max_age_days : 0
+        install_args       : ${{ inputs.tools }}
+        version            : ${{ steps.floor.outputs.version }}
+
+    - name : Restore and save uv's cache of the wheels built from source
+      if   : inputs.caches == 'uv'
+      uses : actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        key          : uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+        path         : ~/.cache/uv
+        restore-keys : uv-${{ runner.os }}-

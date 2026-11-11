@@ -9,12 +9,14 @@ Pins how `GameBoy` runs a cartridge through PyBoy, covering:
 - The byte each symbol reads, the digest of the state a reset leaves, the
   stop a close makes, the intro a start plays, and the state and DIV a
   reset returns to
+- The state a load returns to, the frame it last rendered included, and the
+  DIV a write sets, leaving the rest of the state as it was
 """
 
 from collections.abc import Callable, Iterator
 from common.console  import StandIn
 from functools       import partial
-from hashlib         import sha256
+from itertools       import batched
 from numpy           import arange, ndarray, shares_memory, tile, uint8
 from numpy.random    import default_rng
 from numpy.testing   import assert_array_equal
@@ -52,31 +54,6 @@ def game_boy(cartridge: Cartridge) -> Iterator[GameBoy]:
         yield booted
 
 
-def readings(game_boy: GameBoy) -> tuple[bytes, ndarray, ndarray, bytes]:
-    """
-    Reads the state of `game_boy` and its frame, plays 20 frames, and reads
-    what they render and the state they reach.
-    """
-    return game_boy.state, game_boy.grayscale, game_boy.press(None, 20), game_boy.state
-
-
-def test_a_boot_hands_pyboy_the_cartridge_as_bytes(boot: Boot, cartridge: Cartridge):
-    """
-    Asserts that a boot hands PyBoy a stream of the cartridge's bytes rather
-    than its path, so PyBoy derives no path to a file beside it.
-    """
-    assert boot(EmulatorSettings()).emulator.gamerom.getvalue() == cartridge.data
-
-
-def test_a_boot_reads_no_save_beside_the_cartridge(game_boy: GameBoy):
-    """
-    Asserts that the first byte of the cartridge's RAM reads zero although
-    `rom.gb.ram` beside the cartridge holds `0xAB` in every byte, which
-    PyBoy loads into that RAM when it boots from the cartridge's path.
-    """
-    assert game_boy.emulator.memory[0, 0xA000] == 0
-
-
 @mark.parametrize(
     ("open_window", "window"),
     [param(False, "null", id="headless"), param(True, "SDL2", id="a-window")]
@@ -96,6 +73,23 @@ def test_a_boot_runs_silent_and_headless_unless_a_window_opens(
         "sound_emulated" : False,
         "window"         : window
     }
+
+
+def test_a_boot_hands_pyboy_the_cartridge_as_bytes(boot: Boot, cartridge: Cartridge):
+    """
+    Asserts that a boot hands PyBoy a stream of the cartridge's bytes rather
+    than its path, so PyBoy derives no path to a file beside it.
+    """
+    assert boot(EmulatorSettings()).emulator.gamerom.getvalue() == cartridge.data
+
+
+def test_a_boot_reads_no_save_beside_the_cartridge(game_boy: GameBoy):
+    """
+    Asserts that the first byte of the cartridge's RAM reads zero although
+    `rom.gb.ram` beside the cartridge holds `0xAB` in every byte, which
+    PyBoy loads into that RAM when it boots from the cartridge's path.
+    """
+    assert game_boy.emulator.memory[0, 0xA000] == 0
 
 
 def test_a_close_writes_nothing_beside_the_cartridge(cartridge: Cartridge):
@@ -150,22 +144,40 @@ def test_a_press_sends_any_button_then_ticks_before_reading_the_screen(
     assert game_boy.emulator.calls == [*pressed, ("tick", 24), ("screen",)]
 
 
-def test_a_load_puts_back_the_memory_the_frame_and_what_plays_next(game_boy: GameBoy):
+def test_a_div_write_sets_div_alone(game_boy: GameBoy):
     """
-    Asserts that loading a saved state puts back the console's memory, the
-    frame it last rendered, and the frames it renders from there, whatever
-    played since it was saved.
+    Asserts that a DIV write on PyBoy after a reset at 0 leaves 77 in the
+    register at `0xFF04`, which a write to that address would clear, and the
+    console in the state a reset at 77 leaves.
     """
-    game_boy.press(None, 20)
+    game_boy.start()
+    reached = []
 
-    saved = readings(game_boy)
+    for writes in ([game_boy.reset, 77], [game_boy.reset, 0, game_boy.set_div, 77]):
+        for write, timer_div in batched(writes, 2):
+            write(timer_div)
 
-    game_boy.press(None, 100)
-    game_boy.emulator.memory[Symbol.W_X_COORD] = 77
-    game_boy.load(saved[0])
+        reached.append((game_boy.emulator.memory[0xFF04], game_boy.digest))
 
-    for read, expected in zip(readings(game_boy), saved, strict=True):
-        assert_array_equal(read, expected)
+    assert reached == [(77, reached[0][1])] * 2
+
+
+def test_a_load_returns_to_the_state_saved_and_the_frame_it_rendered(game_boy: GameBoy):
+    """
+    Asserts that loading a state the console saved undoes the frames and the
+    write to the game's memory taken since, leaving the same state and the
+    same gray frame.
+    """
+    game_boy.start()
+    game_boy.press(None, 120)
+    state, frame = game_boy.state, game_boy.grayscale
+    game_boy.emulator.memory[Symbol.W_CUR_MAP] = 9
+    game_boy.press(None, 30)
+    game_boy.load(state)
+
+    assert game_boy.read(Symbol.W_CUR_MAP) == 0
+    assert game_boy.state == state
+    assert_array_equal(game_boy.grayscale, frame, strict=True)
 
 
 def test_a_press_holding_its_button_past_its_frames_is_refused(boot: Boot):
@@ -194,24 +206,6 @@ def test_a_read_past_a_symbol_reads_the_byte_at_its_offset(game_boy: GameBoy):
     assert game_boy.read(Symbol.W_EVENT_FLAGS, 4) == 0x5A
 
 
-def test_a_reset_at_one_timer_div_leaves_a_state_of_one_digest(game_boy: GameBoy):
-    """
-    Asserts that a reset at one `timer_div` leaves the console in a state of
-    one digest, whatever the game's memory took since, that a write to the
-    memory changes the digest, and that another `timer_div` leaves another.
-    """
-    game_boy.start()
-    game_boy.reset(42)
-    first = game_boy.digest
-    game_boy.emulator.memory[Symbol.W_CUR_MAP] = 9
-    written = game_boy.digest
-    game_boy.reset(42)
-    again = game_boy.digest
-    game_boy.reset(43)
-
-    assert (written != first, again, game_boy.digest != first) == (True, first, True)
-
-
 @mark.parametrize("button", Button, ids=attrgetter("name"))
 def test_each_button_names_one_pyboy_presses(button: Button, game_boy: GameBoy):
     """
@@ -231,6 +225,24 @@ def test_each_symbol_reads_the_byte_at_its_address(game_boy: GameBoy, symbol: Sy
     game_boy.emulator.memory[symbol] = 0x5A
 
     assert game_boy.read(symbol) == 0x5A
+
+
+def test_a_reset_at_one_timer_div_leaves_a_state_of_one_digest(game_boy: GameBoy):
+    """
+    Asserts that a reset at one `timer_div` leaves the console in a state of
+    one digest, whatever the game's memory took since, that a write to the
+    memory changes the digest, and that another `timer_div` leaves another.
+    """
+    game_boy.start()
+    game_boy.reset(42)
+    first = game_boy.digest
+    game_boy.emulator.memory[Symbol.W_CUR_MAP] = 9
+    written = game_boy.digest
+    game_boy.reset(42)
+    again = game_boy.digest
+    game_boy.reset(43)
+
+    assert (written != first, again, game_boy.digest != first) == (True, first, True)
 
 
 def test_a_start_leaves_pythons_global_generator_undrawn(game_boy: GameBoy):
@@ -267,13 +279,6 @@ def test_a_window_the_setting_opens_is_one_pyboy_runs(
 
     with GameBoy.boot(cartridge, EmulatorSettings(open_window=True)) as game_boy:
         assert game_boy.emulator.tick(1)
-
-
-def test_the_digest_hashes_the_whole_saved_state(game_boy: GameBoy):
-    """
-    Asserts that a console's digest is the SHA-256 of the state it saves.
-    """
-    assert game_boy.digest == sha256(game_boy.state).hexdigest()
 
 
 @mark.parametrize(

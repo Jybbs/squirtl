@@ -1,7 +1,8 @@
 """
-Defines `ignore_interrupts`, the worker each environment of an evaluation
-runs in a process of its own, which imports nothing beyond what that worker
-needs, since a spawned process imports the module its worker sits in.
+Defines `ignore_interrupts`, the worker each environment of an evaluation or
+of a run of PQN or PPO runs in a process of its own, which imports nothing
+beyond what that worker needs, since a spawned process imports the module
+its worker sits in.
 """
 
 from gymnasium.vector.async_vector_env import _async_worker
@@ -13,7 +14,7 @@ def ignore_interrupts(*arguments: object):
     Ignores the interrupt signal, which a terminal sends every process
     in its foreground group, then runs Gymnasium's own worker, so a first
     interrupt reaches only the main process, whose handler under `squirtl
-    train` ends the run at its episode's end.
+    train` ends the run where the training loop next pauses.
     """
     signal(SIGINT, SIG_IGN)
     _async_worker(*arguments)

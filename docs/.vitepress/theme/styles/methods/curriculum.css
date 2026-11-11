@@ -1,0 +1,59 @@
+.curriculum-drawing { grid-template-columns: var(--spacing-curriculum-head) minmax(0, 1fr); }
+
+.curriculum-glass::before {
+  background    : var(--color-denim-mark);
+  border-radius : inherit;
+  clip-path     : inset(0 0 0 100%);
+  content       : '';
+  inset         : 0;
+  position      : absolute;
+  z-index       : -1;
+}
+
+.curriculum-gray { clip-path: inset(0); }
+
+.curriculum-lane[data-phase='agent'] .curriculum-glass::before { clip-path: inset(0); }
+
+.curriculum-lane[data-phase='agent'] .curriculum-gray { clip-path: inset(0 100% 0 0); }
+
+.curriculum-band + .curriculum-band::before {
+  border-left : var(--border-width-hairline) solid var(--color-quiet);
+  content     : '';
+  height      : var(--spacing-1);
+  left        : 0;
+  position    : absolute;
+  top         : 0;
+}
+
+.curriculum-place {
+  left : var(--spacing-1);
+  top  : var(--spacing-2);
+}
+
+.curriculum-band:first-child .curriculum-place { left: 0; }
+
+.curriculum-band:nth-child(even) .curriculum-place { top: var(--spacing-5); }
+
+.curriculum-band:nth-last-child(-n + 2) .curriculum-place {
+  left  : auto;
+  right : 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .curriculum-glide {
+    transition-duration        : calc(2 * var(--default-transition-duration));
+    transition-property        : transform, width;
+    transition-timing-function : var(--ease-travel);
+  }
+
+  .curriculum-lane[data-phase='agent'] .curriculum-glass::before,
+  .curriculum-lane[data-phase='agent'] .curriculum-gray {
+    transition : clip-path calc(2 * var(--default-transition-duration)) var(--ease-travel);
+  }
+}
+
+@container (width < 40rem) {
+  .curriculum-drawing { grid-template-columns: var(--spacing-5) minmax(0, 1fr); }
+
+  .curriculum-band:nth-child(4) .curriculum-place { top: var(--spacing-7); }
+}

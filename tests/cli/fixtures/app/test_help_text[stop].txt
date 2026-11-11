@@ -1,12 +1,12 @@
 Usage: squirtl stop DIRECTORY
 
-Writes the stop file into a run's directory from any shell, ending a training   
-run at the end of the episode it is playing, or a search at the end of its      
-iteration, with a checkpoint and exit status 0, as a first interrupt does.      
+Writes the stop file into a run's directory from any shell, ending the run with 
+a checkpoint and exit status 0, as a first interrupt does, at the end of its    
+episode for the deep Q-network, once a rollout's update ends for PQN and PPO,   
+and at the end of its iteration for a search.                                   
 
 A directory holding no run exits 1.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────╮
-│ *  DIRECTORY --directory  The run's directory, under data/runs/ in the clone │
-│                           it trains in. [required]                           │
+│ *  DIRECTORY --directory  The run's directory under data/runs/. [required]   │
 ╰──────────────────────────────────────────────────────────────────────────────╯

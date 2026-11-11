@@ -11,10 +11,15 @@ on:
       - .github/actions/provision/action.yml
       - .github/workflows/pages.yml
       - .mise/config.toml
+      - .mise/bin/pytest
       - .mise/mise.lock
+      - .mise/tasks/py/coverage
       - .mise/tasks/site/**
       - docs/**
       - pyproject.toml
+      - src/**
+      - tests/**
+      - uv.lock
 
   workflow_dispatch:
 
@@ -35,15 +40,18 @@ jobs:
         uses : actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with : { persist-credentials: false }
 
-      - name : Provision the tools the site's tasks read
+      - name : Provision the tools and the caches the suite's and the site's tasks read
         uses : $/.github/actions/provision
-        with : { tools: bun lychee node }
+        with : { caches: uv, tools: bun lychee node python uv }
+
+      - name : mise run py:coverage
+        run  : mise run py:coverage
 
       - name : "mise run site:press ::: site:links"
         run  : "mise run site:press ::: site:links"
 
       - name : Upload the built site
-        uses : actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses : actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with : { name: site, path: "${{ env.SITE }}", retention-days: 1 }
 
   deploy:
@@ -68,7 +76,7 @@ jobs:
           accountId       : ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           apiToken        : ${{ secrets.CLOUDFLARE_TOKEN }}
           command         : pages deploy ${{ env.SITE }} --project-name=squirtl --branch=main
-          wranglerVersion : 4.151.3
+          wranglerVersion : 4.158.0
 
   brief:
     name            : 🎒 Brief

@@ -241,29 +241,41 @@ def test_a_second_interrupt_exits_130(
     assert invoke(["search", *brief]).code == 130
 
 
+def test_a_search_reaching_its_goal_writes_the_path_as_its_one_episode(found: Path):
+    """
+    Asserts that a search reaching its goal writes the path it found as the
+    one episode of its directory, reaching that goal from Blue's bedroom, so
+    a curriculum takes the directory as its demonstration.
+    """
+    run = Run.read(found)
+
+    assert [len(run.demonstration.presses)] == [
+        episode.length for episode in run.recorded
+    ]
+
+
 def test_a_search_writes_its_run_and_prints_its_directory(searched: Path):
     """
-    Asserts that a search leaves a run recording itself as a search, its
-    iterations, its path, and its checkpoint, in the one directory the
-    command prints.
+    Asserts that a search stopping short of its goal leaves a run recording
+    itself as a search, its iterations, its checkpoint, and no episode, in
+    the one directory the command prints.
     """
     run = Run.read(searched)
 
     assert (
         run.searches,
         run.iterations.exists(),
-        run.demonstration.exists(),
-        run.checkpoint.exists()
-    ) == (True, True, True, True)
+        run.checkpoint.exists(),
+        [*run.recorded]
+    ) == (True, True, True, [])
     assert [*Path("data/runs").iterdir()] == [searched]
 
 
-def test_a_stop_of_a_search_names_the_iterations_end(invoke: Invoker, searched: Path):
+def test_a_stop_of_a_search_writes_its_stop_file(invoke: Invoker, searched: Path):
     """
-    Asserts that `squirtl stop` on a search writes its stop file and logs
-    that the search ends at its iteration's end.
+    Asserts that `squirtl stop` on a search exits zero having written the
+    search's stop file.
     """
     invocation = invoke(["stop", str(searched)])
 
-    assert (invocation.code, "at its iteration's end" in invocation.log) == (0, True)
-    assert Run.read(searched).stop.exists()
+    assert (invocation.code, Run.read(searched).stop.exists()) == (0, True)

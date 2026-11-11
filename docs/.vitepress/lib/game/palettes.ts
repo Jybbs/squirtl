@@ -1,4 +1,5 @@
-import { spriteShades } from '../identity/identity.ts'
+import { hexOf, spriteShades } from '../identity/identity.ts'
+import type { Painter }        from './screen.ts'
 
 /**
  * The background palette with every color of a room keeping its own shade,
@@ -18,7 +19,7 @@ function lightness(packed: number): number {
  * Reads the red, green, and blue bytes of the pixel at byte `at` of `pixels` as
  * one number.
  */
-function packedAt(pixels: Uint8ClampedArray, at: number): number {
+export function packedAt(pixels: Uint8ClampedArray, at: number): number {
   return (pixels[at]! << 16) | (pixels[at + 1]! << 8) | pixels[at + 2]!
 }
 
@@ -62,4 +63,20 @@ export function shadesOf(pixels: Uint8ClampedArray): number[] {
   const colors = new Set<number>()
   for (let at = 0; at < pixels.length; at += 4) colors.add(packedAt(pixels, at))
   return [...colors].toSorted((a, b) => lightness(b) - lightness(a)).slice(0, spriteShades.length)
+}
+
+/**
+ * Reads the hex each of the sprites' shades takes in `palette`, a sprite's
+ * shades shifted as the room's are.
+ */
+export const spriteFills = (palette: string): string[] =>
+  spriteShades.map((_, shade) => spriteShades[Number(palette[spriteShades.length - 1 - shade])]!)
+
+/**
+ * Fills a `width` by `height` area from the canvas's corner with the ground,
+ * which a widget shows until its rooms load.
+ */
+export function paintGround(context: Painter, width: number, height: number): void {
+  context.fillStyle = hexOf('ground')
+  context.fillRect(0, 0, width, height)
 }

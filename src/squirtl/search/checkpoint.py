@@ -11,7 +11,7 @@ from pydantic import InstanceOf
 from torch    import load, save
 from typing   import Self
 
-from squirtl.agent.schemas    import archiving, reading
+from squirtl.agent.checkpoint import archiving, reading
 from squirtl.emulator.schemas import Record
 from squirtl.search.schemas   import Frontier
 

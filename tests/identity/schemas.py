@@ -20,7 +20,7 @@ Pins what the identity's records declare and derive, covering:
 from functools import reduce
 from operator  import getitem
 from pydantic  import ValidationError
-from pytest    import fixture, mark, param, raises
+from pytest    import approx, fixture, mark, param, raises
 from re        import escape
 from tomllib   import loads
 
@@ -160,17 +160,16 @@ def test_body_text_holds_four_and_a_half_to_one_on_every_surface():
     ] == []
 
 
-def test_contrast_is_the_same_whichever_color_comes_first():
+def test_code_sets_at_the_size_putting_its_x_height_at_the_bodys():
     """
-    Asserts that the ratio between two colors reads the same from either
-    side, the lighter color always on top of the fraction.
+    Pins that code sets at the share of the text around it that stands its
+    lowercase letters at the body's height, the body face's x-height over
+    the code face's.
     """
-    black, white = Color(hex="#000000", name="Black"), Color(
-        hex  = "#ffffff",
-        name = "White"
-    )
+    faces = Identity.read().faces
 
-    assert (black.contrast(white), white.contrast(black)) == (21.0, 21.0)
+    assert faces.code_size * faces.code.x_height == approx(faces.body.x_height)
+    assert faces.code_size == approx(0.507 / 0.55)
 
 
 @mark.parametrize(
@@ -195,15 +194,33 @@ def test_a_swatch_writes_light_dark_only_where_the_schemes_differ(
     assert swatch.value == value
 
 
-def test_motion_writes_its_curve_as_a_css_function():
+def test_contrast_is_the_same_whichever_color_comes_first():
     """
-    Asserts that the timing's curve reads as the `cubic-bezier()` a
-    transition takes, each control point at its shortest.
+    Asserts that the ratio between two colors reads the same from either
+    side, the lighter color always on top of the fraction.
     """
-    assert Motion(
+    black, white = Color(hex="#000000", name="Black"), Color(
+        hex  = "#ffffff",
+        name = "White"
+    )
+
+    assert (black.contrast(white), white.contrast(black)) == (21.0, 21.0)
+
+
+def test_motion_writes_its_curves_as_css_functions():
+    """
+    Asserts that the timing's curve and its travel curve each read as the
+    `cubic-bezier()` a transition takes, each control point at its shortest.
+    """
+    motion = Motion(
         curve    = (0.32, 0.72, 0.0, 1.0),
-        duration = 150
-    ).easing == "cubic-bezier(0.32, 0.72, 0, 1)"
+        duration = 150,
+        travel   = (0.42, 0.0, 0.58, 1.0)
+    )
+
+    assert (motion.easing, motion.traveling) == (
+        "cubic-bezier(0.32, 0.72, 0, 1)", "cubic-bezier(0.42, 0, 0.58, 1)"
+    )
 
 
 def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
@@ -219,8 +236,9 @@ def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
     assert names == sorted(names)
     assert {
         "  --border-width-bar: 3px;", "  --spacing-4: 1rem;",
-        "  --text-label: 0.6875rem;"
+        "  --text-code: 0.9218em;", "  --text-label: 0.6875rem;"
     } <= {*lines}
+    assert "--color-citation-shell" in names
 
 
 @mark.parametrize(
@@ -230,14 +248,20 @@ def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
             Face(
                 axes     = "wght@400",
                 fallback = ("ui-monospace", "Menlo", "monospace"),
-                family   = "JetBrains Mono"
+                family   = "JetBrains Mono",
+                x_height = 0.55
             ),
             "'JetBrains Mono', ui-monospace, 'Menlo', monospace",
             "JetBrains+Mono:wght@400",
             id = "code"
         ),
         param(
-            Face(axes="ital@0;1", fallback=("Georgia", "serif"), family="Literata"),
+            Face(
+                axes     = "ital@0;1",
+                fallback = ("Georgia", "serif"),
+                family   = "Literata",
+                x_height = 0.507
+            ),
             "'Literata', 'Georgia', serif",
             "Literata:ital@0;1",
             id = "body"

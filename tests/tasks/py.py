@@ -30,7 +30,10 @@ def stand_in(install_stand_ins: Callable[..., Path]):
         param(
             "coverage",
             {},
-            ["--cov", "--cov-report", "html", "--cov-report", "term", "--diff"],
+            [
+                "--cov", "--cov-report", "html", "--cov-report",
+                "json", "--cov-report", "term", "--diff"
+            ],
             id = "coverage"
         ),
         param(

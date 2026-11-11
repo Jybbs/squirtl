@@ -4,7 +4,7 @@ import { type KeyEntry, type KeyFigures, hueOf } from '../../../lib/widgets/chip
 import { fromMouse }                             from '../../../lib/widgets/scrub.ts'
 import { Chip }                                  from './chip.tsx'
 import { HUES }                                  from './hues.ts'
-import { LABEL, SWATCH }                         from './widget.ts'
+import { LABEL, LIST, SWATCH }                   from './widget.ts'
 
 /**
  * The classes inking one entry of the strip: its mark, its name, and the ground
@@ -17,23 +17,27 @@ interface StripTint {
 }
 
 /**
- * The column each of an entry's two figures and their heads takes, each class
+ * The column each of an entry's two figures and their heads takes, beside the
+ * chip from the widget's 40rem and below it as two halves under it, each class
  * written whole so the theme's scan finds it.
  */
-const COLUMNS = ['col-start-2', 'col-start-3'] as const
+const COLUMNS = ['col-start-2 @max-sm:col-start-1', 'col-start-3 @max-sm:col-start-2'] as const
 
 /**
  * The classes laying out each part of a key: an entry's chip beside its
- * figures, which takes a row of its own below the widget's 40rem, a figure and
- * its head, the label in capitals over the key, the grid of entries and their
- * figures, and the key itself.
+ * figures, which takes a row of its own below the widget's 40rem, a figure,
+ * which drops under the chip there beside its head and leaves no room where it
+ * is empty, a figure's head over the column, hidden below the 40rem, and beside
+ * the figure only there, the label in capitals over the key, the grid of
+ * entries and their figures, and the key itself.
  */
 const PARTS = {
-  chip    : 'col-start-1 @max-sm:col-span-3',
-  figure  : 'text-right font-code text-figure leading-none font-medium whitespace-nowrap text-ink '
-          + 'tabular-nums',
-  figures : 'key-figures grid items-center gap-x-4 gap-y-2',
-  head    : 'text-right whitespace-nowrap',
+  chip    : 'col-start-1 @max-sm:col-span-2 @max-sm:mt-2',
+  figure  : 'grid justify-items-end font-code text-small leading-snug font-medium whitespace-nowrap text-ink '
+          + 'tabular-nums empty:@max-sm:hidden @max-sm:justify-items-start @max-sm:whitespace-normal',
+  figures : 'key-figures grid items-center gap-x-4 gap-y-2 @max-sm:gap-y-1',
+  head    : 'text-right whitespace-nowrap @max-sm:hidden',
+  told    : 'hidden @max-sm:block',
   label   : LABEL,
   root    : 'grid content-start gap-2'
 }
@@ -50,7 +54,7 @@ const STRIP_PARTS = {
   dim    : 'opacity-45',
   entry  : 'inline-flex items-center gap-2 rounded-2 border-hairline border-transparent py-1 pr-2 pl-1 '
          + 'text-left motion-safe:transition-opacity',
-  list   : 'key-strip flex flex-wrap gap-x-3 gap-y-1',
+  list   : [LIST, 'flex flex-wrap gap-x-3 gap-y-1'],
   mark   : 'grid size-key-mark flex-none place-items-center',
   name   : 'font-code text-label leading-snug font-semibold tracking-caps whitespace-nowrap uppercase',
   swatch : SWATCH,
@@ -90,6 +94,25 @@ function stripParts(entry: KeyEntry, tint: StripTint) {
 }
 
 /**
+ * Draws the entries of a key given `heads`, each entry's chip beside the two
+ * figures it records under them.
+ */
+function figuredParts(entries: readonly KeyEntry[], heads: KeyFigures) {
+  return [
+    <span class={[PARTS.chip, PARTS.head]} />,
+    ...heads.map((head, column) => <span class={[PARTS.label, PARTS.head, COLUMNS[column]]}>{head}</span>),
+    ...entries.flatMap(each => [
+      <span class={PARTS.chip}><Chip class="w-full" {...chipOf(each)} /></span>,
+      ...(each.figures ?? []).map((figure, column) => (
+        <span class={[PARTS.figure, COLUMNS[column]]}>
+          {figure ? [<span aria-hidden="true" class={[PARTS.label, PARTS.told]}>{heads[column]}</span>, figure] : null}
+        </span>
+      ))
+    ])
+  ]
+}
+
+/**
  * Reads the classes inking `entry` in the strip, from the hue it takes or the
  * hue of its role.
  */
@@ -123,17 +146,6 @@ export const Key = defineComponent({
   },
 
   setup: (props, { emit }) => {
-    const figured = (heads: KeyFigures) => [
-      <span class={PARTS.chip} />,
-      ...heads.map((head, column) => <span class={[PARTS.label, PARTS.head, COLUMNS[column]]}>{head}</span>),
-      ...props.entries.flatMap(each => [
-        <span class={PARTS.chip}><Chip class="w-full" {...chipOf(each)} /></span>,
-        ...(each.figures ?? []).map((figure, column) => (
-          <span class={[PARTS.figure, COLUMNS[column]]}>{figure}</span>
-        ))
-      ])
-    ]
-
     const dimmed = (n: number) => props.lit !== null && props.lit !== n ? STRIP_PARTS.dim : null
 
     const entryOf = (entry: KeyEntry, n: number) => {
@@ -167,7 +179,7 @@ export const Key = defineComponent({
                 {props.entries.map((each, n) => entryOf(each, n))}
               </ul>
             )
-          : <div class={PARTS.figures}>{figured(props.heads)}</div>}
+          : <div class={PARTS.figures}>{figuredParts(props.entries, props.heads)}</div>}
       </div>
     )
   }

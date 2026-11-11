@@ -1,9 +1,10 @@
 """
 Defines the fixtures the tests of `squirtl.environment` request, `made`,
-which makes the wrapped environment on PyBoy, `overworld`, an `Overworld`
-on `StandIn`, `shaded`, an `Overworld` on PyBoy whose frame holds all
-four of its grays, and `walking`, which moves the player along each tick
-of `overworld`.
+which makes the wrapped environment on PyBoy, `following`, which makes
+it along a demonstration on the cartridge `timed` writes, `overworld`, an
+`Overworld` on `StandIn`, `shaded`, an `Overworld` on PyBoy whose frame
+holds all four of its grays, and `walking`, which moves the player along
+each tick of `overworld`.
 """
 
 from collections.abc import Callable, Iterator
@@ -15,8 +16,8 @@ from pytest          import MonkeyPatch, fixture
 from squirtl.emulator              import console
 from squirtl.emulator.schemas      import Cartridge, EmulatorSettings, Symbol
 from squirtl.environment.overworld import Overworld
-from squirtl.environment.schemas   import EnvironmentSettings
-from squirtl.reward.schemas        import RewardSettings
+from squirtl.environment.schemas   import EnvironmentSettings, Recording
+from squirtl.reward.schemas        import Event, RewardSettings
 
 
 @fixture
@@ -39,6 +40,42 @@ def made(cartridge: Cartridge) -> Iterator[Callable[..., Env]]:
                     EmulatorSettings(),
                     EnvironmentSettings(**environment),
                     RewardSettings()
+                ).make()
+            )
+
+        yield make
+
+
+@fixture
+def following(timed: Cartridge) -> Iterator[Callable[..., Env]]:
+    """
+    Builds a factory making the environment on PyBoy from `timed` along the
+    demonstration of 13 idle presses at a `timer_div` of 0, or the presses
+    it is given, each step advancing 64 frames, so the presses at steps 4,
+    8, and 12 set the cartridge's flags, the last reaching the starter, each
+    episode ending at the starter unless the call names another goal, and
+    closing each with the test.
+    """
+    with ExitStack() as stack:
+
+        def make(
+            presses   : bytes = bytes(13),
+            tolerance : float = 0.0,
+            *,
+            goal      : Event = Event.EVENT_GOT_STARTER
+        ) -> Env:
+            """
+            Makes the environment toward `goal` along the demonstration
+            of `presses`.
+            """
+            return stack.enter_context(
+                Overworld.specification(
+                    timed,
+                    EmulatorSettings(),
+                    EnvironmentSettings(frames_per_step=64, goal=goal),
+                    RewardSettings(),
+                    Recording(presses=presses, timer_div=0),
+                    tolerance
                 ).make()
             )
 

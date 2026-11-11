@@ -1,47 +1,243 @@
 """
 Defines the records one run reads and writes:
 
-- `RunSettings`, every setting the run reads
+- `RunSettings`, every setting the run reads, `CurriculumSettings` and
+  `SearchSettings` among them, and `Range`, the least and the most of a
+  count or a move a setting bounds
 - `Revision`, the code the run ran on
 - `Run`, the directory under `data/runs/` recording both, each episode, each
-  evaluation, and the checkpoint, or each iteration and the demonstration of a
-  search
+  evaluation, and the checkpoint, or each iteration of a search
+- `RunListing`, the settings naming a run among others, and `Start`, where
+  its training episodes start
 - `Episode`, one episode as a line of the run's `episodes`
 - `Stream`, the streams of random draws the run makes
-- `Handover`, what a resumed run takes over from the run it continues, and
-  `SearchHandover`, what a resumed search does
 """
 
 from collections     import deque
 from collections.abc import Iterator
 from datetime        import UTC, datetime
 from enum            import StrEnum, auto
-from gymnasium.envs.registration import EnvSpec
-from hashlib      import sha256
-from itertools    import islice, takewhile
-from json         import loads
-from loguru       import logger
-from numpy        import uint64
-from numpy.random import SeedSequence
-from os           import SEEK_END, pread
-from pathlib      import Path
-from pydantic     import AwareDatetime, Field, NonNegativeInt, PositiveInt, PrivateAttr, StringConstraints
-from subprocess   import check_output
-from typing       import Annotated, Self
+from hashlib         import sha256
+from itertools       import islice, takewhile
+from json            import loads
+from loguru          import logger
+from numpy           import uint64
+from numpy.random    import SeedSequence
+from operator        import attrgetter
+from os              import SEEK_END, pread
+from pathlib         import Path
+from pydantic        import AfterValidator, AwareDatetime, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat
+from pydantic        import PositiveInt, PrivateAttr, StringConstraints, model_validator
+from subprocess      import check_output
+from typing          import Annotated, ClassVar, Self
 
-from squirtl.agent.schemas         import AgentSettings, Checkpoint, Weights, flush, replacing
-from squirtl.emulator.schemas      import Cartridge, EmulatorSettings, Record
-from squirtl.environment.overworld import Overworld
-from squirtl.environment.schemas   import EnvironmentSettings, Outcome, Recording
-from squirtl.evaluation.evaluator  import Evaluator
-from squirtl.evaluation.schemas    import Evaluation, EvaluationSettings
-from squirtl.reward.schemas        import RewardSettings
-from squirtl.search.checkpoint     import SearchCheckpoint
-from squirtl.search.schemas        import Iteration, SearchSettings
+from squirtl.agent.schemas       import AgentSettings, Algorithm, PolicyUpdate, Update, flush
+from squirtl.emulator.schemas    import EmulatorSettings, Record, UnitInterval, processors
+from squirtl.environment.schemas import EnvironmentSettings, Outcome, Recording
+from squirtl.evaluation.schemas  import Evaluation, EvaluationSettings
+from squirtl.reward.schemas      import RewardSettings
 
 type Hexadecimal = Annotated[
     str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
 ]
+
+type Range[T] = Annotated[tuple[T, T], AfterValidator(ascending)]
+
+
+def ascending[T: float](bounds: tuple[T, T]) -> tuple[T, T]:
+    """
+    Refuses a range whose least passes its most, returning `bounds` as they
+    are otherwise.
+
+    Raises:
+        ValueError: Where it does, which Pydantic raises as a
+                    `ValidationError` naming the field.
+    """
+    if bounds[0] > bounds[1]:
+        raise ValueError(f"the least of {bounds[0]} passes the most of {bounds[1]}")
+
+    return bounds
+
+
+class CurriculumSettings(Record):
+    """
+    The settings of the curriculum that starts each training episode
+    along a demonstration and moves the start back toward Blue's
+    bedroom, each a field of `RunSettings.curriculum` and a key under
+    `[tool.squirtl.curriculum]` in `pyproject.toml`. Every default but
+    `demonstration` is the one Mhammedi and Cohan's Table 8 sets for the
+    backward algorithm of their Appendix B.
+    """
+
+    back: Range[PositiveFloat] = (0.25, 0.75)
+    """
+    The least and the most a window moves back, each a multiple of `window`,
+    between which each move draws uniformly, whose default is the decrease
+    multipliers of Mhammedi and Cohan's Table 8.
+    """
+
+    buffer: PositiveInt = 500
+    """
+    The steps an episode from a start takes beyond `multiplier` times the
+    moving average of successful lengths before it truncates, whose default
+    is the rollout length buffer of Mhammedi and Cohan's Table 8.
+    """
+
+    completion: UnitInterval = 0.95
+    """
+    The share of the recent episodes from a window reaching Blue's bedroom
+    that have to succeed before its segment counts as solved, whose default
+    is the completion threshold of Mhammedi and Cohan's Table 8.
+    """
+
+    demonstration: Path | None = None
+    """
+    The directory of the run whose shortest episode reaching the goal each
+    training episode starts along, a run ending its episodes at the same
+    goal, or `None` to start every episode in Blue's bedroom.
+    """
+
+    forward: Range[PositiveFloat] = (0.5, 1.0)
+    """
+    The least and the most a window moves forward, each a multiple of
+    `window`, between which each move draws uniformly, whose default is the
+    increase multipliers of Mhammedi and Cohan's Table 8.
+    """
+
+    multiplier: PositiveFloat = 2.0
+    """
+    The multiple of the moving average of successful lengths an episode
+    from a start takes before `buffer` and then truncates, whose default is
+    the early termination multiplier of Mhammedi and Cohan's Table 8.
+    """
+
+    recent: PositiveInt = 32
+    """
+    The episodes from a window whose share of successes moves it, after
+    which the count starts again, whose default is the minimum rollouts for
+    an update of Mhammedi and Cohan's Table 8.
+    """
+
+    required: UnitInterval = 0.2
+    """
+    The share of the recent episodes from a window that have to succeed for
+    it to move back, where a smaller share moves it forward, whose default
+    is the required success rate of Mhammedi and Cohan's Table 8.
+    """
+
+    smoothing: UnitInterval = 0.9
+    """
+    The weight the moving average of successful lengths gives each new
+    length, the smoothing constant of single exponential smoothing in
+    section 6.4.3.1 of the NIST/SEMATECH e-Handbook of Statistical Methods,
+    whose default is the smoothing factor of Mhammedi and Cohan's Table 8.
+    """
+
+    tolerance: NonNegativeFloat = 0.0
+    """
+    The reward an episode from a start may fall short of the
+    demonstration's from the same step and still succeed, whose default is
+    the failure reward tolerance of Mhammedi and Cohan's Table 8.
+    """
+
+    window: PositiveInt = 25
+    """
+    The steps of the demonstration each segment's window spans back from
+    its latest start, whose default is the start delta window of Mhammedi
+    and Cohan's Table 8.
+    """
+
+    @model_validator(mode="after")
+    def verify(self) -> Self:
+        """
+        Refuses a `required` share above `completion`.
+
+        Raises:
+            ValueError: Where it lies above, which Pydantic raises as a
+                        `ValidationError`.
+        """
+        if self.required > self.completion:
+            raise ValueError(
+                f"a required share of {self.required} passes the completion share "
+                f"of {self.completion}"
+            )
+
+        return self
+
+
+class SearchSettings(Record):
+    """
+    The settings a search over save states reads, each a field of
+    `RunSettings.search` and a key under `[tool.squirtl.search]` in
+    `pyproject.toml`. The population's defaults are the Montezuma's Revenge
+    column of Table 5 in Mhammedi and Cohan's "Decoupling Exploration and
+    Policy Optimization", and the predictor's are their Appendix A.3.
+    """
+
+    batch_size: PositiveInt = 128
+    """
+    The frame stacks each update of the predictor draws, whose default
+    follows Mhammedi and Cohan's Appendix A.3.
+    """
+
+    capacity: PositiveInt = 100_000
+    """
+    The frames replay memory holds for the predictor, one per slot, under
+    1 GB at the default frame shape.
+    """
+
+    epsilon: UnitInterval = 0.2
+    """
+    The chance a press takes a random action in place of the one its
+    rollout holds, whose default follows Mhammedi and Cohan's Appendix A.2.
+    """
+
+    groups: PositiveInt = 4
+    """
+    The groups of particles the search evolves, Mhammedi and Cohan's M.
+    """
+
+    inner_steps: Range[PositiveInt] = (5, 15)
+    """
+    The fewest and the most presses of one rollout, Mhammedi and Cohan's
+    range of T.
+    """
+
+    learning_rate: PositiveFloat = 3e-4
+    """
+    The step size Adam takes on the predictor, whose default follows
+    Mhammedi and Cohan's Appendix A.3.
+    """
+
+    outer_steps: Range[PositiveInt] = (10, 20)
+    """
+    The fewest and the most rollouts each particle plays in one iteration,
+    Mhammedi and Cohan's range of K.
+    """
+
+    particles: PositiveInt = 32
+    """
+    The particles each group holds, Mhammedi and Cohan's N.
+    """
+
+    rollback: Range[PositiveInt] = (1, 3)
+    """
+    The fewest and the most generations a particle moves up the tree once
+    every particle of its group is dead, Mhammedi and Cohan's range of k.
+    """
+
+    update_steps: PositiveInt = 44
+    """
+    The presses between updates of the predictor, whose default is the
+    ratio of Mhammedi and Cohan's Table 6, 2.28 million updates over 400
+    million frames at their action repeat of 4.
+    """
+
+    workers: PositiveInt = Field(default_factory=processors)
+    """
+    The worker processes the rollouts run across, which defaults to the
+    CPUs the process may use.
+    """
 
 
 class Revision(Record):
@@ -101,6 +297,7 @@ class Stream(StrEnum):
     AGENT       = auto()
     ENVIRONMENT = auto()
     EVALUATION  = auto()
+    WINDOW      = auto()
     SEARCH      = auto()
 
 
@@ -116,6 +313,18 @@ class RunSettings(Record):
     fills one.
     """
 
+    machine: ClassVar[dict[str, set[str]]] = {
+        "agent"      : {"device"},
+        "evaluation" : {"environments"},
+        "search"     : {"workers"}
+    }
+    """
+    The fields under each subject whose default follows the machine a run
+    starts on, the agent's device, the environments an evaluation plays
+    across, and the workers a search plays across, each left out of the
+    defaults the site's pages state.
+    """
+
     agent: AgentSettings = Field(default_factory=AgentSettings)
     """
     The settings the agent reads.
@@ -124,8 +333,15 @@ class RunSettings(Record):
     checkpoint_steps: PositiveInt = 250_000
     """
     The environment steps between checkpoints, each written at the first
-    episode end reaching a multiple of them, whose default is the 250,000
-    steps of each iteration Dopamine's DQN checkpoints after.
+    episode end, or the end of a rollout's update for PQN and PPO, reaching
+    a multiple of them, whose default is the 250,000 steps of each iteration
+    Dopamine's DQN checkpoints after.
+    """
+
+    curriculum: CurriculumSettings = Field(default_factory=CurriculumSettings)
+    """
+    The settings of the curriculum starting each training episode along a
+    demonstration.
     """
 
     emulator: EmulatorSettings = Field(default_factory=EmulatorSettings)
@@ -146,9 +362,9 @@ class RunSettings(Record):
     evaluation_steps: PositiveInt = 250_000
     """
     The environment steps between the evaluations a run plays, each where
-    an episode end or the run's last step first reaches a multiple of them,
-    whose default is the 250,000 steps of each iteration Dopamine's DQN
-    evaluates after.
+    an episode end, the end of a rollout's update for PQN and PPO, or the
+    run's last step first reaches a multiple of them, whose default is the
+    250,000 steps of each iteration Dopamine's DQN evaluates after.
     """
 
     reward: RewardSettings = Field(default_factory=RewardSettings)
@@ -169,7 +385,8 @@ class RunSettings(Record):
 
     steps: PositiveInt = 2_500_000
     """
-    The environment steps the run takes, whose default is ten of the
+    The environment steps the run takes, a run of PQN or PPO going on to
+    the end of the rollout that reaches them, whose default is ten of the
     250,000-step iterations Dopamine's DQN evaluates after.
     """
 
@@ -189,17 +406,32 @@ class RunSettings(Record):
             for stream, child in zip(Stream, SeedSequence(self.seed).spawn(len(Stream)))
         }
 
-    def specification(self, cartridge: Cartridge) -> EnvSpec:
+    @model_validator(mode="after")
+    def verify(self) -> Self:
         """
-        Specifies the environment the run plays on `cartridge` under its
-        emulator, environment, and reward settings.
+        Refuses a demonstration for the deep Q-network, whose episodes start
+        in Blue's bedroom alone, and reward settings whose ceiling at the
+        environment's goal passes 1, the bound Mnih et al. clip each reward
+        to.
+
+        Raises:
+            ValueError: Where either holds, which Pydantic raises as a
+                        `ValidationError`.
         """
-        return Overworld.specification(
-            cartridge,
-            self.emulator,
-            self.environment,
-            self.reward
-        )
+        if self.curriculum.demonstration and self.agent.algorithm is Algorithm.DQN:
+            raise ValueError(
+                f"the deep Q-network starts every episode in Blue's bedroom, so it "
+                f"takes no demonstration such as {self.curriculum.demonstration}"
+            )
+
+        if (ceiling := self.reward.ceiling(goal := self.environment.goal)) > 1:
+            raise ValueError(
+                f"a step reaching a new position and every flag up to {goal.name} "
+                f"at once earns {ceiling - 1:.3g} more than the 1 Mnih et al. clip "
+                f"each reward to"
+            )
+
+        return self
 
 
 class Run(Record):
@@ -207,6 +439,8 @@ class Run(Record):
     One run, recorded in a directory of its own under `data/runs/` named for
     the instant it started.
     """
+
+    folder: ClassVar[Path] = Path("data/runs")
 
     digest: Hexadecimal
     """
@@ -258,6 +492,16 @@ class Run(Record):
         return self.directory / "baseline.json"
 
     @property
+    def baselined(self) -> Evaluation | None:
+        """
+        Reads the random baseline's evaluation `baseline` holds, or `None`
+        where the run has played none.
+        """
+        return Evaluation.model_validate_json(
+            self.baseline.read_bytes()
+        ) if self.baseline.exists() else None
+
+    @property
     def checkpoint(self) -> Path:
         """
         Locates the checkpoint a run writes at each interval and at its end,
@@ -266,12 +510,27 @@ class Run(Record):
         return self.directory / "checkpoint.npz"
 
     @property
-    def demonstration(self) -> Path:
+    def demonstration(self) -> Recording:
         """
-        Locates the JSON file holding the `Recording` of the path a search
-        has found, rewritten at the end of each iteration.
+        Reads the recording of the shortest episode `episodes` holds that
+        started in Blue's bedroom and reached the run's goal, the first of
+        those sharing its length.
+
+        Raises:
+            ValueError: Where `episodes` holds none.
         """
-        return self.directory / "demonstration.json"
+        reached = (
+            episode for episode in self.recorded
+            if episode.terminated and episode.recording.takeover is None
+        )
+
+        if shortest := min(reached, default=None, key=attrgetter("length")):
+            return shortest.recording
+
+        raise ValueError(
+            f"{self.episodes} holds no episode reaching "
+            f"{self.settings.environment.goal.name} from the bedroom"
+        )
 
     @property
     def directory(self) -> Path:
@@ -280,7 +539,7 @@ class Run(Record):
         `read` read it from, or otherwise the one under `data/runs/` its
         name gives.
         """
-        return self._read_from or Path("data/runs", self.name)
+        return self._read_from or self.folder / self.name
 
     @property
     def episodes(self) -> Path:
@@ -316,14 +575,6 @@ class Run(Record):
         return self.directory / "iterations.jsonl"
 
     @property
-    def log(self) -> Path:
-        """
-        Locates the JSON Lines file holding a line for each unit of the
-        run's work, a search's `iterations` and otherwise its `episodes`.
-        """
-        return self.iterations if self.searches else self.episodes
-
-    @property
     def name(self) -> str:
         """
         Spells `started` in UTC in the basic format of ISO 8601 to the
@@ -350,9 +601,10 @@ class Run(Record):
     @property
     def stop(self) -> Path:
         """
-        Locates the file whose presence stops a training run at the end of
-        the episode it is playing, or a search at the end of its iteration,
-        which `squirtl stop` writes.
+        Locates the file whose presence stops the run where its loop next
+        pauses, the end of an episode for the deep Q-network, the end of a
+        rollout's update for PQN and PPO, and the end of an iteration for a
+        search, which `squirtl stop` writes.
         """
         return self.directory / "stop"
 
@@ -377,13 +629,34 @@ class Run(Record):
                 f"{record.model_dump_json()}\n".encode() for record in records
             )
 
-    def demonstrate(self, recording: Recording):
+    def check(self, digest: str):
         """
-        Writes `recording` to the run's `demonstration` through `replacing`,
-        so an interrupt leaves the last one whole.
+        Refuses `digest`, the digest of the state a console's intro left,
+        where it differs from the one the run recorded, as it does on a
+        cartridge other than the one the run trained on.
+
+        Raises:
+            ValueError: Where the two differ.
         """
-        with replacing(self.demonstration) as partial:
-            partial.write_text(recording.model_dump_json(), encoding="utf-8")
+        if digest != self.digest:
+            raise ValueError(
+                f"{self.directory} recorded the intro leaving the console in a state "
+                f"of digest {self.digest}, where this cartridge leaves {digest}"
+            )
+
+    def check_trained(self):
+        """
+        Refuses a run that searched rather than trained an agent.
+
+        Raises:
+            ValueError: Where the run is a search, naming the commands that
+                        read one.
+        """
+        if self.searches:
+            raise ValueError(
+                f"{self.directory} holds a search, which `squirtl watch` plays and "
+                f"`squirtl search --resume` continues"
+            )
 
     def ended_by(self, step: int) -> list[str]:
         """
@@ -438,55 +711,6 @@ class Run(Record):
 
         raise IndexError(f"{self.episodes} holds no episode {number or 'at all'}")
 
-    def evaluate(
-        self,
-        cartridge : Cartridge,
-        weights   : Weights
-    ) -> tuple[Evaluation, Evaluation]:
-        """
-        Reads the agent's evaluation at the step of `weights` and the random
-        baseline's from the run, playing whichever of the two it lacks under
-        the evaluation settings and the evaluation stream it recorded and
-        writing it there. The agent plays from the online network `weights`
-        holds, and the baseline under the same seeds.
-
-        Returns:
-            The agent's evaluation and the baseline's.
-        """
-        held = next(
-            (
-                evaluation
-                for evaluation in self.evaluated
-                if evaluation.step == weights.step
-            ),
-            None
-        )
-        baseline = Evaluation.model_validate_json(
-            self.baseline.read_text(encoding="utf-8")
-        ) if self.baseline.exists() else None
-
-        if held is None or baseline is None:
-            settings = self.settings
-
-            with Evaluator(
-                settings.agent.device,
-                settings.seeds[Stream.EVALUATION],
-                settings.evaluation,
-                settings.specification(cartridge)
-            ) as evaluator:
-                if held is None:
-                    held = evaluator.evaluate(weights)
-                    self.append(self.evaluations, held)
-
-                if baseline is None:
-                    baseline = evaluator.baseline()
-                    self.baseline.write_text(
-                        baseline.model_dump_json(),
-                        encoding = "utf-8"
-                    )
-
-        return held, baseline
-
     def evaluated_by(self, step: int) -> Iterator[Evaluation]:
         """
         Reads each evaluation `evaluations` holds of the agent at `step` of
@@ -494,19 +718,22 @@ class Run(Record):
         """
         return takewhile(lambda evaluation: evaluation.step <= step, self.evaluated)
 
-    def inherit(self, handover: Handover):
+    def first(self, count: int) -> list[str]:
         """
-        Writes into the run what `handover` carries over from the run
-        it continues, each episode's line as that run wrote it, each
-        evaluation, and the random baseline's where it played one.
+        Reads the line of each of the first `count` episodes `episodes`
+        holds, validating no line.
+
+        Raises:
+            ValueError: Where `episodes` holds fewer, as where a crash lost
+                        the log's last lines.
         """
-        with self.episodes.open("a", encoding="utf-8") as lines:
-            lines.writelines(handover.episodes)
+        if len(lines := list(islice(self.lines(self.episodes), count))) < count:
+            raise ValueError(
+                f"{self.episodes} holds {len(lines):,} episodes, short of the "
+                f"{count:,} the checkpoint follows"
+            )
 
-        self.append(self.evaluations, *handover.evaluations)
-
-        if handover.baseline is not None:
-            self.baseline.write_text(handover.baseline, encoding="utf-8")
+        return lines
 
     def lines(self, path: Path) -> Iterator[str]:
         """
@@ -522,39 +749,6 @@ class Run(Record):
                         yield line
                     else:
                         logger.warning("Skipping the unfinished last line of {}", path)
-
-    def playback(self, number: int | None = None) -> tuple[Recording, float]:
-        """
-        Reads what `squirtl watch` plays and the return it expects, episode
-        `number` of a training run and its return, as `episode` reads it, or
-        a search's demonstration and the reward its last iteration records.
-
-        Raises:
-            FileNotFoundError : Where a search holds no demonstration.
-            IndexError        : Where `episodes` holds no such episode, or a
-                                search no iteration.
-            ValueError        : Where `number` names an episode of a search.
-        """
-        if not self.searches:
-            episode = self.episode(number)
-
-            return episode.recording, episode.reward
-
-        if number is not None:
-            raise ValueError(
-                f"{self.directory} holds a search, whose one demonstration has no "
-                f"episode {number}"
-            )
-
-        if last := deque(self.lines(self.iterations), maxlen=1):
-            return (
-                Recording.model_validate_json(
-                    self.demonstration.read_text(encoding="utf-8")
-                ),
-                Iteration.model_validate_json(last[0]).reward
-            )
-
-        raise IndexError(f"{self.iterations} holds no iteration")
 
     @classmethod
     def read(cls, directory: Path) -> Self:
@@ -627,42 +821,76 @@ class Run(Record):
         with path.open("ab") as file:
             flush(file.fileno())
 
+
+class Start(StrEnum):
+    """
+    Where a run's training episodes start, in Blue's bedroom or along the
+    demonstration its curriculum names.
+    """
+
+    BEDROOM    = auto()
+    CURRICULUM = auto()
+
+
+class RunListing(Record):
+    """
+    The settings naming one run among others, its agent, whether it trained
+    along the curriculum, and its seed, beside its name.
+    """
+
+    agent: Algorithm
+    """
+    The agent the run trained.
+    """
+
+    curriculum: bool
+    """
+    Whether the run started its training episodes along a demonstration.
+    """
+
+    name: str
+    """
+    The run's name, the folder holding it.
+    """
+
+    seed: int
+    """
+    The seed the run's random draws derive from.
+    """
+
+    @property
+    def start(self) -> Start:
+        """
+        Names where the run's training episodes start.
+        """
+        return Start.CURRICULUM if self.curriculum else Start.BEDROOM
+
     @classmethod
-    def trained(cls, directory: Path) -> Self:
+    def of(cls, run: Run, **fields: object) -> Self:
         """
-        Reads the training run `directory` holds, as `read` does.
-
-        Raises:
-            ValueError: Where `directory` holds a search, naming the
-                        commands that read one, beside each error `read`
-                        raises.
+        Reads the listing of `run` from the settings it recorded, beside the
+        further `fields` a subclass declares.
         """
-        run = cls.read(directory)
-
-        if run.searches:
-            raise ValueError(
-                f"{directory} holds a search, which `squirtl watch` plays and "
-                f"`squirtl search --resume` continues"
-            )
-
-        return run
+        return cls(
+            agent      = run.settings.agent.algorithm,
+            curriculum = run.settings.curriculum.demonstration is not None,
+            name       = run.name,
+            seed       = run.settings.seed,
+            **fields
+        )
 
 
 class Episode(Outcome):
     """
     One episode as a run records it on a line of its `episodes`, from what
-    the episode reached to the `Recording` that `squirtl watch` plays back.
+    the episode reached to the `Recording` that `squirtl watch` plays back,
+    beside the measures of the agent that played it.
     """
 
-    epsilon: float
+    epsilon: float | None
     """
-    The chance of a random action at the episode's last step.
-    """
-
-    loss: float | None
-    """
-    The mean Huber loss over the updates the episode's steps took, or `None`
-    where none of its steps took one.
+    The chance of a random action at the episode's last step, or `None` for
+    PPO, which samples each action from its policy.
     """
 
     recording: Recording
@@ -671,145 +899,9 @@ class Episode(Outcome):
     from.
     """
 
-    value: float | None
+    update: PolicyUpdate | Update | None
     """
-    The mean value the online network gave the actions of each update's
-    batch, or `None` where no update ran.
+    Each measure of the agent's updates averaged over those taken while the
+    episode played, the loss and the value for the deep Q-network and PQN
+    and PPO's own for PPO, or `None` where none ran.
     """
-
-
-class Handover(Record):
-    """
-    What a resumed run takes over from the stopped run it continues, read
-    whole before the new run writes anything, so a resume refused for any of
-    it leaves no directory behind.
-    """
-
-    baseline: str | None
-    """
-    The random baseline's evaluation as the stopped run's `baseline` holds
-    it, or `None` where it played none.
-    """
-
-    checkpoint: Checkpoint
-    """
-    The stopped run's last checkpoint, which the agent restores.
-    """
-
-    episodes: list[str]
-    """
-    The line of each episode that ended by the checkpoint's step, as the
-    stopped run's `episodes` holds it.
-    """
-
-    evaluations: list[Evaluation]
-    """
-    Each evaluation of the agent at the checkpoint's step or before it.
-    """
-
-    name: str
-    """
-    The stopped run's name, which the new run records under `resumes`.
-    """
-
-    @property
-    def evaluated(self) -> int:
-        """
-        Reads the step of the last evaluation carried over, or 0 where none
-        is.
-        """
-        return self.evaluations[-1].step if self.evaluations else 0
-
-    @classmethod
-    def from_run(cls, previous: Run) -> Self:
-        """
-        Reads what `previous` recorded up to its last checkpoint.
-
-        Raises:
-            FileNotFoundError : Where `previous` holds no checkpoint.
-            ValueError        : Where the checkpoint is damaged or already
-                                holds the run's `steps`, or the episodes
-                                `previous` recorded end short of it, as
-                                `Run.ended_by` raises.
-        """
-        checkpoint = Checkpoint.from_path(previous.checkpoint)
-
-        if checkpoint.step >= previous.settings.steps:
-            raise ValueError(
-                f"{previous.checkpoint} already holds the run's "
-                f"{previous.settings.steps:,} steps"
-            )
-
-        return cls(
-            baseline = previous.baseline.read_text(
-                encoding = "utf-8"
-            ) if previous.baseline.exists() else None,
-            checkpoint  = checkpoint,
-            episodes    = previous.ended_by(checkpoint.step),
-            evaluations = list(previous.evaluated_by(checkpoint.step)),
-            name        = previous.name
-        )
-
-
-class SearchHandover(Record):
-    """
-    What a resumed search takes over from the stopped search it continues,
-    read whole before the new run writes anything, so a resume refused for
-    any of it leaves no directory behind.
-    """
-
-    checkpoint: SearchCheckpoint
-    """
-    The stopped search's last checkpoint, which the search restores.
-    """
-
-    iterations: list[str]
-    """
-    The line of each iteration the checkpoint holds, as the stopped search's
-    `iterations` holds it.
-    """
-
-    name: str
-    """
-    The stopped search's name, which the new run records under `resumes`.
-    """
-
-    @classmethod
-    def from_run(cls, previous: Run) -> Self:
-        """
-        Reads what `previous` recorded up to its last checkpoint.
-
-        Raises:
-            FileNotFoundError : Where `previous` holds no checkpoint.
-            ValueError        : Where `previous` is a training run, its
-                                checkpoint is damaged or already holds
-                                the starter or the run's `steps`, or the
-                                iterations `previous` recorded end short
-                                of it.
-        """
-        if not previous.searches:
-            raise ValueError(
-                f"{previous.directory} holds a training run, which `squirtl train "
-                f"--resume` continues"
-            )
-
-        checkpoint = SearchCheckpoint.from_path(previous.checkpoint)
-        frontier   = checkpoint.frontier
-
-        if frontier.winner.terminated or frontier.presses >= previous.settings.steps:
-            raise ValueError(
-                f"{previous.checkpoint} already holds the search's end, at press "
-                f"{frontier.presses:,}"
-            )
-
-        iterations = list(
-            islice(previous.lines(previous.iterations), frontier.iterations)
-        )
-
-        if len(iterations) < frontier.iterations:
-            raise ValueError(
-                f"{previous.iterations} ends at iteration {len(iterations):,}, short "
-                f"of the checkpoint at iteration {frontier.iterations:,}"
-            )
-
-        return cls(checkpoint=checkpoint, iterations=iterations, name=previous.name)

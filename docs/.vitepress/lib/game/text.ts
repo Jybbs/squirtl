@@ -6,7 +6,7 @@ import { type Painter, paintRuns }     from './screen.ts'
  * A character the game's font draws, a letter or one of the text box's border
  * tiles.
  */
-type Glyph = keyof typeof FONT
+export type Glyph = keyof typeof FONT
 
 /**
  * A text box in the screen's eight-pixel tiles, the column and the row of its
@@ -36,7 +36,7 @@ const glyphRuns = new Map(Object.entries(FONT).map(([glyph, rows]) => [glyph, ru
  * Reads a glyph's eight rows of eight pixels, written as two hex digits a row,
  * as a grid of the darkest shade over the lightest.
  */
-function gridOf(rows: string): Grid {
+export function gridOf(rows: string): Grid {
   return Array.from({ length: TILE }, (_, row) => {
     const bits = Number.parseInt(rows.slice(2 * row, 2 * row + 2), 16)
     return bits.toString(2).padStart(TILE, '0').replaceAll('1', '3')
@@ -46,7 +46,7 @@ function gridOf(rows: string): Grid {
 /**
  * Reads the runs `glyph` draws.
  */
-function runsAt(glyph: Glyph): readonly Run[] {
+export function runsAt(glyph: Glyph): readonly Run[] {
   return glyphRuns.get(glyph)!
 }
 

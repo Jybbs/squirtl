@@ -7,9 +7,10 @@ Pins what `squirtl watch` does, covering:
 - The playback reaching another return, a console whose intro leaves
   another state than the run recorded, an episode the run never recorded,
   and a directory holding no run, each exiting 1
-- The demonstration a search found, played back to the reward its last
-  iteration records, and an episode named of a search, a search holding no
-  demonstration, and a demonstration reaching another reward, each exiting 1
+- An episode of a run of PQN or PPO played back to its unscaled return
+- The recommended run of a release, fetched and played back, and a
+  selection naming no one run, which exits 1
+- The path a search found, played back to the return it recorded
 """
 
 from common.cli import Invoker
@@ -97,7 +98,8 @@ def test_a_console_starting_from_another_state_than_the_runs_exits_1_before_play
 
     assert (
         invocation.code,
-        f"a state of digest {run.digest}, where the run recorded 0" in invocation.log,
+        f"a state of digest 0, where this cartridge leaves {run.digest}"
+        in invocation.log,
         "playback" in invocation.log
     ) == (1, True, False)
 
@@ -155,75 +157,91 @@ def test_a_playback_with_nothing_to_play_exits_1_before_the_window_opens(
     assert ("holds no episode 3" in invocation.log) is bool(argv)
 
 
+def test_an_episode_of_pqn_or_ppo_plays_back_to_the_return_the_run_recorded(
+    invoke  : Invoker,
+    rolled  : Path,
+    windows : list[str]
+):
+    """
+    Asserts that playing back the last episode of a run of either agent,
+    which `NormalizeReward` leaves unscaled on its line, exits zero on
+    reaching the return the run recorded.
+    """
+    invocation = invoke(["watch", str(rolled)])
+
+    assert invocation.code == 0
+    assert "the run recorded" in invocation.log
+
+
 @mark.usefixtures("windows")
-def test_a_search_plays_back_its_demonstration_to_the_reward_it_recorded(
+def test_a_release_plays_its_recommended_run_once_fetched(
     invoke   : Invoker,
-    searched : Path
+    released : Path
+):
+    """
+    Asserts that watching a release with no selection fetches its
+    recommended run into `data/runs/` and plays its last episode back to the
+    return the run recorded.
+    """
+    invocation = invoke(["watch", "--release", "0.2.0"])
+
+    assert (invocation.code, released.is_dir()) == (0, True)
+    assert "the run recorded" in invocation.log
+
+
+@mark.parametrize(
+    ("argv", "reason"),
+    [
+        param(
+            [],
+            "Name either a run directory",
+            id = "neither"
+        ),
+        param(
+            ["data/runs/x", "--release", "0.2.0"],
+            "Name either a run directory",
+            id = "both"
+        ),
+        param(
+            ["data/runs/x", "--seed", "1"],
+            "select among a release's runs",
+            id = "a-directory-selected"
+        ),
+        param(
+            ["--release", "0.2.0", "--seed", "99"],
+            "No run of the release 0.2.0",
+            id = "no-match"
+        )
+    ]
+)
+def test_a_selection_naming_no_one_run_exits_1_before_the_window_opens(
+    argv     : list[str],
+    invoke   : Invoker,
+    reason   : str,
+    released : Path,
+    windows  : list[str]
+):
+    """
+    Asserts that naming neither a directory nor a release, both, a selection
+    beside a directory, or a selection matching no run of the release exits
+    1, logging the reason, before any emulator boots.
+    """
+    windows.clear()
+    invocation = invoke(["watch", *argv])
+
+    assert (invocation.code, reason in invocation.log, windows) == (1, True, [])
+
+
+@mark.usefixtures("windows")
+def test_a_search_plays_back_the_path_it_found_to_the_return_it_recorded(
+    found  : Path,
+    invoke : Invoker
 ):
     """
     Asserts that playing back a search boots the emulator in its window and
-    exits zero on reaching the reward its last iteration records, leaving
-    out the novelty of each position the demonstration passes.
+    exits zero on reaching the return its one episode, the path it found,
+    records.
     """
-    invocation = invoke(["watch", str(searched)])
+    invocation = invoke(["watch", str(found)])
 
     assert (invocation.code, "the run recorded" in invocation.log) == (0, True)
-
-
-@mark.usefixtures("windows")
-def test_a_search_given_an_episode_exits_1(invoke: Invoker, searched: Path):
-    """
-    Asserts that naming an episode of a search, which holds one
-    demonstration, exits 1 saying so.
-    """
-    invocation = invoke(["watch", str(searched), "--episode", "1"])
-
-    assert (invocation.code, "holds a search" in invocation.log) == (1, True)
-
-
-@mark.usefixtures("windows")
-def test_a_search_holding_no_demonstration_exits_1(invoke: Invoker, searched: Path):
-    """
-    Asserts that a search whose demonstration is missing exits 1 naming
-    the file.
-    """
-    Run.read(searched).demonstration.unlink()
-
-    invocation = invoke(["watch", str(searched)])
-
-    assert (invocation.code, "demonstration.json" in invocation.log) == (1, True)
-
-
-@mark.usefixtures("windows")
-def test_a_search_holding_no_iteration_exits_1(invoke: Invoker, searched: Path):
-    """
-    Asserts that a search whose iterations are empty exits 1 naming the
-    file.
-    """
-    Run.read(searched).iterations.write_text("", encoding="utf-8")
-
-    invocation = invoke(["watch", str(searched)])
-
-    assert (invocation.code, "iterations.jsonl" in invocation.log) == (1, True)
-
-
-@mark.usefixtures("windows")
-def test_a_demonstration_reaching_another_reward_exits_1(
-    invoke   : Invoker,
-    searched : Path
-):
-    """
-    Asserts that a demonstration playing back short of the reward its last
-    iteration records exits 1, naming both.
-    """
-    run  = Run.read(searched)
-    line = loads(run.iterations.read_text("utf-8").splitlines()[-1]) | {"reward": 0.5}
-
-    run.iterations.write_text(f"{dumps(line)}\n", encoding="utf-8")
-
-    invocation = invoke(["watch", str(searched)])
-
-    assert (
-        invocation.code,
-        "where the run recorded 0.5" in invocation.log
-    ) == (1, True)

@@ -25,8 +25,8 @@ from torch.nn         import Conv2d, Linear
 from torch.testing    import assert_close
 
 from squirtl.agent.schemas  import AgentSettings
+from squirtl.runs.schemas   import SearchSettings
 from squirtl.search.novelty import Novelty
-from squirtl.search.schemas import SearchSettings
 
 FRAME = 72 * 80
 

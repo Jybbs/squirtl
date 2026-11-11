@@ -6,21 +6,37 @@ own, covering:
   frame small enough to average by hand, and the cells it shrinks a frame
   of PyBoy to at each block shape, which a reshape into blocks summed
   over each block also gives
-- The `Outcome` `RecordOutcome` reports at an episode's last step alone,
-  whether `TimeLimit` truncates the episode or the starter ends it
+- The `Outcome` and the `Recording` `RecordOutcome` reports at an episode's
+  last step alone, whether `TimeLimit` truncates the episode or the goal
+  ends it
+- The unfinished episode `ReplayRecording` plays back at the next reset alone,
+  which leaves the wrappers beneath it where the recording's last step left
+  them
+- The segments `FollowDemonstration` splits a demonstration into at each
+  flag and never at a new position alone, the state it keeps at each step
+  compressed through zstd, the demonstration it refuses, the start each
+  reset draws from the windows it is given and the frames it observes
+  there, the success and the limit that truncate an episode from a start,
+  and the takeover a resumed run plays back
+- The `Snapshot` `ProgressObservation` captures and restores, holding the
+  observation, the progress, and the emulator's state, which another
+  environment restores and plays on from as the first would have
 """
 
 from collections.abc    import Callable
 from common.console     import set_event, stand
+from compression.zstd   import decompress
 from gymnasium          import Env
 from gymnasium.wrappers import RecordEpisodeStatistics, TimeLimit
 from numpy              import array, ndarray, uint8, unique
+from numpy.random       import default_rng
 from numpy.testing      import assert_array_equal
-from pytest             import fixture, mark, param
+from pytest             import fixture, mark, param, raises
+from types              import SimpleNamespace
 
 from squirtl.environment.overworld import Overworld
-from squirtl.environment.schemas   import Entry, Outcome, Snapshot
-from squirtl.environment.wrappers  import RecordOutcome, ShrinkObservation
+from squirtl.environment.schemas   import Entry, Outcome, Recording, Snapshot, Starts, Takeover, Window
+from squirtl.environment.wrappers  import FollowDemonstration, RecordOutcome, ShrinkObservation
 from squirtl.reward.schemas        import Event, Position, Term
 
 
@@ -116,12 +132,17 @@ def test_a_truncated_episode_reports_its_outcome_at_its_last_step_alone(recorded
     infos = [recorded.step(0)[4] for _ in range(3)]
 
     assert ["outcome" in info for info in infos] == [False, False, True]
+    assert ["recording" in info for info in infos] == [False, False, True]
+    assert (infos[-1]["recording"].presses, infos[-1]["recording"].timer_div) == (
+        bytes([0, 0, 0]),
+        recorded.get_wrapper_attr("recording").timer_div
+    )
     assert infos[-1]["outcome"] == Outcome(
         length     = 3,
         positions  = 4,
         reward     = 0.1875,
         seconds    = infos[-1]["episode"]["t"],
-        shares     = {Term.MILESTONE: 0.0, Term.NOVELTY: 0.1875, Term.STARTER: 0.0},
+        shares     = {Term.GOAL: 0.0, Term.MILESTONE: 0.0, Term.NOVELTY: 0.1875},
         terminated = False
     )
 
@@ -138,6 +159,27 @@ def played_on(env: Env) -> tuple[dict[Entry, ndarray], Snapshot]:
     return env.step(2)[0], env.get_wrapper_attr("capture")()
 
 
+def start(
+    *,
+    earliest : int,
+    env      : Env,
+    latest   : int,
+    segment  : int,
+    limit    : int = 50
+) -> dict:
+    """
+    Sets on `env` the one window of `segment` from `earliest` to `latest`
+    under `limit`, then resets it at a seed of 0.
+
+    Returns:
+        The observation the reset ends on.
+    """
+    window = Window(earliest=earliest, latest=latest, segment=segment)
+    env.set_wrapper_attr("starts", Starts(limit=limit, windows=[window]))
+
+    return env.reset(seed=0)[0]
+
+
 def stepped(env: Env, presses: int) -> Env:
     """
     Resets `env` at seed 0 and steps it `presses` times with no press,
@@ -152,6 +194,124 @@ def stepped(env: Env, presses: int) -> Env:
         env.step(0)
 
     return env
+
+
+def test_a_demonstration_keeps_each_state_compressed_through_zstd(
+    following: Callable[..., Env]
+):
+    """
+    Asserts that the state each snapshot of the demonstration keeps
+    decompresses to one the size of the console's own, at under a tenth of
+    that size.
+    """
+    env    = following()
+    states = [snapshot.state for snapshot in env.get_wrapper_attr("snapshots")]
+    sizes  = {len(decompress(state)) for state in states}
+
+    assert sizes == {len(env.get_wrapper_attr("game_boy").state)}
+    assert max(map(len, states)) < min(sizes) // 10
+
+
+def test_a_demonstration_splits_into_a_segment_at_each_flag_it_sets(
+    following: Callable[..., Env]
+):
+    """
+    Asserts that the demonstration of 13 presses splits at the presses at
+    steps 4, 8, and 12, each setting one more flag of the cartridge's, after
+    keeping a snapshot before each press and one after the last.
+    """
+    env = following()
+
+    assert env.get_wrapper_attr("ends") == [4, 8, 12]
+    assert len(env.get_wrapper_attr("snapshots")) == 14
+
+
+def test_a_reset_plays_a_recording_back_through_every_wrapper_beneath_it(
+    made: Callable[..., Env]
+):
+    """
+    Asserts that an environment on PyBoy given the recording of three
+    steps of an unfinished episode observes at its next reset what a copy
+    that played those steps observes, then truncates when that copy does,
+    its time limit counting the replayed steps, with its outcome and its
+    recording reporting the whole episode, and that the reset after it plays
+    nothing back.
+    """
+    played, replaying = made(max_episode_steps=5), made(max_episode_steps=5)
+    played.reset(seed=0)
+    actions = default_rng(0).integers(played.action_space.n, size=5).tolist()
+
+    for action in actions[:3]:
+        observed, *_ = played.step(action)
+
+    replaying.reset(seed=1)
+    replaying.set_wrapper_attr("resumed", played.get_wrapper_attr("recording"))
+    replayed, info = replaying.reset()
+
+    assert info == {}
+    assert replaying.get_wrapper_attr("resumed") is None
+    assert_array_equal(replayed["frames"], observed["frames"])
+    assert_array_equal(replayed["flags"], observed["flags"])
+
+    endings = [
+        (
+            env.step(actions[3])[3:],
+            env.step(actions[4])[3:]
+        ) for env in (played, replaying)
+    ]
+
+    assert endings[0][0][0] is endings[1][0][0] is False
+    assert endings[0][1][0] is endings[1][1][0] is True
+    assert endings[0][1][1]["recording"] == endings[1][1][1]["recording"]
+    assert endings[1][1][1]["outcome"].length == 5
+
+    replaying.reset(seed=1)
+
+    assert replaying.get_wrapper_attr("recording").presses == b""
+
+
+@mark.parametrize(
+    ("goal", "presses"),
+    [
+        param(Event.EVENT_GOT_STARTER, bytes(12), id="short-of-the-goal"),
+        param(Event.EVENT_GOT_STARTER, bytes(14), id="past-it"),
+        param(Event.EVENT_GOT_POKEDEX, bytes(13), id="short-of-a-later-goal")
+    ]
+)
+def test_a_demonstration_not_reaching_the_goal_at_its_last_press_is_refused(
+    following : Callable[..., Env],
+    goal      : Event,
+    presses   : bytes
+):
+    """
+    Asserts that a demonstration stopping short of the run's goal, or
+    holding presses past the one reaching it, is refused as the wrapper
+    plays it, naming the goal, the Pokédex as much as the starter.
+    """
+    with raises(ValueError, match=f"no longer reach {goal.name} at the last"):
+        following(presses, goal=goal)
+
+
+def test_a_reset_with_no_starts_begins_in_the_bedroom(following: Callable[..., Env]):
+    """
+    Asserts that with no starts set, a reset starts in the bedroom at the
+    `timer_div` its seed draws, and the episode reports no success at its
+    end.
+    """
+    env = following()
+    env.reset(seed=0)
+
+    assert env.get_wrapper_attr("recording") == Recording(
+        presses   = b"",
+        timer_div = default_rng(0).integers(256)
+    )
+
+    terminated = truncated = False
+
+    while not (terminated or truncated):
+        *_, terminated, truncated, info = env.step(0)
+
+    assert (terminated, "succeeded" in info) == (True, False)
 
 
 def test_a_restored_environment_plays_on_as_it_would_have(made: Callable[..., Env]):
@@ -174,6 +334,63 @@ def test_a_restored_environment_plays_on_as_it_would_have(made: Callable[..., En
 
     for entry, values in straight[0].items():
         assert_array_equal(replayed[0][entry], values, err_msg=entry)
+
+
+def test_a_segment_ends_at_a_flag_and_never_at_a_new_position_alone():
+    """
+    Asserts that a press earning the novelty alone ends no segment, whereas
+    a press setting a flag beside a novelty ends one.
+    """
+    following           = FollowDemonstration.__new__(FollowDemonstration)
+    following.snapshots = [
+        SimpleNamespace(tally=SimpleNamespace(earned=earned)) for earned in (
+            {},
+            {Term.NOVELTY: 1},
+            {Term.MILESTONE: 1, Term.NOVELTY: 2}
+        )
+    ]
+
+    assert following.ends == [1]
+
+
+@mark.parametrize(
+    ("segment", "step", "limit", "length", "ended"),
+    [
+        param(0, 2, 50, 3, (False, True, True),  id="succeeding-at-a-flag"),
+        param(2, 10, 50, 3, (True, False, True), id="reaching-the-starter"),
+        param(0, 0, 2, 2, (False, True, False),  id="at-its-limit")
+    ]
+)
+def test_a_start_ends_once_it_succeeds_or_reaches_its_limit(
+    ended     : tuple[bool, bool, bool],
+    following : Callable[..., Env],
+    length    : int,
+    limit     : int,
+    segment   : int,
+    step      : int
+):
+    """
+    Asserts that an episode from a start ends at the step setting its
+    segment's flag, truncated short of the starter and terminated at it,
+    or at its limit, reporting whether it succeeded and recording the
+    demonstration's presses before its own.
+    """
+    env = following()
+    start(
+        earliest = step,
+        env      = env,
+        latest   = step,
+        limit    = limit,
+        segment  = segment
+    )
+    steps = [env.step(0) for _ in range(length)]
+    *_, terminated, truncated, info = steps[-1]
+
+    assert [any(taken[2:4]) for taken in steps] == [False] * (length - 1) + [True]
+    assert (terminated, truncated, info["succeeded"]) == ended
+    assert info["outcome"].length == length
+    assert info["recording"].takeover.step == step
+    assert info["recording"].presses == bytes(step + length)
 
 
 def test_a_snapshot_restores_into_a_fresh_environment(made: Callable[..., Env]):
@@ -251,18 +468,153 @@ def test_a_snapshot_restores_the_observation_the_environment_held(
         assert_array_equal(restored[entry], values, err_msg=entry)
 
 
-def test_an_episode_reaching_the_starter_reports_its_termination(
+def test_a_start_falling_short_by_less_than_the_tolerance_succeeds(
+    following: Callable[..., Env]
+):
+    """
+    Asserts that under a tolerance of a milestone, an episode from a start
+    whose segment pays one succeeds at its first step.
+    """
+    env = following(tolerance=0.1)
+    start(
+        earliest = 0,
+        env      = env,
+        latest   = 0,
+        segment  = 0
+    )
+    *_, truncated, info = env.step(0)
+
+    assert (truncated, info["succeeded"]) == (True, True)
+
+
+def test_a_start_observes_the_frames_the_demonstration_stacked_there(
+    following: Callable[..., Env]
+):
+    """
+    Asserts that a start at step 6 observes the frames and the flags the
+    demonstration observed there, leaving those frames in the stack the next
+    step pushes onto.
+    """
+    env      = following()
+    observed = start(
+        earliest = 6,
+        env      = env,
+        latest   = 6,
+        segment  = 1
+    )
+    stack = env.get_wrapper_attr("snapshots")[6].stack(observed[Entry.FRAMES].shape)
+
+    assert_array_equal(observed[Entry.FRAMES], stack, strict=True)
+    assert observed[Entry.FLAGS].tolist() == [
+        [int(event is Event.EVENT_OAK_APPEARED_IN_PALLET) for event in Event]
+    ]
+
+    stepped, *_ = env.step(0)
+
+    assert_array_equal(stepped[Entry.FRAMES][:-1], stack[1:], strict=True)
+
+
+def test_a_takeover_plays_back_as_the_episode_it_left_unfinished(
+    following: Callable[..., Env]
+):
+    """
+    Asserts that an environment given the recording of an unfinished episode
+    from a start resumes it at its next reset, observing what the episode
+    observed and ending where it ends, whatever starts it holds.
+    """
+    played, replaying = following(), following()
+    start(
+        earliest = 5,
+        env      = played,
+        latest   = 5,
+        segment  = 1
+    )
+
+    for _ in range(2):
+        observed, *_ = played.step(0)
+
+    replaying.set_wrapper_attr("resumed", played.get_wrapper_attr("recording"))
+    replayed, _ = replaying.reset()
+
+    assert_array_equal(replayed[Entry.FLAGS], observed[Entry.FLAGS])
+    assert replaying.get_wrapper_attr("takeover") == Takeover(
+        limit     = 50,
+        segment   = 1,
+        step      = 5,
+        timer_div = played.get_wrapper_attr("takeover").timer_div
+    )
+    assert [env.step(0)[2:4] for env in (played, replaying)] == [(False, False)] * 2
+    assert [env.step(0)[2:4] for env in (played, replaying)] == [(False, True)] * 2
+
+
+def test_an_episode_reaching_the_goal_reports_its_termination(
     overworld : Overworld,
     recorded  : Env
 ):
     """
-    Asserts that an episode whose first step sets the starter's flag reports
-    there an outcome of one step that terminated, paying the starter alone.
+    Asserts that an episode whose first step sets its goal's flag reports
+    there an outcome of one step that terminated, paying the goal alone and
+    recording the step first setting the flag.
     """
     set_event(Event.EVENT_GOT_STARTER, overworld.game_boy.emulator.memory)
     *_, terminated, truncated, info = recorded.step(0)
+    outcome = info["outcome"]
 
-    assert (terminated, truncated, info["outcome"].length, info["outcome"].shares) == (
+    assert (terminated, truncated, outcome.length, outcome.shares, outcome.flags) == (
         True, False, 1,
-        {Term.MILESTONE: 0.0, Term.NOVELTY: 0.0, Term.STARTER: 0.5}
+        {Term.GOAL: 0.5, Term.MILESTONE: 0.0, Term.NOVELTY: 0.0},
+        {Event.EVENT_GOT_STARTER: 1}
     )
+
+
+def test_each_start_draws_its_segment_step_and_div_from_the_windows(
+    following: Callable[..., Env]
+):
+    """
+    Asserts that resets with no seed after a seeded one draw each start's
+    segment among the windows set, its step within that segment's window,
+    and its `timer_div` from the environment's generator, the seed repeating
+    the draws, and that each start carries its window's moves.
+    """
+    env     = following()
+    windows = [
+        Window(
+            earliest = 0,
+            latest   = 3,
+            moves    = 1,
+            segment  = 0
+        ),
+        Window(
+            earliest = 9,
+            latest   = 11,
+            moves    = 4,
+            segment  = 2
+        )
+    ]
+    env.set_wrapper_attr("starts", Starts(limit=50, windows=windows))
+    drawn = []
+
+    for seed in (3, *[None] * 30, 3):
+        env.reset(seed=seed)
+        drawn.append(env.get_wrapper_attr("takeover"))
+
+    assert drawn[0] == drawn[-1]
+    assert {(
+        takeover.segment, takeover.moves,
+        takeover.step in range(
+            windows[takeover.segment // 2].earliest,
+            windows[takeover.segment // 2].latest + 1
+        )
+    ) for takeover in drawn} == {(0, 1, True), (2, 4, True)}
+    assert len({takeover.timer_div for takeover in drawn}) > 1
+
+
+def test_the_wrapper_sits_where_the_specification_names_it(
+    following: Callable[..., Env]
+):
+    """
+    Asserts that `FollowDemonstration` wraps `ProgressObservation` beneath
+    `RecordEpisodeStatistics`, so the statistics count an episode's own
+    steps alone.
+    """
+    assert isinstance(following().env.env.env, FollowDemonstration)

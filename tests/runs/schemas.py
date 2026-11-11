@@ -21,18 +21,34 @@ Pins the records one run reads and writes, covering:
   line alone
 - The lines of the episodes ending by a checkpoint, and a log ending short
   of a checkpoint below the run's steps, which is refused
-- The evaluations a run plays where it lacks them and reads where it holds
-  them, under its evaluation stream's seed, and a run holding none
+- The lines of the first episodes a checkpoint of PQN or PPO counts, and a
+  log holding fewer, which is refused
+- The measures and the epsilon of each agent's episode read back from its line
+- A run holding no evaluations
+- The demonstration a run's episodes give, the shortest reaching the starter
+  from the bedroom, and a log holding none, which is refused
+- The curriculum's settings refusing moves whose least passes their most and
+  a required share above the completion share, and a run's settings refusing
+  a demonstration for the deep Q-network and terms summing past 1 on the way
+  to the run's goal
+- A run refusing a digest other than the one it recorded, and the listing
+  naming it among other runs
+- A search refused where a trained run is read, and the search's stream
+  coming after every other
+- The defaults of `SearchSettings`, each from the column and the appendix of
+  Mhammedi and Cohan's paper its docstring cites, the bound replay memory
+  holds them to, the worker count following the machine, and a range
+  running backward refused
 """
 
 from collections.abc   import Callable, Mapping
-from common.evaluation import EvaluatorStandIn, played
+from common.evaluation import played
 from datetime          import UTC, datetime
 from functools         import reduce
 from hashlib           import sha256
 from json              import dumps, loads
 from operator          import getitem
-from os                import fstat
+from os                import fstat, process_cpu_count
 from pathlib           import Path
 from pydantic          import ValidationError
 from pytest            import MonkeyPatch, TempPathFactory, mark, param, raises
@@ -40,13 +56,13 @@ from shutil            import copytree
 from subprocess        import CalledProcessError, check_output
 from syrupy.assertion  import SnapshotAssertion
 
-from squirtl.agent.schemas       import Weights
-from squirtl.emulator.schemas    import Cartridge, Record
-from squirtl.environment.schemas import Recording
+from squirtl.agent.schemas       import AgentSettings, Algorithm, Measures, PolicyUpdate, Update
+from squirtl.emulator.schemas    import Record
+from squirtl.environment.schemas import EnvironmentSettings, Recording, Takeover
 from squirtl.evaluation.schemas  import Evaluation
-from squirtl.runs.schemas        import Episode, Revision, Run, RunSettings, SearchHandover, Stream
-from squirtl.runs.searcher       import Searcher
-from squirtl.search.schemas      import Iteration
+from squirtl.reward.schemas      import Event, RewardSettings
+from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunListing, RunSettings
+from squirtl.runs.schemas        import SearchSettings, Start, Stream
 
 
 def test_a_checkpoint_at_the_runs_last_step_may_land_within_an_episode(
@@ -94,51 +110,48 @@ def test_a_clean_clone_reads_as_its_commit_and_its_lockfile(clone: Path):
     )
 
 
-@mark.usefixtures("clone")
-def test_a_demonstration_replaces_the_last_one_whole(run: Run):
+def test_a_log_holding_fewer_episodes_than_a_count_is_refused(
+    holding: Callable[[str], Run]
+):
     """
-    Asserts that writing a demonstration leaves the recording it was given
-    at the run's path, overwriting the partial file a killed write left and
-    keeping no partial file behind.
+    Asserts that a run whose episodes hold fewer lines than a checkpoint of
+    PQN or PPO counts refuses to read them, as where a crash lost its last
+    lines.
     """
-    run.directory.mkdir(parents=True)
+    run = holding('{"length": 3}\n')
 
-    partial = run.demonstration.with_name("demonstration.json.partial")
-    partial.write_text("cut sho", encoding="utf-8")
-
-    recording = Recording(presses=bytes([1, 4]), timer_div=9)
-
-    run.demonstrate(recording)
-
-    assert Recording.model_validate_json(run.demonstration.read_bytes()) == recording
-    assert not partial.exists()
+    with raises(
+        ValueError,
+        match = "holds 1 episodes, short of the 2 the checkpoint follows"
+    ):
+        run.first(2)
 
 
-def test_a_handover_reads_the_lines_its_checkpoint_holds(halted: Run):
+def test_a_resumed_run_names_the_run_it_continues(clone: Path):
     """
-    Asserts that a handover holds the search's name, its checkpoint, and
-    each line up to that checkpoint's iteration, dropping any after it.
+    Asserts that a run resuming another records the name of the run it
+    continues in a directory of its own.
     """
-    lines = [*halted.lines(halted.iterations)]
+    resumed = Run.start(
+        "0",
+        RunSettings(),
+        datetime(2026, 10, 5, tzinfo=UTC),
+        Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC)).name
+    )
 
-    with halted.iterations.open("a", encoding="utf-8") as appended:
-        appended.write(lines[-1])
-
-    handover = SearchHandover.from_run(halted)
-
-    assert (handover.name, handover.iterations) == (halted.name, lines)
-    assert handover.checkpoint.frontier.iterations == len(lines)
+    assert loads(resumed.record.read_text(encoding="utf-8"))["resumes"] == (
+        "20261004T000000.000000Z"
+    )
 
 
-def test_a_handover_refuses_a_search_at_its_steps(halted: Run):
+def test_a_revision_outside_a_clone_raises_the_error_git_exits_with(outside: Path):
     """
-    Asserts that a search whose checkpoint already holds its steps raises,
-    since there is nothing left to continue.
+    Asserts that reading a revision where no clone holds the working
+    directory raises the error git exits with, rather than recording a run
+    with no commit.
     """
-    settings = halted.settings.model_copy(update={"steps": 1})
-
-    with raises(ValueError, match="already holds the search's end"):
-        SearchHandover.from_run(halted.model_copy(update={"settings": settings}))
+    with raises(CalledProcessError):
+        Revision.checked_out()
 
 
 @mark.usefixtures("clone")
@@ -165,31 +178,33 @@ def test_a_revision_is_dirty_wherever_git_reports_a_change(
     assert Revision.checked_out().dirty is dirty
 
 
-def test_a_handover_refuses_a_search_holding_no_checkpoint(halted: Run):
-    """
-    Asserts that a search holding no checkpoint raises, naming the file.
-    """
-    halted.checkpoint.unlink()
-
-    with raises(FileNotFoundError, match="checkpoint.npz"):
-        SearchHandover.from_run(halted)
-
-
-def test_a_handover_refuses_a_search_holding_the_starter(
-    searcher: Callable[..., Searcher]
+def test_a_run_holding_no_episode_reaching_its_goal_gives_no_demonstration(
+    episode : Episode,
+    holding : Callable[[str], Run]
 ):
     """
-    Asserts that a search whose checkpoint holds the starter raises, however
-    many steps it has left.
+    Asserts that a run whose every episode truncated gives no demonstration,
+    naming the goal its settings name, here the Pokédex rather than the
+    default.
     """
-    built = searcher(steps=100_000)
+    run = holding(f"{episode.model_dump_json()}\n").model_copy(
+        update = {
+            "settings": RunSettings(
+                environment = EnvironmentSettings(goal=Event.EVENT_GOT_POKEDEX)
+            )
+        }
+    )
 
-    with built:
-        for _ in built:
-            pass
+    with raises(ValueError, match="holds no episode reaching EVENT_GOT_POKEDEX"):
+        run.demonstration
 
-    with raises(ValueError, match="already holds the search's end"):
-        SearchHandover.from_run(built.run)
+
+def test_a_run_holding_no_evaluations_reads_none(run: Run):
+    """
+    Asserts that a run whose directory holds no `evaluations`, as a run that
+    has played none leaves it, reads no evaluation rather than raising.
+    """
+    assert list(run.evaluated) == []
 
 
 @mark.parametrize(
@@ -210,24 +225,29 @@ def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
     )
 
 
-def test_a_handover_refuses_a_training_run(run: Run):
+def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
     """
-    Asserts that a training run hands nothing over to a search, naming the
-    command that continues one.
+    Asserts that starting a run where no clone holds the working directory
+    raises the error git exits with before creating any directory, since the
+    run reads its revision first.
     """
-    with raises(ValueError, match="squirtl train"):
-        SearchHandover.from_run(run)
+    with raises(CalledProcessError):
+        Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
+
+    assert not (outside / "data").exists()
 
 
-def test_a_handover_refuses_iterations_short_of_the_checkpoint(halted: Run):
+def test_a_run_reads_an_episode_validating_its_line_alone(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
     """
-    Asserts that a search whose iterations end short of its checkpoint
-    raises, naming how far each goes.
+    Asserts that a run reads its second episode though the line before it
+    holds no episode, since it validates the line it returns alone.
     """
-    halted.iterations.write_text("", encoding="utf-8")
+    run = holding(f'{{"length": 3}}\n{episode.model_dump_json()}\n')
 
-    with raises(ValueError, match="short of the checkpoint"):
-        SearchHandover.from_run(halted)
+    assert run.episode(2) == episode
 
 
 @mark.parametrize(
@@ -263,30 +283,36 @@ def test_a_run_name_reads_back_as_the_instant_it_started(
     assert datetime.fromisoformat(name) == started
 
 
-def test_a_new_stream_leaves_the_seed_of_every_earlier_one_as_it_was():
+def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path):
     """
-    Asserts that the search's stream comes last among the streams, since
-    each stream's seed derives from its place, so every seed an earlier run
-    drew from reads as it did.
+    Asserts that reading the directory a run started in returns that run,
+    whether the directory is named relative to the working directory or
+    absolutely, each read keeping its paths in the directory it names.
     """
-    assert [*Stream][-1] is Stream.SEARCH
+    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
+
+    assert [
+        (read.model_dump(), read.directory)
+        for read in map(Run.read, (run.directory, clone / run.directory))
+    ] == [
+        (run.model_dump(), run.directory),
+        (run.model_dump(), clone / run.directory)
+    ]
 
 
-def test_a_resumed_run_names_the_run_it_continues(clone: Path):
+def test_a_run_reads_the_lines_of_its_first_episodes_reading_no_further(
+    holding : Callable[[str], Run],
+    logged  : list[str]
+):
     """
-    Asserts that a run resuming another records the name of the run it
-    continues in a directory of its own.
+    Asserts that a run reads, as written, the lines of the episodes a count
+    names and reads no further, so the unfinished line past them draws no
+    warning.
     """
-    resumed = Run.start(
-        "0",
-        RunSettings(),
-        datetime(2026, 10, 5, tzinfo=UTC),
-        Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC)).name
-    )
+    lines = ['{"length": 3}\n', '{"length": 4}\n']
+    run   = holding(f'{lines[0]}{lines[1]}{{"length": ')
 
-    assert loads(resumed.record.read_text(encoding="utf-8"))["resumes"] == (
-        "20261004T000000.000000Z"
-    )
+    assert (run.first(2), logged) == (lines, [])
 
 
 @mark.usefixtures("clone")
@@ -306,14 +332,14 @@ def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
     assert Revision.checked_out().dirty
 
 
-def test_a_revision_outside_a_clone_raises_the_error_git_exits_with(outside: Path):
+def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
     """
-    Asserts that reading a revision where no clone holds the working
-    directory raises the error git exits with, rather than recording a run
-    with no commit.
+    Asserts that the JSON a run writes into its directory validates back
+    into a record equal to the run that wrote it.
     """
-    with raises(CalledProcessError):
-        Revision.checked_out()
+    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
+
+    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
 
 
 @mark.parametrize(
@@ -332,12 +358,28 @@ def test_a_revision_refuses_output_that_holds_no_hash(commit: str):
         Revision(commit=commit, dirty=False, lockfile="0")
 
 
-def test_a_run_holding_no_evaluations_reads_none(run: Run):
+def test_a_run_records_its_settings_revision_and_start(clone: Path):
     """
-    Asserts that a run whose directory holds no `evaluations`, as a run that
-    has played none leaves it, reads no evaluation rather than raising.
+    Asserts that a run writes its record into the directory named for the
+    instant it started under `data/runs/`, holding the digest of its start,
+    its settings, the revision of the clone, that instant, and no run it
+    resumes.
     """
-    assert list(run.evaluated) == []
+    settings = RunSettings(seed=7)
+    Run.start("0", settings, datetime(2026, 10, 4, 12, 30, 5, 123456, tzinfo=UTC))
+
+    assert loads(
+        (clone / "data/runs/20261004T123005.123456Z/run.json").read_text(
+            encoding = "utf-8"
+        )
+    ) == {
+        "digest"   : "0",
+        "resumes"  : None,
+        "revision" : Revision.checked_out().model_dump(),
+        "searches" : False,
+        "started"  : "2026-10-04T12:30:05.123456Z",
+        "settings" : settings.model_dump(mode="json")
+    }
 
 
 @mark.parametrize(
@@ -428,6 +470,21 @@ def test_each_file_a_run_writes_sits_in_its_directory(
 
 
 @mark.usefixtures("clone")
+def test_a_run_reads_its_baseline_only_once_it_has_played_one(run: Run):
+    """
+    Asserts that a run holding no baseline reads `None`, and that once its
+    baseline is written it reads back the evaluation written.
+    """
+    assert run.baselined is None
+
+    baseline = played([0.25], None)
+    run.directory.mkdir(parents=True)
+    run.baseline.write_text(baseline.model_dump_json(), encoding="utf-8")
+
+    assert run.baselined == baseline
+
+
+@mark.usefixtures("clone")
 def test_a_run_read_from_outside_the_clone_keeps_its_files_where_it_was_read(
     monkeypatch      : MonkeyPatch,
     tmp_path_factory : TempPathFactory
@@ -448,46 +505,45 @@ def test_a_run_read_from_outside_the_clone_keeps_its_files_where_it_was_read(
     ]
 
 
-def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
+def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
     """
-    Asserts that starting a run where no clone holds the working directory
-    raises the error git exits with before creating any directory, since the
-    run reads its revision first.
+    Asserts that a run built on an instant carrying no UTC offset raises
+    rather than reading that instant as the machine's local time.
     """
-    with raises(CalledProcessError):
-        Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
-
-    assert not (outside / "data").exists()
+    with raises(ValidationError, match="timezone info"):
+        Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
 
 
-def test_a_run_reads_an_episode_validating_its_line_alone(
+def test_a_run_refuses_another_digest_naming_both(run: Run):
+    """
+    Asserts that a run passes the digest it recorded and refuses any other,
+    naming its directory, its own digest, and the one it was handed.
+    """
+    run.check("0")
+
+    with raises(
+        ValueError,
+        match = f"{run.directory} .* digest 0, where this cartridge leaves 1"
+    ):
+        run.check("1")
+
+
+def test_a_run_skips_an_unfinished_last_line_with_a_warning(
     episode : Episode,
-    holding : Callable[[str], Run]
+    holding : Callable[[str], Run],
+    logged  : list[str]
 ):
     """
-    Asserts that a run reads its second episode though the line before it
-    holds no episode, since it validates the line it returns alone.
+    Asserts that a run reads its episodes past a last line lacking its
+    newline, as a run that stopped while writing it leaves it, logging a
+    warning naming the file rather than failing to validate the line.
     """
-    run = holding(f'{{"length": 3}}\n{episode.model_dump_json()}\n')
+    run = holding(f'{episode.model_dump_json()}\n{{"length": ')
 
-    assert run.episode(2) == episode
-
-
-def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path):
-    """
-    Asserts that reading the directory a run started in returns that run,
-    whether the directory is named relative to the working directory or
-    absolutely, each read keeping its paths in the directory it names.
-    """
-    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
-
-    assert [
-        (read.model_dump(), read.directory)
-        for read in map(Run.read, (run.directory, clone / run.directory))
-    ] == [
-        (run.model_dump(), run.directory),
-        (run.model_dump(), clone / run.directory)
-    ]
+    assert (list(run.recorded), logged) == (
+        [episode],
+        [f"Skipping the unfinished last line of {run.episodes}"]
+    )
 
 
 @mark.parametrize(
@@ -617,115 +673,6 @@ def test_an_append_cuts_an_unfinished_last_line_alone(
     ) == ([12] * kept + [20], [f"Cutting the unfinished last line of {path}"] * cut)
 
 
-def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
-    """
-    Asserts that the JSON a run writes into its directory validates back
-    into a record equal to the run that wrote it.
-    """
-    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
-
-    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
-
-
-@mark.usefixtures("clone")
-def test_a_run_plays_the_evaluations_it_lacks_and_reads_those_it_holds(
-    cartridge  : Cartridge,
-    evaluators : list[EvaluatorStandIn]
-):
-    """
-    Asserts that a run's first evaluation, at step 10, plays the agent and
-    the baseline under the run's evaluation stream and settings and writes
-    both, that a second at step 10 reads both back without starting an
-    evaluator, and that one at step 20 plays the agent alone, reading the
-    baseline the run holds.
-    """
-    run    = Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
-    played = [
-        run.evaluate(cartridge, Weights(online={}, step=step)) for step in (10, 10, 20)
-    ]
-
-    assert [stand_in.asked for stand_in in evaluators] == [[10, None], [20]]
-    assert evaluators[0].arguments == (
-        run.settings.agent.device,
-        run.settings.seeds[Stream.EVALUATION],
-        run.settings.evaluation,
-        run.settings.specification(cartridge)
-    )
-    assert (played[1], played[2][1]) == (played[0], played[0][1])
-    assert [evaluation.step for evaluation in run.evaluated] == [10, 20]
-
-
-@mark.usefixtures("clone")
-def test_a_run_holding_its_evaluation_but_no_baseline_plays_the_baseline_alone(
-    cartridge  : Cartridge,
-    evaluators : list[EvaluatorStandIn]
-):
-    """
-    Asserts that a run holding the agent's evaluation at step 10 but no
-    baseline, as a resume from a run that wrote none leaves it, plays the
-    baseline alone and writes it.
-    """
-    run = Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
-    run.append(run.evaluations, played([0.01], 10))
-    run.evaluate(cartridge, Weights(online={}, step=10))
-
-    assert ([stand_in.asked for stand_in in evaluators], run.baseline.exists()) == (
-        [[None]],
-        True
-    )
-
-
-def test_a_run_records_its_settings_revision_and_start(clone: Path):
-    """
-    Asserts that a run writes its record into the directory named for the
-    instant it started under `data/runs/`, holding the digest of its start,
-    its settings, the revision of the clone, that instant, and no run it
-    resumes.
-    """
-    settings = RunSettings(seed=7)
-    Run.start("0", settings, datetime(2026, 10, 4, 12, 30, 5, 123456, tzinfo=UTC))
-
-    assert loads(
-        (clone / "data/runs/20261004T123005.123456Z/run.json").read_text(
-            encoding = "utf-8"
-        )
-    ) == {
-        "digest"   : "0",
-        "resumes"  : None,
-        "revision" : Revision.checked_out().model_dump(),
-        "searches" : False,
-        "started"  : "2026-10-04T12:30:05.123456Z",
-        "settings" : settings.model_dump(mode="json")
-    }
-
-
-def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
-    """
-    Asserts that a run built on an instant carrying no UTC offset raises
-    rather than reading that instant as the machine's local time.
-    """
-    with raises(ValidationError, match="timezone info"):
-        Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
-
-
-def test_a_run_skips_an_unfinished_last_line_with_a_warning(
-    episode : Episode,
-    holding : Callable[[str], Run],
-    logged  : list[str]
-):
-    """
-    Asserts that a run reads its episodes past a last line lacking its
-    newline, as a run that stopped while writing it leaves it, logging a
-    warning naming the file rather than failing to validate the line.
-    """
-    run = holding(f'{episode.model_dump_json()}\n{{"length": ')
-
-    assert (list(run.recorded), logged) == (
-        [episode],
-        [f"Skipping the unfinished last line of {run.episodes}"]
-    )
-
-
 def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
     """
     Asserts that a run started at the same instant as an earlier one raises
@@ -757,6 +704,50 @@ def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
     } == {Path("data"), Path("data/runs"), run.directory, run.record}
 
 
+def test_a_runs_demonstration_is_its_shortest_episode_reaching_the_starter(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
+    """
+    Asserts that a run's demonstration is the recording of the first of its
+    shortest episodes reaching the starter from the bedroom, passing over a
+    shorter one that truncated and a shorter one that took over from another
+    demonstration.
+    """
+    lines = [
+        episode.model_copy(update=fields) for fields in (
+            {"length": 1},
+            {
+                "length"     : 3,
+                "recording"  : Recording(presses=b"\x05", timer_div=1),
+                "terminated" : True
+            },
+            {
+                "length"     : 2,
+                "recording"  : Recording(
+                    presses  = b"\x05",
+                    takeover = Takeover(
+                        limit     = 9,
+                        segment   = 0,
+                        step      = 0,
+                        timer_div = 0
+                    ),
+                    timer_div = 2
+                ),
+                "terminated" : True
+            },
+            {
+                "length"     : 3,
+                "recording"  : Recording(presses=b"\x06", timer_div=3),
+                "terminated" : True
+            }
+        )
+    ]
+    run = holding("".join(f"{line.model_dump_json()}\n" for line in lines))
+
+    assert run.demonstration == Recording(presses=b"\x05", timer_div=1)
+
+
 def test_a_runs_episodes_read_back_in_the_order_written(
     episode : Episode,
     holding : Callable[[str], Run]
@@ -775,46 +766,13 @@ def test_a_runs_episodes_read_back_in_the_order_written(
     assert [next(recorded), next(recorded)] == [episode, later]
 
 
-def test_a_search_is_refused_as_a_trained_run(halted: Run):
+def test_a_search_is_refused_where_a_trained_run_is_read(halted: Run):
     """
-    Asserts that reading a search's directory as a training run raises,
-    naming the commands that read one.
+    Asserts that a search refuses to be read as a trained run, naming the
+    commands that read one, while a training run reads as one.
     """
     with raises(ValueError, match="`squirtl watch` plays"):
-        Run.trained(halted.directory)
-
-
-def test_a_search_plays_back_its_demonstration_and_its_last_reward(halted: Run):
-    """
-    Asserts that a search plays back the demonstration its directory holds
-    beside the reward of its last iteration.
-    """
-    lines = [
-        Iteration.model_validate_json(line) for line in halted.lines(halted.iterations)
-    ]
-    recording, reward = halted.playback()
-
-    assert reward == lines[-1].reward
-    assert len(recording.presses) == lines[-1].length
-
-
-def test_a_search_refuses_to_play_an_episode_back(halted: Run):
-    """
-    Asserts that naming an episode of a search raises, naming its directory.
-    """
-    with raises(ValueError, match="holds a search"):
-        halted.playback(1)
-
-
-def test_a_search_with_no_iteration_has_nothing_to_play_back(halted: Run):
-    """
-    Asserts that a search whose iterations are empty raises, naming the
-    file.
-    """
-    halted.iterations.write_text("", encoding="utf-8")
-
-    with raises(IndexError, match="iterations.jsonl"):
-        halted.playback()
+        halted.check_trained()
 
 
 def test_a_sync_writes_the_file_through_the_drives_cache(
@@ -838,31 +796,6 @@ def test_a_sync_writes_the_file_through_the_drives_cache(
     assert flushed == [path.stat().st_ino]
 
 
-@mark.usefixtures("clone")
-def test_a_training_run_reads_as_one():
-    """
-    Asserts that reading a training run's directory as one reads its record,
-    as `Run.read` does.
-    """
-    started = Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
-
-    assert Run.trained(started.directory) == Run.read(started.directory)
-
-
-def test_a_training_runs_playback_is_its_episode_and_its_return(
-    episode : Episode,
-    holding : Callable[[str], Run]
-):
-    """
-    Asserts that a training run plays back the episode `number` names, or
-    its last, beside the return that episode recorded.
-    """
-    run = holding(f"{episode.model_dump_json()}\n")
-
-    assert run.playback(1) == (episode.recording, episode.reward)
-    assert run.playback() == (episode.recording, episode.reward)
-
-
 def test_each_stream_seed_fits_in_64_unsigned_bits():
     """
     Asserts that every stream's seed is a 64-bit unsigned integer, the
@@ -880,6 +813,48 @@ def test_reading_a_directory_holding_no_run_raises(clone: Path):
 
     with raises(FileNotFoundError):
         Run.read(clone / "data/runs/empty")
+
+
+@mark.parametrize(
+    ("epsilon", "update"),
+    [
+        param(0.5,  None,                         id="no-update"),
+        param(0.5,  Update(loss=1.0, value=-2.0), id="the-loss-and-the-value"),
+        param(
+            None,
+            PolicyUpdate(
+                clipped     = 0.25,
+                entropy     = 1.5,
+                kl          = 0.01,
+                policy_loss = -0.5,
+                value_loss  = 3.0
+            ),
+            id = "ppos-measures-at-no-epsilon"
+        )
+    ]
+)
+def test_an_episode_reads_back_the_measures_of_the_agent_that_played_it(
+    episode : Episode,
+    epsilon : float | None,
+    update  : Measures | None
+):
+    """
+    Asserts that an episode's line reads back into the record of measures it
+    holds, `Update` or `PolicyUpdate`, at the epsilon it holds.
+    """
+    written = episode.model_copy(update={"epsilon": epsilon, "update": update})
+
+    assert Episode.model_validate_json(written.model_dump_json()) == written
+
+
+def test_the_default_capacity_holds_replay_memory_under_a_gigabyte():
+    """
+    Asserts that the default capacity, each slot one frame at the
+    environment's default shape, holds fewer than a billion bytes.
+    """
+    height, width = EnvironmentSettings().frame_shape
+
+    assert SearchSettings().capacity * height * width < 1_000_000_000
 
 
 def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
@@ -908,6 +883,112 @@ def test_the_default_warmup_ends_inside_an_anneal_outlasting_a_random_walk():
     assert settings.agent.warmup_steps < anneal and anneal >= 37_000
 
 
+@mark.parametrize(
+    ("goal", "past", "reward"),
+    [
+        param(
+            Event.EVENT_GOT_STARTER,
+            "0.21",
+            RewardSettings(goal=0.31, milestone=0.3),
+            id = "the-starter"
+        ),
+        param(
+            Event.EVENT_GOT_STARTER,
+            "2.22e-16",
+            RewardSettings(goal=0.343, milestone=0.2, novelty=0.057),
+            id = "by-the-rounding-of-a-share"
+        ),
+        param(
+            Event.EVENT_GOT_POKEDEX,
+            "0.25",
+            RewardSettings(milestone=0.15),
+            id = "the-pokedex"
+        )
+    ]
+)
+def test_the_settings_refuse_terms_one_step_could_sum_past_one_on_the_way_to_the_goal(
+    goal   : Event,
+    past   : str,
+    reward : RewardSettings
+):
+    """
+    Asserts that the settings refuse terms where a step reaching a new
+    position and first setting every flag up to the run's goal at once earns
+    past 1, naming the goal and how far past to three significant digits,
+    whether the terms sum past 1 in decimal or sum to 1 in decimal and round
+    past it once the milestone is counted three times.
+    """
+    with raises(
+        ValidationError,
+        match = f"every flag up to {goal.name} at once earns {past} more than the 1"
+    ):
+        RunSettings(environment=EnvironmentSettings(goal=goal), reward=reward)
+
+
+@mark.parametrize(
+    "reward",
+    [
+        param(
+            RewardSettings(goal=0.5, milestone=0.125, novelty=0.125),
+            id = "powers-of-two"
+        ),
+        param(RewardSettings(goal=0.68, milestone=0.07, novelty=0.11), id="decimals")
+    ]
+)
+def test_the_settings_accept_terms_one_step_sums_to_exactly_one_at_the_goal(
+    reward: RewardSettings
+):
+    """
+    Asserts that the settings accept terms where a step reaching a new
+    position and first setting every flag up to the starter at once earns
+    exactly 1, the most the bound Mnih et al. clip each reward to allows.
+    """
+    assert RunSettings(reward=reward).reward == reward
+
+
+@mark.parametrize(
+    ("fields", "message"),
+    [
+        param({"back": (0.8, 0.5)}, r"back\n.*passes the most", id="back"),
+        param({"forward": (1.5, 1.0)}, r"forward\n.*passes the most", id="forward"),
+        param({"required": 0.96}, "passes the completion share", id="required")
+    ]
+)
+def test_the_curriculums_settings_refuse_bounds_out_of_order(
+    fields  : Mapping[str, object],
+    message : str
+):
+    """
+    Asserts that the curriculum's settings refuse a least move passing the
+    most and a required share passing the completion share.
+    """
+    with raises(ValidationError, match=message):
+        CurriculumSettings.model_validate(fields)
+
+
+@mark.parametrize(
+    "algorithm",
+    [param(Algorithm.PPO, id="ppo"), param(Algorithm.PQN, id="pqn")]
+)
+def test_the_settings_take_a_demonstration_for_pqn_and_ppo(algorithm: Algorithm):
+    """
+    Asserts that the settings take a demonstration for PQN and PPO.
+    """
+    RunSettings(
+        agent      = AgentSettings(algorithm=algorithm),
+        curriculum = CurriculumSettings(demonstration=Path("data/runs/a"))
+    )
+
+
+def test_the_searchs_stream_leaves_the_seed_of_every_earlier_one_as_it_was():
+    """
+    Asserts that the search's stream comes last among the streams, since
+    each stream's seed derives from its place, so every seed an earlier run
+    drew from reads as it did.
+    """
+    assert [*Stream][-1] is Stream.SEARCH
+
+
 def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
     snapshot: SnapshotAssertion
 ):
@@ -924,6 +1005,81 @@ def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
     ) == snapshot
 
 
+@mark.parametrize(
+    ("demonstration", "start"),
+    [
+        param(None,                Start.BEDROOM,    id="the-bedroom"),
+        param(Path("data/runs/x"), Start.CURRICULUM, id="the-curriculum")
+    ]
+)
+def test_a_listing_reads_the_settings_naming_its_run(
+    demonstration : Path | None,
+    run           : Run,
+    start         : Start
+):
+    """
+    Asserts that a run's listing holds its name, its agent, and its seed,
+    and starts in the bedroom or along the curriculum as its settings name
+    a demonstration.
+    """
+    listed = RunListing.of(
+        run.model_copy(
+            update = {
+                "settings": RunSettings(
+                    agent      = AgentSettings(algorithm=Algorithm.PPO),
+                    curriculum = CurriculumSettings(demonstration=demonstration),
+                    seed       = 4
+                )
+            }
+        )
+    )
+
+    assert (listed.name, listed.agent, listed.seed, listed.start) == (
+        run.name, Algorithm.PPO, 4, start
+    )
+
+
+def test_the_settings_count_no_flag_past_the_goal_toward_the_ceiling():
+    """
+    Asserts that terms summing past 1 over every flag up to the Pokédex are
+    accepted for a run ending at the starter, whose episodes set none of the
+    flags after it.
+    """
+    reward = RewardSettings(milestone=0.15)
+
+    assert RunSettings(reward=reward).reward == reward
+
+
+def test_the_settings_default_to_the_papers_montezuma_column():
+    """
+    Asserts that the population, the rollouts, the chance of a random press,
+    and the predictor's settings default to the values the Montezuma's
+    Revenge column of Table 5 and Appendices A.2 and A.3 of Mhammedi and
+    Cohan's paper give them.
+    """
+    settings = SearchSettings()
+
+    assert settings.model_dump(exclude={"capacity", "update_steps", "workers"}) == {
+        "batch_size"    : 128,
+        "epsilon"       : 0.2,
+        "groups"        : 4,
+        "learning_rate" : 3e-4,
+        "particles"     : 32,
+        "inner_steps"   : (5, 15),
+        "outer_steps"   : (10, 20),
+        "rollback"      : (1, 3)
+    }
+
+
+def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():
+    """
+    Asserts that the settings refuse a demonstration beside the deep
+    Q-network, which starts every episode in the bedroom.
+    """
+    with raises(ValidationError, match="takes no demonstration"):
+        RunSettings(curriculum=CurriculumSettings(demonstration=Path("data/runs/a")))
+
+
 def test_the_settings_refuse_a_negative_seed():
     """
     Asserts that a negative seed is refused, since `SeedSequence` takes a
@@ -931,3 +1087,42 @@ def test_the_settings_refuse_a_negative_seed():
     """
     with raises(ValidationError, match="greater than or equal to 0"):
         RunSettings(seed=-1)
+
+
+def test_the_updates_default_to_the_ratio_of_the_papers_table():
+    """
+    Asserts that the presses between updates of the predictor default to the
+    400 million frames of Mhammedi and Cohan's Table 6, four frames a press,
+    over its 2.28 million updates, rounded.
+    """
+    assert SearchSettings().update_steps == round(400_000_000 / 4 / 2_280_000)
+
+
+@mark.parametrize("field", ["inner_steps", "outer_steps", "rollback"])
+def test_a_range_running_backward_is_refused(field: str):
+    """
+    Asserts that a range whose fewest exceeds its most raises, naming the
+    field.
+    """
+    with raises(ValidationError, match=field):
+        SearchSettings(**{field: (3, 2)})
+
+
+@mark.parametrize("field", ["inner_steps", "outer_steps", "rollback"])
+def test_a_range_of_one_value_is_accepted(field: str):
+    """
+    Asserts that a range whose fewest equals its most is accepted.
+    """
+    assert getattr(SearchSettings(**{field: (3, 3)}), field) == (3, 3)
+
+
+def test_the_workers_default_to_the_cpus_the_process_may_use(monkeypatch: MonkeyPatch):
+    """
+    Asserts that the workers default to the count `process_cpu_count`
+    reports, or to one where it reports none.
+    """
+    assert SearchSettings().workers == process_cpu_count()
+
+    monkeypatch.setattr("squirtl.emulator.schemas.process_cpu_count", lambda: None)
+
+    assert SearchSettings().workers == 1

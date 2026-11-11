@@ -9,7 +9,7 @@ Pins the search over particles, Mhammedi and Cohan's Algorithms 1 and
 - One iteration, where a group below the winner on reward moves to it, each
   group consolidates on its winner, and the best of those and the last
   winner, scored afresh, becomes the winner
-- The search ending at the starter or at its steps
+- The search ending at its goal, and on no other flag, or at its steps
 - Each rollout's presses, one action held at the chance of a random one
 - One seed reaching one demonstration, whichever order the rollouts play
   in, a search resumed from its checkpoint going on as an unbroken one does,
@@ -278,7 +278,7 @@ def test_an_iteration_ends_at_the_starter_on_the_particle_holding_it(
 
     drive(search)
 
-    assert search.winner.terminated and search.finished
+    assert search.reached and search.finished
 
 
 def test_consolidating_drops_each_state_no_particle_can_reach(
@@ -573,11 +573,11 @@ def test_the_demonstration_plays_back_to_what_the_winner_reached(
     played = booted.unwrapped
 
     assert isinstance(search.demonstration, Recording) and isinstance(played, Overworld)
-    assert winner.terminated
+    assert search.reached
 
     played.play(search.demonstration)
 
-    assert played.progress.milestones == winner.reward
+    assert played.reward.total(played.progress.earned) == winner.reward
     assert played.progress.position == winner.snapshot.tally.position
     assert Event.EVENT_GOT_STARTER in played.progress.events
 
@@ -619,3 +619,39 @@ def test_the_winner_is_the_best_of_the_groups_and_the_last_one_scored_afresh(
         search.winner.node, search.winner.score, search.iterations
     ) == (node, 0.05, 1)
     assert node in search.tree.states
+
+
+@mark.parametrize(
+    ("goal", "events", "finished"),
+    [
+        param(Event.EVENT_GOT_STARTER, (), False, id="no-flag"),
+        param(
+            Event.EVENT_GOT_STARTER,
+            (Event.EVENT_OAK_APPEARED_IN_PALLET,),
+            False,
+            id = "a-milestone"
+        ),
+        param(Event.EVENT_GOT_STARTER, (Event.EVENT_GOT_STARTER,), True, id="the-goal"),
+        param(
+            Event.EVENT_GOT_POKEDEX,
+            (Event.EVENT_GOT_STARTER,),
+            False,
+            id = "a-flag-short-of-a-later-goal"
+        )
+    ]
+)
+def test_a_search_finishes_on_a_particle_setting_its_goal_alone(
+    events    : tuple[Event, ...],
+    finished  : bool,
+    goal      : Event,
+    rolled    : Script,
+    searching : Callable[..., Search]
+):
+    """
+    Asserts that a search reads as finished once a particle's snapshot holds
+    the run's goal, and on no other flag, whichever goal the run names.
+    """
+    search = searching(rolled([]), goal=goal)
+    search.groups[0].particles[0] = particle(events=events)
+
+    assert search.finished is finished

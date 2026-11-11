@@ -196,6 +196,6 @@ def snapshot(events: Iterable[Event] = (), shade: int = 0, x: int = 0) -> Snapsh
     return Snapshot(
         frames    = compress(full((4, 72, 80), shade, uint8).tobytes()),
         state     = b"",
-        tally     = Tally.of({}, set(events), position, {position}),
+        tally     = Tally.of({}, set(events), {}, position, {position}, 0),
         timer_div = 3
     )
