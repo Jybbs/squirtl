@@ -561,6 +561,19 @@ class Run(Record):
                     )
                 ) from error
 
+    def check_files(self):
+        """
+        Refuses a run whose directory holds no `checkpoint` or no
+        `episodes`, the files a run writes as it trains.
+
+        Raises:
+            FileNotFoundError: Where either is missing, naming the run's
+                               directory and the file it lacks.
+        """
+        for path in (self.checkpoint, self.episodes):
+            if not path.is_file():
+                raise FileNotFoundError(f"{self.directory} holds no {path.name}")
+
     def ended_by(self, step: int) -> list[str]:
         """
         Reads the line of each episode `episodes` holds that ended by `step`

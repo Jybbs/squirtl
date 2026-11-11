@@ -10,7 +10,7 @@ It also defines `addresses`, which reads the addresses the package metadata
 names.
 """
 
-from collections.abc    import Iterable, Sequence
+from collections.abc    import Container, Iterable, Sequence
 from importlib.metadata import metadata
 from itertools          import groupby
 from numpy              import array
@@ -37,6 +37,19 @@ class ReleaseSettings(Record):
     """
     The name of the run a release plays where no selection names one.
     """
+
+    def check_recommends(self, names: Container[str]):
+        """
+        Refuses a `recommended_run` naming none of `names`, the names of the
+        trained runs.
+
+        Raises:
+            ValueError: Where none bears that name.
+        """
+        if self.recommended_run not in names:
+            raise ValueError(
+                f"The recommended run {self.recommended_run} is no trained run"
+            )
 
 
 class Score(Record):
