@@ -12,14 +12,6 @@
 
 .curriculum-gray { clip-path: inset(0); }
 
-.vp-doc .curriculum-lanes {
-  list-style : none;
-  margin     : 0;
-  padding    : 0;
-}
-
-.vp-doc .curriculum-lanes > li + li { margin-top: 0; }
-
 .curriculum-lane[data-phase='agent'] .curriculum-glass::before { clip-path: inset(0); }
 
 .curriculum-lane[data-phase='agent'] .curriculum-gray { clip-path: inset(0 100% 0 0); }

@@ -4,7 +4,7 @@ import { type KeyEntry, type KeyFigures, hueOf } from '../../../lib/widgets/chip
 import { fromMouse }                             from '../../../lib/widgets/scrub.ts'
 import { Chip }                                  from './chip.tsx'
 import { HUES }                                  from './hues.ts'
-import { LABEL, SWATCH }                         from './widget.ts'
+import { LABEL, LIST, SWATCH }                   from './widget.ts'
 
 /**
  * The classes inking one entry of the strip: its mark, its name, and the ground
@@ -54,7 +54,7 @@ const STRIP_PARTS = {
   dim    : 'opacity-45',
   entry  : 'inline-flex items-center gap-2 rounded-2 border-hairline border-transparent py-1 pr-2 pl-1 '
          + 'text-left motion-safe:transition-opacity',
-  list   : 'key-strip flex flex-wrap gap-x-3 gap-y-1',
+  list   : [LIST, 'flex flex-wrap gap-x-3 gap-y-1'],
   mark   : 'grid size-key-mark flex-none place-items-center',
   name   : 'font-code text-label leading-snug font-semibold tracking-caps whitespace-nowrap uppercase',
   swatch : SWATCH,

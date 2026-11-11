@@ -4,7 +4,7 @@ import * as fetch                 from '../../../lib/commands/fetch.ts'
 import { TAG, megabytes, timeOf } from '../../../lib/commands/release.ts'
 import { useAutoplay }            from '../../../lib/widgets/autoplay.ts'
 import { useChoice }              from '../../../lib/widgets/choice.ts'
-import { DETAIL, LABEL }          from '../kit/widget.ts'
+import { DETAIL, LABEL, LIST }    from '../kit/widget.ts'
 
 /**
  * The classes laying out each part of the widget: the bar its download fills
@@ -19,7 +19,7 @@ const PARTS = {
   option  : 'fetch-option rounded-1 border-hairline border-rule px-3 py-1 text-small text-quiet enabled:cursor-pointer focus-ring',
   options : 'flex flex-wrap gap-2',
   run     : 'flex items-center gap-2 font-code text-small tabular-nums',
-  runs    : 'fetch-runs flex flex-wrap gap-x-4 gap-y-1',
+  runs    : [LIST, 'fetch-runs flex flex-wrap gap-x-4 gap-y-1'],
   verdict : 'fetch-verdict grid border-l-bar pl-3 font-code text-small leading-snug wrap-anywhere',
   window  : '@container grid gap-4 rounded-2 border-hairline border-rule bg-lift p-4'
 }
