@@ -18,6 +18,8 @@ export interface Placement {
  */
 export const WIDGETS: readonly Placement[] = [
   { heading: 'At the Terminal', name: 'CommandsTerminal', page: 'commands/index.md' },
+  { heading: '`squirtl fetch`', name: 'CommandsFetch', page: 'commands/fetch.md' },
+  { heading: '`squirtl pack`', name: 'CommandsPack', page: 'commands/pack.md' },
   { heading: '`squirtl watch`', name: 'CommandsWatch', page: 'commands/watch.md' },
   { heading: 'The Discount', name: 'MethodsDiscount', page: 'methods/agents.md' },
   { heading: 'Replay Memory and Rollouts', name: 'MethodsExperience', page: 'methods/agents.md' },

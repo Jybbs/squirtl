@@ -21,6 +21,8 @@ def docs():
 
     A marker naming a key `docs/references.bib` does not declare exits 1
     before any file is written, naming the file and the line, as does a
+    Markdown file that cites a source and ends inside an open block, such
+    as an unclosed code fence, naming the line the block opens on, and a
     `docs/references.bib` that fails to read, naming its line. A marker
     under `docs/pages/` left unpaired, or a run under `docs/runs/` that
     read another cartridge, followed a demonstration at an absolute path,

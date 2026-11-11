@@ -1,0 +1,25 @@
+.fetch-differ { box-shadow: inset 0 calc(-1 * var(--border-width-ring)) 0 var(--color-critical); }
+
+.fetch-option[data-state='on'] {
+  border-color : var(--color-ink);
+  color        : var(--color-ink);
+}
+
+.fetch-verdict > * { grid-area: 1 / 1; }
+
+@container (width >= 32rem) {
+  .fetch-check { grid-template-columns: max-content minmax(0, 1fr); }
+
+  .fetch-runs {
+    align-content : start;
+    display       : grid;
+  }
+}
+
+.vp-doc .fetch-runs {
+  list-style : none;
+  margin     : 0;
+  padding    : 0;
+}
+
+.vp-doc .fetch-runs > li + li { margin-top: 0; }
