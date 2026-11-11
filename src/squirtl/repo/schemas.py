@@ -1402,7 +1402,8 @@ class Finding(Record):
         """
         Raises `Unreadable` in place of any error reading or parsing `file`
         inside the block, holding a finding for each field a validation
-        refuses and otherwise one finding on the line the parser names.
+        refuses and otherwise one finding on the line the parser names, in
+        the file a `SyntaxError` names where it names one.
         """
         try:
             yield
@@ -1425,6 +1426,9 @@ class Finding(Record):
             ) from error
         except (OSError, SubprocessError, SyntaxError, ValueError, YAMLError) as error:
             mark = getattr(error, "problem_mark", None)
+
+            if isinstance(error, SyntaxError) and error.filename:
+                file = Path(error.filename)
 
             raise Unreadable(
                 cls(

@@ -8,7 +8,8 @@ from cyclopts import Parameter
 from typing   import Annotated
 
 from squirtl.cli.logs         import listen, refusing
-from squirtl.releases.schemas import ReleaseManifest, ReleaseSettings
+from squirtl.docs.results     import ReleaseSettings
+from squirtl.releases.schemas import ReleaseManifest
 
 
 def pack(

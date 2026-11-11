@@ -14,11 +14,10 @@ from typing          import Self
 
 from squirtl.docs.commands       import Command
 from squirtl.docs.regions        import Page, Region
-from squirtl.docs.results        import Results
+from squirtl.docs.results        import ReleaseSettings, Results
 from squirtl.emulator.schemas    import Record, Symbol
 from squirtl.environment.schemas import EnvironmentSettings
 from squirtl.identity.schemas    import Identity
-from squirtl.releases.schemas    import ReleaseSettings
 from squirtl.reward.schemas      import Event
 from squirtl.runs.schemas        import RunSettings
 
