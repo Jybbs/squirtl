@@ -28,7 +28,7 @@ from urllib.request     import Request, urlopen
 
 from squirtl.agent.checkpoint import Weights
 from squirtl.agent.schemas    import Algorithm
-from squirtl.docs.results     import Results
+from squirtl.docs.results     import ReleaseSettings, Results
 from squirtl.emulator.schemas import EmulatorSettings, Record
 from squirtl.runs.schemas     import Run, RunListing, Start
 
@@ -183,17 +183,6 @@ class PackedRun(RunListing):
 
         with tar.open("rb") as file:
             return cls.of(run, sha256=file_digest(file, "sha256").hexdigest())
-
-
-class ReleaseSettings(Record):
-    """
-    The settings `squirtl pack` writes a release's runs under.
-    """
-
-    recommended_run: str = "20261111T020527.724383Z"
-    """
-    The name of the run a release plays where no selection names one.
-    """
 
 
 class ReleaseManifest(ReleaseSettings):

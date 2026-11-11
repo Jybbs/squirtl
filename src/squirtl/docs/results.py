@@ -1,8 +1,9 @@
 """
-Defines `Results`, the measured runs the site's Results section draws, read
-from the run directories committed under `docs/runs/`, which `squirtl write
-docs` writes into the site as JSON, beside `Trained`, one of those runs, and
-`Comparison`, the runs of one agent set against their baselines.
+Defines `Results`, the measured runs the site's Results section draws,
+read from the run directories committed under `docs/runs/`, which `squirtl
+write docs` writes into the site as JSON, beside `Trained`, one of those
+runs, `Comparison`, the runs of one agent set against their baselines, and
+`ReleaseSettings`, which names the run among them a release plays.
 """
 
 from collections.abc import Iterable
@@ -19,6 +20,18 @@ from squirtl.evaluation.report  import Estimate
 from squirtl.evaluation.schemas import Evaluation
 from squirtl.reward.schemas     import Event, Flag
 from squirtl.runs.schemas       import Run, RunListing
+
+
+class ReleaseSettings(Record):
+    """
+    The settings `squirtl pack` writes a release's runs under, the runs
+    committed under `Results.folder`.
+    """
+
+    recommended_run: str = "20261111T020527.724383Z"
+    """
+    The name of the run a release plays where no selection names one.
+    """
 
 
 class Score(Record):

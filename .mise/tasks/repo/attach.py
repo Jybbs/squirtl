@@ -11,7 +11,8 @@ so attaching again replaces each asset.
 
 from importlib.metadata import version
 
-from squirtl.releases.schemas import ReleaseManifest, ReleaseSettings
+from squirtl.docs.results     import ReleaseSettings
+from squirtl.releases.schemas import ReleaseManifest
 from squirtl.repo.github      import Command, Plan
 
 if __name__ == "__main__":

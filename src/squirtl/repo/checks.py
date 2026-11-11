@@ -316,9 +316,8 @@ class Footnotes(Check):
     def read(cls, documents: Callable[[type], Record]) -> Self:
         """
         Builds the check as `Check.read` does, raising `Unreadable` on
-        `docs/references.bib` where it fails to read, git cannot list the
-        Markdown files, or one of them fails to decode, the message naming
-        that file.
+        `docs/references.bib` where it fails to read or git cannot list the
+        Markdown files, and on a Markdown file that fails to decode.
         """
         with Finding.reading(Bibliography.path):
             return super().read(documents)
@@ -417,9 +416,7 @@ class Imports(Check):
     beneath: ClassVar[dict[str, tuple[str, ...]]] = {
         "agent"       : ("emulator",),
         "cli"         : ("docs", "releases"),
-        "docs"        : (
-            "agent", "evaluation", "identity", "releases", "reward", "runs"
-        ),
+        "docs"        : ("agent", "evaluation", "identity", "reward", "runs"),
         "environment" : ("reward",),
         "evaluation"  : ("agent", "environment"),
         "releases"    : ("agent", "docs", "runs"),
@@ -845,9 +842,10 @@ class Rendered(Check):
     def read(cls, documents: Callable[[type], Record]) -> Self:
         """
         Builds the check from the inventory of the `squirtl` command, the
-        one `squirtl write docs` writes, raising `Unreadable` on `identity`
-        where any part of it fails to read, the identity failing to parse or
-        to validate among them.
+        one `squirtl write docs` writes, raising `Unreadable` on a page
+        whose markers fail to read, at the line naming the fault, and on
+        `identity` where any other part of the inventory fails to read, the
+        identity failing to parse or to validate among them.
         """
         with Finding.reading(cls.identity):
             return cls(inventory=Inventory.read(app))
