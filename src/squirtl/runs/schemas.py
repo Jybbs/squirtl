@@ -25,7 +25,7 @@ from operator        import attrgetter
 from os              import SEEK_END, pread
 from pathlib         import Path
 from pydantic        import AwareDatetime, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt
-from pydantic        import PrivateAttr, StringConstraints, model_validator
+from pydantic        import PrivateAttr, StringConstraints, ValidationError, model_validator
 from subprocess      import check_output
 from typing          import Annotated, ClassVar, Self
 
@@ -535,6 +535,31 @@ class Run(Record):
                 f"{self.directory} recorded the intro leaving the console in a state "
                 f"of digest {self.digest}, where this cartridge leaves {digest}"
             )
+
+    def check_episodes(self):
+        """
+        Reads each line of `episodes` through `Episode`, as `episode` reads
+        the line `squirtl watch` plays, refusing the run at the first line
+        that does not parse, such as one written before a field of the
+        record was renamed.
+
+        Raises:
+            ValueError: Where a line does not parse, naming `episodes`, the
+                        line's number counting from 1, and each field it
+                        fails at.
+        """
+        for number, line in enumerate(self.lines(self.episodes), 1):
+            try:
+                Episode.model_validate_json(line)
+            except ValidationError as error:
+                raise ValueError(
+                    f"Line {number:,} of {self.episodes} holds no episode, failing "
+                    + ", ".join(
+                        f"at {'.'.join(map(str, problem['loc'])) or 'its root'} "
+                        f"with {problem['msg']!r}"
+                        for problem in error.errors(include_url=False)
+                    )
+                ) from error
 
     def ended_by(self, step: int) -> list[str]:
         """

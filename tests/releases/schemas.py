@@ -3,8 +3,9 @@ Pins the records a release carries its trained runs through, covering:
 
 - The tar each run packs into, holding its record on the default cartridge
   and its demonstration under `data/runs/`, its episodes, and a checkpoint
-  of its weights alone, the same bytes on a second pack, and a run missing
-  its checkpoint or its episodes, which it refuses by name
+  of its weights alone, the same bytes on a second pack, a run missing its
+  checkpoint or its episodes, which it refuses by name, and a run with a
+  line holding no episode, which the pack refuses before writing any tar
 - The manifest beside the tars, holding the demonstration apart from the
   trained runs and refusing a recommended run it does not list
 - The release read from GitHub's REST API, its manifest, and the runs it
@@ -22,6 +23,7 @@ from json              import dumps, loads
 from pathlib           import Path
 from pydantic          import ValidationError
 from pytest            import MonkeyPatch, mark, param, raises
+from re                import escape
 from releases.conftest import Recorder
 from tarfile           import open as open_tar
 from urllib.error      import HTTPError
@@ -111,6 +113,31 @@ def test_a_run_missing_its_checkpoint_or_its_episodes_is_refused_by_name(
         match = f"{run.directory} holds no {missing(run).name}"
     ):
         PackedRun.pack(tmp_path, run)
+
+
+@mark.parametrize(
+    "stale",
+    [param(2, id="a-trained-run-packed-last"), param(3, id="the-demonstration")]
+)
+def test_a_run_with_a_line_holding_no_episode_is_refused_before_any_tar(
+    committed : list[Run],
+    stale     : int
+):
+    """
+    Asserts that a pack raises `ValueError` naming the episodes and the
+    line of a run whose episode records a share under a name since retired,
+    leaving no tar of any run written.
+    """
+    run = committed[stale]
+    run.episodes.write_text(
+        run.episodes.read_text(encoding="utf-8").replace('"goal"', '"starter"'),
+        encoding = "utf-8"
+    )
+
+    with raises(ValueError, match=escape(f"Line 1 of {run.episodes} holds no episode")):
+        ReleaseManifest.pack(ReleaseSettings(recommended_run=committed[0].name))
+
+    assert not ReleaseManifest.folder.exists()
 
 
 def test_a_release_attaching_no_manifest_is_refused_by_its_tag():
