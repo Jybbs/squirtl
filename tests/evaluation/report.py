@@ -9,7 +9,8 @@ Pins the Markdown `Report` lays out, covering:
 - A measure no run reaches, which spells `none`
 - The interquartile mean and the probability of improvement, each beside
   its percentile interval, which one run leaves out and runs scoring the
-  same close onto their score, and how each spells itself
+  same close onto their score, and how each spells itself, its value as a
+  share of episodes included
 """
 
 from common.evaluation import outcome, played
@@ -174,6 +175,42 @@ def test_an_estimate_spells_its_value_its_interval_and_its_runs(
     each sample it reads.
     """
     assert str(estimate) == spelled
+
+
+@mark.parametrize(
+    ("estimate", "spelled"),
+    [
+        param(
+            Estimate(interval=(1.0, 1.0), runs=(2,), value=1.0),
+            "in every evaluation episode",
+            id = "every"
+        ),
+        param(
+            Estimate(interval=(0.0, 0.0), runs=(2,), value=0.0),
+            "in no evaluation episode",
+            id = "none"
+        ),
+        param(
+            Estimate(interval=(0.1444, 0.3122), runs=(5,), value=0.2111),
+            "in 21% [14, 31]",
+            id = "a-share"
+        ),
+        param(
+            Estimate(interval=None, runs=(1,), value=0.5),
+            "in 50%",
+            id = "a-single-run"
+        )
+    ]
+)
+def test_an_estimate_spells_a_share_of_episodes_in_whole_points(
+    estimate : Estimate,
+    spelled  : str
+):
+    """
+    Pins that a share of every episode or of none is spelled as such, and
+    any other in whole points beside its interval where it carries one.
+    """
+    assert estimate.share == spelled
 
 
 def test_the_probability_of_improvement_counts_a_tie_half():

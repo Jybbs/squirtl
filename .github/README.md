@@ -69,7 +69,11 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 
 ## 🎒 Results
 
-**[Results](https://squirtl.fyi/results/)** compares each agent against random presses under the same seeds, where PPO reaches the starter in every evaluation episode over 5 seeds from the bedroom and along the curriculum, PQN and the deep Q-network in none of them, and random presses in 21% [14, 31].
+<!-- results -->
+
+**[Results](https://squirtl.fyi/results/)** compares each agent against random presses under the same 5 seeds, where PPO reaches `EVENT_GOT_STARTER` in every evaluation episode from the bedroom and along the curriculum, DQN in no evaluation episode from the bedroom, PQN in no evaluation episode from the bedroom and along the curriculum, and random presses in 21% [14, 31].
+
+<!-- /results -->
 
 ## 🕹️ Attribution
 

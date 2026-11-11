@@ -13,7 +13,7 @@ from pydantic        import TypeAdapter
 from typing          import Self
 
 from squirtl.docs.commands       import Command
-from squirtl.docs.regions        import Page, Region
+from squirtl.docs.regions        import Page, Region, Summary
 from squirtl.docs.results        import ReleaseSettings, Results
 from squirtl.emulator.schemas    import Record, Symbol
 from squirtl.environment.schemas import EnvironmentSettings
@@ -99,8 +99,8 @@ class Inventory(Record):
     @classmethod
     def read(cls, app: App) -> Self:
         """
-        Lists every file the package's declarations are written into under
-        `docs/.vitepress/lib/rendered/`:
+        Lists every file the package's declarations are written into, each
+        JSON file and the sheet under `docs/.vitepress/lib/rendered/`:
 
         - The event flags the network reads, in the order the opening sets
           them, each beside its index in the flag array and the term its
@@ -119,10 +119,13 @@ class Inventory(Record):
           around them
         - Each page under `docs/pages/` carrying the table of a subject's
           settings between a pair of markers
+        - The README's sentence on the same runs, where it carries a pair of
+          markers
         """
         commands = Command.every(app)
         identity = Identity.read()
         rendered = Path("docs/.vitepress/lib/rendered")
+        results  = Results.read()
         terms    = EnvironmentSettings().goal.terms
         train    = next(command for command in commands if command.chain == ("train",))
 
@@ -140,7 +143,7 @@ class Inventory(Record):
                     ]
                 ),
                 Output.from_value(rendered / "identity.json", identity),
-                Output.from_value(rendered / "results.json", Results.read()),
+                Output.from_value(rendered / "results.json", results),
                 Output.from_value(rendered / "release.json", ReleaseSettings()),
                 Output.from_value(
                     rendered / "settings.json",
@@ -159,6 +162,10 @@ class Inventory(Record):
                 *(
                     Output(path=region.path, text=region.written(train))
                     for region in Region.every()
+                ),
+                *(
+                    Output(path=summary.path, text=summary.written(train))
+                    for summary in Summary.found(results)
                 )
             )
         )

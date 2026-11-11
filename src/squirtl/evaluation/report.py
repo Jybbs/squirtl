@@ -52,6 +52,23 @@ class Estimate(Record):
 
         return f"{self.value:,.5g}{bounds} over {counts} {noun}"
 
+    @property
+    def share(self) -> str:
+        """
+        Spells the value as a share of evaluation episodes, in whole points
+        beside its interval where the share is neither every episode nor
+        none.
+        """
+        match self.value:
+            case 1 : return "in every evaluation episode"
+            case 0 : return "in no evaluation episode"
+
+        bounds = "" if self.interval is None else " [{:.0f}, {:.0f}]".format(
+            *(100 * bound for bound in self.interval)
+        )
+
+        return f"in {self.value:.0%}{bounds}"
+
     @classmethod
     def improvement(cls, first: ndarray, second: ndarray, *, generator: Generator) -> Self:
         """
