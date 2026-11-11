@@ -87,10 +87,14 @@ class Evaluator(AbstractContextManager):
 
     def __exit__(self, *raised: object):
         """
-        Closes the environments and the processes running them, whether or
-        not the `with` block raised.
+        Closes the environments and the processes running them, terminating
+        the workers where the `with` block raised. Without `terminate`,
+        `AsyncVectorEnv.close` calls `step_wait` again to finish a pending
+        step. An interrupt raised inside `step_wait` leaves some of the
+        workers' pipes already read, so that call blocks forever on a pipe
+        no worker writes to again.
         """
-        self.envs.close()
+        self.envs.close(terminate=any(raised))
 
     def __init__(
         self,
