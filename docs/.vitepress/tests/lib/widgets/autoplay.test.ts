@@ -79,6 +79,18 @@ describe('useAutoplay', () => {
 
     expect(log).toStrictEqual(['tick 1', 'restart', 'tick 1'])
   })
+
+  test('starts a run over at once as it replays, while the run plays and once it has ended', async () => {
+    const { autoplay, log, sight } = await played(2, true)
+
+    sight.show(true)
+    vi.advanceTimersByTime(50)
+    autoplay.replay()
+    vi.advanceTimersByTime(150)
+    autoplay.replay()
+
+    expect(log).toStrictEqual(['tick 1', 'restart', 'tick 1', 'tick 2', 'restart', 'tick 1'])
+  })
 })
 
 describe('useAutoplay holding and ending', () => {
