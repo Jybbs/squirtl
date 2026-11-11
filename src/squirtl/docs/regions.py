@@ -15,9 +15,8 @@ from re              import Match, Pattern, compile
 from typing          import ClassVar, Self
 
 from squirtl.docs.commands    import Command
-from squirtl.docs.results     import Results
+from squirtl.docs.results     import Results, addresses
 from squirtl.emulator.schemas import Record, Symbol
-from squirtl.releases.schemas import addresses
 from squirtl.reward.schemas   import Event
 
 
@@ -84,7 +83,8 @@ class Region(Record):
                     continue
                 case _:
                     raise SyntaxError(
-                        f"{self.path}:{self.line(pair[-1])}: an unpaired marker"
+                        f"`{self.path}` holds an unpaired marker",
+                        (str(self.path), self.line(pair[-1]), None, None)
                     )
 
         return pairs
@@ -163,14 +163,16 @@ class Page(Region):
             SyntaxError: Where a marker is not one opening followed by its
                          closing, or where the pairs do not name the parts
                          of `command` in order, each pair once, naming the
-                         page, before anything is written.
+                         page and the line of its first marker where it
+                         holds one, before anything is written.
         """
         pairs = self.pairs()
 
         if (names := [opening[2] for opening, _ in pairs]) != list(command.parts):
             raise SyntaxError(
-                f"{self.path}: markers naming {', '.join(names) or 'nothing'} "
-                f"where the page holds {', '.join(command.parts)}"
+                f"`{self.path}` holds markers naming {', '.join(names) or 'nothing'} "
+                f"rather than {', '.join(command.parts)}",
+                (str(self.path), self.line(pairs[0][0]) if pairs else None, None, None)
             )
 
         return "".join(self.pieces(command, pairs))

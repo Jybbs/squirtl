@@ -150,8 +150,10 @@ def test_an_unpaired_marker_names_its_page_and_line(text: str, line: int):
     Pins that a marker which is not an opening followed by its own closing
     fails before any table is written, naming the page and the line.
     """
-    with raises(SyntaxError, match=f"^page.md:{line}: an unpaired marker$"):
+    with raises(SyntaxError, match=r"^`page\.md` holds an unpaired marker") as raised:
         Region(path=Path("page.md"), text=text).written(TRAIN)
+
+    assert (raised.value.filename, raised.value.lineno) == ("page.md", line)
 
 
 def test_each_pair_takes_its_subjects_table_in_place_of_what_it_held():
@@ -197,34 +199,42 @@ def test_only_a_page_holding_a_marker_is_a_region(
 
 
 @mark.parametrize(
-    ("text", "names"),
+    ("text", "names", "line"),
     [
-        param("# `squirtl stop`\n", "nothing", id="no-markers"),
-        param("<!-- help -->\n<!-- /help -->\n", "help", id="settings-missing"),
+        param("# `squirtl stop`\n", "nothing", None, id="no-markers"),
+        param("x\n<!-- help -->\n<!-- /help -->\n", "help", 2, id="settings-missing"),
         param(
             "<!-- settings -->\n<!-- /settings -->\n<!-- help -->\n<!-- /help -->\n",
             "settings, help",
+            1,
             id = "out-of-order"
         ),
         param(
             "<!-- help -->\n<!-- /help -->\n<!-- help -->\n<!-- /help -->\n"
             "<!-- settings -->\n<!-- /settings -->\n",
             "help, help, settings",
+            1,
             id = "repeated"
         )
     ]
 )
-def test_a_page_whose_markers_name_other_parts_is_refused(text: str, names: str):
+def test_a_page_whose_markers_name_other_parts_is_refused(
+    line  : int | None,
+    names : str,
+    text  : str
+):
     """
     Pins that a command's page whose pairs of markers do not name the parts
     of its command in order, each once, fails before any part is written,
-    naming the page and the pairs it holds.
+    naming the page, the pairs it holds, and the line of its first marker.
     """
     with raises(
         SyntaxError,
-        match = f"^page.md: markers naming {names} where the page holds help, settings$"
-    ):
+        match = f"^`page.md` holds markers naming {names} rather than help, settings"
+    ) as raised:
         Page(path=Path("page.md"), text=text).written(STOP)
+
+    assert (raised.value.filename, raised.value.lineno) == ("page.md", line)
 
 
 @mark.parametrize(

@@ -2,17 +2,22 @@
 Defines `Results`, the measured runs the site's Results section draws, read
 from the run directories committed under `docs/runs/`, which `squirtl write
 docs` writes into the site as JSON and spells as the README's sentence on
-them, beside `Trained`, one of those runs, and `Comparison`, the runs of one
-agent set against their baselines.
+them, beside `Trained`, one of those runs, `Comparison`, the runs of one
+agent set against their baselines, and `ReleaseSettings`, which names the
+run among them a release plays.
+
+It also defines `addresses`, which reads the addresses the package metadata
+names.
 """
 
-from collections.abc import Iterable, Sequence
-from itertools       import groupby
-from numpy           import array
-from numpy.random    import default_rng
-from operator        import attrgetter
-from pathlib         import Path
-from typing          import ClassVar, Self
+from collections.abc    import Iterable, Sequence
+from importlib.metadata import metadata
+from itertools          import groupby
+from numpy              import array
+from numpy.random       import default_rng
+from operator           import attrgetter
+from pathlib            import Path
+from typing             import ClassVar, Self
 
 from squirtl.agent.schemas      import Algorithm
 from squirtl.emulator.schemas   import EmulatorSettings, Record
@@ -20,6 +25,18 @@ from squirtl.evaluation.report  import Estimate
 from squirtl.evaluation.schemas import Evaluation
 from squirtl.reward.schemas     import Event, Flag
 from squirtl.runs.schemas       import Run, RunListing
+
+
+class ReleaseSettings(Record):
+    """
+    The settings `squirtl pack` writes a release's runs under, the runs
+    committed under `Results.folder`.
+    """
+
+    recommended_run: str = "20261111T020527.724383Z"
+    """
+    The name of the run a release plays where no selection names one.
+    """
 
 
 class Score(Record):
@@ -309,6 +326,16 @@ class Results(Record):
             ) if runs else None,
             runs = runs
         )
+
+
+def addresses() -> dict[str, str]:
+    """
+    Reads each address the package metadata's `Project-URL` entries name,
+    under its label, such as `Homepage` and `Repository`.
+    """
+    return dict(
+        entry.split(", ") for entry in metadata("squirtl").get_all("Project-URL")
+    )
 
 
 def spelled(comparisons: Sequence[Comparison]) -> str:
