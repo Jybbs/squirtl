@@ -1,10 +1,10 @@
 # Commands
 
-*SquiRtL* runs as the `squirtl` command, which trains an agent, stops a run, plays an episode back in the emulator's window, evaluates a trained agent against random presses, prints a source's citation, and writes the files the docs site reads from the package. Each page in this section is written from the help its command prints, so every setting below carries the default and the description `squirtl <command> --help` shows, or *the machine's* where the default follows the machine.
+*SquiRtL* runs as the `squirtl` command, which trains an agent, stops a run, plays an episode back in the emulator's window, evaluates a trained agent against random presses, packs the trained runs a release attaches and fetches them back, prints a source's citation, and writes the files the docs site reads from the package. Each page in this section is written from the help its command prints, so every setting below carries the default and the description `squirtl <command> --help` shows, or *the machine's* where the default follows the machine.
 
 ## At the Terminal
 
-A run starts from a fresh clone once the ROM sits at `data/rom.gb`, trains for the steps `--steps` names, and prints its directory under `data/runs/`, which `squirtl evaluate` then reads. `squirtl stop` ends a run in another terminal with a checkpoint, and `squirtl train --resume` continues it from there.
+A run starts from a fresh clone once the ROM sits at `data/rom.gb`, trains for the steps `--steps` names, and prints its directory under `data/runs/`, which `squirtl evaluate` then reads. `squirtl stop` ends a run in another terminal with a checkpoint, and `squirtl train --resume` continues it from there. `squirtl fetch` unpacks the runs a release attaches under `data/runs/` instead, and `squirtl watch --release` and `squirtl evaluate --release` read them, fetching any that is missing.
 
 ## Every Setting Is a Flag
 

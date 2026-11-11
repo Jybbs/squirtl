@@ -51,7 +51,7 @@ COMPILE = [
 ]
 PINNED  = "a" * 40
 TARGET  = "b" * 40
-RELEASE = dumps({"publishedAt": "2026-10-01T00:00:00Z", "tagName": "v5.0.0"})
+RELEASE = dumps({"published_at": "2026-10-01T00:00:00Z", "tag_name": "v5.0.0"})
 QUIET   = {
     ".mise/tasks/repo/bare.py"  : dedent(
         """\
@@ -129,7 +129,7 @@ class Reporting(Manager):
 @fixture
 def tagged(fp: FakeProcess) -> Callable[[str, str], None]:
     """
-    Builds a function that registers the reply `gh release view` gives for a
+    Builds a function that registers the reply GitHub's REST API gives for a
     repository's latest release beside the lines `git ls-remote` prints for
     its tags, for `actions/checkout` where the call names no other.
     """
@@ -138,10 +138,7 @@ def tagged(fp: FakeProcess) -> Callable[[str, str], None]:
         Registers the two commands reading `repository`.
         """
         fp.register(
-            [
-                "gh", "release", "view", "--json",
-                "publishedAt,tagName", "--repo", repository
-            ],
+            ["gh", "api", f"repos/{repository}/releases/latest"],
             stdout = RELEASE
         )
         fp.register(

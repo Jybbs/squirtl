@@ -39,6 +39,11 @@ class Benchmark(Record):
         baseline's from `run`, playing whichever of the two it lacks on
         `cartridge` under the evaluation settings and the evaluation stream
         the run recorded and writing it there.
+
+        Raises:
+            ValueError: Where it plays either and the intro on `cartridge`
+                        leaves the console in a state of another digest than
+                        the one `run` recorded, before any episode.
         """
         agent = next(
             (
@@ -65,6 +70,8 @@ class Benchmark(Record):
                     settings.reward
                 )
             ) as evaluator:
+                run.check(evaluator.digest)
+
                 if agent is None:
                     agent = evaluator.evaluate(weights)
                     run.append(run.evaluations, agent)

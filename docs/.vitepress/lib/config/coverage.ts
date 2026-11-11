@@ -14,17 +14,17 @@ interface Coverage {
 /**
  * Writes `coverage.json` at the root of `outDir` from the report `py:coverage`
  * leaves under `.cache/coverage/` in the checkout holding `metaUrl`, holding
- * the total it rounds to the report's precision, and writes nothing where no
- * report sits there.
+ * the total rounded to a whole percent, and writes nothing where no report
+ * sits there.
  */
 export function writeCoverage(outDir: string, metaUrl: string): void {
   const report = path.join(cacheDir(metaUrl, 'coverage'), 'coverage.json')
   if (!fs.existsSync(report)) return
 
   const { totals } = JSON.parse(fs.readFileSync(report, 'utf8')) as {
-    totals: { percent_covered_display: string }
+    totals: { percent_covered: number }
   }
-  const figure: Coverage = { percent: totals.percent_covered_display }
+  const figure: Coverage = { percent: totals.percent_covered.toFixed(0) }
 
   fs.writeFileSync(path.join(outDir, 'coverage.json'), `${JSON.stringify(figure)}\n`)
 }

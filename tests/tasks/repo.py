@@ -8,6 +8,8 @@ Pins what the `repo` tasks decide from their inputs, covering:
 - The part of the version `repo:bump` moves, and the version it writes
   into `CITATION.cff`
 - The status `repo:audit` exits with for the findings it prints
+- The upload `repo:attach` sends for each file the pack wrote, once the
+  reader confirms it
 - The flags `repo:lift` reads from mise's variables and the status it exits
   with
 
@@ -22,19 +24,22 @@ task a lift that records what it receives, but for the one running the task
 through the real `mise`, whose stand-in `uv` prints the variables mise sets.
 """
 
-from collections.abc   import Callable
-from json              import dumps
-from pathlib           import Path
-from pytest            import CaptureFixture, Config, MonkeyPatch, fixture, mark, param, raises
-from pytest_subprocess import FakeProcess
-from runpy             import run_path
-from shlex             import split
-from subprocess        import CompletedProcess, run
-from syrupy.assertion  import SnapshotAssertion
+from collections.abc    import Callable
+from importlib.metadata import version
+from json               import dumps
+from pathlib            import Path
+from pytest             import CaptureFixture, Config, MonkeyPatch, fixture, mark, param, raises
+from pytest_subprocess  import FakeProcess
+from runpy              import run_path
+from shlex              import split
+from subprocess         import CompletedProcess, run
+from syrupy.assertion   import SnapshotAssertion
 
-from squirtl.repo.checks  import Audit
-from squirtl.repo.lifts   import Lifts
-from squirtl.repo.schemas import Finding, Labels, Severity
+from squirtl.agent.schemas    import Algorithm
+from squirtl.releases.schemas import PackedRun, ReleaseManifest
+from squirtl.repo.checks      import Audit
+from squirtl.repo.lifts       import Lifts
+from squirtl.repo.schemas     import Finding, Labels, Severity
 
 
 @fixture
@@ -176,6 +181,55 @@ def test_labels_lists_each_live_label_the_registry_leaves_out(
         "GitHub already matches the files under .github/\n"
     )
     assert len(fp.calls) == 1
+
+
+@mark.parametrize(
+    ("reply", "status"),
+    [param("y\n", 0, id="y"), param("n\n", 1, id="n")]
+)
+def test_attach_uploads_each_packed_file_to_the_draft_once_confirmed(
+    answered    : Callable[[str], None],
+    fp          : FakeProcess,
+    monkeypatch : MonkeyPatch,
+    reply       : str,
+    status      : int,
+    task        : Callable[[str], int]
+):
+    """
+    Pins that `repo:attach` packs the runs, then sends one `gh release
+    upload --clobber` to the draft of the package's version carrying each
+    tar and then the manifest once the reader answers `y`, and sends nothing
+    otherwise.
+    """
+    listing = PackedRun(
+        agent      = Algorithm.PPO,
+        curriculum = False,
+        name       = "a",
+        seed       = 1,
+        sha256     = "0"
+    )
+    manifest = ReleaseManifest(
+        demonstrations  = (listing.model_copy(update={"name": "b"}),),
+        recommended_run = "a",
+        runs            = (listing,)
+    )
+    monkeypatch.setattr(
+        ReleaseManifest,
+        "pack",
+        classmethod(lambda cls, settings: manifest)
+    )
+    answered(reply)
+    fp.register(["gh", "release", "upload", fp.any()])
+
+    assert task("attach") == status
+    assert list(fp.calls)[1:] == [
+        [
+            "gh", "release", "upload",
+            version("squirtl"),
+            "dist/runs/a.tar.zst", "dist/runs/b.tar.zst",
+            "dist/runs/manifest.json", "--clobber"
+        ]
+    ][: 1 - status]
 
 
 @mark.parametrize(

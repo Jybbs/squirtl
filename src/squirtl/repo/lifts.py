@@ -32,6 +32,7 @@ from tomllib      import loads
 from typing       import ClassVar, Self, TypeForm
 
 from squirtl.emulator.schemas import Record
+from squirtl.releases.schemas import GithubRelease
 from squirtl.repo.checks      import SitePins
 from squirtl.repo.github      import Command
 from squirtl.repo.schemas     import (
@@ -277,23 +278,6 @@ class Alert(Record, extra="ignore"):
         )
 
 
-class GithubRelease(Record, extra="ignore"):
-    """
-    The latest release a GitHub repository publishes, as `gh release view`
-    reports it.
-    """
-
-    published: datetime = Field(alias="publishedAt")
-    """
-    When the release was published.
-    """
-
-    tag: str = Field(alias="tagName")
-    """
-    The tag the release names.
-    """
-
-
 class HeldPackageMoved(ValueError):
     """
     Raised where `uv lock` leaves a held package off its current release,
@@ -466,9 +450,7 @@ class ActionLift(Lift):
         the highest version a tag naming `pinned` carries.
         """
         latest = Command(
-            arguments = (
-                "release", "view", "--json", "publishedAt,tagName", "--repo", repository
-            )
+            arguments = ("api", f"repos/{repository}/releases/latest")
         ).parsed(GithubRelease)
         tags = {
             ref.removeprefix("refs/tags/").removesuffix("^{}"): commit
@@ -670,7 +652,7 @@ class Pylock(Record, extra="ignore"):
 class ActionLifts(Manager):
     """
     The third-party actions each workflow and the composite action pin by
-    commit, one lift per repository, read through `gh release view`, which
+    commit, one lift per repository, read through GitHub's REST API, which
     names the repository's latest release, and `git ls-remote`, which names
     the commit each of its tags points at.
     """

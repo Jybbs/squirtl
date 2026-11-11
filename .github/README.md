@@ -36,6 +36,13 @@ squirtl evaluate data/runs/<run>
 
 `squirtl train` prints the run's directory under `data/runs/` once it ends, and `squirtl evaluate` prints its measures as Markdown beside the random baseline's under the same seeds.
 
+Each release attaches every run the [Results](https://squirtl.fyi/results/) page measures, each recording the cartridge at `data/rom.gb`. `squirtl fetch` unpacks a release's runs under `data/runs/`, and `--release` plays or measures them in place of a run directory, fetching any run that is missing:
+
+```bash
+squirtl watch --release 0.2.0
+squirtl evaluate --release 0.2.0 --agent ppo --start curriculum
+```
+
 ## 🧵 Development
 
 Each step of the development loop runs as a mise task, which `mise tasks` lists in full:
@@ -56,6 +63,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise labels` | *Writes each label `.github/labels.toml` declares that GitHub lacks or carries under another color or description once you confirm it, and lists each live label the registry leaves out* |
 | `mise rulesets` | *Applies the rulesets under `.github/rulesets/`, then the repository settings `.github/settings.toml` declares, once you confirm them* |
 | `mise lift` | *Reports every pin lagging its newest release beside the open Dependabot alerts a lift clears, tries the lift in a scratch clone under `--try`, and writes it into every home of each pin under `--write`, leaving each pin `.mise/holds.toml` or `--hold` names where it stands, beside each pin paired with one, stopping the write with every file as it stood where another lift would move a held package, and leaving `min_version` where it stands while the running mise is older than its newest release* |
+| `mise attach` | *Packs every committed run through `squirtl pack` and uploads each tar and the manifest to the draft release once you confirm it, replacing any asset already attached* |
 | `mise bump` | *Moves the version to the next minor release, or to the next patch release under `mise bump patch`, in `pyproject.toml`, `uv.lock`, and `CITATION.cff`* |
 | `mise ci` | *Runs the lockfile check, the workflow audit, the repository audit, the formatter's check, the suite under coverage, and every check of the docs site in one sweep* |
 

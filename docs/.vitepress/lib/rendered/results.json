@@ -214,13 +214,14 @@
   "runs": [
     {
       "agent": "ppo",
+      "curriculum": true,
+      "name": "20261108T230559.402534Z",
+      "seed": 5,
       "baseline": {
         "reached": 0.2,
         "reward": 0.22651666666666664,
         "step": null
       },
-      "curriculum": true,
-      "name": "20261108T230559.402534Z",
       "scores": [
         {
           "reached": 0.0,
@@ -272,18 +273,18 @@
           "reward": 0.9142500000000001,
           "step": 2506752
         }
-      ],
-      "seed": 5
+      ]
     },
     {
       "agent": "ppo",
+      "curriculum": false,
+      "name": "20261108T230602.574663Z",
+      "seed": 5,
       "baseline": {
         "reached": 0.2,
         "reward": 0.22651666666666664,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230602.574663Z",
       "scores": [
         {
           "reached": 0.0,
@@ -335,18 +336,18 @@
           "reward": 0.9142500000000001,
           "step": 2506752
         }
-      ],
-      "seed": 5
+      ]
     },
     {
       "agent": "pqn",
+      "curriculum": true,
+      "name": "20261108T230603.411044Z",
+      "seed": 4,
       "baseline": {
         "reached": 0.36666666666666664,
         "reward": 0.3852083333333332,
         "step": null
       },
-      "curriculum": true,
-      "name": "20261108T230603.411044Z",
       "scores": [
         {
           "reached": 0.0,
@@ -398,18 +399,18 @@
           "reward": 0.7934583333333333,
           "step": 2502656
         }
-      ],
-      "seed": 4
+      ]
     },
     {
       "agent": "pqn",
+      "curriculum": false,
+      "name": "20261108T230606.327604Z",
+      "seed": 4,
       "baseline": {
         "reached": 0.36666666666666664,
         "reward": 0.3852083333333332,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230606.327604Z",
       "scores": [
         {
           "reached": 0.0,
@@ -461,18 +462,18 @@
           "reward": 0.0019583333333333336,
           "step": 2502656
         }
-      ],
-      "seed": 4
+      ]
     },
     {
       "agent": "pqn",
+      "curriculum": true,
+      "name": "20261108T230608.506664Z",
+      "seed": 1,
       "baseline": {
         "reached": 0.16666666666666666,
         "reward": 0.21207499999999999,
         "step": null
       },
-      "curriculum": true,
-      "name": "20261108T230608.506664Z",
       "scores": [
         {
           "reached": 0.0,
@@ -524,18 +525,18 @@
           "reward": 0.0003083333333333333,
           "step": 2502656
         }
-      ],
-      "seed": 1
+      ]
     },
     {
       "agent": "pqn",
+      "curriculum": false,
+      "name": "20261108T230611.675906Z",
+      "seed": 1,
       "baseline": {
         "reached": 0.16666666666666666,
         "reward": 0.21207499999999999,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230611.675906Z",
       "scores": [
         {
           "reached": 0.0,
@@ -587,18 +588,18 @@
           "reward": 0.0009833333333333335,
           "step": 2502656
         }
-      ],
-      "seed": 1
+      ]
     },
     {
       "agent": "ppo",
+      "curriculum": true,
+      "name": "20261108T230612.186418Z",
+      "seed": 2,
       "baseline": {
         "reached": 0.13333333333333333,
         "reward": 0.171925,
         "step": null
       },
-      "curriculum": true,
-      "name": "20261108T230612.186418Z",
       "scores": [
         {
           "reached": 0.0,
@@ -650,18 +651,18 @@
           "reward": 0.91475,
           "step": 2506752
         }
-      ],
-      "seed": 2
+      ]
     },
     {
       "agent": "ppo",
+      "curriculum": false,
+      "name": "20261108T230614.405278Z",
+      "seed": 2,
       "baseline": {
         "reached": 0.13333333333333333,
         "reward": 0.171925,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230614.405278Z",
       "scores": [
         {
           "reached": 0.0,
@@ -713,18 +714,18 @@
           "reward": 0.91325,
           "step": 2506752
         }
-      ],
-      "seed": 2
+      ]
     },
     {
       "agent": "ppo",
+      "curriculum": true,
+      "name": "20261108T230616.664480Z",
+      "seed": 1,
       "baseline": {
         "reached": 0.16666666666666666,
         "reward": 0.21207499999999999,
         "step": null
       },
-      "curriculum": true,
-      "name": "20261108T230616.664480Z",
       "scores": [
         {
           "reached": 0.0,
@@ -776,18 +777,18 @@
           "reward": 0.914,
           "step": 2506752
         }
-      ],
-      "seed": 1
+      ]
     },
     {
       "agent": "ppo",
+      "curriculum": true,
+      "name": "20261108T230618.783391Z",
+      "seed": 4,
       "baseline": {
         "reached": 0.36666666666666664,
         "reward": 0.3852083333333332,
         "step": null
       },
-      "curriculum": true,
-      "name": "20261108T230618.783391Z",
       "scores": [
         {
           "reached": 0.0,
@@ -839,18 +840,18 @@
           "reward": 0.913,
           "step": 2506752
         }
-      ],
-      "seed": 4
+      ]
     },
     {
       "agent": "ppo",
+      "curriculum": false,
+      "name": "20261108T230619.486374Z",
+      "seed": 1,
       "baseline": {
         "reached": 0.16666666666666666,
         "reward": 0.21207499999999999,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230619.486374Z",
       "scores": [
         {
           "reached": 0.0,
@@ -902,18 +903,18 @@
           "reward": 0.9150000000000001,
           "step": 2506752
         }
-      ],
-      "seed": 1
+      ]
     },
     {
       "agent": "ppo",
+      "curriculum": false,
+      "name": "20261108T230620.915963Z",
+      "seed": 4,
       "baseline": {
         "reached": 0.36666666666666664,
         "reward": 0.3852083333333332,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230620.915963Z",
       "scores": [
         {
           "reached": 0.0,
@@ -965,18 +966,18 @@
           "reward": 0.91325,
           "step": 2506752
         }
-      ],
-      "seed": 4
+      ]
     },
     {
       "agent": "pqn",
+      "curriculum": true,
+      "name": "20261108T230621.730506Z",
+      "seed": 3,
       "baseline": {
         "reached": 0.26666666666666666,
         "reward": 0.3006666666666666,
         "step": null
       },
-      "curriculum": true,
-      "name": "20261108T230621.730506Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1028,18 +1029,18 @@
           "reward": 0.004100000000000002,
           "step": 2502656
         }
-      ],
-      "seed": 3
+      ]
     },
     {
       "agent": "ppo",
+      "curriculum": true,
+      "name": "20261108T230622.098927Z",
+      "seed": 3,
       "baseline": {
         "reached": 0.26666666666666666,
         "reward": 0.3006666666666666,
         "step": null
       },
-      "curriculum": true,
-      "name": "20261108T230622.098927Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1091,18 +1092,18 @@
           "reward": 0.913,
           "step": 2506752
         }
-      ],
-      "seed": 3
+      ]
     },
     {
       "agent": "pqn",
+      "curriculum": true,
+      "name": "20261108T230623.563042Z",
+      "seed": 2,
       "baseline": {
         "reached": 0.13333333333333333,
         "reward": 0.171925,
         "step": null
       },
-      "curriculum": true,
-      "name": "20261108T230623.563042Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1149,18 +1150,18 @@
           "reward": 0.8032,
           "step": 2252800
         }
-      ],
-      "seed": 2
+      ]
     },
     {
       "agent": "pqn",
+      "curriculum": false,
+      "name": "20261108T230623.764050Z",
+      "seed": 3,
       "baseline": {
         "reached": 0.26666666666666666,
         "reward": 0.3006666666666666,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230623.764050Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1212,18 +1213,18 @@
           "reward": 0.0008083333333333334,
           "step": 2502656
         }
-      ],
-      "seed": 3
+      ]
     },
     {
       "agent": "pqn",
+      "curriculum": true,
+      "name": "20261108T230624.105364Z",
+      "seed": 5,
       "baseline": {
         "reached": 0.2,
         "reward": 0.22651666666666664,
         "step": null
       },
-      "curriculum": true,
-      "name": "20261108T230624.105364Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1265,18 +1266,18 @@
           "reward": 0.005408333333333336,
           "step": 2002944
         }
-      ],
-      "seed": 5
+      ]
     },
     {
       "agent": "ppo",
+      "curriculum": false,
+      "name": "20261108T230624.179244Z",
+      "seed": 3,
       "baseline": {
         "reached": 0.26666666666666666,
         "reward": 0.3006666666666666,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230624.179244Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1328,18 +1329,18 @@
           "reward": 0.913,
           "step": 2506752
         }
-      ],
-      "seed": 3
+      ]
     },
     {
       "agent": "pqn",
+      "curriculum": false,
+      "name": "20261108T230625.703524Z",
+      "seed": 2,
       "baseline": {
         "reached": 0.13333333333333333,
         "reward": 0.171925,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230625.703524Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1391,18 +1392,18 @@
           "reward": 0.002066666666666667,
           "step": 2502656
         }
-      ],
-      "seed": 2
+      ]
     },
     {
       "agent": "pqn",
+      "curriculum": false,
+      "name": "20261108T230626.159025Z",
+      "seed": 5,
       "baseline": {
         "reached": 0.2,
         "reward": 0.22651666666666664,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230626.159025Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1444,18 +1445,18 @@
           "reward": 0.0011916666666666668,
           "step": 2002944
         }
-      ],
-      "seed": 5
+      ]
     },
     {
       "agent": "dqn",
+      "curriculum": false,
+      "name": "20261108T230629.427762Z",
+      "seed": 1,
       "baseline": {
         "reached": 0.16666666666666666,
         "reward": 0.21207499999999999,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230629.427762Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1472,18 +1473,18 @@
           "reward": 0.0008500000000000001,
           "step": 751347
         }
-      ],
-      "seed": 1
+      ]
     },
     {
       "agent": "dqn",
+      "curriculum": false,
+      "name": "20261108T230631.611071Z",
+      "seed": 2,
       "baseline": {
         "reached": 0.13333333333333333,
         "reward": 0.171925,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230631.611071Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1495,18 +1496,18 @@
           "reward": 0.0016833333333333333,
           "step": 505555
         }
-      ],
-      "seed": 2
+      ]
     },
     {
       "agent": "dqn",
+      "curriculum": false,
+      "name": "20261108T230636.598162Z",
+      "seed": 3,
       "baseline": {
         "reached": 0.26666666666666666,
         "reward": 0.3006666666666666,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230636.598162Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1523,18 +1524,18 @@
           "reward": 0.000775,
           "step": 753163
         }
-      ],
-      "seed": 3
+      ]
     },
     {
       "agent": "dqn",
+      "curriculum": false,
+      "name": "20261108T230641.641695Z",
+      "seed": 4,
       "baseline": {
         "reached": 0.36666666666666664,
         "reward": 0.3852083333333332,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230641.641695Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1551,18 +1552,18 @@
           "reward": 0.0007083333333333334,
           "step": 760054
         }
-      ],
-      "seed": 4
+      ]
     },
     {
       "agent": "dqn",
+      "curriculum": false,
+      "name": "20261108T230646.624479Z",
+      "seed": 5,
       "baseline": {
         "reached": 0.2,
         "reward": 0.22651666666666664,
         "step": null
       },
-      "curriculum": false,
-      "name": "20261108T230646.624479Z",
       "scores": [
         {
           "reached": 0.0,
@@ -1579,8 +1580,7 @@
           "reward": 0.0038916666666666683,
           "step": 758918
         }
-      ],
-      "seed": 5
+      ]
     }
   ]
 }

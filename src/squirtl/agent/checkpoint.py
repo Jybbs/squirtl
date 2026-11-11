@@ -5,7 +5,8 @@ Defines the file the agents write at each checkpoint and read back:
   `ReplayCheckpoint` holds replay memory for the deep Q-network and whose
   `RolloutCheckpoint` holds the generator of PQN or PPO
 - `Weights`, the weights of the network an agent acts through and their
-  step, which an evaluation reads from a checkpoint alone
+  step, which an evaluation reads from a checkpoint alone and a release
+  carries as a checkpoint of its own
 """
 
 from compression.zstd import ZstdError
@@ -46,7 +47,8 @@ class Weights(Record, extra="ignore"):
     """
     The weights of the network an agent acts through and the step
     a checkpoint holds them at, which an evaluation reads from the
-    checkpoint's `agent.pt` member alone.
+    checkpoint's `agent.pt` member alone and `save` writes as a checkpoint
+    holding nothing else.
     """
 
     online: StateDict
@@ -59,6 +61,22 @@ class Weights(Record, extra="ignore"):
     """
     The environment steps the agent has taken.
     """
+
+    @property
+    def arrays(self) -> dict[str, ndarray]:
+        """
+        Lists each array `save` writes as an `.npy` member of its own, none
+        beyond what `agent.pt` holds.
+        """
+        return {}
+
+    @property
+    def contents(self) -> dict[str, object]:
+        """
+        Gathers what the `agent.pt` member holds, every field as it is, so
+        each `state_dict` keeps its `_metadata`.
+        """
+        return dict(self)
 
     @classmethod
     def from_path(cls, path: Path) -> Self:
@@ -96,40 +114,13 @@ class Weights(Record, extra="ignore"):
         with safe_globals([bytes]):
             return load(BytesIO(archive["agent.pt"]), map_location="cpu")
 
-
-class Checkpoint(Weights, extra="forbid"):
-    """
-    Everything a resumed run continues training from, the `Weights` an
-    evaluation reads among it, which `save` writes as one `.npz` holding an
-    `agent.pt` member beside an `.npy` member for each of its `arrays`.
-    """
-
-    optimizer: dict[str, object]
-    """
-    The optimizer's `state_dict`.
-    """
-
-    @property
-    def arrays(self) -> dict[str, ndarray]:
-        """
-        Lists each array `save` writes as an `.npy` member of its own, none
-        beyond what `agent.pt` holds.
-        """
-        return {}
-
-    @property
-    def contents(self) -> dict[str, object]:
-        """
-        Gathers what the `agent.pt` member holds, every field as it is, so
-        each `state_dict` keeps its `_metadata`.
-        """
-        return dict(self)
-
     def save(self, path: Path):
         """
         Writes the checkpoint to `path` as an `.npz` whose members `zipfile`
         compresses with zstd, an `agent.pt` member that `torch.save` writes
-        from `contents` beside an `.npy` member for each of `arrays`.
+        from `contents` beside an `.npy` member for each of `arrays`, each
+        dated 1980-01-01 as `ZipFile.open` dates a member it writes, so the
+        same fields always write the same bytes.
 
         The archive is written to the `.partial` file beside `path` and
         flushed through the drive's own cache, then takes the name `path`,
@@ -142,8 +133,8 @@ class Checkpoint(Weights, extra="forbid"):
         try:
             with partial.open("wb") as file:
                 with ZipFile(file, "w", ZIP_ZSTANDARD) as archive:
-                    with archive.open("agent.pt", "w") as member:
-                        save(self.contents, member)
+                    with archive.open("agent.pt", "w") as written:
+                        save(self.contents, written)
 
                     for name, array in self.arrays.items():
                         # ZIP64 lets the frames of a large replay memory pass 2 GiB.
@@ -151,8 +142,8 @@ class Checkpoint(Weights, extra="forbid"):
                             f"{name}.npy",
                             "w",
                             force_zip64 = True
-                        ) as member:
-                            save_npy(member, array)
+                        ) as written:
+                            save_npy(written, array)
 
                 flush(file.fileno())
 
@@ -166,6 +157,19 @@ class Checkpoint(Weights, extra="forbid"):
             fsync(directory)
         finally:
             close(directory)
+
+
+class Checkpoint(Weights, extra="forbid"):
+    """
+    Everything a resumed run continues training from, the `Weights` an
+    evaluation reads among it, which `save` writes as one `.npz` holding an
+    `agent.pt` member beside an `.npy` member for each of its `arrays`.
+    """
+
+    optimizer: dict[str, object]
+    """
+    The optimizer's `state_dict`.
+    """
 
 
 class ReplayCheckpoint(Checkpoint):
