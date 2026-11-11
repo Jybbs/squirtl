@@ -23,7 +23,7 @@ from squirtl.docs.schemas     import Bibliography, Manuscripts
 from squirtl.emulator.schemas import Record
 from squirtl.repo.schemas import (
     Actions, Citation, Finding, Labels, License, Lockfile, Manifest, MiseConfig,
-    Project, ReleaseNotes, Rulesets, Scripts, Severity, SiteManifest, Tasks,
+    Project, ReleaseNotes, Rulesets, Scripts, Severity, SiteLockfile, SiteManifest, Tasks,
     Templates, Tree, Unreadable, Workflows
 )
 
@@ -956,6 +956,35 @@ class ScriptCheck(Check):
                     )
 
 
+class SiteCopies(Check):
+    """
+    Holds each package `shared` lists to the one copy of it `docs/bun.lock`
+    resolves, since the manifest of `vitepress` declares each as a range,
+    which a lift moving `vitepress` can move past the version the site pins.
+    """
+
+    shared: ClassVar[tuple[str, ...]] = ("@vueuse/core", "vue")
+
+    lockfile: SiteLockfile
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding on the line of `docs/package.json` pinning each
+        package `shared` lists that the lockfile resolves more than once,
+        naming each path a further copy is installed at.
+        """
+        for name in self.shared:
+            if paths := self.lockfile.nested(name):
+                yield Finding.locate(
+                    SiteManifest.file,
+                    f'"{name}"',
+                    message = (
+                        f"`{SiteLockfile.file}` resolves `{name}` more than once, "
+                        f"nesting a copy at {', '.join(f'`{path}`' for path in paths)}"
+                    )
+                )
+
+
 class SitePins(Check):
     """
     Holds the docs site's pins that move together, each package `paired`
@@ -1130,22 +1159,27 @@ class Warming(Check):
     saves the cache under the new key.
     """
 
-    # `hashed` holds the globs `jdx/mise-action` hashes into its cache key,
-    # its `MISE_CONFIG_FILE_PATTERNS`.
+    # `hashed` holds the globs `jdx/mise-action` hashes into its cache key
+    # from the root of the checkout, its `MISE_CONFIG_FILE_PATTERNS`.
     hashed: ClassVar[tuple[str, ...]] = (
-        "**/.config/mise/config.toml", "**/.config/mise/config.lock",
-        "**/.config/mise/config.*.toml", "**/.config/mise/config.*.lock",
-        "**/.config/mise.toml", "**/.config/mise.lock",
-        "**/.config/mise.*.toml", "**/.config/mise.*.lock",
-        "**/.mise/config.toml", "**/.mise/config.lock",
-        "**/.mise/config.*.toml", "**/.mise/config.*.lock",
-        "**/mise/config.toml", "**/mise/config.lock",
-        "**/mise/config.*.toml", "**/mise/config.*.lock",
-        "**/.mise.toml", "**/.mise.lock",
-        "**/.mise.*.toml", "**/.mise.*.lock",
-        "**/mise.toml", "**/mise.lock",
-        "**/mise.*.toml", "**/mise.*.lock",
-        "**/.tool-versions"
+        ".config/mise/conf.d/*.toml", ".config/mise/conf.d/*/mise*.toml",
+        ".config/mise/config.toml", ".config/mise/config.lock",
+        ".config/mise/config.*.toml", ".config/mise/config.*.lock",
+        ".config/mise/mise.toml", ".config/mise/mise.*.toml",
+        ".config/mise/mise.lock", ".config/mise/mise.*.lock",
+        ".config/mise.toml", ".config/mise.lock",
+        ".config/mise.*.toml", ".config/mise.*.lock",
+        ".mise/conf.d/*.toml", ".mise/conf.d/*/mise*.toml",
+        ".mise/config.toml", ".mise/config.lock",
+        ".mise/config.*.toml", ".mise/config.*.lock",
+        "mise/conf.d/*.toml", "mise/conf.d/*/mise*.toml",
+        "mise/config.toml", "mise/config.lock",
+        "mise/config.*.toml", "mise/config.*.lock",
+        ".mise.toml", ".mise.lock",
+        ".mise.*.toml", ".mise.*.lock",
+        "mise.toml", "mise.lock",
+        "mise.*.toml", "mise.*.lock",
+        ".tool-versions"
     )
 
     actions   : Actions

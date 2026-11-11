@@ -1,6 +1,7 @@
-import type { ReducedMotionType } from '@vueuse/core'
-import { beforeEach, vi }         from 'vitest'
-import { ref }                    from 'vue'
+import { type VueWrapper, mount }        from '@vue/test-utils'
+import type { ReducedMotionType }        from '@vueuse/core'
+import { beforeEach, vi }                from 'vitest'
+import { type Component, nextTick, ref } from 'vue'
 
 /**
  * A stand-in for the browser's `IntersectionObserver`, which happy-dom leaves
@@ -65,4 +66,17 @@ export function stubSight(): Sight {
 export function stubSize(): (width: number, height: number) => void {
   const report = stubObserver<ResizeObserverEntry>('ResizeObserver')
   return (width, height) => report({ contentRect: { height, width } } as ResizeObserverEntry)
+}
+
+/**
+ * Mounts `component` into the document and shows it on screen, so its
+ * autoplay starts.
+ */
+export async function shown(component: Component): Promise<VueWrapper> {
+  const sight   = stubSight()
+  const wrapper = mount(component, { attachTo: document.body })
+  await nextTick()
+  sight.show(true)
+  await nextTick()
+  return wrapper
 }
