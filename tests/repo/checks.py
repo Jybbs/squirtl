@@ -828,14 +828,14 @@ def test_rendered_reports_an_identity_that_fails_validation(
     ("on", "found"),
     [
         param(
-            "on:\n  push:\n    paths: [.github/**, .mise/config.toml, .mise/mise.lock]",
+            "on:\n  push:\n    paths: [.github/**, .mise/**]",
             [],
             id = "every-file"
         ),
         param("on:\n  push:\n    branches: [main]", [], id="no-filter"),
         param(
             "on:\n  push:\n    paths: [.github/workflows/warm.yml, .mise/*.toml]",
-            [(4, ".github/actions/provision/action.yml"), (4, ".mise/mise.lock")],
+            [(4, ".github/actions/provision/action.yml"), (4, ".mise/conf.d/ci.toml")],
             id = "two-left-out"
         ),
         param(
@@ -843,14 +843,14 @@ def test_rendered_reports_an_identity_that_fails_validation(
             [
                 (2, ".github/actions/provision/action.yml"),
                 (2, ".github/workflows/warm.yml"),
-                (2, ".mise/config.toml"),
-                (2, ".mise/mise.lock")
+                (2, ".mise/conf.d/ci.toml"),
+                (2, ".mise/config.toml")
             ],
             id = "no-push"
         ),
         param(
             "on:\n  push:\n    paths-ignore: [.mise/**]",
-            [(4, ".mise/config.toml"), (4, ".mise/mise.lock")],
+            [(4, ".mise/conf.d/ci.toml"), (4, ".mise/config.toml")],
             id = "ignored"
         )
     ]
@@ -865,9 +865,10 @@ def test_warming_reports_each_file_a_key_is_built_from_that_no_push_reaches(
     Pins that the warming check reports each file a cache key is built from
     that a push to the saving workflow's branches can touch without running
     it, meaning the workflow, the manifest of the action its saving job
-    runs, and each file the globs `jdx/mise-action` hashes match, on the
-    line of the push filter or of `on`, and nothing where a push runs the
-    workflow whatever it touches.
+    runs, and each file the globs `jdx/mise-action` hashes match from the
+    root of the checkout, on the line of the push filter or of `on`, and
+    nothing where a push runs the workflow whatever it touches, whereas
+    `.mise/mise.lock` and a mise config below the root match no glob.
     """
     findings = scan(
         Warming,
@@ -878,14 +879,18 @@ def test_warming_reports_each_file_a_key_is_built_from_that_no_push_reaches(
                 "      - uses: ./.github/actions/provision\n"
                 "        with: { tools: python uv }\n"
             ),
-            ".mise/config.toml" : "",
-            ".mise/mise.lock"   : ""
+            ".mise/conf.d/ci.toml"   : "",
+            ".mise/config.toml"      : "",
+            ".mise/mise.lock"        : "",
+            "docs/.mise/config.toml" : ""
         },
         Tree(
             files = [
+                Path(".mise/conf.d/ci.toml"),
                 Path(".mise/config.toml"),
                 Path(".mise/mise.lock"),
-                Path("README.md")
+                Path("README.md"),
+                Path("docs/.mise/config.toml")
             ]
         )
     )
