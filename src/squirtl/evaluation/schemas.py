@@ -8,7 +8,7 @@ Defines the records an evaluation reads and writes:
 
 from functools  import cached_property
 from os         import process_cpu_count
-from pydantic   import Field, PositiveInt
+from pydantic   import Field, PositiveInt, model_validator
 from statistics import fmean
 from typing     import Annotated, Self
 
@@ -25,7 +25,7 @@ class Evaluation(Record):
     the policy's most likely action.
     """
 
-    argmax: Annotated[list[Outcome], Field(min_length=1)] | None
+    argmax: list[Outcome] | None
     """
     What each episode reached under the same reset seeds where PPO took its
     most likely action at every step, in the order of `outcomes`, or `None`
@@ -105,6 +105,24 @@ class Evaluation(Record):
         Averages the episodes' returns.
         """
         return fmean(outcome.reward for outcome in self.outcomes)
+
+    @model_validator(mode="after")
+    def pairs_its_episodes(self) -> Self:
+        """
+        Refuses an `argmax` holding another count of episodes than
+        `outcomes`, since it plays the same episodes again.
+
+        Raises:
+            ValueError: Where the counts differ, which Pydantic raises as a
+                        `ValidationError`.
+        """
+        if self.argmax is not None and len(self.argmax) != len(self.outcomes):
+            raise ValueError(
+                "the episodes at the most likely action and the sampled ones "
+                f"number {len(self.argmax):,} and {len(self.outcomes):,}"
+            )
+
+        return self
 
 
 class EvaluationSettings(Record):

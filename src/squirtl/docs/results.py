@@ -131,9 +131,12 @@ class Trained(RunListing):
         Raises:
             ValueError: Where the run read a cartridge other than the
                         default path or followed a demonstration at an
-                        absolute path, either of which would carry a local
-                        path into the checkout, or holds no evaluation of
-                        the agent or of the random baseline.
+                        absolute path, either of which would carry a
+                        local path into the checkout, holds no evaluation
+                        of the agent or of the random baseline, or holds
+                        an evaluation whose episodes at the most likely
+                        action do not match its agent, present for the deep
+                        Q-network or PQN or missing for PPO.
         """
         run = Run.read(directory)
 
@@ -150,6 +153,16 @@ class Trained(RunListing):
 
         if not (scores := tuple(map(Score.of, run.evaluated))):
             raise ValueError(f"{directory} holds no evaluation")
+
+        if any(
+            (score.argmax is None) is run.settings.agent.algorithm.sampled
+            for score in scores
+        ):
+            raise ValueError(
+                f"{directory} holds an evaluation of "
+                f"{run.settings.agent.algorithm.name} whose episodes at the most "
+                "likely action do not match its agent"
+            )
 
         if (baseline := run.baselined) is None:
             raise ValueError(f"{directory} holds no baseline")

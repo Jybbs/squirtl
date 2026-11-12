@@ -142,27 +142,30 @@ def tallied(monkeypatch: MonkeyPatch):
 
 @mark.usefixtures("tallied")
 @mark.parametrize(
-    "network",
+    ("network", "sampled"),
     [
-        param(None,           id="the-baseline"),
-        param(value_the_last, id="the-agent")
+        param(None,           False, id="the-baseline"),
+        param(value_the_last, False, id="the-agent"),
+        param(value_the_last, True,  id="ppos-sampled-policy")
     ]
 )
 def test_each_episode_plays_alike_however_many_environments_run(
     evaluator : Callable[..., Evaluator],
-    network   : Callable[[dict[str, Tensor]], Tensor] | None
+    network   : Callable[[dict[str, Tensor]], Tensor] | None,
+    sampled   : bool
 ):
     """
     Asserts that five episodes of differing lengths reach the same outcomes
     across one, two, or three environments, each episode's reset and random
     actions seeded by its number alone, under the random baseline and
-    under an agent whose network values the last action highest, and that
+    under an agent whose network values the last action highest, played
+    epsilon-greedily and sampled from its logits as PPO's is, and that
     the episodes' lengths, which each reset's seed draws, differ from one
     another.
     """
     played = [
         evaluator(environments=environments, episodes=5).play(
-            Policy(epsilon=0.5, network=network)
+            Policy(epsilon=0.5, network=network, sampled=sampled)
         )
         for environments in (1, 2, 3)
     ]

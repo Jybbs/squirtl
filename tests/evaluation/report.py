@@ -31,9 +31,9 @@ def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
     Asserts that a report of three runs against two prints the table of each
     run's measures, the table of each measure's interquartile mean with its
     interval and runs, and both probabilities of improvement its fixture
-    file holds, one run reaching its goal in 40 steps and another holding
-    the episodes of PPO's most likely action, whose row sits beneath its
-    agent's and reaches no figure across the runs.
+    file holds, one run reaching its goal in 40 steps, and one run of each
+    group holding the episodes of PPO's most likely action, whose row sits
+    beneath its run's and reaches no figure across the runs.
     """
     reached = outcome(
         length     = 40,
@@ -49,7 +49,9 @@ def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
             ),
 
             "20261007T000000.000000Z": (
-                played([0.5, 0.25], 100),
+                played([0.5, 0.25], 100).model_copy(
+                    update = {"argmax": [outcome(0.0), outcome(0.0)]}
+                ),
                 played([0.0, 0.25], None)
             )
         },

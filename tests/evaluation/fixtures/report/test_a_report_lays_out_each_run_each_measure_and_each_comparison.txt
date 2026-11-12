@@ -10,6 +10,7 @@
 | `20261006T000000.000000Z` | Against | `EVENT_GOT_STARTER` | 100 | 2 | 0 | none | 10 | 0.125 | 0 | 0 | 0.125 |
 | `20261006T000000.000000Z` | Baseline | `EVENT_GOT_STARTER` |  | 2 | 0 | none | 10 | 0 | 0 | 0 | 0 |
 | `20261007T000000.000000Z` | Against | `EVENT_GOT_STARTER` | 100 | 2 | 0 | none | 10 | 0.375 | 0 | 0 | 0.375 |
+| `20261007T000000.000000Z` | Argmax | `EVENT_GOT_STARTER` | 100 | 2 | 0 | none | 10 | 0 | 0 | 0 | 0 |
 | `20261007T000000.000000Z` | Baseline | `EVENT_GOT_STARTER` |  | 2 | 0 | none | 10 | 0.125 | 0 | 0 | 0.125 |
 
 | **Measure** | **Agent** | **Baseline** | **Against** |

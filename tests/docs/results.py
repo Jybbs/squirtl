@@ -9,8 +9,9 @@ Pins what `Results` reads from the run directories under
 - A missing folder, which holds no run
 - Every estimate holding whatever order the runs' names list in
 - A run reading another cartridge than the default path, following a
-  demonstration at an absolute path, or holding no evaluation of the agent
-  or of the random baseline, which `Trained.read` refuses
+  demonstration at an absolute path, holding no evaluation of the agent or
+  of the random baseline, or holding episodes at the most likely action
+  that do not match its agent, which `Trained.read` refuses
 - The goal each run ended its episodes at, and runs ending at more than one,
   which `Results.read` refuses
 - The README's sentence on the runs, each agent's share from each start
@@ -18,15 +19,15 @@ Pins what `Results` reads from the run directories under
 """
 
 from collections.abc   import Callable, Iterable, Mapping
-from common.evaluation import outcome, played
+from common.evaluation import outcome
 from datetime          import UTC, datetime
 from pathlib           import Path
-from pytest            import approx, raises
+from pytest            import approx, mark, param, raises
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm
 from squirtl.docs.results        import Results, Trained
 from squirtl.emulator.schemas    import EmulatorSettings
-from squirtl.environment.schemas import EnvironmentSettings
+from squirtl.environment.schemas import EnvironmentSettings, Outcome
 from squirtl.evaluation.schemas  import Evaluation
 from squirtl.reward.schemas      import Event
 from squirtl.runs.schemas        import CurriculumSettings, Revision, Run, RunSettings
@@ -46,7 +47,8 @@ def recorded(
     given, holding one evaluation per return in `rewards`, each a single
     episode reaching the run's goal where its return passes 0.5, beside a
     baseline of one episode per return in `baseline`, each reaching the goal
-    where its return passes 0.5.
+    where its return passes 0.5, and for PPO the same episode again at its
+    most likely action.
     """
     run = Run(
         digest   = "0",
@@ -68,11 +70,14 @@ def recorded(
                 step = None
             ).model_dump_json(),
             f"{folder}/evaluations.jsonl" : "".join(
-                (
-                    played([reward], step, terminated=reward > 0.5)
-                    .model_copy(update={"goal": settings.environment.goal})
-                    .model_dump_json()
-                ) + "\n"
+                Evaluation(
+                    argmax = [outcome(reward, terminated=reward > 0.5)]
+                    if settings.agent.algorithm.sampled
+                    else None,
+                    goal     = settings.environment.goal,
+                    outcomes = [outcome(reward, terminated=reward > 0.5)],
+                    step     = step
+                ).model_dump_json() + "\n"
                 for step, reward in enumerate(rewards, start=1)
             ),
             f"{folder}/run.json"          : run.model_dump_json()
@@ -203,18 +208,56 @@ def test_each_score_carries_ppos_share_at_its_most_likely_action(
     and `None` for an evaluation holding no such episodes, the baseline's
     among them.
     """
-    folder     = recorded(checkout, [0.25], 1)
+    folder = recorded(
+        checkout = checkout,
+        rewards  = [0.25],
+        second   = 1,
+        settings = RunSettings(agent=AgentSettings(algorithm=Algorithm.PPO))
+    )
     evaluation = Evaluation.model_validate_json(
         (folder / "evaluations.jsonl").read_text()
-    ).model_copy(update={"argmax": [outcome(0.75, terminated=True), outcome()]})
+    ).model_copy(update={"argmax": [outcome(0.75, terminated=True)]})
     (folder / "evaluations.jsonl").write_text(evaluation.model_dump_json() + "\n")
 
     run = Trained.read(folder)
 
     assert [(score.argmax, score.reached) for score in (*run.scores, run.baseline)] == [
-        (0.5, 0.0),
+        (1.0, 0.0),
         (None, 0.0)
     ]
+
+
+@mark.parametrize(
+    ("algorithm", "argmax"),
+    [
+        param(Algorithm.DQN, [outcome()], id="the-deep-q-network-with-argmax-episodes"),
+        param(Algorithm.PPO, None,        id="ppo-without-them")
+    ]
+)
+def test_an_evaluation_whose_argmax_episodes_do_not_match_its_agent_is_refused(
+    checkout  : Callable[[Mapping[str, str]], None],
+    algorithm : Algorithm,
+    argmax    : list[Outcome] | None
+):
+    """
+    Pins that a run is refused, naming its agent, where an evaluation holds
+    episodes at the most likely action of an agent choosing epsilon-greedily
+    or holds none for PPO, so no sampled share reaches the site read as the
+    most likely action's or the other way around.
+    """
+    folder = recorded(
+        checkout = checkout,
+        rewards  = [0.25],
+        second   = 1,
+        settings = RunSettings(agent=AgentSettings(algorithm=algorithm))
+    )
+    evaluation = Evaluation.model_validate_json(
+        (folder / "evaluations.jsonl").read_text()
+    ).model_copy(update={"argmax": argmax})
+    (folder / "evaluations.jsonl").write_text(evaluation.model_dump_json() + "\n")
+
+    with raises(ValueError, match=rf"of {algorithm.name} whose episodes"):
+        Trained.read(folder)
 
 
 def test_estimates_hold_whatever_order_the_runs_names_list_in(

@@ -5,8 +5,9 @@ Pins the records an evaluation reads and writes, covering:
   goal among them, which no episode reaching it leaves out
 - The environments an evaluation runs by default, and an evaluation holding
   no episode, which is refused
-- The episodes PPO played at its most likely action, which a line must name
-  and which read as an evaluation of their own
+- The episodes PPO played at its most likely action, which a line must
+  name, which pair one with each sampled episode, and which read as an
+  evaluation of their own
 """
 
 from common.evaluation import outcome, played
@@ -89,6 +90,22 @@ def test_an_evaluation_refuses_an_empty_list_of_episodes():
         )
 
 
+def test_an_evaluation_refuses_argmax_episodes_other_than_its_own():
+    """
+    Asserts that an evaluation whose `argmax` holds another count of
+    episodes than `outcomes` is refused, since it plays the same episodes
+    again, an empty one among them.
+    """
+    for argmax in ([outcome()], []):
+        with raises(ValidationError, match=r"number \d and 2"):
+            Evaluation(
+                argmax   = argmax,
+                goal     = Event.EVENT_GOT_STARTER,
+                outcomes = [outcome(), outcome()],
+                step     = 100
+            )
+
+
 def test_an_evaluation_runs_one_environment_where_the_cpus_are_unknown(
     monkeypatch: MonkeyPatch
 ):
@@ -108,7 +125,7 @@ def test_the_argmax_episodes_read_as_an_evaluation_of_their_own():
     where the evaluation holds none.
     """
     sampled = played([0.0, 0.0], 100, goal=Event.EVENT_GOT_POKEDEX)
-    argmax  = played([0.5], 100, terminated=True).outcomes
+    argmax  = played([0.5, 0.5], 100, terminated=True).outcomes
 
     greedy = sampled.model_copy(update={"argmax": argmax}).greedy
 
