@@ -178,12 +178,14 @@ Each of these exits 1 before any directory is made:
 │                               its first update, no fewer than batch_size,    │
 │                               whose default is the replay start size Mnih et │
 │                               al. set. [default: 50000]                      │
-│ --checkpoint-steps INT        The environment steps between checkpoints,     │
-│                               each written at the first episode end, or the  │
-│                               end of a rollout's update for PQN and PPO,     │
-│                               reaching a multiple of them, whose default is  │
-│                               the 250,000 steps of each iteration Dopamine's │
-│                               DQN checkpoints after. [default: 250000]       │
+│ --checkpoint-steps INT        The environment steps between checkpoints. A   │
+│                               training run writes each at the first episode  │
+│                               end, or the end of a rollout's update for PQN  │
+│                               and PPO, reaching a multiple of them, and a    │
+│                               search at the first iteration end reaching     │
+│                               one. The default is the 250,000 steps of each  │
+│                               iteration Dopamine's DQN checkpoints after.    │
+│                               [default: 250000]                              │
 │ --curriculum.back FLOAT       The least and the most a window moves back,    │
 │   FLOAT                       each a multiple of window, between which each  │
 │                               move draws uniformly, whose default is the     │

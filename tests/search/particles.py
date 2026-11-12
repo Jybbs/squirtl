@@ -11,7 +11,8 @@ Pins the search over particles, Mhammedi and Cohan's Algorithms 1 and
   winner, scored afresh, becomes the winner
 - The search ending at its goal, and on no other flag, or at its steps
 - Each rollout's presses, one action held at the chance of a random one
-- The updates an iteration owes, which run while the next one plays
+- The updates an iteration owes, which run while the next one plays and
+  finish before it consolidates
 - One seed reaching one demonstration, whichever order the rollouts play
   in, a search resumed from its checkpoint going on as an unbroken one does,
   and the demonstration playing back to what the winner reached
@@ -393,6 +394,37 @@ def test_a_rollouts_presses_hold_one_action_at_the_chance_of_a_random_one(
     search = searching(rolled([]), epsilon=epsilon, inner_steps=(200, 200))
 
     assert len(set(search.plan())) == distinct
+
+
+@mark.usefixtures("game")
+def test_an_iteration_consolidates_once_the_updates_it_ran_have_finished(
+    monkeypatch : MonkeyPatch,
+    root        : Snapshot,
+    rolling     : Callable[[Iterable[SearchRollout]], Iterable[Ending]],
+    searching   : Callable[..., Search]
+):
+    """
+    Asserts that each iteration consolidates only once the updates it
+    started have finished, so the last winner is scored afresh by the
+    predictor they trained.
+    """
+    search      = searching(rolling, root=root, steps=150)
+    consolidate = search.consolidate
+    running     = []
+
+    def consolidating():
+        """
+        Records whether updates still run, then consolidates.
+        """
+        running.append(search.novelty.training)
+        consolidate()
+
+    monkeypatch.setattr(search, "consolidate", consolidating)
+
+    for _ in range(3):
+        drive(search)
+
+    assert running == [None] * 3
 
 
 @mark.usefixtures("game")

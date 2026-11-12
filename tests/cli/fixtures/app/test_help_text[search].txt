@@ -174,68 +174,14 @@ Each of these exits 1 before any directory is made:
 │                               its first update, no fewer than batch_size,    │
 │                               whose default is the replay start size Mnih et │
 │                               al. set. [default: 50000]                      │
-│ --checkpoint-steps INT        The environment steps between checkpoints,     │
-│                               each written at the first episode end, or the  │
-│                               end of a rollout's update for PQN and PPO,     │
-│                               reaching a multiple of them, whose default is  │
-│                               the 250,000 steps of each iteration Dopamine's │
-│                               DQN checkpoints after. [default: 250000]       │
-│ --curriculum.back FLOAT       The least and the most a window moves back,    │
-│   FLOAT                       each a multiple of window, between which each  │
-│                               move draws uniformly, whose default is the     │
-│                               decrease multipliers of Mhammedi and Cohan's   │
-│                               Table 8. [default: (0.25, 0.75)]               │
-│ --curriculum.buffer INT       The steps an episode from a start takes beyond │
-│                               multiplier times the moving average of         │
-│                               successful lengths before it truncates, whose  │
-│                               default is the rollout length buffer of        │
-│                               Mhammedi and Cohan's Table 8. [default: 500]   │
-│ --curriculum.completion       The share of the recent episodes from a window │
-│   FLOAT                       reaching Blue's bedroom that have to succeed   │
-│                               before its segment counts as solved, whose     │
-│                               default is the completion threshold of         │
-│                               Mhammedi and Cohan's Table 8. [default: 0.95]  │
-│ --curriculum.demonstration    The directory of the run whose shortest        │
-│   PATH                        episode reaching the goal each training        │
-│                               episode starts along, a run ending its         │
-│                               episodes at the same goal, or None to start    │
-│                               every episode in Blue's bedroom.               │
-│ --curriculum.forward FLOAT    The least and the most a window moves forward, │
-│   FLOAT                       each a multiple of window, between which each  │
-│                               move draws uniformly, whose default is the     │
-│                               increase multipliers of Mhammedi and Cohan's   │
-│                               Table 8. [default: (0.5, 1.0)]                 │
-│ --curriculum.multiplier       The multiple of the moving average of          │
-│   FLOAT                       successful lengths an episode from a start     │
-│                               takes before buffer and then truncates, whose  │
-│                               default is the early termination multiplier of │
-│                               Mhammedi and Cohan's Table 8. [default: 2.0]   │
-│ --curriculum.recent INT       The episodes from a window whose share of      │
-│                               successes moves it, after which the count      │
-│                               starts again, whose default is the minimum     │
-│                               rollouts for an update of Mhammedi and Cohan's │
-│                               Table 8. [default: 32]                         │
-│ --curriculum.required FLOAT   The share of the recent episodes from a window │
-│                               that have to succeed for it to move back,      │
-│                               where a smaller share moves it forward, whose  │
-│                               default is the required success rate of        │
-│                               Mhammedi and Cohan's Table 8. [default: 0.2]   │
-│ --curriculum.smoothing FLOAT  The weight the moving average of successful    │
-│                               lengths gives each new length, the smoothing   │
-│                               constant of single exponential smoothing in    │
-│                               section 6.4.3.1 of the NIST/SEMATECH           │
-│                               e-Handbook of Statistical Methods, whose       │
-│                               default is the smoothing factor of Mhammedi    │
-│                               and Cohan's Table 8. [default: 0.9]            │
-│ --curriculum.tolerance FLOAT  The reward an episode from a start may fall    │
-│                               short of the demonstration's from the same     │
-│                               step and still succeed, whose default is the   │
-│                               failure reward tolerance of Mhammedi and       │
-│                               Cohan's Table 8. [default: 0.0]                │
-│ --curriculum.window INT       The steps of the demonstration each segment's  │
-│                               window spans back from its latest start, whose │
-│                               default is the start delta window of Mhammedi  │
-│                               and Cohan's Table 8. [default: 25]             │
+│ --checkpoint-steps INT        The environment steps between checkpoints. A   │
+│                               training run writes each at the first episode  │
+│                               end, or the end of a rollout's update for PQN  │
+│                               and PPO, reaching a multiple of them, and a    │
+│                               search at the first iteration end reaching     │
+│                               one. The default is the 250,000 steps of each  │
+│                               iteration Dopamine's DQN checkpoints after.    │
+│                               [default: 250000]                              │
 │ --emulator.cartridge PATH     The file holding the user's own ROM of the     │
 │                               English Pokémon Blue, refused unless its SHA-1 │
 │                               is the one pret/pokered lists. [default:       │
@@ -286,25 +232,6 @@ Each of these exits 1 before any directory is made:
 │ --environment                 The steps after which TimeLimit truncates an   │
 │   .max-episode-steps INT      episode, by default the budget Pleines et al.  │
 │                               start each episode with. [default: 10240]      │
-│ --evaluation.environments     The environments an evaluation plays its       │
-│   INT                         episodes across in parallel, each in a worker  │
-│                               process of its own, which defaults to the CPUs │
-│                               the process may use. [default: 4]              │
-│ --evaluation.episodes INT     The episodes each evaluation plays of the      │
-│                               agent and of the random baseline, whose        │
-│                               default follows Mnih et al. [default: 30]      │
-│ --evaluation.epsilon FLOAT    The chance of a random action at each step of  │
-│                               an evaluation episode of the deep Q-network or │
-│                               of PQN, whose default follows Mnih et al. PPO  │
-│                               takes its most likely action at every step.    │
-│                               [default: 0.05]                                │
-│ --evaluation-steps INT        The environment steps between the evaluations  │
-│                               a run plays, each where an episode end, the    │
-│                               end of a rollout's update for PQN and PPO, or  │
-│                               the run's last step first reaches a multiple   │
-│                               of them, whose default is the 250,000 steps of │
-│                               each iteration Dopamine's DQN evaluates after. │
-│                               [default: 250000]                              │
 │ --reward.goal FLOAT           The reward the step first setting the run's    │
 │                               goal earns, which has to be the largest term.  │
 │                               [default: 0.35]                                │

@@ -650,7 +650,7 @@
     },
     "checkpoint_steps": {
       "default": 250000,
-      "description": "The environment steps between checkpoints, each written at the first\nepisode end, or the end of a rollout's update for PQN and PPO, reaching\na multiple of them, whose default is the 250,000 steps of each iteration\nDopamine's DQN checkpoints after.",
+      "description": "The environment steps between checkpoints. A training run writes each\nat the first episode end, or the end of a rollout's update for PQN and\nPPO, reaching a multiple of them, and a search at the first iteration\nend reaching one. The default is the 250,000 steps of each iteration\nDopamine's DQN checkpoints after.",
       "exclusiveMinimum": 0,
       "title": "Checkpoint Steps",
       "type": "integer"

@@ -102,11 +102,14 @@ def assert_same_checkpoint(first: SearchCheckpoint, second: SearchCheckpoint):
 def boot_in_place(specification: EnvSpec):
     """
     Runs `boot` on `specification` with the move into a process group of
-    its own and the close at the process's exit left out, since the test's
-    process stays in the group the terminal or the runner signals, as the
-    main process of a search does, and the test closes the environment.
+    its own, the thread ending the worker with its parent, and the close at
+    the process's exit left out, since the test's process stays in the group
+    the terminal or the runner signals, as the main process of a search
+    does, it has no parent `multiprocessing` started, and the test closes
+    the environment.
     """
     with MonkeyPatch.context() as patch:
+        patch.setattr(workers, "exit_with_parent", lambda: None)
         patch.setattr(workers, "register", lambda _: None)
         patch.setattr(workers, "setpgrp", lambda: None)
         boot(specification)

@@ -1,8 +1,9 @@
 """
 Pins the worker each rollout runs in, covering:
 
-- The process a worker boots, which leads a process group of its own and
-  exits printing nothing, and the modules it imports, none of them PyTorch
+- The process a worker boots, which leads a process group of its own,
+  exits printing nothing, and ends once its parent has ended, and the
+  modules it imports, none of them PyTorch
 - A rollout dead where it ends on the screen and the position it started
   from, and surviving where either changes or it earns reward
 - A rollout stopping at the press that earns reward, or playing on where it
@@ -20,10 +21,13 @@ from gymnasium          import Env
 from gymnasium.envs.registration import EnvSpec
 from multiprocessing             import get_context
 from numpy      import frombuffer, uint8
-from os         import getpgrp, getpid
+from os         import getpgrp, getpid, kill
+from pickle     import dumps
 from pytest     import CaptureFixture, MonkeyPatch, mark, param
-from subprocess import check_output
+from subprocess import PIPE, Popen, check_output
 from sys        import executable
+from time       import monotonic, sleep
+from types      import SimpleNamespace
 
 from squirtl.emulator.console    import GameBoy
 from squirtl.emulator.schemas    import Symbol
@@ -32,6 +36,19 @@ from squirtl.reward.schemas      import Event
 from squirtl.search              import workers
 from squirtl.search.schemas      import Ending, SearchRollout
 from squirtl.search.workers      import boot, roll
+
+
+def alive(pid: int) -> bool:
+    """
+    Reads whether a process with `pid` still exists, through the null
+    signal, which checks the process without signaling it.
+    """
+    try:
+        kill(pid, 0)
+    except ProcessLookupError:
+        return False
+
+    return True
 
 
 def pressing_after(effect: Callable[[GameBoy], object], monkeypatch: MonkeyPatch):
@@ -57,19 +74,59 @@ def test_a_boot_moves_into_a_group_of_its_own_and_makes_the_environment(
 ):
     """
     Asserts that a boot moves its process into a process group of its own,
-    which a signal to the main process's group then leaves out, and makes
-    the environment that `specification` names, closing it as the process
-    exits.
+    which a signal to the main process's group then leaves out, starts
+    a daemon thread ending the process with its parent, and makes the
+    environment that `specification` names, closing it as the process exits.
     """
-    moved, closing = [], []
+    moved, closing, started = [], [], []
     monkeypatch.setattr(workers, "register", closing.append)
     monkeypatch.setattr(workers, "setpgrp", lambda: moved.append(True))
+    monkeypatch.setattr(
+        workers,
+        "Thread",
+        lambda **thread: SimpleNamespace(start=lambda: started.append(thread))
+    )
 
     boot(specification)
 
     with workers.environment as environment:
         assert (moved, environment.spec.id) == ([True], specification.id)
         assert closing == [environment.close]
+        assert started == [{"daemon": True, "target": workers.exit_with_parent}]
+
+
+def test_a_spawned_worker_ends_once_its_parent_is_killed(specification: EnvSpec):
+    """
+    Asserts that a spawned worker, which no signal to its parent's process
+    group reaches, ends within seconds of a `SIGKILL` to the process whose
+    pool started it.
+    """
+    script = "\n".join(
+        [
+            "import pickle, sys, time",
+            "from concurrent.futures import ProcessPoolExecutor",
+            "from multiprocessing import get_context",
+            "from os import getpid",
+            "from squirtl.search.workers import boot",
+            "spec = pickle.load(sys.stdin.buffer)",
+            "pool = ProcessPoolExecutor(1, get_context('spawn'), boot, (spec,))",
+            "print(pool.submit(getpid).result(), flush=True)",
+            "time.sleep(60)"
+        ]
+    )
+
+    with Popen([executable, "-c", script], stdin=PIPE, stdout=PIPE) as parent:
+        parent.stdin.write(dumps(specification))
+        parent.stdin.close()
+        worker = int(parent.stdout.readline())
+        parent.kill()
+
+    deadline = monotonic() + 10
+
+    while alive(worker) and monotonic() < deadline:
+        sleep(0.1)
+
+    assert not alive(worker)
 
 
 def test_a_spawned_worker_exits_printing_nothing(
@@ -110,6 +167,24 @@ def test_a_spawned_worker_leads_a_process_group_apart_from_the_main_process(
         worker, group = (pool.submit(call).result() for call in (getpid, getpgrp))
 
     assert (group, group == getpgrp()) == (worker, False)
+
+
+def test_a_worker_ends_at_once_after_its_parent_has_ended(monkeypatch: MonkeyPatch):
+    """
+    Asserts that the thread a boot starts waits for the process that started
+    the worker to end, then ends the worker with status 1.
+    """
+    calls = []
+    monkeypatch.setattr(
+        workers,
+        "parent_process",
+        lambda: SimpleNamespace(join=lambda: calls.append("joined"))
+    )
+    monkeypatch.setattr(workers, "_exit", calls.append)
+
+    workers.exit_with_parent()
+
+    assert calls == ["joined", 1]
 
 
 def test_a_worker_imports_no_pytorch():

@@ -83,7 +83,7 @@ class Novelty:
         self.scorer   = deepcopy(self.predictor).requires_grad_(False)
         self.settings = settings
         self.shape    = space.shape
-        self.training: Future[float | None] | None = None
+        self.training: list[Future[float]] | None = None
         self.updates = 0
 
     @property
@@ -245,7 +245,7 @@ class Novelty:
         self.normalizer.update(pressed)
         self.pending.append((start.stack(self.shape), pressed))
 
-        if not self.training:
+        if self.training is None:
             self.store()
 
     @inference_mode()
@@ -260,7 +260,7 @@ class Novelty:
                 device = self.device
             ),
             self.normalizer,
-            self.scorer if self.training else self.predictor
+            self.predictor if self.training is None else self.scorer
         ).tolist()
 
     def store(self):
@@ -278,33 +278,24 @@ class Novelty:
 
         self.pending.clear()
 
-    def take(self, normalizer: RunningMeanStd, updates: int) -> float | None:
-        """
-        Takes `updates` updates, each normalizing its batch by `normalizer`.
-
-        Returns:
-            The mean loss over the updates, or `None` where there were none.
-        """
-        losses = [self.update(normalizer) for _ in range(updates)]
-
-        return fmean(losses) if losses else None
-
     def train(self, presses: int):
         """
         Starts the updates owed once a search has taken `presses` presses,
-        one for every `update_steps` of them, on a thread of its own, after
-        copying the predictor for scores to read meanwhile. Each update
-        normalizes its batch by the running statistics as they stand now,
-        so the frames observed while the updates run leave them unchanged.
-        A copy of the normalizer holds them, since its `update` replaces its
-        arrays rather than writing into them.
+        one for every `update_steps` of them, each queued on a thread of its
+        own as a future of its own, so shutting the executor down cancels
+        every update not yet running, after copying the predictor for scores
+        to read meanwhile. Each update normalizes its batch by the running
+        statistics as they stand now, so the frames observed while the
+        updates run leave them unchanged. A copy of the normalizer holds
+        them, since its `update` replaces its arrays rather than writing
+        into them.
         """
         self.scorer.load_state_dict(self.predictor.state_dict())
-        self.training = self.executor.submit(
-            self.take,
-            copy(self.normalizer),
-            presses // self.settings.update_steps - self.updates
-        )
+        normalizer    = copy(self.normalizer)
+        self.training = [
+            self.executor.submit(self.update, normalizer)
+            for _ in range(presses // self.settings.update_steps - self.updates)
+        ]
 
     def update(self, normalizer: RunningMeanStd) -> float:
         """
@@ -340,8 +331,8 @@ class Novelty:
             The mean loss over the updates, or `None` where none ran.
         """
         training, self.training = self.training, None
-        loss = training.result() if training else None  # prose: ignore[inlinable-bindings]
+        losses = [update.result() for update in training or ()]
 
         self.store()
 
-        return loss
+        return fmean(losses) if losses else None

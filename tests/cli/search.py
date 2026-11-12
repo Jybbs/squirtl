@@ -4,7 +4,8 @@ Pins what `squirtl search` does, covering:
 - A search taken through to its end, which logs a line per iteration, prints
   its directory, and exits zero with its record, its iterations, its path,
   and its checkpoint in that directory
-- The settings it reads, from a flag and from the `[tool.squirtl]` table
+- The settings it reads, from a flag and from the `[tool.squirtl]` table,
+  and a setting only training reads exiting 2
 - A `--resume` continuing in a new directory under the recorded settings
 - A `--resume` directory it cannot continue, a cartridge the emulator refuses,
   and a working directory no clone holds, each exiting 1 before making any
@@ -168,6 +169,33 @@ def test_a_resume_of_a_training_run_exits_1_naming_its_command(
 
     assert (invocation.code, "squirtl train" in invocation.log) == (1, True)
     assert [*Path("data/runs").iterdir()] == [trained]
+
+
+@mark.parametrize(
+    "flag",
+    [
+        param("--curriculum.window", id="curriculum"),
+        param("--evaluation.episodes", id="evaluation"),
+        param("--evaluation-steps", id="evaluation-steps")
+    ]
+)
+@mark.usefixtures("clone")
+def test_a_training_setting_exits_2_before_making_any_directory(
+    flag   : str,
+    invoke : Invoker
+):
+    """
+    Asserts that `squirtl search` refuses each setting only training reads
+    as an option it does not know, exiting 2 as cyclopts does on a token it
+    cannot parse, before any directory is made.
+    """
+    invocation = invoke(["search", flag, "3"])
+
+    assert (
+        invocation.code,
+        f"Unknown option: {flag}" in invocation.log,
+        Path("data/runs").exists()
+    ) == (2, True, False)
 
 
 @mark.usefixtures("clone")

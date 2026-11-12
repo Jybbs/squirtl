@@ -102,12 +102,14 @@ class Searcher(Driver):
 
     def __exit__(self, *raised: object):
         """
-        Puts back the signal handlers and shuts the worker processes down,
-        dropping each rollout not yet started, whether or not the `with`
-        block raised.
+        Puts back the signal handlers and shuts the worker processes and
+        the predictor's thread down, dropping each rollout and update not
+        yet started, whether or not the `with` block raised, so a second
+        interrupt waits only on the update already running.
         """
         super().__exit__(*raised)
         self.pool.shutdown(cancel_futures=True)
+        self.search.novelty.executor.shutdown(cancel_futures=True)
 
     def __init__(
         self,

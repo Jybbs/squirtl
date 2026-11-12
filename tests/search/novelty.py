@@ -19,15 +19,19 @@ stacks, covering:
   another shape refused
 """
 
+from collections.abc  import Iterator
 from common.search    import snapshot
+from contextlib       import contextmanager
 from copy             import deepcopy
 from gymnasium.spaces import Box
-from numpy            import array_equal, full, identity, uint8
-from numpy.random     import default_rng
-from pytest           import approx, raises
-from torch            import Tensor, as_tensor, channels_last, get_rng_state, manual_seed, ones, zeros
-from torch.nn         import Conv2d, Linear
-from torch.testing    import assert_close
+from gymnasium.wrappers.utils import RunningMeanStd
+from numpy         import array_equal, full, identity, uint8
+from numpy.random  import default_rng
+from pytest        import MonkeyPatch, approx, raises
+from threading     import Event
+from torch         import Tensor, as_tensor, channels_last, get_rng_state, manual_seed, ones, zeros
+from torch.nn      import Conv2d, Linear
+from torch.testing import assert_close
 
 from squirtl.agent.schemas  import AgentSettings
 from squirtl.search.novelty import Novelty
@@ -66,6 +70,38 @@ def errors(frames: Tensor, novelty: Novelty) -> Tensor:
     Measures the predictor's error on `frames` under the running statistics.
     """
     return novelty.error(frames, novelty.normalizer, novelty.predictor)
+
+
+@contextmanager
+def held(monkeypatch: MonkeyPatch, novelty: Novelty) -> Iterator[Event]:
+    """
+    Holds each update of `novelty` once it has stepped the predictor, until
+    the block ends, releasing them however the block exits, since a thread
+    held past a failing assertion leaves pytest joining it at exit.
+
+    Yields:
+        The event set once the first update has stepped.
+    """
+    stepped, released = Event(), Event()
+    update            = novelty.update
+
+    def holding(normalizer: RunningMeanStd) -> float:
+        """
+        Takes one update, then holds until the block ends.
+        """
+        loss = update(normalizer)  # prose: ignore[inlinable-bindings]
+
+        stepped.set()
+        released.wait()
+
+        return loss
+
+    monkeypatch.setattr(novelty, "update", holding)
+
+    try:
+        yield stepped
+    finally:
+        released.set()
 
 
 def seen(novelty: Novelty, *shades: int, start: int = 0):
@@ -433,24 +469,29 @@ def test_training_takes_the_updates_the_presses_owe(novelty: Novelty):
 
 
 def test_updates_running_alongside_a_search_take_what_they_would_alone(
-    small : SearchSettings,
-    space : Box
+    monkeypatch : MonkeyPatch,
+    small       : SearchSettings,
+    space       : Box
 ):
     """
-    Asserts that updates observing a rollout and scoring while they run
-    reach the weights and the loss of the same updates run with nothing
-    beside them, since each draws only from what replay memory held and
-    normalizes by the running statistics as they stood when the updates
-    started.
+    Asserts that updates observing a rollout and scoring while they run, the
+    first update held once it has stepped, reach the weights and the loss
+    of the same updates run with nothing beside them, since each draws only
+    from what replay memory held and normalizes by the running statistics as
+    they stood when the updates started.
     """
     alone, beside = build(small, space), build(small, space)
 
     for novelty in (alone, beside):
         seen(novelty, *range(1, 41))
-        novelty.train(40)
 
-    seen(beside, *range(100, 140))
-    beside.score([snapshot(shade=60)])
+    alone.train(40)
+
+    with held(monkeypatch, beside) as stepped:
+        beside.train(40)
+        stepped.wait()
+        seen(beside, *range(100, 140))
+        beside.score([snapshot(shade=60)])
 
     assert beside.wait() == alone.wait()
     assert_close(
@@ -462,20 +503,24 @@ def test_updates_running_alongside_a_search_take_what_they_would_alone(
 
 
 def test_while_updates_run_a_score_reads_the_predictor_from_their_start(
-    novelty: Novelty
+    monkeypatch : MonkeyPatch,
+    novelty     : Novelty
 ):
     """
-    Asserts that a score taken while updates run equals one taken before
-    they started, and that once they are waited for, a score reads the
-    updated predictor.
+    Asserts that a score taken once the first update has stepped the
+    predictor, the rest held back, equals one taken before the updates
+    started, and that once they are waited for, a score reads the updated
+    predictor.
     """
     seen(novelty, *[40] * 32)
 
     before = novelty.score([snapshot(shade=40)])
 
-    novelty.train(32)
+    with held(monkeypatch, novelty) as stepped:
+        novelty.train(32)
+        stepped.wait()
 
-    assert novelty.score([snapshot(shade=40)]) == before
+        assert novelty.score([snapshot(shade=40)]) == before
 
     novelty.wait()
 

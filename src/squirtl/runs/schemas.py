@@ -2,7 +2,8 @@
 Defines the records one run reads and writes:
 
 - `RunSettings`, every setting the run reads, `CurriculumSettings` among
-  them
+  them, beside `TrainingSettings` and `SearchRunSettings`, the parts of it
+  `squirtl train` and `squirtl search` each parse
 - `Revision`, the code the run ran on
 - `Run`, the directory under `data/runs/` recording both, each episode, each
   evaluation, and the checkpoint, or each iteration of a search
@@ -251,9 +252,10 @@ class RunSettings(Record):
 
     checkpoint_steps: PositiveInt = 250_000
     """
-    The environment steps between checkpoints, each written at the first
-    episode end, or the end of a rollout's update for PQN and PPO, reaching
-    a multiple of them, whose default is the 250,000 steps of each iteration
+    The environment steps between checkpoints. A training run writes each
+    at the first episode end, or the end of a rollout's update for PQN and
+    PPO, reaching a multiple of them, and a search at the first iteration
+    end reaching one. The default is the 250,000 steps of each iteration
     Dopamine's DQN checkpoints after.
     """
 
@@ -775,6 +777,36 @@ class Run(Record):
         """
         with path.open("ab") as file:
             flush(file.fileno())
+
+
+class SearchRunSettings(RunSettings):
+    """
+    The settings `squirtl search` reads, `RunSettings` with the curriculum,
+    the evaluations, and the steps between them taking no flag, so the
+    command parses and lists none of the settings only training reads and
+    records their defaults.
+    """
+
+    curriculum: Annotated[CurriculumSettings, Parameter(parse=False)] = Field(
+        default_factory = CurriculumSettings
+    )
+    """
+    The settings of the curriculum, at their defaults.
+    """
+
+    evaluation: Annotated[EvaluationSettings, Parameter(parse=False)] = Field(
+        default_factory = EvaluationSettings
+    )
+    """
+    The settings each evaluation reads, at their defaults.
+    """
+
+    evaluation_steps: Annotated[PositiveInt, Parameter(parse=False)] = (
+        RunSettings.model_fields["evaluation_steps"].default
+    )
+    """
+    The environment steps between evaluations, at their default.
+    """
 
 
 class TrainingSettings(RunSettings):

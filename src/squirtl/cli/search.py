@@ -12,7 +12,7 @@ from typing     import Annotated
 from squirtl.cli.logs         import drive, listen, refusing
 from squirtl.cli.runs         import RunDirectory
 from squirtl.emulator.schemas import Cartridge
-from squirtl.runs.schemas     import Run, RunSettings
+from squirtl.runs.schemas     import Run, SearchRunSettings
 from squirtl.runs.searcher    import SearchHandover, Searcher
 
 
@@ -27,7 +27,7 @@ def search(
             )
         )
     ] = None,
-    settings : Annotated[RunSettings | None, Parameter(name="*")] = None
+    settings : Annotated[SearchRunSettings | None, Parameter(name="*")] = None
 ) -> str:
     """
     Searches for a path from Blue's bedroom to `--environment.goal` over
@@ -59,7 +59,7 @@ def search(
     with refusing(CalledProcessError, OSError, ValueError):
         previous  = resume and Run.read(resume)
         handover  = previous and SearchHandover.from_run(previous)
-        settings  = previous.settings if previous else settings or RunSettings()
+        settings  = previous.settings if previous else settings or SearchRunSettings()
         cartridge = Cartridge.read(settings.emulator.cartridge)
         searcher  = Searcher(cartridge, settings, datetime.now(UTC), handover)
 
