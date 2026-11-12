@@ -46,13 +46,14 @@ export function repositoryOf(repository: string): { name: string, owner: string 
 
 /**
  * Lists the badges the README opens on, the least Python the package accepts,
- * the coverage its suite is held to, and the site's host, as the facts about
- * `project` read them.
+ * the coverage its suite's last report measured, and the site's host, as the
+ * facts about `project` read them, leaving the coverage badge out where no
+ * report measured one.
  */
 export function badgesOf(project: Project): Badge[] {
   return [
     { name: 'Python', value: `${project.python}+` },
-    { name: 'Coverage', value: `${project.gate}%` },
+    ...project.coverage === undefined ? [] : [{ name: 'Coverage', value: `${project.coverage}%` }],
     { name: 'Docs', value: project.host }
   ]
 }

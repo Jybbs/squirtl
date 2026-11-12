@@ -66,13 +66,13 @@ night = { hex = "#162d5b", name = "Denim Night", purpose = "A link under the poi
 pale  = { hex = "#92b1e8", name = "Denim Pale", purpose = "A link under the pointer on the dark ground", share = 0.45, toward = "white" }
 
 [hues.amethyst]
-dark  = { deep = "#693a7d", pale = "#d6a0e5", shades = ["#241f34", "#402a52", "#693a7d", "#9549ac"], text = "#bf64d7" }
-light = { deep = "#693a7d", pale = "#d6a0e5", shades = ["#ede2f4", "#e4c6ee", "#d6a0e5", "#c778dc"], text = "#9248a8" }
+dark  = { deep = "#693a7d", ink = 0.08, pale = "#d6a0e5", shades = ["#241f34", "#402a52", "#693a7d", "#9549ac"], text = "#bf64d7" }
+light = { deep = "#693a7d", ink = 0.22, pale = "#d6a0e5", shades = ["#ede2f4", "#e4c6ee", "#d6a0e5", "#c778dc"], text = "#9248a8" }
 token = "accent-3"
 
 [hues.cerulean]
 dark  = { deep = "#547c93", pale = "#c0e8fc", shades = ["#1f2b38", "#344b5c", "#547c93", "#75b1ce"], text = "#91ddff" }
-light = { deep = "#547c93", pale = "#c0e8fc", shades = ["#e8f1f8", "#d7eefa", "#c0e8fc", "#a6e2fe"], text = "#4d7288" }
+light = { deep = "#547c93", ink = 0.5, pale = "#c0e8fc", shades = ["#e8f1f8", "#d7eefa", "#c0e8fc", "#a6e2fe"], text = "#4d7288" }
 token = "cerulean"
 
 [hues.denim]
@@ -82,27 +82,27 @@ token = "primary"
 
 [hues.fern]
 dark  = { deep = "#396a51", pale = "#a4d4b1", shades = ["#1a282c", "#27423c", "#396a51", "#4c9467"], text = "#5cb878" }
-light = { deep = "#396a51", pale = "#a4d4b1", shades = ["#e2ede7", "#c8e3d0", "#a4d4b1", "#7ec491"], text = "#3e7456" }
+light = { deep = "#396a51", ink = 0.39, pale = "#a4d4b1", shades = ["#e2ede7", "#c8e3d0", "#a4d4b1", "#7ec491"], text = "#3e7456" }
 token = "accent-2"
 
 [hues.forest]
-dark  = { deep = "#143b1d", pale = "#789d74", shades = ["#131f22", "#142a21", "#143b1d", "#124b13"], text = "#658f60" }
+dark  = { deep = "#143b1d", ink = 0.36, pale = "#789d74", shades = ["#131f22", "#142a21", "#143b1d", "#124b13"], text = "#658f60" }
 light = { deep = "#143b1d", pale = "#789d74", shades = ["#d7e1d9", "#afc4ae", "#789d74", "#42773b"], text = "#0e5900" }
 token = "forest"
 
 [hues.heath]
 dark  = { deep = "#6c515f", pale = "#d8b6c1", shades = ["#24232f", "#413542", "#6c515f", "#9a6d7e"], text = "#c08597" }
-light = { deep = "#6c515f", pale = "#d8b6c1", shades = ["#ede6eb", "#e5d2d9", "#d8b6c1", "#cb9ba9"], text = "#815e6e" }
+light = { deep = "#6c515f", ink = 0.33, pale = "#d8b6c1", shades = ["#ede6eb", "#e5d2d9", "#d8b6c1", "#cb9ba9"], text = "#815e6e" }
 token = "accent-1"
 
 [hues.indigo]
-dark  = { deep = "#3a1b66", pale = "#9b7fce", shades = ["#1a1930", "#271b46", "#3a1b66", "#4d1588"], text = "#9373c9" }
+dark  = { deep = "#3a1b66", ink = 0.39, pale = "#9b7fce", shades = ["#1a1930", "#271b46", "#3a1b66", "#4d1588"], text = "#9373c9" }
 light = { deep = "#3a1b66", pale = "#9b7fce", shades = ["#dfdaef", "#c2b4e2", "#9b7fce", "#7749b7"], text = "#5d05a4" }
 token = "indigo"
 
 [hues.seacaller]
-dark  = { deep = "#315057", pale = "#96b5b9", shades = ["#19222d", "#22353e", "#315057", "#3f6c72"], text = "#5e9094" }
-light = { deep = "#315057", pale = "#96b5b9", shades = ["#dee6e9", "#c0d1d5", "#96b5b9", "#6d9a9d"], text = "#406d73" }
+dark  = { deep = "#315057", ink = 0.11, pale = "#96b5b9", shades = ["#19222d", "#22353e", "#315057", "#3f6c72"], text = "#5e9094" }
+light = { deep = "#315057", ink = 0.19, pale = "#96b5b9", shades = ["#dee6e9", "#c0d1d5", "#96b5b9", "#6d9a9d"], text = "#406d73" }
 token = "accent-4"
 
 [roles]

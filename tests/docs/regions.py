@@ -203,6 +203,16 @@ def test_each_pair_takes_its_subjects_table_in_place_of_what_it_held():
             id = "hues-text"
         ),
         param(
+            "hues",
+            "| Heath | Athens Gray | Text | `#815e6e` | 33% Mirage | 5.08:1 |",
+            id = "hues-text-mixed"
+        ),
+        param(
+            "hues",
+            "| Denim | Athens Gray | Text | `#294e95` | 22% black | 7.29:1 |",
+            id = "hues-text-link"
+        ),
+        param(
             "logo",
             "| The first third, oldest | Denim Mid `#7097df` | Denim Deep `#294e95` |",
             id = "logo-oldest"

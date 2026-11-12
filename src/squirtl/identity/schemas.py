@@ -444,7 +444,8 @@ class Motion(Declared):
 class Ramp(Declared):
     """
     The steps one hue takes on one color scheme's ground, each mixed in
-    OKLab toward that ground.
+    OKLab, the shades toward that ground, the deep step toward Mirage, the
+    pale step toward Athens Gray, and the text step toward the other ground.
     """
 
     deep: Hex
@@ -466,6 +467,12 @@ class Ramp(Declared):
     """
     The step text in the hue takes on this ground, which holds 4.5:1 on the
     first shade.
+    """
+
+    ink: float = Field(default=0, ge=0, lt=1)
+    """
+    The share of the other color scheme's ground the text step mixes into
+    the hue in OKLab, 0 where text in the hue takes the hue itself.
     """
 
 
@@ -1025,9 +1032,10 @@ class Identity(Declared):
         """
         Refuses a name that names no color, no hue, or no sprite frame,
         an order and sections naming a hue other than once between them, a
-        step or a shade that is not the mix its share names, sprites leaving
-        out Blue's, and two colors of the site's theme under one name, so a
-        misspelled reference fails the read rather than the site's build.
+        step, a shade, or a text step that is not the mix its share names,
+        sprites leaving out Blue's, and two colors of the site's theme under
+        one name, so a misspelled reference fails the read rather than the
+        site's build.
         """
         colors = {
             *(name for _, scheme in self.schemes for _, name in scheme),
@@ -1058,6 +1066,20 @@ class Identity(Declared):
             raise ValueError(
                 "a hue's shade is not the mix of its ground `shares` names"
             )
+        if any(
+            ramp.text != (
+                self.ramp[getattr(self.schemes, scheme).link].hex
+                if hue.token == "primary"
+                else self.colors[hue.token].mix(
+                    ramp.ink,
+                    self.palette[getattr(self.schemes, other).ground]
+                )
+            )
+            for hue in self.hues.values()
+            for scheme, other in (("light", "dark"), ("dark", "light"))
+            for ramp in [getattr(hue, scheme)]
+        ):
+            raise ValueError("a hue's text step is not the mix its `ink` names")
         if "player" not in self.sprites:
             raise ValueError("the sprites leave out `player`, Blue's")
         if any(

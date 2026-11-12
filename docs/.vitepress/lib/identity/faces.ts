@@ -74,8 +74,8 @@ export function weightsOf(axes: string): Weight[] {
 
 /**
  * Reads whether `axes` loads a face's weight axis as a range, so one copy of
- * the face moves along the axis from weight to weight rather than one font
- * file per weight standing in for each.
+ * the face moves along the axis from weight to weight rather than switching
+ * among the single weights each of its `@font-face` rules fixes.
  */
 export function glidesOf(axes: string): boolean {
   return tuplesOf(axes).some(tuple => tuple.wght!.includes('..'))

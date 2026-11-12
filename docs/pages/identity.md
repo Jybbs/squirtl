@@ -62,17 +62,17 @@ The tables below are written from `[colors]`, `[neutrals]`, `[ramp]`, `shares`, 
 | Amethyst | Athens Gray | Shade 2 | `#e4c6ee` | 70% Athens Gray | 1.40:1 |
 | Amethyst | Athens Gray | Shade 3 | `#d6a0e5` | 45% Athens Gray | 1.91:1 |
 | Amethyst | Athens Gray | Shade 4 | `#c778dc` | 20% Athens Gray | 2.67:1 |
-| Amethyst | Athens Gray | Text | `#9248a8` | None | 5.14:1 |
+| Amethyst | Athens Gray | Text | `#9248a8` | 22% Mirage | 5.14:1 |
 | Amethyst | Mirage | Shade 1 | `#241f34` | 88% Mirage | 1.13:1 |
 | Amethyst | Mirage | Shade 2 | `#402a52` | 70% Mirage | 1.43:1 |
 | Amethyst | Mirage | Shade 3 | `#693a7d` | 45% Mirage | 2.14:1 |
 | Amethyst | Mirage | Shade 4 | `#9549ac` | 20% Mirage | 3.27:1 |
-| Amethyst | Mirage | Text | `#bf64d7` | None | 5.14:1 |
+| Amethyst | Mirage | Text | `#bf64d7` | 8% Athens Gray | 5.14:1 |
 | Cerulean | Athens Gray | Shade 1 | `#e8f1f8` | 88% Athens Gray | 1.04:1 |
 | Cerulean | Athens Gray | Shade 2 | `#d7eefa` | 70% Athens Gray | 1.09:1 |
 | Cerulean | Athens Gray | Shade 3 | `#c0e8fc` | 45% Athens Gray | 1.18:1 |
 | Cerulean | Athens Gray | Shade 4 | `#a6e2fe` | 20% Athens Gray | 1.28:1 |
-| Cerulean | Athens Gray | Text | `#4d7288` | None | 4.68:1 |
+| Cerulean | Athens Gray | Text | `#4d7288` | 50% Mirage | 4.68:1 |
 | Cerulean | Mirage | Shade 1 | `#1f2b38` | 88% Mirage | 1.25:1 |
 | Cerulean | Mirage | Shade 2 | `#344b5c` | 70% Mirage | 1.97:1 |
 | Cerulean | Mirage | Shade 3 | `#547c93` | 45% Mirage | 4.00:1 |
@@ -82,17 +82,17 @@ The tables below are written from `[colors]`, `[neutrals]`, `[ramp]`, `shares`, 
 | Denim | Athens Gray | Shade 2 | `#bbcdee` | 70% Athens Gray | 1.46:1 |
 | Denim | Athens Gray | Shade 3 | `#8dace5` | 45% Athens Gray | 2.08:1 |
 | Denim | Athens Gray | Shade 4 | `#608bda` | 20% Athens Gray | 3.08:1 |
-| Denim | Athens Gray | Text | `#294e95` | None | 7.29:1 |
+| Denim | Athens Gray | Text | `#294e95` | 22% black | 7.29:1 |
 | Denim | Mirage | Shade 1 | `#172134` | 88% Mirage | 1.11:1 |
 | Denim | Mirage | Shade 2 | `#1f3051` | 70% Mirage | 1.37:1 |
 | Denim | Mirage | Shade 3 | `#2a457c` | 45% Mirage | 1.91:1 |
 | Denim | Mirage | Shade 4 | `#345caa` | 20% Mirage | 2.78:1 |
-| Denim | Mirage | Text | `#7097df` | None | 6.13:1 |
+| Denim | Mirage | Text | `#7097df` | 27% white | 6.13:1 |
 | Fern | Athens Gray | Shade 1 | `#e2ede7` | 88% Athens Gray | 1.09:1 |
 | Fern | Athens Gray | Shade 2 | `#c8e3d0` | 70% Athens Gray | 1.24:1 |
 | Fern | Athens Gray | Shade 3 | `#a4d4b1` | 45% Athens Gray | 1.51:1 |
 | Fern | Athens Gray | Shade 4 | `#7ec491` | 20% Athens Gray | 1.87:1 |
-| Fern | Athens Gray | Text | `#3e7456` | None | 4.98:1 |
+| Fern | Athens Gray | Text | `#3e7456` | 39% Mirage | 4.98:1 |
 | Fern | Mirage | Shade 1 | `#1a282c` | 88% Mirage | 1.18:1 |
 | Fern | Mirage | Shade 2 | `#27423c` | 70% Mirage | 1.65:1 |
 | Fern | Mirage | Shade 3 | `#396a51` | 45% Mirage | 2.86:1 |
@@ -107,12 +107,12 @@ The tables below are written from `[colors]`, `[neutrals]`, `[ramp]`, `shares`, 
 | Forest | Mirage | Shade 2 | `#142a21` | 70% Mirage | 1.18:1 |
 | Forest | Mirage | Shade 3 | `#143b1d` | 45% Mirage | 1.43:1 |
 | Forest | Mirage | Shade 4 | `#124b13` | 20% Mirage | 1.74:1 |
-| Forest | Mirage | Text | `#658f60` | None | 4.82:1 |
+| Forest | Mirage | Text | `#658f60` | 36% Athens Gray | 4.82:1 |
 | Heath | Athens Gray | Shade 1 | `#ede6eb` | 88% Athens Gray | 1.12:1 |
 | Heath | Athens Gray | Shade 2 | `#e5d2d9` | 70% Athens Gray | 1.31:1 |
 | Heath | Athens Gray | Shade 3 | `#d8b6c1` | 45% Athens Gray | 1.68:1 |
 | Heath | Athens Gray | Shade 4 | `#cb9ba9` | 20% Athens Gray | 2.17:1 |
-| Heath | Athens Gray | Text | `#815e6e` | None | 5.08:1 |
+| Heath | Athens Gray | Text | `#815e6e` | 33% Mirage | 5.08:1 |
 | Heath | Mirage | Shade 1 | `#24232f` | 88% Mirage | 1.16:1 |
 | Heath | Mirage | Shade 2 | `#413542` | 70% Mirage | 1.55:1 |
 | Heath | Mirage | Shade 3 | `#6c515f` | 45% Mirage | 2.54:1 |
@@ -127,17 +127,17 @@ The tables below are written from `[colors]`, `[neutrals]`, `[ramp]`, `shares`, 
 | Indigo | Mirage | Shade 2 | `#271b46` | 70% Mirage | 1.14:1 |
 | Indigo | Mirage | Shade 3 | `#3a1b66` | 45% Mirage | 1.30:1 |
 | Indigo | Mirage | Shade 4 | `#4d1588` | 20% Mirage | 1.52:1 |
-| Indigo | Mirage | Text | `#9373c9` | None | 4.73:1 |
+| Indigo | Mirage | Text | `#9373c9` | 39% Athens Gray | 4.73:1 |
 | Seacaller | Athens Gray | Shade 1 | `#dee6e9` | 88% Athens Gray | 1.15:1 |
 | Seacaller | Athens Gray | Shade 2 | `#c0d1d5` | 70% Athens Gray | 1.43:1 |
 | Seacaller | Athens Gray | Shade 3 | `#96b5b9` | 45% Athens Gray | 1.99:1 |
 | Seacaller | Athens Gray | Shade 4 | `#6d9a9d` | 20% Athens Gray | 2.82:1 |
-| Seacaller | Athens Gray | Text | `#406d73` | None | 5.23:1 |
+| Seacaller | Athens Gray | Text | `#406d73` | 19% Mirage | 5.23:1 |
 | Seacaller | Mirage | Shade 1 | `#19222d` | 88% Mirage | 1.12:1 |
 | Seacaller | Mirage | Shade 2 | `#22353e` | 70% Mirage | 1.41:1 |
 | Seacaller | Mirage | Shade 3 | `#315057` | 45% Mirage | 2.06:1 |
 | Seacaller | Mirage | Shade 4 | `#3f6c72` | 20% Mirage | 3.07:1 |
-| Seacaller | Mirage | Text | `#5e9094` | None | 5.03:1 |
+| Seacaller | Mirage | Text | `#5e9094` | 11% Athens Gray | 5.03:1 |
 
 <!-- /identity:hues -->
 
@@ -166,7 +166,7 @@ The table below is written from `[faces]` in `identity.toml`, and `mise write` r
 
 ## The Logo
 
-The logo sets the project's name in the display face's dots, with Blue standing in the R and in the L and a Poké Ball ending the path he walks, a trail of dots in Denim's ramp running from the oldest third to the newest. The trail runs from light to dark on the light ground and from dark to light on the dark one, so its newest dots stand farthest from each ground. Blue's sprite takes the light ground for the Game Boy's lightest shade and a step of Denim's ramp for each darker one.
+The logo sets the project's name in the display face's dots, with Blue standing in the R and in the L and a Poké Ball ending the path he walks, a trail of dots in Denim's ramp running from the oldest third to the newest. The trail runs from light to dark on the light ground and from dark to light on the dark one, so its newest dots stand farthest from each ground. Blue's sprite leaves the Game Boy's lightest shade clear where it reaches the sprite's edge, as the Game Boy does, sets it in the light ground where the sprite encloses it, and takes a step of Denim's ramp for each darker shade.
 
 <details>
 <summary>The trail on each ground and the Game Boy shades</summary>
@@ -229,7 +229,7 @@ The tables below are written from `order`, `[roles]`, and `[sections]` in `ident
 
 ## The Tagline and Byline
 
-The tagline is the one sentence the front page and the site's card set beneath the name, and the byline is the description the repository, the package, and a link to the site carry.
+The tagline is the one sentence the front page, the README, and the site's card set beneath the name, and the byline is the description the repository, the package, and a link to the site carry.
 
 <details>
 <summary>The tagline and the byline</summary>

@@ -28,6 +28,13 @@ describe('projectFacts', () => {
     expect(projectFacts(checkout({ 'pyproject.toml': MANIFEST }).metaUrl)).toStrictEqual(FACTS)
   })
 
+  test('reads the coverage the suite’s last report measured beside the declared facts', ({ checkout }) => {
+    const report = JSON.stringify({ files: {}, totals: { percent_covered: 99.6 } })
+    const { metaUrl } = checkout({ '.cache/coverage/coverage.json': report, 'pyproject.toml': MANIFEST })
+
+    expect(projectFacts(metaUrl)).toStrictEqual({ ...FACTS, coverage: '100' })
+  })
+
   test('serves under the path and at the host a homepage below the root of its host names', ({ checkout }) => {
     const manifest = MANIFEST.replace('"https://squirtl.fyi/"', '"https://example.org/squirtl/"')
 

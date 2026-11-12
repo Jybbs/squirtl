@@ -24,7 +24,7 @@ export function pageHooks(facts: ProjectFacts, metaUrl: string) {
 
     buildEnd: async (site: Pick<SiteConfig, 'outDir'>) => {
       await cards.render(site.outDir)
-      writeCoverage(site.outDir, metaUrl)
+      writeCoverage(site.outDir, facts.coverage)
     },
 
     transformHead: (context: TransformContext) => {

@@ -3,7 +3,8 @@ import path from 'node:path'
 
 import { parse } from 'smol-toml'
 
-import { repoRoot } from './paths.ts'
+import { coverageOf } from './coverage.ts'
+import { repoRoot }   from './paths.ts'
 
 /**
  * The type a manifest value of each kind `required` reads takes.
@@ -18,6 +19,7 @@ interface Kinds {
  */
 export interface ProjectFacts {
   base        : string
+  coverage    : string | undefined
   description : string
   gate        : number
   homepage    : string
@@ -63,7 +65,9 @@ function keywordsOf(manifest: unknown): string[] {
  * that address, beside the description, the repository's address, the version,
  * the coverage `[tool.coverage.report].fail_under` holds the package's suite
  * to, which the site's suite takes as well, the keywords, and the least
- * Python `requires-python` accepts, read from its `>=` bound.
+ * Python `requires-python` accepts, read from its `>=` bound, and beside them
+ * the coverage the suite's last report measured, where one sits in the
+ * checkout.
  */
 export function projectFacts(metaUrl: string): ProjectFacts {
   const manifest = parse(fs.readFileSync(path.join(repoRoot(metaUrl), 'pyproject.toml'), 'utf8'))
@@ -75,6 +79,7 @@ export function projectFacts(metaUrl: string): ProjectFacts {
 
   return {
     base        : pathname,
+    coverage    : coverageOf(metaUrl),
     description : required(manifest, 'string', 'project', 'description'),
     gate        : required(manifest, 'number', 'tool', 'coverage', 'report', 'fail_under'),
     homepage    : homepage,

@@ -515,6 +515,24 @@ def test_a_step_mixing_none_or_all_of_the_way_fails_the_read(share: float):
             [0.9, 0.7, 0.45, 0.2],
             "a hue's shade is not the mix of its ground `shares` names",
             id = "shade"
+        ),
+        param(
+            ("hues", "heath", "light", "ink"),
+            0.3,
+            "a hue's text step is not the mix its `ink` names",
+            id = "text"
+        ),
+        param(
+            ("hues", "forest", "light", "ink"),
+            0.1,
+            "a hue's text step is not the mix its `ink` names",
+            id = "text-unmixed"
+        ),
+        param(
+            ("hues", "denim", "dark", "text"),
+            "#294e95",
+            "a hue's text step is not the mix its `ink` names",
+            id = "text-link"
         )
     ]
 )
@@ -525,9 +543,10 @@ def test_a_step_or_a_shade_other_than_its_mix_fails_the_read(
     value    : object
 ):
     """
-    Pins that a step of Denim's ramp or a hue's shade drifting from the
-    mix its share names fails validation, so a hand-edited hex cannot stand
-    beside a share it no longer matches.
+    Pins that a step of Denim's ramp, a hue's shade, or a hue's text step
+    drifting from the mix its share names fails validation, Denim's text
+    step drifting from the link step of its ground's scheme among them, so a
+    hand-edited hex cannot stand beside a share it no longer matches.
     """
     *parents, key = path
     reduce(getitem, parents, declared)[key] = value

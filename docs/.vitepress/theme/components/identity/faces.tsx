@@ -105,8 +105,9 @@ function drawStrip({ choices }: Faces, role: faces.Role) {
  * Each face the identity declares under a strip naming it in its own letters
  * beside what it sets, its weights as swatches setting Ag in each, and the
  * parts of a page it sets, a heading, a paragraph naming a setting in code,
- * and figures, a press on a swatch gliding every part that face sets to its
- * weight.
+ * and figures, a press on a swatch setting every part that face sets at its
+ * weight, gliding where the face loads its weight axis as a range and
+ * crossfading otherwise.
  */
 export const IdentityFaces = defineComponent({
   name  : 'IdentityFaces',

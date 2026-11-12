@@ -14,11 +14,15 @@ describe('repositoryOf', () => {
 })
 
 describe('badgesOf', () => {
-  it('reads the least Python, the coverage gate, and the host from the facts', () => {
-    expect(places.badgesOf(FACTS)).toStrictEqual([
+  it('reads the least Python, the measured coverage, and the host from the facts', () => {
+    expect(places.badgesOf({ ...FACTS, coverage: '99' })).toStrictEqual([
       { name: 'Python', value: `${FACTS.python}+` },
-      { name: 'Coverage', value: `${FACTS.gate}%` },
+      { name: 'Coverage', value: '99%' },
       { name: 'Docs', value: FACTS.host }
     ])
+  })
+
+  it('leaves the coverage badge out where no report measured one', () => {
+    expect(places.badgesOf(FACTS).map(badge => badge.name)).toStrictEqual(['Python', 'Docs'])
   })
 })

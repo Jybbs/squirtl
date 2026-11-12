@@ -6,6 +6,7 @@ import type { ProjectFacts } from '../../lib/config/manifest.ts'
  */
 export const FACTS: ProjectFacts = {
   base        : '/',
+  coverage    : undefined,
   description : 'Plays.',
   gate        : 95,
   homepage    : 'https://squirtl.fyi/',

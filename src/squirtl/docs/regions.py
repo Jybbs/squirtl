@@ -121,7 +121,8 @@ def identity_table(field: str, identity: Identity) -> str:
     - For `ramp`, each of Denim's steps beside the share of black or white
       it mixes in and its contrast on each ground
     - For `hues`, each step of each hue's ramp on each ground, beside the
-      share of the ground it mixes in and its contrast on that ground
+      share of the ground, the other ground, or black or white it mixes in
+      and its contrast on that ground
     - For `order`, the series hues in the order a chart takes them, each
       beside the role it takes
     - For `sections`, the hue each section takes
@@ -183,8 +184,16 @@ def identity_table(field: str, identity: Identity) -> str:
                         contrast(Color(hex=hexed, name=step, purpose=step), ground)
                     )
                     for hue in identity.hues.values()
-                    for scheme, ground in (("light", light), ("dark", dark))
-                    for ramp in [getattr(hue, scheme)]
+                    for scheme, ground, other in (
+                        ("light", light, dark),
+                        ("dark", dark, light)
+                    )
+                    for ramp, link in [
+                        (
+                            getattr(hue, scheme),
+                            identity.ramp[getattr(schemes, scheme).link]
+                        )
+                    ]
                     for step, hexed, mixed in (
                         *(
                             (f"Shade {n}", shade, f"{share:.0%} {ground.name}")
@@ -193,7 +202,12 @@ def identity_table(field: str, identity: Identity) -> str:
                                 start = 1
                             )
                         ),
-                        ("Text", ramp.text, "None")
+                        (
+                            "Text", ramp.text,
+                            f"{link.share:.0%} {link.toward}" if hue.token == "primary"
+                            else f"{ramp.ink:.0%} {other.name}" if ramp.ink
+                            else "None"
+                        )
                     )
                 )
             )
