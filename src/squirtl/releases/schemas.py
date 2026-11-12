@@ -243,18 +243,19 @@ class ReleaseManifest(ReleaseSettings):
     @classmethod
     def pack(cls, settings: ReleaseSettings) -> Self:
         """
-        Packs each run `Results.folder` lists that trained an agent, then
-        each demonstration, meaning each search it lists and each run those
-        trained runs follow, from its directory under `Run.folder` by its
-        name, into `folder`, and writes the manifest listing them there
-        as `file`. It checks every line of each run's episodes through
+        Packs each demonstration, meaning each search `Results.folder`
+        lists and each run the trained runs it lists follow, then each
+        trained run, from its directory under `Run.folder` by its name,
+        into `folder`, and writes the manifest listing them there as
+        `file`. It checks every line of each run's episodes through
         `Run.check_episodes` before writing any tar.
 
         Raises:
-            FileNotFoundError : Where a run's directory holds no record, no
-                                checkpoint, or no episodes.
-            ValidationError   : Where `settings` recommends a run no tar
-                                holds.
+            FileNotFoundError : Where a run's directory holds no record or
+                                no episodes, or a trained run's holds no
+                                checkpoint.
+            ValidationError   : Where `settings` recommends none of the
+                                trained runs.
             ValueError        : Where a line of a run's episodes holds no
                                 `Episode`.
         """

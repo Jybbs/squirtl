@@ -226,8 +226,7 @@ def test_a_search_packs_as_a_demonstration_holding_no_checkpoint(
     """
     Asserts that a search `docs/runs/` lists packs among the demonstrations
     rather than the trained runs, its tar holding its record and its
-    episodes as written and no checkpoint, and that a release selection with
-    no selector matches it beside every other packed run.
+    episodes as written and no checkpoint.
     """
     search   = recorded(5, searches=True)
     manifest = ReleaseManifest.pack(ReleaseSettings(recommended_run=committed[0].name))

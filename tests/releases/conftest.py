@@ -38,7 +38,7 @@ def recorded(checkout: Callable[[Mapping[str, str]], None]) -> Recorder:
     pod's absolute paths name, into `data/runs/`, holding one episode, a
     checkpoint holding replay memory, an evaluation, and a baseline, and
     lists it under `docs/runs/` where `listed` is set. Where `searches` is
-    set, the run is a search, whose checkpoint holds no `Weights`.
+    set, the run is a search, holding no checkpoint.
     """
     checkout({})
 
@@ -86,9 +86,7 @@ def recorded(checkout: Callable[[Mapping[str, str]], None]) -> Recorder:
         run.evaluations.write_text("{}\n", encoding="utf-8")
         run.baseline.write_text("{}", encoding="utf-8")
 
-        if searches:
-            run.checkpoint.write_bytes(b"a search's frontier")
-        else:
+        if not searches:
             ReplayCheckpoint(
                 exploration = {},
                 online      = {"weight": tensor([1.0, 2.0])},
