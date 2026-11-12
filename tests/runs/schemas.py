@@ -29,9 +29,15 @@ Pins the records one run reads and writes, covering:
   from the bedroom, and a log holding none, which is refused
 - The curriculum's settings refusing moves whose least passes their most and
   a required share above the completion share, and a run's settings refusing
-  a demonstration for the deep Q-network
+  a demonstration for the deep Q-network and terms summing past 1 on the way
+  to the run's goal
 - A run refusing a digest other than the one it recorded, and the listing
   naming it among other runs
+- A run's check of its episodes, refusing the first line that does not
+  parse as an episode by its number and passing a log whose finished lines
+  all do
+- A run's check of its files, refusing a directory missing its checkpoint
+  or its episodes by the file it lacks and passing one holding both
 """
 
 from collections.abc   import Callable, Mapping
@@ -45,14 +51,16 @@ from os                import fstat
 from pathlib           import Path
 from pydantic          import ValidationError
 from pytest            import MonkeyPatch, TempPathFactory, mark, param, raises
+from re                import escape
 from shutil            import copytree
 from subprocess        import CalledProcessError, check_output
 from syrupy.assertion  import SnapshotAssertion
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm, Measures, PolicyUpdate, Update
 from squirtl.emulator.schemas    import Record
-from squirtl.environment.schemas import Recording, Takeover
+from squirtl.environment.schemas import EnvironmentSettings, Recording, Takeover
 from squirtl.evaluation.schemas  import Evaluation
+from squirtl.reward.schemas      import Event, RewardSettings
 from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunListing, RunSettings, Start
 from squirtl.runs.schemas        import Stream
 
@@ -170,25 +178,37 @@ def test_a_revision_is_dirty_wherever_git_reports_a_change(
     assert Revision.checked_out().dirty is dirty
 
 
-def test_a_run_holding_no_episode_reaching_the_starter_gives_no_demonstration(
+def test_a_run_holding_its_checkpoint_and_its_episodes_passes_its_file_check(
+    checkout : Callable[[Mapping[str, str]], None],
+    run      : Run
+):
+    """
+    Asserts that checking the files of a run whose directory holds its
+    checkpoint and its episodes raises nothing.
+    """
+    checkout({str(run.checkpoint): "", str(run.episodes): ""})
+    run.check_files()
+
+
+def test_a_run_holding_no_episode_reaching_its_goal_gives_no_demonstration(
     episode : Episode,
     holding : Callable[[str], Run]
 ):
     """
-    Asserts that a run whose every episode truncated gives no demonstration.
+    Asserts that a run whose every episode truncated gives no demonstration,
+    naming the goal its settings name, here the Pokédex rather than the
+    default.
     """
-    run = holding(f"{episode.model_dump_json()}\n")
+    run = holding(f"{episode.model_dump_json()}\n").model_copy(
+        update = {
+            "settings": RunSettings(
+                environment = EnvironmentSettings(goal=Event.EVENT_GOT_POKEDEX)
+            )
+        }
+    )
 
-    with raises(ValueError, match="holds no episode reaching the starter"):
+    with raises(ValueError, match="holds no episode reaching EVENT_GOT_POKEDEX"):
         run.demonstration
-
-
-def test_a_run_holding_no_evaluations_reads_none(run: Run):
-    """
-    Asserts that a run whose directory holds no `evaluations`, as a run that
-    has played none leaves it, reads no evaluation rather than raising.
-    """
-    assert list(run.evaluated) == []
 
 
 @mark.parametrize(
@@ -209,6 +229,14 @@ def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
     )
 
 
+def test_a_run_holding_no_evaluations_reads_none(run: Run):
+    """
+    Asserts that a run whose directory holds no `evaluations`, as a run that
+    has played none leaves it, reads no evaluation rather than raising.
+    """
+    assert list(run.evaluated) == []
+
+
 def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
     """
     Asserts that starting a run where no clone holds the working directory
@@ -219,19 +247,6 @@ def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
         Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
 
     assert not (outside / "data").exists()
-
-
-def test_a_run_reads_an_episode_validating_its_line_alone(
-    episode : Episode,
-    holding : Callable[[str], Run]
-):
-    """
-    Asserts that a run reads its second episode though the line before it
-    holds no episode, since it validates the line it returns alone.
-    """
-    run = holding(f'{{"length": 3}}\n{episode.model_dump_json()}\n')
-
-    assert run.episode(2) == episode
 
 
 @mark.parametrize(
@@ -267,6 +282,19 @@ def test_a_run_name_reads_back_as_the_instant_it_started(
     assert datetime.fromisoformat(name) == started
 
 
+def test_a_run_reads_an_episode_validating_its_line_alone(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
+    """
+    Asserts that a run reads its second episode though the line before it
+    holds no episode, since it validates the line it returns alone.
+    """
+    run = holding(f'{{"length": 3}}\n{episode.model_dump_json()}\n')
+
+    assert run.episode(2) == episode
+
+
 def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path):
     """
     Asserts that reading the directory a run started in returns that run,
@@ -282,21 +310,6 @@ def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path
         (run.model_dump(), run.directory),
         (run.model_dump(), clone / run.directory)
     ]
-
-
-def test_a_run_reads_the_lines_of_its_first_episodes_reading_no_further(
-    holding : Callable[[str], Run],
-    logged  : list[str]
-):
-    """
-    Asserts that a run reads, as written, the lines of the episodes a count
-    names and reads no further, so the unfinished line past them draws no
-    warning.
-    """
-    lines = ['{"length": 3}\n', '{"length": 4}\n']
-    run   = holding(f'{lines[0]}{lines[1]}{{"length": ')
-
-    assert (run.first(2), logged) == (lines, [])
 
 
 @mark.usefixtures("clone")
@@ -316,14 +329,19 @@ def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
     assert Revision.checked_out().dirty
 
 
-def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
+def test_a_run_reads_the_lines_of_its_first_episodes_reading_no_further(
+    holding : Callable[[str], Run],
+    logged  : list[str]
+):
     """
-    Asserts that the JSON a run writes into its directory validates back
-    into a record equal to the run that wrote it.
+    Asserts that a run reads, as written, the lines of the episodes a count
+    names and reads no further, so the unfinished line past them draws no
+    warning.
     """
-    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
+    lines = ['{"length": 3}\n', '{"length": 4}\n']
+    run   = holding(f'{lines[0]}{lines[1]}{{"length": ')
 
-    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
+    assert (run.first(2), logged) == (lines, [])
 
 
 @mark.parametrize(
@@ -342,27 +360,14 @@ def test_a_revision_refuses_output_that_holds_no_hash(commit: str):
         Revision(commit=commit, dirty=False, lockfile="0")
 
 
-def test_a_run_records_its_settings_revision_and_start(clone: Path):
+def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
     """
-    Asserts that a run writes its record into the directory named for the
-    instant it started under `data/runs/`, holding the digest of its start,
-    its settings, the revision of the clone, that instant, and no run it
-    resumes.
+    Asserts that the JSON a run writes into its directory validates back
+    into a record equal to the run that wrote it.
     """
-    settings = RunSettings(seed=7)
-    Run.start("0", settings, datetime(2026, 10, 4, 12, 30, 5, 123456, tzinfo=UTC))
+    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
 
-    assert loads(
-        (clone / "data/runs/20261004T123005.123456Z/run.json").read_text(
-            encoding = "utf-8"
-        )
-    ) == {
-        "digest"   : "0",
-        "resumes"  : None,
-        "revision" : Revision.checked_out().model_dump(),
-        "started"  : "2026-10-04T12:30:05.123456Z",
-        "settings" : settings.model_dump(mode="json")
-    }
+    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
 
 
 @mark.parametrize(
@@ -488,6 +493,29 @@ def test_a_run_read_from_outside_the_clone_keeps_its_files_where_it_was_read(
     ]
 
 
+def test_a_run_records_its_settings_revision_and_start(clone: Path):
+    """
+    Asserts that a run writes its record into the directory named for the
+    instant it started under `data/runs/`, holding the digest of its start,
+    its settings, the revision of the clone, that instant, and no run it
+    resumes.
+    """
+    settings = RunSettings(seed=7)
+    Run.start("0", settings, datetime(2026, 10, 4, 12, 30, 5, 123456, tzinfo=UTC))
+
+    assert loads(
+        (clone / "data/runs/20261004T123005.123456Z/run.json").read_text(
+            encoding = "utf-8"
+        )
+    ) == {
+        "digest"   : "0",
+        "resumes"  : None,
+        "revision" : Revision.checked_out().model_dump(),
+        "started"  : "2026-10-04T12:30:05.123456Z",
+        "settings" : settings.model_dump(mode="json")
+    }
+
+
 def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
     """
     Asserts that a run built on an instant carrying no UTC offset raises
@@ -495,6 +523,57 @@ def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
     """
     with raises(ValidationError, match="timezone info"):
         Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
+
+
+@mark.parametrize(
+    ("stale", "failure"),
+    [
+        param(
+            lambda line: line.replace('"goal"', '"starter"'),
+            "at shares.starter.[key] with \"Input should be 'goal', 'milestone' or "
+            "'novelty'\"",
+            id = "a-share-under-a-name-since-retired"
+        ),
+        param(
+            lambda line: line.replace('"epsilon":1.0,', ""),
+            "at epsilon with 'Field required'",
+            id = "a-field-missing"
+        ),
+        param(
+            lambda line: line.replace('"goal"', '"starter"').replace(
+                '"epsilon":1.0,',
+                ""
+            ),
+            "at shares.starter.[key] with \"Input should be 'goal', 'milestone' or "
+            "'novelty'\", at epsilon with 'Field required'",
+            id = "two-fields-failing"
+        ),
+        param(
+            lambda line: "[]",
+            "at its root with 'Input should be an object'",
+            id = "no-object"
+        )
+    ]
+)
+def test_a_run_with_a_line_holding_no_episode_is_refused_naming_the_line(
+    episode : Episode,
+    failure : str,
+    holding : Callable[[str], Run],
+    stale   : Callable[[str], str]
+):
+    """
+    Asserts that checking a run's episodes raises `ValueError` naming its
+    `episodes`, the first line counting from 1 that does not parse as an
+    `Episode`, and each field that line fails at.
+    """
+    line = episode.model_dump_json()
+    run  = holding(f"{line}\n{stale(line)}\n{stale(line)}\n")
+
+    with raises(
+        ValueError,
+        match = escape(f"Line 2 of {run.episodes} holds no episode, failing {failure}")
+    ):
+        run.check_episodes()
 
 
 def test_a_run_refuses_another_digest_naming_both(run: Run):
@@ -672,6 +751,18 @@ def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path
     assert first.record.read_text(encoding="utf-8") == record
 
 
+def test_a_run_whose_finished_lines_each_hold_an_episode_passes_its_check(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
+    """
+    Asserts that checking a run's episodes raises nothing where every line
+    parses as an `Episode` but an unfinished last line, which every reader
+    skips.
+    """
+    holding(f'{episode.model_dump_json()}\n{{"length": ').check_episodes()
+
+
 def test_a_run_writes_nothing_outside_its_own_directory(clone: Path):
     """
     Asserts that starting a run creates its directory under `data/runs/` and
@@ -789,19 +880,6 @@ def test_reading_a_directory_holding_no_run_raises(clone: Path):
         Run.read(clone / "data/runs/empty")
 
 
-def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
-    snapshot: SnapshotAssertion
-):
-    """
-    Asserts that the default run seed derives the stream seeds its fixture
-    file holds, so a change to the derivation, which would change the draws
-    every recorded run's seed reproduces, is reviewed as a diff.
-    """
-    seeds = RunSettings().seeds
-
-    assert "\n".join(f"{stream} {seed}" for stream, seed in seeds.items()) == snapshot
-
-
 @mark.parametrize(
     ("epsilon", "update"),
     [
@@ -834,6 +912,19 @@ def test_an_episode_reads_back_the_measures_of_the_agent_that_played_it(
     assert Episode.model_validate_json(written.model_dump_json()) == written
 
 
+def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
+    snapshot: SnapshotAssertion
+):
+    """
+    Asserts that the default run seed derives the stream seeds its fixture
+    file holds, so a change to the derivation, which would change the draws
+    every recorded run's seed reproduces, is reviewed as a diff.
+    """
+    seeds = RunSettings().seeds
+
+    assert "\n".join(f"{stream} {seed}" for stream, seed in seeds.items()) == snapshot
+
+
 def test_the_default_warmup_ends_inside_an_anneal_outlasting_a_random_walk():
     """
     Asserts that at the default settings the chance of a random action
@@ -861,6 +952,69 @@ def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
         ensure_ascii = False,
         indent       = 2
     ) == snapshot
+
+
+@mark.parametrize(
+    ("goal", "past", "reward"),
+    [
+        param(
+            Event.EVENT_GOT_STARTER,
+            "0.21",
+            RewardSettings(goal=0.31, milestone=0.3),
+            id = "the-starter"
+        ),
+        param(
+            Event.EVENT_GOT_STARTER,
+            "2.22e-16",
+            RewardSettings(goal=0.343, milestone=0.2, novelty=0.057),
+            id = "by-the-rounding-of-a-share"
+        ),
+        param(
+            Event.EVENT_GOT_POKEDEX,
+            "0.25",
+            RewardSettings(milestone=0.15),
+            id = "the-pokedex"
+        )
+    ]
+)
+def test_the_settings_refuse_terms_one_step_could_sum_past_one_on_the_way_to_the_goal(
+    goal   : Event,
+    past   : str,
+    reward : RewardSettings
+):
+    """
+    Asserts that the settings refuse terms where a step reaching a new
+    position and first setting every flag up to the run's goal at once earns
+    past 1, naming the goal and how far past to three significant digits,
+    whether the terms sum past 1 in decimal or sum to 1 in decimal and round
+    past it once the milestone is counted three times.
+    """
+    with raises(
+        ValidationError,
+        match = f"every flag up to {goal.name} at once earns {past} more than the 1"
+    ):
+        RunSettings(environment=EnvironmentSettings(goal=goal), reward=reward)
+
+
+@mark.parametrize(
+    "reward",
+    [
+        param(
+            RewardSettings(goal=0.5, milestone=0.125, novelty=0.125),
+            id = "powers-of-two"
+        ),
+        param(RewardSettings(goal=0.68, milestone=0.07, novelty=0.11), id="decimals")
+    ]
+)
+def test_the_settings_accept_terms_one_step_sums_to_exactly_one_at_the_goal(
+    reward: RewardSettings
+):
+    """
+    Asserts that the settings accept terms where a step reaching a new
+    position and first setting every flag up to the starter at once earns
+    exactly 1, the most the bound Mnih et al. clip each reward to allows.
+    """
+    assert RunSettings(reward=reward).reward == reward
 
 
 @mark.parametrize(
@@ -897,6 +1051,17 @@ def test_the_settings_take_a_demonstration_for_pqn_and_ppo(algorithm: Algorithm)
     )
 
 
+def test_the_settings_count_no_flag_past_the_goal_toward_the_ceiling():
+    """
+    Asserts that terms summing past 1 over every flag up to the Pokédex are
+    accepted for a run ending at the starter, whose episodes set none of the
+    flags after it.
+    """
+    reward = RewardSettings(milestone=0.15)
+
+    assert RunSettings(reward=reward).reward == reward
+
+
 def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():
     """
     Asserts that the settings refuse a demonstration beside the deep
@@ -904,15 +1069,6 @@ def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():
     """
     with raises(ValidationError, match="takes no demonstration"):
         RunSettings(curriculum=CurriculumSettings(demonstration=Path("data/runs/a")))
-
-
-def test_the_settings_refuse_a_negative_seed():
-    """
-    Asserts that a negative seed is refused, since `SeedSequence` takes a
-    non-negative integer as its entropy.
-    """
-    with raises(ValidationError, match="greater than or equal to 0"):
-        RunSettings(seed=-1)
 
 
 @mark.parametrize(
@@ -947,3 +1103,41 @@ def test_a_listing_reads_the_settings_naming_its_run(
     assert (listed.name, listed.agent, listed.seed, listed.start) == (
         run.name, Algorithm.PPO, 4, start
     )
+
+
+@mark.parametrize(
+    "missing",
+    [
+        param("checkpoint.npz", id="the-checkpoint"),
+        param("episodes.jsonl", id="the-episodes")
+    ]
+)
+def test_a_run_missing_its_checkpoint_or_its_episodes_is_refused_by_name(
+    checkout : Callable[[Mapping[str, str]], None],
+    missing  : str,
+    run      : Run
+):
+    """
+    Asserts that checking the files of a run whose directory lacks its
+    checkpoint or its episodes raises `FileNotFoundError` naming the run's
+    directory and the file it lacks.
+    """
+    checkout(
+        {
+            str(path): ""
+            for path in (run.checkpoint, run.episodes)
+            if path.name != missing
+        }
+    )
+
+    with raises(FileNotFoundError, match=escape(f"{run.directory} holds no {missing}")):
+        run.check_files()
+
+
+def test_the_settings_refuse_a_negative_seed():
+    """
+    Asserts that a negative seed is refused, since `SeedSequence` takes a
+    non-negative integer as its entropy.
+    """
+    with raises(ValidationError, match="greater than or equal to 0"):
+        RunSettings(seed=-1)

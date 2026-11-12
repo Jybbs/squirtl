@@ -32,7 +32,7 @@ export const WORDS = {
   figures : ['0.42', '1,024', '2.5M'],
   head    : 'The Walk to Oak’s Lab',
   inline  : 'max_episode_steps',
-  lead    : 'Each episode starts in Blue’s bedroom and ends at the starter or after ',
+  lead    : 'Each episode starts in Blue’s bedroom and ends at its goal or after ',
   tail    : ' presses, and the reward pays for each square the episode has not reached before.'
 } as const
 

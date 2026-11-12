@@ -59,12 +59,12 @@ const STEP_DOT = '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="3" fill="cur
 
 /**
  * The sprite each term of the reward is marked by, Oak for a milestone and the
- * Poké Ball for the starter, and none for a new position, which the dot marks.
+ * Poké Ball for the goal, and none for a new position, which the dot marks.
  */
 const TERM_SPRITES = {
+  goal      : 'ball',
   milestone : 'oak',
-  novelty   : null,
-  starter   : 'ball'
+  novelty   : null
 } as const satisfies Record<Term, Sprite | null>
 
 /**

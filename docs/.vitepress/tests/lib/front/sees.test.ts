@@ -199,9 +199,9 @@ describe('stepsOf', () => {
 
 describe('bytesOf', () => {
   it.each([
-    [sees.OBSERVING, { flags: 4, frames: stack * height! * width!, grid: side * side }],
-    [{ ...sees.OBSERVING, frame: { height: 2, width: 3 }, grid: 5 }, { flags: 4, frames: 24, grid: 25 }]
-  ])('counts a byte a pixel of each frame, a square of the grid, and a flag', (observing, bytes) => {
+    [sees.OBSERVING, { flags: 7, frames: stack * height! * width!, grid: side * side }],
+    [{ ...sees.OBSERVING, frame: { height: 2, width: 3 }, grid: 5 }, { flags: 7, frames: 24, grid: 25 }]
+  ])('counts a byte a pixel of each frame, a square of the grid, and a flag up to the Pokédex', (observing, bytes) => {
     expect(sees.bytesOf(observing)).toStrictEqual(bytes)
   })
 })

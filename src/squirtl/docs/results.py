@@ -1,34 +1,66 @@
 """
 Defines `Results`, the measured runs the site's Results section draws, read
 from the run directories committed under `docs/runs/`, which `squirtl write
-docs` writes into the site as JSON, beside `Trained`, one of those runs, and
-`Comparison`, the runs of one agent set against their baselines.
+docs` writes into the site as JSON and spells as the README's sentence on
+them, beside `Trained`, one of those runs, `Comparison`, the runs of one
+agent set against their baselines, and `ReleaseSettings`, which names the
+run among them a release plays.
+
+It also defines `addresses`, which reads the addresses the package metadata
+names.
 """
 
-from collections.abc import Iterable
-from itertools       import groupby
-from numpy           import array
-from numpy.random    import default_rng
-from operator        import attrgetter
-from pathlib         import Path
-from typing          import ClassVar, Self
+from collections.abc    import Container, Iterable, Sequence
+from importlib.metadata import metadata
+from itertools          import groupby
+from numpy              import array
+from numpy.random       import default_rng
+from operator           import attrgetter
+from pathlib            import Path
+from typing             import ClassVar, Self
 
 from squirtl.agent.schemas      import Algorithm
 from squirtl.emulator.schemas   import EmulatorSettings, Record
 from squirtl.evaluation.report  import Estimate
 from squirtl.evaluation.schemas import Evaluation
+from squirtl.reward.schemas     import Event, Flag
 from squirtl.runs.schemas       import Run, RunListing
+
+
+class ReleaseSettings(Record):
+    """
+    The settings `squirtl pack` writes a release's runs under, the runs
+    committed under `Results.folder`.
+    """
+
+    recommended_run: str = "20261111T020527.724383Z"
+    """
+    The name of the run a release plays where no selection names one.
+    """
+
+    def check_recommends(self, names: Container[str]):
+        """
+        Refuses a `recommended_run` naming none of `names`, the names of the
+        trained runs.
+
+        Raises:
+            ValueError: Where none bears that name.
+        """
+        if self.recommended_run not in names:
+            raise ValueError(
+                f"The recommended run {self.recommended_run} is no trained run"
+            )
 
 
 class Score(Record):
     """
     What one evaluation measured, the share of its episodes reaching the
-    starter and their mean return, at the step of the run it read.
+    run's goal and their mean return, at the step of the run it read.
     """
 
     reached: float
     """
-    The share of the episodes reaching the starter.
+    The share of the episodes reaching the run's goal.
     """
 
     reward: float
@@ -59,6 +91,11 @@ class Trained(RunListing):
     baseline: Score
     """
     The random baseline's score under the run's evaluation seeds.
+    """
+
+    goal: Flag
+    """
+    The flag whose first setting ended the run's episodes.
     """
 
     scores: tuple[Score, ...]
@@ -104,7 +141,12 @@ class Trained(RunListing):
         if (baseline := run.baselined) is None:
             raise ValueError(f"{directory} holds no baseline")
 
-        return cls.of(run, baseline=Score.of(baseline), scores=scores)
+        return cls.of(
+            run,
+            baseline = Score.of(baseline),
+            goal     = run.settings.environment.goal,
+            scores   = scores
+        )
 
     @classmethod
     def seeded(cls, runs: Iterable[Self]) -> tuple[Self, ...]:
@@ -131,7 +173,7 @@ class Comparison(Record):
     baseline: Estimate
     """
     The interquartile mean across the runs of the baseline's share reaching
-    the starter.
+    their goal.
     """
 
     beats: Estimate
@@ -155,8 +197,15 @@ class Comparison(Record):
     reached: Estimate
     """
     The interquartile mean across the runs of the agent's share reaching
-    the starter.
+    their goal.
     """
+
+    @property
+    def start(self) -> str:
+        """
+        Names where the runs started their training episodes.
+        """
+        return "along the curriculum" if self.curriculum else "from the bedroom"
 
     @classmethod
     def across(cls, runs: Iterable[Trained], bedroom: Iterable[Trained] = ()) -> Self:
@@ -213,7 +262,7 @@ class Results(Record):
     random: Estimate | None
     """
     The interquartile mean across the runs' seeds of the baseline's share
-    reaching the starter, each seed once, or `None` where no run is committed.
+    reaching their goal, each seed once, or `None` where no run is committed.
     """
 
     runs: tuple[Trained, ...]
@@ -221,15 +270,57 @@ class Results(Record):
     Each run, in the order of its name.
     """
 
+    @property
+    def summary(self) -> str:
+        """
+        Spells the sentence the README opens its results on, each agent's
+        share reaching the runs' goal from each start, the agents reaching
+        more first and those sharing a phrase joined, beside random presses'
+        share, or the comparison alone where no run is committed.
+        """
+        if self.random is None:
+            return "compares each agent against random presses under the same seeds."
+
+        agents = sorted(
+            (
+                tuple(members)
+                for _, members in groupby(self.comparisons, key=attrgetter("agent"))
+            ),
+            key     = lambda members: max(member.reached.value for member in members),
+            reverse = True
+        )
+        clauses: dict[str, list[str]] = {}
+
+        for members in agents:
+            clauses.setdefault(spelled(members), []).append(members[0].agent.name)
+
+        (first, names), *rest = clauses.items()
+        seeds                 = len({run.seed for run in self.runs})
+        verb = "reach" if len(names) > 1 else "reaches"
+        head = f"{' and '.join(names)} {verb} `{self.runs[0].goal.name}` {first}"
+
+        return (
+            f"compares each agent against random presses under the same {seeds} "
+                f"{'seed' if seeds == 1 else 'seeds'}, where {head}, "
+            + "".join(f"{' and '.join(names)} {text}, " for text, names in rest)
+            + f"and random presses {self.random.share}."
+        )
+
     @classmethod
     def read(cls, folder: Path = folder) -> Self:
         """
         Reads every run directory `folder` holds, none where it is missing.
+
+        Raises:
+            ValueError: Where the runs end their episodes at more than one
+                        goal, whose shares no comparison sets side by side.
         """
         runs = tuple(
             Trained.read(directory)
             for directory in sorted(folder.iterdir() if folder.is_dir() else ())
         )
+        Event.check_shared((run.goal for run in runs), f"the runs under {folder}")
+
         baselines = {run.seed: run.baseline.reached for run in Trained.seeded(runs)}
         group     = attrgetter("agent", "curriculum")
         groups    = {
@@ -248,3 +339,24 @@ class Results(Record):
             ) if runs else None,
             runs = runs
         )
+
+
+def addresses() -> dict[str, str]:
+    """
+    Reads each address the package metadata's `Project-URL` entries name,
+    under its label, such as `Homepage` and `Repository`.
+    """
+    return dict(
+        entry.split(", ") for entry in metadata("squirtl").get_all("Project-URL")
+    )
+
+
+def spelled(comparisons: Sequence[Comparison]) -> str:
+    """
+    Spells the share of one agent's `comparisons` from each start, once
+    before every start where each holds the same share.
+    """
+    if len(phrases := {each.reached.share for each in comparisons}) == 1:
+        return f"{phrases.pop()} {' and '.join(each.start for each in comparisons)}"
+
+    return " and ".join(f"{each.reached.share} {each.start}" for each in comparisons)

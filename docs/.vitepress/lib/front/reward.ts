@@ -76,11 +76,11 @@ export interface Traced {
  */
 const PAID = {
   following : 'Following Oak',
+  goal      : 'The starter',
   milestone : 'A milestone',
   nothing   : 'Already reached',
   novelty   : 'A new position',
   speaking  : 'Oak speaks',
-  starter   : 'The starter',
   waking    : 'Blue wakes'
 }
 
@@ -105,9 +105,9 @@ export const TEMPO: Tempo = { beat: 120, glide: 110, lead: 170, rest: 3600 }
  * Each term's name on a widget.
  */
 const TERM_LABELS: Readonly<Record<episode.Term, string>> = {
+  goal      : 'The starter',
   milestone : 'Milestones',
-  novelty   : 'New positions',
-  starter   : 'The starter'
+  novelty   : 'New positions'
 }
 
 /**
@@ -167,9 +167,9 @@ function recorded(player: Player, jumps: readonly Jump[]): Traced {
 function termNotes(settings: episode.EpisodeSettings, traced: Traced): Record<episode.Term, string> {
   const met = traced.flags.filter(flag => milestones.includes(flag)).length
   return {
+    goal      : traced.flags.includes('starter') ? STARTER.chosen : STARTER.waiting,
     milestone : `${met} of ${milestones.length}`,
-    novelty   : `${numbers.count(traced.reached - 1)} × ${numbers.fixed(settings.pay.novelty, PLACES)}`,
-    starter   : traced.flags.includes('starter') ? STARTER.chosen : STARTER.waiting
+    novelty   : `${numbers.count(traced.reached - 1)} × ${numbers.fixed(settings.pay.novelty, PLACES)}`
   }
 }
 

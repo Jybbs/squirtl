@@ -1,10 +1,10 @@
 import { defineComponent, ref } from 'vue'
 
-import { RoomImages }                 from '../../../lib/game/images.ts'
-import * as curriculum                from '../../../lib/methods/curriculum.ts'
-import { useCurriculumPlayback }      from '../../../lib/methods/curriculum/playback.ts'
-import { DETAIL, LABEL, SCRUB_PARTS } from '../kit/widget.ts'
-import { CurriculumLane }             from './curriculum/lane.tsx'
+import { RoomImages }                       from '../../../lib/game/images.ts'
+import * as curriculum                      from '../../../lib/methods/curriculum.ts'
+import { useCurriculumPlayback }            from '../../../lib/methods/curriculum/playback.ts'
+import { DETAIL, LABEL, LIST, SCRUB_PARTS } from '../kit/widget.ts'
+import { CurriculumLane }                   from './curriculum/lane.tsx'
 
 /**
  * The words the widget sets.
@@ -34,7 +34,7 @@ export const MethodsCurriculum = defineComponent({
     return () => (
       <div class="@container grid gap-2" ref={box}>
         <div class="curriculum-drawing grid gap-y-1">
-          <ol aria-label={WORDS.lanes} class="curriculum-lanes col-span-full grid grid-cols-subgrid gap-y-1">
+          <ol aria-label={WORDS.lanes} class={[LIST, 'col-span-full grid grid-cols-subgrid gap-y-1']}>
             {curriculum.SEGMENTS.map((segment, k) => (
               <CurriculumLane
                 far={curriculum.farOf(at.value, k)}

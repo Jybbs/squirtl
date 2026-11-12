@@ -48,7 +48,7 @@ export const PLOTTING = {
   shares : [0, 0.25, 0.5, 0.75, 1],
   title  : IDENTITY.lengths.spacing['5'],
   titles : {
-    reached : 'Episodes reaching the starter (%)',
+    reached : 'Episodes reaching the goal (%)',
     steps   : 'Environment steps (millions)'
   },
   box    : {
@@ -61,7 +61,7 @@ export const PLOTTING = {
 
 /**
  * Lays out the curve of each of `groups` at `height` by `width` pixels, the
- * interquartile mean across its runs' shares reaching the starter at each
+ * interquartile mean across its runs' shares reaching the goal at each
  * evaluation, random presses' share `random` as a level line, and the steps
  * along the bottom up to the evaluation read last, labeled in millions every
  * half million.

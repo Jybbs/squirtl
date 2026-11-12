@@ -1,10 +1,10 @@
 # Curriculum
 
-A run of PQN or PPO can learn the walk to the starter backward, starting its training episodes partway along a demonstration, an earlier run's shortest episode reaching the starter, and moving each start back toward Blue's bedroom as the agent succeeds from it. Salimans and Chen[^salimans2018] learn Montezuma's Revenge from a single demonstration this way, and the windows each start is drawn from move as Appendix B of Mhammedi and Cohan[^mhammedi2026] moves them. Every training episode starts in Blue's bedroom unless `--curriculum.demonstration` names a run, and every evaluation episode starts there whatever the training did.
+A run of PQN or PPO can learn the walk to its goal backward, starting its training episodes partway along a demonstration, the shortest episode of an earlier run that reached the same goal, and moving each start back toward Blue's bedroom as the agent succeeds from it. Salimans and Chen[^salimans2018] learn Montezuma's Revenge from a single demonstration this way, and the windows each start is drawn from move as Appendix B of Mhammedi and Cohan[^mhammedi2026] moves them. Every training episode starts in Blue's bedroom unless `--curriculum.demonstration` names a run, and every evaluation episode starts there whatever the training did.
 
 ## The Segments
 
-The demonstration splits into segments, each ending at the step whose press first sets one of the flags the reward pays, so the walk to Oak, the walk into the lab, the wait for Oak to ask, and the choice of the starter each make a segment. Each segment draws its starts from a window of 25 steps reaching back from its latest start, which opens at the segment's end.
+The demonstration splits into segments, each ending at the step whose press first sets one of the flags the reward pays, so on the way to the starter the walk to Oak, the walk into the lab, the wait for Oak to ask, and the choice of the starter each make a segment. Each segment draws its starts from a window of 25 steps reaching back from its latest start, which opens at the segment's end.
 
 ## Moving a Window
 
@@ -32,7 +32,7 @@ The table below is written from the help `squirtl train` prints for each `--curr
 | `--curriculum.back` | `0.25, 0.75` | *The least and the most a window moves back, each a multiple of `window`, between which each move draws uniformly, whose default is the decrease multipliers of Mhammedi and Cohan's Table 8.* |
 | `--curriculum.buffer` | `500` | *The steps an episode from a start takes beyond `multiplier` times the moving average of successful lengths before it truncates, whose default is the rollout length buffer of Mhammedi and Cohan's Table 8.* |
 | `--curriculum.completion` | `0.95` | *The share of the recent episodes from a window reaching Blue's bedroom that have to succeed before its segment counts as solved, whose default is the completion threshold of Mhammedi and Cohan's Table 8.* |
-| `--curriculum.demonstration` | `none` | *The directory of the run whose shortest episode reaching the starter each training episode starts along, or `None` to start every episode in Blue's bedroom.* |
+| `--curriculum.demonstration` | `none` | *The directory of the run whose shortest episode reaching the goal each training episode starts along, a run ending its episodes at the same goal, or `None` to start every episode in Blue's bedroom.* |
 | `--curriculum.forward` | `0.5, 1.0` | *The least and the most a window moves forward, each a multiple of `window`, between which each move draws uniformly, whose default is the increase multipliers of Mhammedi and Cohan's Table 8.* |
 | `--curriculum.multiplier` | `2.0` | *The multiple of the moving average of successful lengths an episode from a start takes before `buffer` and then truncates, whose default is the early termination multiplier of Mhammedi and Cohan's Table 8.* |
 | `--curriculum.recent` | `32` | *The episodes from a window whose share of successes moves it, after which the count starts again, whose default is the minimum rollouts for an update of Mhammedi and Cohan's Table 8.* |

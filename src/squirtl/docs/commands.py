@@ -1,12 +1,12 @@
 """
-Defines `Command`, the page of the site's Commands section that `squirtl
-write docs` writes for each command the `squirtl` command registers, from
-the help cyclopts prints for it, and `Setting`, one row of the table of
-settings that page carries.
+Defines `Command`, the parts of the page of the site's Commands section
+that `squirtl write docs` writes for each command the `squirtl` command
+registers, from the help cyclopts prints for it, and `Setting`, one row of
+the table of settings that page carries.
 """
 
 from collections.abc import Iterator
-from cyclopts        import App, Argument
+from cyclopts        import App, Argument, default_name_transform
 from cyclopts.help   import format_doc, format_usage
 from enum            import Enum
 from functools       import reduce
@@ -85,8 +85,8 @@ class Setting(Record):
 
 class Command(Record):
     """
-    The page of one command the `squirtl` command registers, written from
-    the help cyclopts prints for it.
+    The parts of the page of one command the `squirtl` command registers,
+    written from the help cyclopts prints for it.
     """
 
     chain: tuple[str, ...]
@@ -111,26 +111,32 @@ class Command(Record):
     """
 
     @property
+    def parts(self) -> dict[str, str]:
+        """
+        Lays out each part of the page written from the command, by the name
+        of the pair of markers holding it:
+
+        - `help`, the heading, the command's help, and its usage
+        - `settings`, the heading and the table of every setting it takes,
+          where it takes any
+        """
+        return {
+            "help": "\n".join(
+                [
+                    f"# `squirtl {' '.join(self.chain)}`",
+                    "", self.help, "", "```console", self.usage, "```"
+                ]
+            ),
+            **({"settings": "## Settings\n\n" + self.table()} if self.settings else {})
+        }
+
+    @property
     def path(self) -> Path:
         """
         Locates the page under `docs/pages/commands/`, named for the words
         after `squirtl` joined by hyphens.
         """
         return Path("docs/pages/commands", "-".join(self.chain) + ".md")
-
-    @property
-    def text(self) -> str:
-        """
-        Lays the page out as its heading, the command's help, its usage, and
-        a table of every setting it takes where it takes any.
-        """
-        return "\n".join(
-            [
-                f"# `squirtl {' '.join(self.chain)}`",
-                "", self.help, "", "```console", self.usage, "```",
-                *(["", "## Settings", "", self.table()] if self.settings else [])
-            ]
-        ) + "\n"
 
     @classmethod
     def every(cls, app: App) -> tuple[Self, ...]:
@@ -208,13 +214,13 @@ def commands(app: App, chain: tuple[str, ...] = ()) -> Iterator[tuple[str, ...]]
 def spelled(value: object) -> str:
     """
     Spells a default as the flag takes it, a boolean in lowercase, an
-    enumeration by its value, a pair by its members split by a comma, and
-    `None` as `none`.
+    enumeration by the name cyclopts gives its member, a pair by its members
+    split by a comma, and `None` as `none`.
     """
     match value:
         case None    : return "none"
         case bool()  : return str(value).lower()
-        case Enum()  : return str(value.value)
+        case Enum()  : return default_name_transform(value.name)
         case tuple() : return ", ".join(map(spelled, value))
         case _       : return str(value)
 

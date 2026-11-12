@@ -8,7 +8,7 @@ Each evaluation plays 30 episodes of each player, the count Mnih et al.[^mnih201
 
 ## The Measures
 
-Each evaluation averages over each player's episodes the share reaching the starter, the steps the episodes reaching it took, the positions reached, the return, and each term's part of that return. Across runs, each measure is reported as its interquartile mean, the mean of the runs left once a quarter is cut from each end, with its 95% percentile bootstrap interval and the count of runs behind it, as Agarwal et al.[^agarwal2021] aggregate a handful of runs. The comparison of one agent against random presses, or against another agent, is the probability that a run of the first beats a run of the second on mean return, which the Mann-Whitney statistic over every pair of runs estimates.
+Each evaluation averages over each player's episodes the share reaching the run's goal, the steps the episodes reaching it took, the positions reached, the return, and each term's part of that return. Across runs, each measure is reported as its interquartile mean, the mean of the runs left once a quarter is cut from each end, with its 95% percentile bootstrap interval and the count of runs behind it, as Agarwal et al.[^agarwal2021] aggregate a handful of runs. The comparison of one agent against random presses, or against another agent, is the probability that a run of the first beats a run of the second on mean return, which the Mann-Whitney statistic over every pair of runs estimates.
 
 ## The Released Runs
 

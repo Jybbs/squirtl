@@ -39,7 +39,7 @@ describe('curvesOf', () => {
 
   it('labels the shares and the steps in millions, titling each axis with its variable and unit', () => {
     expect([...curves.labels, ...curves.titles].map(label => label.text)).toStrictEqual([
-      '0%', '25%', '50%', '75%', '100%', '0', '0.5', '1', '1.5', 'Environment steps (millions)', 'Episodes reaching the starter (%)'
+      '0%', '25%', '50%', '75%', '100%', '0', '0.5', '1', '1.5', 'Environment steps (millions)', 'Episodes reaching the goal (%)'
     ])
   })
 })

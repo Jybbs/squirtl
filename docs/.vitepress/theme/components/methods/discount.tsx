@@ -22,10 +22,10 @@ const WORDS = {
 }
 
 /**
- * The fill each term's dot takes, a milestone in Heath and the starter in
+ * The fill each term's dot takes, a milestone in Heath and the goal in
  * Amethyst.
  */
-const TERM_FILL = { milestone: 'fill-heath-mark', starter: 'fill-amethyst-mark' } as const
+const TERM_FILL = { goal: 'fill-amethyst-mark', milestone: 'fill-heath-mark' } as const
 
 /**
  * Describes the half point at `stop` for a screen reader.

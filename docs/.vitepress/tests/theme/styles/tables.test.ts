@@ -5,10 +5,13 @@ import path from 'node:path'
 import { createMarkdownRenderer } from 'vitepress'
 import { describe, expect, it }   from 'vitest'
 
+import { pagesDir }      from '../../../lib/config/paths.ts'
+import { markdownRules } from '../../../lib/markdown/rules.ts'
+
 /**
  * The folder holding the site's pages.
  */
-const PAGES = path.join(import.meta.dirname, '../../../../pages')
+const PAGES = pagesDir(import.meta.url)
 
 /**
  * The sheet the theme styles a page's tables with.
@@ -21,22 +24,22 @@ const SHEET = fs.readFileSync(path.join(import.meta.dirname, '../../../theme/sty
 const page = (name: string): string => fs.readFileSync(path.join(PAGES, name), 'utf8')
 
 /**
- * Lists the `white-space` value computed for each element `selector` matches.
+ * Lists the value of `property` computed for each element `selector` matches.
  */
-const spaces = (selector: string): string[] =>
-  [...document.querySelectorAll(selector)].map(element => getComputedStyle(element).whiteSpace)
+const computed = (selector: string, property: string): string[] =>
+  [...document.querySelectorAll(selector)]
+    .map(element => getComputedStyle(element).getPropertyValue(property))
 
 /**
- * Renders the page at `name` inside the default theme's content column, styled
- * by `tables.css`, and reports how each code span in a table cell wraps, keyed
- * by whether it sits in the cell alone or inside the cell's prose.
+ * Renders the page at `name` through the site's Markdown rules inside the
+ * default theme's content column, styled by `tables.css`.
  */
-async function wrapping(name: string): Promise<{ alone: string[]; prose: string[] }> {
-  const md = await createMarkdownRenderer(process.cwd())
+async function render(name: string) {
+  const md = await createMarkdownRenderer(process.cwd(), { config: markdownRules, math: true })
 
-  document.body.innerHTML = `<style>${SHEET}</style><div class="vp-doc">${await md.renderAsync(page(name))}</div>`
-
-  return { alone: spaces('td > code'), prose: spaces('td > em > code') }
+  document.body.innerHTML = `<style>${SHEET}</style><div class="vp-doc">${await md.renderAsync(page(name), {
+    relativePath: name
+  })}</div>`
 }
 
 describe('tables.css', () => {
@@ -46,11 +49,25 @@ describe('tables.css', () => {
     expect(tabled).toContain('commands/train.md')
   })
 
+  it.for(tabled)('lays each table of %s across the column inside a block scrolling sideways', async name => {
+    await render(name)
+
+    const tables = document.querySelectorAll('table')
+
+    expect(tables.length).toBeGreaterThan(0)
+    expect([...tables].every(table => table.parentElement?.matches('.table-scroll'))).toBe(true)
+    expect([...new Set(computed('.table-scroll', 'overflow-x'))]).toStrictEqual(['auto'])
+    expect([...new Set(computed('table', 'display'))]).toStrictEqual(['table'])
+    expect([...new Set(computed('table', 'width'))]).toStrictEqual(['100%'])
+  })
+
   it.for(tabled)('keeps each code span set alone in a cell of %s on one line while the cell’s prose wraps', async name => {
-    const { alone, prose } = await wrapping(name)
+    await render(name)
+
+    const alone = computed('td > code', 'white-space')
 
     expect(alone.length).toBeGreaterThan(0)
     expect([...new Set(alone)]).toStrictEqual(['nowrap'])
-    expect(prose).not.toContain('nowrap')
+    expect(computed('td > em > code', 'white-space')).not.toContain('nowrap')
   })
 })

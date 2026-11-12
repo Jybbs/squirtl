@@ -9,7 +9,8 @@ Pins the Markdown `Report` lays out, covering:
 - A measure no run reaches, which spells `none`
 - The interquartile mean and the probability of improvement, each beside
   its percentile interval, which one run leaves out and runs scoring the
-  same close onto their score, and how each spells itself
+  same close onto their score, and how each spells itself, its value as a
+  share of episodes included
 """
 
 from common.evaluation import outcome, played
@@ -18,9 +19,8 @@ from numpy.random      import default_rng
 from pytest            import approx, mark, param
 from syrupy.assertion  import SnapshotAssertion
 
-from squirtl.evaluation.report  import Estimate, Report
-from squirtl.evaluation.schemas import Evaluation
-from squirtl.reward.schemas     import Term
+from squirtl.evaluation.report import Estimate, Report
+from squirtl.reward.schemas    import Event, Term
 
 
 def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
@@ -30,12 +30,12 @@ def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
     Asserts that a report of three runs against two prints the table of each
     run's measures, the table of each measure's interquartile mean with its
     interval and runs, and both probabilities of improvement its fixture
-    file holds, one run reaching the starter in 40 steps.
+    file holds, one run reaching its goal in 40 steps.
     """
     reached = outcome(
-        length = 40,
-        reward = 0.6025,
-        shares = dict.fromkeys(Term, 0.0) | {Term.NOVELTY: 0.0025, Term.STARTER: 0.6},
+        length     = 40,
+        reward     = 0.6025,
+        shares     = dict.fromkeys(Term, 0.0) | {Term.GOAL: 0.6, Term.NOVELTY: 0.0025},
         terminated = True
     )
     report = Report(
@@ -52,7 +52,9 @@ def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
         },
         runs = {
             "20261003T000000.000000Z": (
-                Evaluation(outcomes=[reached, outcome()], step=100),
+                played([0.0], 100).model_copy(
+                    update = {"outcomes": [reached, outcome()]}
+                ),
                 played([0.0, 0.0], None)
             ),
 
@@ -71,11 +73,32 @@ def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
     assert report.markdown(default_rng(0)) == snapshot
 
 
+def test_a_report_names_the_goal_each_evaluation_ended_its_episodes_at():
+    """
+    Asserts that each row of a report's table names the goal its evaluation
+    ended its episodes at, here the Pokédex rather than the default.
+    """
+    markdown = Report(
+        against = {},
+        runs    = {
+            "20261003T000000.000000Z": (
+                played([0.5], 100, goal=Event.EVENT_GOT_POKEDEX),
+                played([0.0], None, goal=Event.EVENT_GOT_POKEDEX)
+            )
+        }
+    ).markdown(default_rng(0))
+
+    assert [
+        line.split(" | ")[2] for line in markdown.splitlines()
+        if line.startswith("| `20261003")
+    ] == ["`EVENT_GOT_POKEDEX`"] * 2
+
+
 def test_a_report_naming_no_rival_runs_leaves_out_their_column_and_comparison():
     """
     Asserts that a report naming no `--against` run carries no `Against`
     column and no sentence comparing the agent with such runs, and that a
-    measure no run reaches, the steps to the starter here, spells `none`.
+    measure no run reaches, the steps to the goal here, spells `none`.
     """
     markdown = Report(
         against = {},
@@ -83,7 +106,7 @@ def test_a_report_naming_no_rival_runs_leaves_out_their_column_and_comparison():
     ).markdown(default_rng(0))
 
     assert ("Against" in markdown, "against it" in markdown) == (False, False)
-    assert "| Steps to the starter | none | none |" in markdown
+    assert "| Steps to the goal | none | none |" in markdown
 
 
 @mark.parametrize(
@@ -152,6 +175,42 @@ def test_an_estimate_spells_its_value_its_interval_and_its_runs(
     each sample it reads.
     """
     assert str(estimate) == spelled
+
+
+@mark.parametrize(
+    ("estimate", "spelled"),
+    [
+        param(
+            Estimate(interval=(1.0, 1.0), runs=(2,), value=1.0),
+            "in every evaluation episode",
+            id = "every"
+        ),
+        param(
+            Estimate(interval=(0.0, 0.0), runs=(2,), value=0.0),
+            "in no evaluation episode",
+            id = "none"
+        ),
+        param(
+            Estimate(interval=(0.1444, 0.3122), runs=(5,), value=0.2111),
+            "in 21% [14, 31]",
+            id = "a-share"
+        ),
+        param(
+            Estimate(interval=None, runs=(1,), value=0.5),
+            "in 50%",
+            id = "a-single-run"
+        )
+    ]
+)
+def test_an_estimate_spells_a_share_of_episodes_in_whole_points(
+    estimate : Estimate,
+    spelled  : str
+):
+    """
+    Pins that a share of every episode or of none is spelled as such, and
+    any other in whole points beside its interval where it carries one.
+    """
+    assert estimate.share == spelled
 
 
 def test_the_probability_of_improvement_counts_a_tie_half():

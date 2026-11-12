@@ -11,9 +11,12 @@ Pins the records the environment reads and writes, covering:
 - A recording's split into the presses a demonstration made before its
   takeover and the episode's own, and the line of a recording holding no
   takeover read back as one starting in the bedroom
+- An outcome's flags written in JSON by name and read back, and a line
+  holding none read back as empty
 """
 
 from base64              import urlsafe_b64decode
+from common.evaluation   import outcome
 from compression.zstd    import compress, decompress
 from json                import loads
 from pyboy.api.constants import COLS, ROWS
@@ -22,7 +25,8 @@ from pydantic            import ValidationError
 from pytest              import mark, param, raises
 from re import escape
 
-from squirtl.environment.schemas import EnvironmentSettings, Recording, Takeover
+from squirtl.environment.schemas import EnvironmentSettings, Outcome, Recording, Takeover
+from squirtl.reward.schemas      import Event
 
 
 @mark.parametrize(
@@ -164,6 +168,29 @@ def test_a_recording_splits_its_presses_at_its_takeover(
     recording = Recording(presses=b"\x01\x02\x03", takeover=takeover, timer_div=0)
 
     assert (recording.demonstrated, recording.played) == (demonstrated, played)
+
+
+def test_an_outcome_writes_its_flags_by_name_and_reads_a_line_holding_none_as_empty():
+    """
+    Asserts that an outcome writes the step first setting each flag in
+    JSON under the flag's name and reads it back as it was, whereas a line
+    holding no flags reads back with none.
+    """
+    reached = outcome(
+        flags = {Event.EVENT_FOLLOWED_OAK_INTO_LAB: 4, Event.EVENT_GOT_STARTER: 9}
+    )
+    line  = loads(reached.model_dump_json())
+    flags = line.pop("flags")
+
+    assert (
+        flags,
+        Outcome.model_validate({**line, "flags": flags}),
+        Outcome(**line).flags
+    ) == (
+        {"EVENT_FOLLOWED_OAK_INTO_LAB": 4, "EVENT_GOT_STARTER": 9},
+        reached,
+        {}
+    )
 
 
 def test_the_settings_read_the_screen_and_the_clock_pyboy_declares():

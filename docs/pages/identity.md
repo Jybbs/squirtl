@@ -17,7 +17,7 @@ The tables below are written from `[colors]`, `[neutrals]`, `[ramp]`, `shares`, 
 |---|---|---|---|
 | `accent-1` | Heath | `#c08597` | The second series hue, the milestones’ role |
 | `accent-2` | Fern | `#5cb878` | The third series hue, the new positions’ role |
-| `accent-3` | Amethyst | `#ba55d3` | The fourth series hue, the starter’s role |
+| `accent-3` | Amethyst | `#ba55d3` | The fourth series hue, the goal’s role |
 | `accent-4` | Seacaller | `#4b8488` | The fifth series hue, random presses’ role |
 | `cerulean` | Cerulean | `#91ddff` | The Results section’s hue |
 | `critical` | Brick Red | `#c62d42` | The critical state |
@@ -210,7 +210,7 @@ The tables below are written from `order`, `[roles]`, and `[sections]` in `ident
 | 1 | Denim | `#3d6fd0` | `agent` |
 | 2 | Heath | `#c08597` | `milestone` |
 | 3 | Fern | `#5cb878` | `novelty` |
-| 4 | Amethyst | `#ba55d3` | `starter` |
+| 4 | Amethyst | `#ba55d3` | `goal` |
 | 5 | Seacaller | `#4b8488` | `random` |
 
 <!-- /identity:order -->

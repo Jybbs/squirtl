@@ -10,6 +10,10 @@ Pins what `Results` reads from the run directories under
 - A run reading another cartridge than the default path, following a
   demonstration at an absolute path, or holding no evaluation of the agent
   or of the random baseline, which `Trained.read` refuses
+- The goal each run ended its episodes at, and runs ending at more than one,
+  which `Results.read` refuses
+- The README's sentence on the runs, each agent's share from each start
+  with the agents sharing a phrase joined
 """
 
 from collections.abc   import Callable, Iterable, Mapping
@@ -18,11 +22,13 @@ from datetime          import UTC, datetime
 from pathlib           import Path
 from pytest            import approx, raises
 
-from squirtl.agent.schemas      import AgentSettings, Algorithm
-from squirtl.docs.results       import Results, Trained
-from squirtl.emulator.schemas   import EmulatorSettings
-from squirtl.evaluation.schemas import Evaluation
-from squirtl.runs.schemas       import CurriculumSettings, Revision, Run, RunSettings
+from squirtl.agent.schemas       import AgentSettings, Algorithm
+from squirtl.docs.results        import Results, Trained
+from squirtl.emulator.schemas    import EmulatorSettings
+from squirtl.environment.schemas import EnvironmentSettings
+from squirtl.evaluation.schemas  import Evaluation
+from squirtl.reward.schemas      import Event
+from squirtl.runs.schemas        import CurriculumSettings, Revision, Run, RunSettings
 
 
 def recorded(
@@ -37,9 +43,9 @@ def recorded(
     Writes under `docs/runs/` a run started `second` seconds past midnight
     UTC on 4 October 2026 under the seed `seed`, or `second` where none is
     given, holding one evaluation per return in `rewards`, each a single
-    episode reaching the starter where its return passes 0.5, beside a
-    baseline of one episode per return in `baseline`, each reaching the
-    starter where its return passes 0.5.
+    episode reaching the run's goal where its return passes 0.5, beside a
+    baseline of one episode per return in `baseline`, each reaching the goal
+    where its return passes 0.5.
     """
     run = Run(
         digest   = "0",
@@ -53,13 +59,18 @@ def recorded(
     checkout(
         {
             f"{folder}/baseline.json"     : Evaluation(
+                goal     = settings.environment.goal,
                 outcomes = [
                     outcome(reward, terminated=reward > 0.5) for reward in baseline
                 ],
                 step = None
             ).model_dump_json(),
             f"{folder}/evaluations.jsonl" : "".join(
-                played([reward], step, terminated=reward > 0.5).model_dump_json() + "\n"
+                (
+                    played([reward], step, terminated=reward > 0.5)
+                    .model_copy(update={"goal": settings.environment.goal})
+                    .model_dump_json()
+                ) + "\n"
                 for step, reward in enumerate(rewards, start=1)
             ),
             f"{folder}/run.json"          : run.model_dump_json()
@@ -241,7 +252,7 @@ def test_results_compare_each_agent_and_curriculum_across_its_runs(
     Pins that each run reaches the results as its scores beside its
     baseline's, in the order of its name, and that the runs of one agent
     compare against their baselines at each run's last evaluation, the
-    agent's runs here reaching the starter every time and beating every
+    agent's runs here reaching their goal every time and beating every
     baseline run.
     """
     for second in (1, 2, 3):
@@ -250,9 +261,15 @@ def test_results_compare_each_agent_and_curriculum_across_its_runs(
     results = Results.read()
 
     assert [
-        (run.agent, run.curriculum, run.seed, [score.step for score in run.scores])
+        (
+            run.agent, run.curriculum, run.goal, run.seed,
+            [score.step for score in run.scores]
+        )
         for run in results.runs
-    ] == [(Algorithm.DQN, False, second, [1, 2]) for second in (1, 2, 3)]
+    ] == [
+        (Algorithm.DQN, False, Event.EVENT_GOT_STARTER, second, [1, 2])
+        for second in (1, 2, 3)
+    ]
     assert [
         (
             comparison.agent, comparison.beats.value, comparison.baseline.value,
@@ -261,6 +278,27 @@ def test_results_compare_each_agent_and_curriculum_across_its_runs(
         for comparison in results.comparisons
     ] == [(Algorithm.DQN, approx(1.0), approx(0.0), approx(1.0), (3,))]
     assert (results.random.value, results.random.runs) == (approx(0.0), (3,))
+
+
+def test_runs_ending_at_more_than_one_goal_are_refused(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that runs ending their episodes at more than one goal are refused,
+    naming each goal, since no comparison sets their shares side by side.
+    """
+    recorded(checkout, [0.75], 1)
+    recorded(
+        checkout = checkout,
+        rewards  = [0.75],
+        second   = 2,
+        settings = RunSettings(
+            environment = EnvironmentSettings(goal=Event.EVENT_GOT_POKEDEX)
+        )
+    )
+
+    with raises(ValueError, match="end at EVENT_GOT_POKEDEX, EVENT_GOT_STARTER"):
+        Results.read()
 
 
 def test_the_curriculum_compares_against_the_same_agents_runs_from_the_bedroom(
@@ -303,3 +341,77 @@ def test_the_curriculum_compares_against_the_same_agents_runs_from_the_bedroom(
         (Algorithm.PQN, False, None),
         (Algorithm.PQN, True, approx(1.0))
     ]
+
+
+def test_the_summary_joins_the_agents_sharing_a_phrase(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that agents whose runs reach the goal alike from the same starts
+    share one clause, the verb agreeing with them.
+    """
+    for second, algorithm in enumerate((Algorithm.DQN, Algorithm.PPO), start=1):
+        recorded(
+            checkout = checkout,
+            rewards  = [0.75],
+            second   = second,
+            seed     = 1,
+            settings = RunSettings(agent=AgentSettings(algorithm=algorithm))
+        )
+
+    assert Results.read().summary == (
+        "compares each agent against random presses under the same 1 seed, "
+        "where DQN and PPO reach `EVENT_GOT_STARTER` in every evaluation episode "
+        "from the bedroom, and random presses in no evaluation episode."
+    )
+
+
+def test_the_summary_of_no_run_names_no_share(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that results holding no run spell the comparison alone.
+    """
+    checkout({})
+
+    assert Results.read().summary == (
+        "compares each agent against random presses under the same seeds."
+    )
+
+
+def test_the_summary_spells_each_agents_share_from_each_start(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that the sentence names the seeds and the goal, then each agent's
+    share from the bedroom before along the curriculum, the agents reaching
+    more first, and random presses' share last.
+    """
+    for second, (algorithm, curriculum, reward) in enumerate(
+        (
+            (Algorithm.DQN, CurriculumSettings(), 0.25),
+            (Algorithm.PPO, CurriculumSettings(), 0.75),
+            (Algorithm.PQN, CurriculumSettings(), 0.25),
+            (Algorithm.PQN, CurriculumSettings(demonstration=Path("walk.json")), 0.75)
+        )
+    ):
+        for seed in (1, 2):
+            recorded(
+                baseline = (0.75, 0.25),
+                checkout = checkout,
+                rewards  = [reward],
+                second   = 2 * second + seed,
+                seed     = seed,
+                settings = RunSettings(
+                    agent      = AgentSettings(algorithm=algorithm),
+                    curriculum = curriculum
+                )
+            )
+
+    assert Results.read().summary == (
+        "compares each agent against random presses under the same 2 seeds, "
+        "where PPO reaches `EVENT_GOT_STARTER` in every evaluation episode from "
+        "the bedroom, PQN in no evaluation episode from the bedroom and in every "
+        "evaluation episode along the curriculum, DQN in no evaluation episode "
+        "from the bedroom, and random presses in 50% [50, 50]."
+    )

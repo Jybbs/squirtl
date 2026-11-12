@@ -32,7 +32,7 @@ describe('traceOf', () => {
     expect([first.total, first.reached, first.flags, first.led, first.speaking, first.paid])
       .toStrictEqual([0, 1, [], false, false, []])
     expect([last.total, last.reached, last.flags])
-      .toStrictEqual([0.915, 61, ['appeared', 'followed', 'asked', 'starter']])
+      .toStrictEqual([0.665, 61, ['appeared', 'followed', 'asked', 'starter']])
   })
 
   it('marks each milestone and the starter as a jump at the return it reaches', () => {
@@ -40,7 +40,7 @@ describe('traceOf', () => {
 
     expect(jumps).toStrictEqual([
       [131, 'milestone', '0.10975'], [156, 'milestone', '0.21450'], [174, 'milestone', '0.31450'],
-      [181, 'starter', '0.91500']
+      [181, 'goal', '0.66500']
     ])
   })
 
@@ -70,7 +70,7 @@ describe('figuresAt', () => {
     [157, ['Oak speaks', 'none', null, '0.00000', false]],
     [174, ['A milestone', 'milestone', null, '+0.10000', true]],
     [175, ['Already reached', 'none', null, '0.00000', false]],
-    [181, ['The starter', 'starter', null, '+0.60000', true]]
+    [181, ['The starter', 'goal', null, '+0.35000', true]]
   ])('names what the press at step %i paid', (at, paid) => {
     expect(shown(reward.figuresAt(TRACE, at).paid)).toStrictEqual(paid)
   })
@@ -79,7 +79,7 @@ describe('figuresAt', () => {
     [0, '0.00000', ['0 × 0.00025', '0 of 3', 'Not yet'], ['0.00000', '0.00000', '0.00000']],
     [131, '0.10975', ['39 × 0.00025', '1 of 3', 'Not yet'], ['0.00975', '0.10000', '0.00000']],
     [160, '0.21450', ['58 × 0.00025', '2 of 3', 'Not yet'], ['0.01450', '0.20000', '0.00000']],
-    [181, '0.91500', ['60 × 0.00025', '3 of 3', 'Squirtle'], ['0.01500', '0.30000', '0.60000']]
+    [181, '0.66500', ['60 × 0.00025', '3 of 3', 'Squirtle'], ['0.01500', '0.30000', '0.35000']]
   ])('sets the return, the step, and each term so far at step %i', (at, total, notes, values) => {
     const figures = reward.figuresAt(TRACE, at)
 
@@ -105,20 +105,20 @@ describe('figuresAt', () => {
 
 describe('terms and marks', () => {
   it('orders the terms by what one press of each pays, the least first, each beside its mark', () => {
-    expect(reward.terms).toStrictEqual(['novelty', 'milestone', 'starter'])
+    expect(reward.terms).toStrictEqual(['novelty', 'milestone', 'goal'])
     expect(Object.entries(reward.marks)).toStrictEqual(reward.terms.map(term => [term, termMark(term)]))
   })
 })
 
 describe('keyTerms', () => {
   it.each([
-    [EPISODE, ['+0.00025', '+0.10000', '+0.60000', '0.00000']],
-    [RICHER, ['+0.00100', '+0.10000', '+0.60000', '0.00000']]
+    [EPISODE, ['+0.00025', '+0.10000', '+0.35000', '0.00000']],
+    [RICHER, ['+0.00100', '+0.10000', '+0.35000', '0.00000']]
   ])('sets each term in its hue beside what a press of it pays, then nothing new', (settings, values) => {
     expect(reward.keyTerms(settings).map(chip => shown(chip))).toStrictEqual([
       ['New positions', 'novelty', null, values[0], true],
       ['Milestones', 'milestone', null, values[1], true],
-      ['The starter', 'starter', null, values[2], true],
+      ['The starter', 'goal', null, values[2], true],
       ['Already reached', 'none', null, values[3], false]
     ])
   })
@@ -128,7 +128,7 @@ describe('describeStep', () => {
   it.each([
     [0, 'Step 0 of 181, the return 0.00000'],
     [12, 'Step 12 of 181, the return 0.00050'],
-    [181, 'Step 181 of 181, the return 0.91500']
+    [181, 'Step 181 of 181, the return 0.66500']
   ])('describes step %i for a screen reader', (at, words) => {
     expect(reward.describeStep(TRACE, at)).toBe(words)
   })

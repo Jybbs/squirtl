@@ -1,6 +1,6 @@
 """
 Defines `Overworld`, the environment an agent plays Pokémon Blue in,
-from the bedroom of Blue, the player character, to the starter, which
+from the bedroom of Blue, the player character, to the run's goal, which
 `Overworld.specification` specifies with its wrappers.
 """
 
@@ -24,10 +24,11 @@ from squirtl.reward.schemas       import RewardSettings, Term
 
 class Overworld(Env):
     """
-    The game from Blue's bedroom to the starter as a Gymnasium `Env`, whose
-    actions are `presses`, whose observation is the gray frame a step ends
-    on, and whose episode terminates at the starter, each episode kept as
-    the `recording` that `play` steps through again.
+    The game from Blue's bedroom to the goal `EnvironmentSettings.goal`
+    names as a Gymnasium `Env`, whose actions are `presses`, whose
+    observation is the gray frame a step ends on, and whose episode
+    terminates at the goal, each episode kept as the `recording` that `play`
+    steps through again.
     """
 
     metadata = {"render_modes": ["rgb_array"]}
@@ -159,7 +160,7 @@ class Overworld(Env):
             self.game_boy.set_div(takeover.timer_div)
 
         self.actions   = bytearray(recording.demonstrated)
-        self.progress  = Progress(self.game_boy, self.reward)
+        self.progress  = Progress(self.game_boy, self.settings.goal, self.reward)
         self.takeover  = takeover
         self.timer_div = recording.timer_div
 
@@ -230,7 +231,7 @@ class Overworld(Env):
 
             - The gray frame the step ends on
             - Its reward
-            - Whether it found the starter
+            - Whether it first set the goal
             - `False` for truncation, which `TimeLimit` reports
             - Each term's share of the reward, as the info dict
         """

@@ -61,24 +61,24 @@ export const TEMPO = { draw: 620, rewind: 240 }
  */
 export const ROLE_WORDS: Readonly<Record<Role, string>> = {
   agent     : 'The agent',
+  goal      : 'The goal',
   milestone : 'Milestones',
   novelty   : 'New positions',
-  random    : 'Random presses',
-  starter   : 'The starter'
+  random    : 'Random presses'
 }
 
 /**
  * The shape each role's made-up run takes across the steps from 0 to 1, the
  * agent's rising late and steeply, the milestones' in a staircase, the new
- * positions' early and flattening, random presses' level, and the starter's
+ * positions' early and flattening, random presses' level, and the goal's
  * late.
  */
 const SHAPES: Readonly<Record<Role, (x: number) => number>> = {
   agent     : x => 0.06 + 0.74 / (1 + Math.exp(-9 * (x - 0.45))),
+  goal      : x => 0.02 + 0.4 / (1 + Math.exp(-14 * (x - 0.72))),
   milestone : x => 0.04 + 0.56 * Math.min(1, Math.floor(x * 5.2) / 4) + 0.02 * x,
   novelty   : x => 0.08 + 0.8 * (1 - Math.exp(-x * 4.2)),
-  random    : x => 0.12 + 0.015 * Math.sin(x * 23),
-  starter   : x => 0.02 + 0.4 / (1 + Math.exp(-14 * (x - 0.72)))
+  random    : x => 0.12 + 0.015 * Math.sin(x * 23)
 }
 
 /**

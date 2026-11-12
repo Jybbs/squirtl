@@ -15,8 +15,8 @@ describe('hexOf', () => {
 describe('roleHue', () => {
   it.each([
     ['agent', 'denim'],
-    ['random', 'seacaller'],
-    ['starter', 'amethyst']
+    ['goal', 'amethyst'],
+    ['random', 'seacaller']
   ] as const)('reads the %s role in %s', (role, hue) => {
     expect(identity.roleHue(role)).toBe(hue)
   })

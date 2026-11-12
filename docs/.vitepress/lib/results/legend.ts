@@ -32,7 +32,7 @@ export const SAMPLE: { groups: readonly Pick<Group, 'agent'>[], random: Estimate
 }
 
 /**
- * Names the share of a seed's episodes reaching the starter each shade a cell
+ * Names the share of a seed's episodes reaching the goal each shade a cell
  * takes marks, from none, up to each of `EDGES` past the first, then above
  * the last.
  */
@@ -120,7 +120,7 @@ export function legendOf(groups: readonly Pick<Group, 'agent'>[], random: Estima
     },
     {
       entries : SHADES.map((name, shade) => ({ mark: swatchOf(shade), name, role: shade === 0 ? 'none' : 'agent' })),
-      head    : 'Share reaching the starter'
+      head    : 'Share reaching the goal'
     },
     { entries: FINALS, head: 'Last evaluation' },
     { entries: [{ mark: marked(band), name: 'Across every seed', role: 'random', value: percent(random) }], head: 'Random presses' },

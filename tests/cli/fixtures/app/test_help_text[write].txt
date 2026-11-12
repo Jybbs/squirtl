@@ -5,6 +5,7 @@ Writes files the package declares into the checkout.
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
 │ docs  Writes each file the site reads from a declaration in the package into │
 │       docs/ where it differs from that declaration, the identity's JSON      │
-│       among them, and closes each Markdown file git tracks on the definition │
-│       of each source it cites, printing the path of each file it wrote.      │
+│       among them, writes the README's sentence on the results between its    │
+│       markers, and closes each Markdown file git tracks on the definition of │
+│       each source it cites, printing the path of each file it wrote.         │
 ╰──────────────────────────────────────────────────────────────────────────────╯

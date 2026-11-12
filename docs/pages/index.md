@@ -10,7 +10,7 @@ Every step of an episode pays a little for each position Blue has not reached be
 
 ## What the Network Sees
 
-The network never reads where Blue stands, reading instead the last four frames of the screen shrunk to gray, the squares he has reached around him, and four flags for the moments that pay.
+The network never reads where Blue stands, reading instead the last four frames of the screen shrunk to gray, the squares he has reached around him, and a flag for each moment of the opening from Oak appearing to the Pokédex.
 
 ## Learning in the Page
 

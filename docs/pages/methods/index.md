@@ -1,13 +1,13 @@
 # Methods
 
-*SquiRtL* learns to walk Blue from his bedroom to Oak's lab and to choose a starter, reading nothing but the screen and a reward drawn from the game's memory. Each episode starts in Blue's bedroom, where he stands once the intro is played through, and ends when he receives his starter or when the step budget runs out.
+*SquiRtL* learns to walk Blue from his bedroom to Oak's lab and to choose a starter, reading nothing but the screen and a reward drawn from the game's memory. Each episode starts in Blue's bedroom, where he stands once the intro is played through, and ends on the step first setting the flag the run names as its goal, by default when he receives his starter, or when the step budget runs out.
 
 ## The Parts of a Run
 
 A run joins four parts, each set out on a page of its own:
 
 - The [environment](./environment.md) presses one button a step, advances the game 17 frames, and returns the screens the agent reads
-- The [reward](./reward.md) reads the game's memory after each step and pays for a square not reached before and for each milestone on the way to the starter
+- The [reward](./reward.md) reads the game's memory after each step and pays for a square not reached before and for each milestone on the way to the run's goal
 - The [agents](./agents.md) choose each press and learn from what it paid, whether the deep Q-network, PQN, or PPO
 - The [curriculum](./curriculum.md) starts a training episode partway along a demonstration and moves its start back toward the bedroom as the agent succeeds
 

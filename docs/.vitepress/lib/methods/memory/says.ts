@@ -38,11 +38,11 @@ const NOVELTY = SETTINGS.reward.novelty
 const position = (place: rooms.Place, at: rooms.Square): string => `(${byte(MAPS[place])}, ${byte(at[0])}, ${byte(at[1])})`
 
 /**
- * Reads the term a step's payment counts toward, the starter's over a
+ * Reads the term a step's payment counts toward, the goal's over a
  * milestone's over the position's.
  */
 const termOf = (pay: Readonly<Record<Term, number>>): Term | null =>
-  (['starter', 'milestone', 'novelty'] as const).find(term => pay[term] > 0) ?? null
+  (['goal', 'milestone', 'novelty'] as const).find(term => pay[term] > 0) ?? null
 
 /**
  * Says what step `n` of `trace` did to the bytes: a position reached for the
@@ -52,7 +52,7 @@ const termOf = (pay: Readonly<Record<Term, number>>): Term | null =>
 function sayOf(n: number, trace: readonly Row[] = TRACE): Say {
   const row  = trace[n]!
   const pos  = position(row.place, row.at)
-  const paid = row.pay.novelty + row.pay.milestone + row.pay.starter
+  const paid = row.pay.novelty + row.pay.milestone + row.pay.goal
   const term = termOf(row.pay)
   const said = { paid, step: `Step ${count(n)}`, term }
   if (n === 0) return { ...said, did: [['stands on ', null], [pos, 'bytes'], [` in ${ROOMS[row.place]}`, null]], tail: [] }
@@ -60,7 +60,7 @@ function sayOf(n: number, trace: readonly Row[] = TRACE): Say {
     const set  = FLAG_BITS.filter(each => row.flags.has(each.flag) && !trace[n - 1]!.flags.has(each.flag))
     const did: Part[] = row.pay.novelty ? [['reaches ', null], [pos, 'bytes'], [' for the first time', 'novelty']] : []
     set.forEach((flag, k) => did.push([k ? ' and ' : row.pay.novelty ? ' and sets ' : 'sets ', null], [`${flag.name} (bit ${flag.bit} of ${address(flag.address)})`, flag.term]))
-    return { ...said, did, tail: [[', paying ', null], [fixed(paid, 5), term], [term === 'starter' ? ', which ends the episode' : '', null]] }
+    return { ...said, did, tail: [[', paying ', null], [fixed(paid, 5), term], [term === 'goal' ? ', which ends the episode' : '', null]] }
   }
   if (row.turned) return { ...said, did: [[`turns Blue to face ${row.facing} on `, null], [pos, 'bytes'], [' without a step', null]], tail: [[', paying nothing', null]] }
   return { ...said, did: [['stands on ', null], [pos, 'bytes'], [', reached before', null]], tail: [[', paying nothing for the position', null]] }

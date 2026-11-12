@@ -5,7 +5,7 @@ import * as watching from '../../../lib/commands/watch.ts'
 describe('RECORDING', () => {
   it('opens on the reset and ends on the starter’s return', () => {
     expect([watching.RECORDING[0], watching.returned(watching.RECORDING.at(-1)!.total), watching.LAST])
-      .toStrictEqual([{ press: null, total: 0 }, '0.9150', 181])
+      .toStrictEqual([{ press: null, total: 0 }, '0.6650', 181])
   })
 })
 

@@ -30,11 +30,12 @@ from pytest            import CaptureFixture, MonkeyPatch, fixture, mark, param,
 from pytest_subprocess import FakeProcess
 from textwrap          import dedent
 
+from squirtl.cli              import app
 from squirtl.docs.outputs     import Inventory
 from squirtl.emulator.schemas import Record
 from squirtl.repo.checks  import (
     Anchors, Attribution, Audit, Check, Commits, Docstrings, Footnotes, Gates,
-    Inputs, Installs, LabelCheck, Layout, Pins, Rendered, Rows, Runners, ScriptCheck,
+    Imports, Inputs, Installs, LabelCheck, Layout, Pins, Rendered, Rows, Runners, ScriptCheck,
     SiteCopies, SitePins, Subsets, Summaries, TaskCheck, Warming
 )
 from squirtl.repo.schemas import Finding, Severity, Task, TaskIssue, Tasks, Tree, Unreadable
@@ -665,6 +666,32 @@ def test_footnotes_reports_a_bibliography_that_fails_to_read_at_its_line(scan: S
     assert (str(finding.file), finding.line) == ("docs/references.bib", 2)
 
 
+def test_footnotes_reports_a_file_that_fails_to_decode_on_that_file(
+    fp       : FakeProcess,
+    scan     : Scan,
+    tmp_path : Path
+):
+    """
+    Pins that the footnotes check raises `Unreadable` on a Markdown file
+    that fails to decode as UTF-8 rather than on `docs/references.bib`.
+    """
+    (tmp_path / "bad.md").write_bytes(b"\xff")
+    fp.register(["git", "ls-files", fp.any()], occurrences=1, stdout="bad.md\0")
+
+    with raises(Unreadable) as raised:
+        scan(
+            Footnotes,
+            {
+                "docs/references.bib": "@misc{smith2020, author = {Smith, A.}, title = {T}, "
+                                       "year = {2020}, eprint = {1}}"
+            }
+        )
+
+    finding, = raised.value.args
+
+    assert finding.file == Path("bad.md")
+
+
 def test_footnotes_reports_each_fault_at_its_file_and_line(
     fp   : FakeProcess,
     scan : Scan
@@ -700,6 +727,105 @@ def test_footnotes_reports_each_fault_at_its_file_and_line(
             "`mise write` writes in its place"
         )
     ]
+
+
+@mark.parametrize(
+    ("module", "text", "found"),
+    [
+        param(
+            "docs/outputs.py",
+            "from squirtl.cli import app\n",
+            [(
+                1,
+                "`src/squirtl/docs/outputs.py` imports `squirtl.cli`, which sits "
+                "outside the subjects beneath `docs`"
+            )],
+            id = "a-subject-above"
+        ),
+        param(
+            "runs/loop.py",
+            "import json\nimport squirtl.repo.checks\n",
+            [(
+                2,
+                "`src/squirtl/runs/loop.py` imports `squirtl.repo.checks`, which "
+                "sits outside the subjects beneath `runs`"
+            )],
+            id = "an-import-statement"
+        ),
+        param(
+            "identity/schemas.py",
+            "from squirtl.emulator.schemas import Record\n",
+            [(
+                1,
+                "`src/squirtl/identity/schemas.py` imports `squirtl.emulator.schemas`, "
+                "which sits outside the subjects beneath `identity`"
+            )],
+            id = "a-subject-importing-none"
+        ),
+        param(
+            "cli/write.py",
+            "from squirtl.emulator.schemas import Record\n",
+            [],
+            id = "a-subject-reached-through-another"
+        ),
+        param(
+            "releases/schemas.py",
+            "from squirtl.docs.results import Results\n",
+            [],
+            id = "a-subject-imported-directly"
+        ),
+        param(
+            "docs/outputs.py",
+            "from squirtl.releases.schemas import ReleaseManifest\n",
+            [(
+                1,
+                "`src/squirtl/docs/outputs.py` imports `squirtl.releases.schemas`, "
+                "which sits outside the subjects beneath `docs`"
+            )],
+            id = "a-subject-importing-one-that-imports-it"
+        ),
+        param(
+            "cli/write.py",
+            "from squirtl.cli import app\nfrom . import logs\n",
+            [],
+            id = "its-own-subject-and-a-relative-import"
+        ),
+        param(
+            "docs/outputs.py",
+            "from squirtl.cli import (\n",
+            [
+                (
+                    1,
+                    "Reading `src/squirtl/docs/outputs.py` fails with \"'(' was never "
+                    'closed (outputs.py, line 1)"'
+                )
+            ],
+            id = "a-module-failing-to-parse"
+        )
+    ]
+)
+def test_imports_hold_each_subject_to_the_subjects_beneath_it(
+    found    : list[tuple[int, str]],
+    manifest : str,
+    module   : str,
+    scan     : Scan,
+    text     : str
+):
+    """
+    Pins that the import check reports an import from a subject the
+    importing module's subject does not reach, whether written with `from`
+    or `import`, at its line, and passes one from a subject reached directly
+    or through another, from its own subject, and a relative one, reading no
+    file of the package other than its Python.
+    """
+    path     = f"src/squirtl/{module}"
+    findings = scan(
+        Imports,
+        {"pyproject.toml": manifest, path: text},
+        Tree(files=[Path(path), Path("src/squirtl/identity/identity.toml")])
+    )
+
+    assert [(line, message) for _, line, message in findings] == found
 
 
 def test_inputs_report_an_input_the_manifest_does_not_declare(
@@ -822,6 +948,46 @@ def test_rendered_reports_an_identity_that_fails_validation(
         match = "`src/squirtl/identity/identity.toml` fails validation"
     ):
         scan(Rendered, {})
+
+
+@mark.parametrize(
+    ("path", "text", "line", "message"),
+    [
+        param(
+            "docs/pages/page.md",
+            "x\n<!-- settings:reward -->\n",
+            2,
+            "holds an unpaired marker",
+            id = "an-unpaired-marker"
+        ),
+        param(
+            "docs/pages/commands/stop.md",
+            "x\n<!-- settings -->\n<!-- /settings -->\n<!-- help -->\n<!-- /help -->\n",
+            2,
+            "holds markers naming settings, help",
+            id = "a-command-page-out-of-order"
+        )
+    ]
+)
+def test_rendered_reports_a_page_failing_to_read_on_the_page(
+    line    : int,
+    message : str,
+    path    : str,
+    scan    : Scan,
+    text    : str
+):
+    """
+    Pins that the rendered check raises `Unreadable` on a page whose
+    markers fail to read, at the line naming the fault, rather than on the
+    identity's declaration.
+    """
+    with raises(Unreadable) as raised:
+        scan(Rendered, {path: text})
+
+    finding, = raised.value.args
+
+    assert (finding.file, finding.line) == (Path(path), line)
+    assert f"`{path}` {message}" in finding.message
 
 
 @mark.parametrize(
@@ -1130,8 +1296,8 @@ def test_rendered_reports_each_file_drifted_from_its_declaration(scan: Scan):
     inventory lists as written, and reports a file edited by hand and a file
     missing, each on its own path.
     """
-    outputs = {str(output.path): output.text for output in Inventory.read().outputs}
-    *kept, edited, missing = outputs
+    outputs = {str(output.path): output.text for output in Inventory.read(app).outputs}
+    edited, *kept, missing = outputs
 
     drifted = scan(
         Rendered,
@@ -1928,7 +2094,7 @@ def test_the_audit_reports_each_unreadable_file_once(
         "docs/references.bib",
         "pyproject.toml",
         "uv.lock",
-        *(str(output.path) for output in Inventory.read().outputs)
+        *(str(output.path) for output in Inventory.read(app).outputs)
     }
     assert len(audit.findings) == len(set(audit.findings))
     assert audit.report() == 1
