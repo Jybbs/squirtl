@@ -4,9 +4,9 @@
 
 Writes each run `docs/runs/` lists, and each demonstration those runs follow, into `dist/runs/` as the Zstandard tar a release attaches, beside the `manifest.json` listing each tar and its SHA-256 digest.
 
-Each run is read from its directory under `data/runs/`, and its tar holds its `run.json`, its `episodes.jsonl`, and a checkpoint holding the agent's weights alone, with no optimizer state and no replay memory. Every `run.json` packed names the cartridge `data/rom.gb`, and a run whose files are unchanged packs into the same bytes.
+Each run is read from its directory under `data/runs/`, and its tar holds its `run.json`, its `episodes.jsonl`, and a checkpoint holding the agent's weights alone, with no optimizer state and no replay memory. A search `docs/runs/` lists packs as a demonstration, which no selection of the trained runs matches, and its tar holds no checkpoint. Every `run.json` packed names the cartridge `data/rom.gb`, and a run whose files are unchanged packs into the same bytes.
 
-Prints the folder holding the tars. A run holding a line of episodes `squirtl watch` cannot read exits 1 before any tar is written, and a run whose directory holds no record, no checkpoint, or no episodes, or a `--recommended-run` naming none of the runs, exits 1 as well.
+Prints the folder holding the tars. A run holding a line of episodes `squirtl watch` cannot read exits 1 before any tar is written, and a run whose directory holds no record or no episodes, a trained run whose directory holds no checkpoint, or a `--recommended-run` naming none of the trained runs, exits 1 as well.
 
 ```console
 squirtl pack [OPTIONS]

@@ -116,8 +116,8 @@ def normalized(entry: TarInfo) -> TarInfo:
 class PackedRun(RunListing):
     """
     One run as `squirtl pack` writes it, a Zstandard tar holding its
-    `run.json`, its episodes, and a checkpoint of its `Weights` alone, all
-    inside a folder bearing its name.
+    `run.json`, its episodes, and, for a run that trained an agent, a
+    checkpoint of its `Weights` alone, all inside a folder bearing its name.
     """
 
     suffix: ClassVar[str] = ".tar.zst"
@@ -140,16 +140,17 @@ class PackedRun(RunListing):
         """
         Writes `run` into `folder` as the tar `asset` names, its record
         naming the cartridge `EmulatorSettings` defaults to and any
-        demonstration by its name under `Run.folder`, and its checkpoint
-        holding the agent's `Weights` with no optimizer state and no replay
-        memory. Each member's header is `normalized`, so a run whose files
-        are unchanged writes the same bytes.
+        demonstration by its name under `Run.folder`, and the checkpoint of
+        a run that trained an agent holding its `Weights` with no optimizer
+        state and no replay memory, whereas a search packs no checkpoint.
+        Each member's header is `normalized`, so a run whose files are
+        unchanged writes the same bytes.
 
         Raises:
-            FileNotFoundError: Where the run's directory holds no checkpoint
-                               or no episodes.
+            FileNotFoundError: Where the run's directory holds no episodes,
+                               or a trained run's holds no checkpoint.
         """
-        for path in (run.checkpoint, run.episodes):
+        for path in (run.episodes,) if run.searches else (run.checkpoint, run.episodes):
             if not path.is_file():
                 raise FileNotFoundError(f"{run.directory} holds no {path.name}")
 
@@ -171,16 +172,19 @@ class PackedRun(RunListing):
         tar = folder / (run.name + cls.suffix)
 
         with TemporaryDirectory() as staging:
-            record     = Path(staging, "run.json")
-            checkpoint = Path(staging, "checkpoint.npz")
+            record = Path(staging, "run.json")
             record.write_text(
                 run.model_copy(update={"settings": settings}).model_dump_json(indent=2),
                 encoding = "utf-8"
             )
-            Weights.from_path(run.checkpoint).save(checkpoint)
+            staged = [record]
+
+            if not run.searches:
+                staged.append(checkpoint := Path(staging, "checkpoint.npz"))
+                Weights.from_path(run.checkpoint).save(checkpoint)
 
             with open_tar(tar, "w:zst") as archive:
-                for path in (record, checkpoint, run.episodes):
+                for path in (*staged, run.episodes):
                     archive.add(path, f"{run.name}/{path.name}", filter=normalized)
 
         with tar.open("rb") as file:
@@ -191,8 +195,9 @@ class ReleaseManifest(ReleaseSettings):
     """
     The listing of every tar a release carries, written as `file`
     beside them, the trained runs `docs/runs/` commits apart from each
-    demonstration their curriculum follows, so no selection of the trained
-    runs matches a demonstration.
+    demonstration, meaning each search it commits and each run their
+    curriculum follows, so no selection of the trained runs matches a
+    demonstration.
     """
 
     file   : ClassVar[str]  = "manifest.json"
@@ -200,7 +205,8 @@ class ReleaseManifest(ReleaseSettings):
 
     demonstrations: tuple[PackedRun, ...]
     """
-    Each demonstration a trained run follows, in the order of its name.
+    Each search `docs/runs/` commits and each run a trained run follows, in
+    the order of its name.
     """
 
     runs: tuple[PackedRun, ...]
@@ -237,8 +243,9 @@ class ReleaseManifest(ReleaseSettings):
     @classmethod
     def pack(cls, settings: ReleaseSettings) -> Self:
         """
-        Packs each run `Results.folder` lists, then each demonstration
-        those runs follow, from its directory under `Run.folder` by its
+        Packs each run `Results.folder` lists that trained an agent, then
+        each demonstration, meaning each search it lists and each run those
+        trained runs follow, from its directory under `Run.folder` by its
         name, into `folder`, and writes the manifest listing them there
         as `file`. It checks every line of each run's episodes through
         `Run.check_episodes` before writing any tar.
@@ -251,12 +258,14 @@ class ReleaseManifest(ReleaseSettings):
             ValueError        : Where a line of a run's episodes holds no
                                 `Episode`.
         """
-        trained = [
+        committed = [
             Run.read(Run.folder / directory.name)
             for directory in sorted(Results.folder.iterdir())
         ]
+        trained  = [run for run in committed if not run.searches]
         followed = sorted(
-            {
+            {run.name for run in committed if run.searches}
+            | {
                 demonstration.name
                 for run in trained
                 if (demonstration := run.settings.curriculum.demonstration)

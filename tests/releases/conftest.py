@@ -37,7 +37,8 @@ def recorded(checkout: Callable[[Mapping[str, str]], None]) -> Recorder:
     on 8 November 2026, on the cartridge and under the demonstration a
     pod's absolute paths name, into `data/runs/`, holding one episode, a
     checkpoint holding replay memory, an evaluation, and a baseline, and
-    lists it under `docs/runs/` where `listed` is set.
+    lists it under `docs/runs/` where `listed` is set. Where `searches` is
+    set, the run is a search, whose checkpoint holds no `Weights`.
     """
     checkout({})
 
@@ -46,6 +47,7 @@ def recorded(checkout: Callable[[Mapping[str, str]], None]) -> Recorder:
         algorithm     : Algorithm  = Algorithm.PPO,
         demonstration : str | None = None,
         listed        : bool       = True,
+        searches      : bool       = False,
         seed          : int        = 1
     ) -> Run:
         """
@@ -62,7 +64,8 @@ def recorded(checkout: Callable[[Mapping[str, str]], None]) -> Recorder:
                 emulator = EmulatorSettings(cartridge=Path("/root/rom/PokemonBlue.gb")),
                 seed     = seed
             ),
-            started = datetime(2026, 11, 8, 0, 0, second, tzinfo=UTC)
+            searches = searches,
+            started  = datetime(2026, 11, 8, 0, 0, second, tzinfo=UTC)
         )
         run.directory.mkdir(parents=True)
         run.record.write_text(run.model_dump_json(indent=2), encoding="utf-8")
@@ -82,15 +85,19 @@ def recorded(checkout: Callable[[Mapping[str, str]], None]) -> Recorder:
         )
         run.evaluations.write_text("{}\n", encoding="utf-8")
         run.baseline.write_text("{}", encoding="utf-8")
-        ReplayCheckpoint(
-            exploration = {},
-            online      = {"weight": tensor([1.0, 2.0])},
-            optimizer   = {"state": {}},
-            replay      = {"frames": zeros((2, 4), "uint8")},
-            sampling    = {},
-            step        = 8,
-            target      = {"weight": tensor([1.0, 2.0])}
-        ).save(run.checkpoint)
+
+        if searches:
+            run.checkpoint.write_bytes(b"a search's frontier")
+        else:
+            ReplayCheckpoint(
+                exploration = {},
+                online      = {"weight": tensor([1.0, 2.0])},
+                optimizer   = {"state": {}},
+                replay      = {"frames": zeros((2, 4), "uint8")},
+                sampling    = {},
+                step        = 8,
+                target      = {"weight": tensor([1.0, 2.0])}
+            ).save(run.checkpoint)
 
         if listed:
             Path("docs/runs", run.name).mkdir(parents=True)
