@@ -93,7 +93,7 @@ A search starts every particle on the state Blue's bedroom leaves, presses each 
 | `--reward.milestone` | `0.1` | *The reward a step earns for each flag on the way to the goal it first sets.* |
 | `--reward.novelty` | `0.00025` | *The reward a step earns for reaching a position the episode has not reached before, whose default is a 400th of the default milestone, the ratio Pleines et al. pay one new coordinate against one completed event.* |
 | `--search.batch-size` | `128` | *The frame stacks each update of the predictor draws, whose default follows Mhammedi and Cohan's Appendix A.3.* |
-| `--search.capacity` | `100000` | *The frames replay memory holds for the predictor, one per slot, under 1 GB at the default frame shape.* |
+| `--search.capacity` | `512000` | *The frames replay memory holds for the predictor, one per slot, about 2.95 GB at the default frame shape, whose default follows Mhammedi and Cohan's Appendix A.3.* |
 | `--search.epsilon` | `0.2` | *The chance a press takes a random action in place of the one its rollout holds, whose default follows Mhammedi and Cohan's Appendix A.2.* |
 | `--search.groups` | `4` | *The groups of particles the search evolves, Mhammedi and Cohan's M.* |
 | `--search.inner-steps` | `5, 15` | *The fewest and the most presses of one rollout, Mhammedi and Cohan's range of T.* |

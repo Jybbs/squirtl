@@ -137,10 +137,11 @@ class SearchSettings(Record):
     follows Mhammedi and Cohan's Appendix A.3.
     """
 
-    capacity: PositiveInt = 100_000
+    capacity: PositiveInt = 512_000
     """
-    The frames replay memory holds for the predictor, one per slot, under
-    1 GB at the default frame shape.
+    The frames replay memory holds for the predictor, one per slot, about
+    2.95 GB at the default frame shape, whose default follows Mhammedi and
+    Cohan's Appendix A.3.
     """
 
     epsilon: UnitInterval = 0.2

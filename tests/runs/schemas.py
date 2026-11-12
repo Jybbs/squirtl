@@ -915,14 +915,14 @@ def test_an_episode_reads_back_the_measures_of_the_agent_that_played_it(
     assert Episode.model_validate_json(written.model_dump_json()) == written
 
 
-def test_the_default_capacity_holds_replay_memory_under_a_gigabyte():
+def test_the_default_capacity_holds_replay_memory_under_three_gigabytes():
     """
     Asserts that the default capacity, each slot one frame at the
-    environment's default shape, holds fewer than a billion bytes.
+    environment's default shape, holds fewer than three billion bytes.
     """
     height, width = EnvironmentSettings().frame_shape
 
-    assert SearchSettings().capacity * height * width < 1_000_000_000
+    assert SearchSettings().capacity * height * width < 3_000_000_000
 
 
 def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
@@ -1121,14 +1121,13 @@ def test_the_settings_count_no_flag_past_the_goal_toward_the_ceiling():
 def test_the_settings_default_to_the_papers_montezuma_column():
     """
     Asserts that the population, the rollouts, the chance of a random press,
-    and the predictor's settings default to the values the Montezuma's
-    Revenge column of Table 5 and Appendices A.2 and A.3 of Mhammedi and
-    Cohan's paper give them.
+    and the predictor's settings and replay memory default to the values
+    the Montezuma's Revenge column of Table 5 and Appendices A.2 and A.3 of
+    Mhammedi and Cohan's paper give them.
     """
-    settings = SearchSettings()
-
-    assert settings.model_dump(exclude={"capacity", "update_steps", "workers"}) == {
+    assert SearchSettings().model_dump(exclude={"update_steps", "workers"}) == {
         "batch_size"    : 128,
+        "capacity"      : 512_000,
         "epsilon"       : 0.2,
         "groups"        : 4,
         "learning_rate" : 3e-4,

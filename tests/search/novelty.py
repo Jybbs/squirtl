@@ -8,7 +8,9 @@ stacks, covering:
 - The inputs normalized by the running mean and deviation and clipped, and
   each convolution and its inputs in the `channels_last` memory format
 - The frames stored in replay memory, capped at its capacity, with each stack
-  rebuilt from the frames before it
+  rebuilt from the frames before it, and a rollout's stack stored only where
+  replay memory does not already end on it, each rollout waiting on updates
+  stored after the one it continues
 - The updates owed for the presses taken, which train the predictor and
   leave the target alone, and the score falling on what it has seen
 - The updates running on a thread of their own, which the scores and the
@@ -66,11 +68,41 @@ def errors(frames: Tensor, novelty: Novelty) -> Tensor:
     return novelty.error(frames, novelty.normalizer, novelty.predictor)
 
 
-def seen(novelty: Novelty, *shades: int):
+def seen(novelty: Novelty, *shades: int, start: int = 0):
     """
-    Stores a rollout of one frame of each of `shades` from a stack of zeros.
+    Stores a rollout of one frame of each of `shades` from a stack of frames
+    of `start`.
     """
-    novelty.observe(b"".join(bytes([shade]) * FRAME for shade in shades), snapshot())
+    novelty.observe(
+        b"".join(bytes([shade]) * FRAME for shade in shades),
+        snapshot(shade=start)
+    )
+
+
+def stored(novelty: Novelty) -> list[int]:
+    """
+    Reads the shade of each frame replay memory holds, slot by slot.
+    """
+    return novelty.replay.arrays["frames"][:, 0, 0].tolist()
+
+
+def test_a_continuing_rollout_leaves_older_frames_in_replay_memory(
+    small : SearchSettings,
+    space : Box
+):
+    """
+    Asserts that at a capacity of 8, a rollout of 3 presses continuing one
+    of 6 leaves that rollout's second frame in replay memory, which storing
+    the continuing rollout's stack again would overwrite, and that every
+    transition between the frames held stays drawable.
+    """
+    novelty = build(small.model_copy(update={"capacity": 8}), space)
+
+    seen(novelty, 1, 2, 5, 5, 5, 5)
+    seen(novelty, 6, 7, 8, start=5)
+
+    assert sorted(stored(novelty)) == [2, 5, 5, 5, 5, 6, 7, 8]
+    assert novelty.replay.held.sum() == 4
 
 
 def test_a_network_of_another_shape_is_refused(novelty: Novelty, small: SearchSettings):
@@ -82,6 +114,22 @@ def test_a_network_of_another_shape_is_refused(novelty: Novelty, small: SearchSe
 
     with raises(ValueError, match="networks differ"):
         novelty.load(novelty.arrays, other.networks)
+
+
+def test_a_rollout_continuing_the_last_one_stored_stores_its_frames_alone(
+    novelty: Novelty
+):
+    """
+    Asserts that a rollout starting from the stack replay memory ends on
+    stores its frames alone, while one starting elsewhere stores its stack
+    before them.
+    """
+    seen(novelty, 5, 5, 5, 5)
+    seen(novelty, 6, 7, start=5)
+    seen(novelty, 3, start=0)
+
+    assert stored(novelty)[:15] == [0, 0, 0, 0, 5, 5, 5, 5, 6, 7, 0, 0, 0, 0, 3]
+    assert novelty.replay.arrays["pushed"].item() == 15
 
 
 def test_a_score_reads_each_snapshots_stack_in_order(novelty: Novelty):
@@ -221,6 +269,25 @@ def test_observing_stores_the_stack_and_each_frame_after_it(novelty: Novelty):
 
     for stack in novelty.replay.sample("cpu", 4).next_observations["frames"].numpy():
         assert stack[-1, 0, 0] in (10, 20, 30)
+
+
+def test_rollouts_observed_while_updates_run_follow_the_ones_they_continue(
+    novelty: Novelty
+):
+    """
+    Asserts that rollouts observed while updates run reach replay memory
+    once they are waited for, each after the rollout whose newest stack it
+    starts from and the rest in the order they were observed, so a stack
+    continuing another is stored once.
+    """
+    novelty.train(0)
+
+    seen(novelty, 5, 5, 5, 5)
+    seen(novelty, 3)
+    seen(novelty, 6, 7, start=5)
+    novelty.wait()
+
+    assert stored(novelty)[:15] == [0, 0, 0, 0, 5, 5, 5, 5, 6, 7, 0, 0, 0, 0, 3]
 
 
 def test_the_arrays_and_networks_load_back_as_a_search_continues_from_them(

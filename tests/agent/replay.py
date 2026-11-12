@@ -3,8 +3,8 @@ Pins replay memory, covering:
 
 - Each transition drawn back as stored, every entry as deep as its space,
   and each released once overwritten
-- A reset observation drawn back element by element, and a `Box` bounded
-  at 0 and 1 held unpacked
+- A reset observation drawn back element by element, a `Box` bounded at 0
+  and 1 held unpacked, and the observation its newest slots end on
 - The generator its draws come from, and its 606 MB at the default capacity
 - The arrays it gathers for a checkpoint and loads back uncopied, and the
   arrays of another capacity, dtype, or name it refuses
@@ -249,6 +249,28 @@ def test_replay_draws_a_reset_observation_back_element_by_element(tiny: Dict):
     ]
 
 
+def test_replay_draws_each_batch_from_the_generator_it_is_built_with(
+    stacked : Stacked,
+    tiny    : Dict
+):
+    """
+    Asserts that two replay memories holding the same transitions and built
+    with generators from the same seed draw the same batch.
+    """
+    observations = stacked(elements(0, 20), tiny)
+    replays      = [Replay(64, default_rng(3), tiny) for _ in range(2)]
+
+    for replay in replays:
+        replay.begin(observations[0])
+
+        for step, reached in enumerate(observations[1:]):
+            replay.store(step % 7, reached, 0.0, False)
+
+    first, second = (replay.sample("cpu", 32) for replay in replays)
+
+    assert_close(first.model_dump(), second.model_dump(), atol=0, rtol=0)
+
+
 @mark.parametrize(
     "capacity",
     [param(16, id="a-larger-one"), param(1, id="one-slot-broadcasting-to-all")]
@@ -270,26 +292,29 @@ def test_replay_refuses_the_arrays_of_another_capacity(
         Replay(12, default_rng(0), tiny).load(saved.arrays)
 
 
-def test_replay_draws_each_batch_from_the_generator_it_is_built_with(
+def test_replay_ends_on_the_observation_its_newest_slots_hold(
     stacked : Stacked,
     tiny    : Dict
 ):
     """
-    Asserts that two replay memories holding the same transitions and built
-    with generators from the same seed draw the same batch.
+    Asserts that replay memory ends on no observation before one is stored,
+    ends on a reset observation once it is stored, on no observation one
+    entry of which differs, and on the observation a step reached once it
+    is stored.
     """
-    observations = stacked(elements(0, 20), tiny)
-    replays      = [Replay(64, default_rng(3), tiny) for _ in range(2)]
+    replay         = Replay(16, default_rng(0), tiny)
+    reset, reached = stacked(elements(0, 1), tiny)
+    other          = reset | {Entry.FLAGS: array([[9, 9]], uint8)}
 
-    for replay in replays:
-        replay.begin(observations[0])
+    assert not replay.ends_on(reset)
 
-        for step, reached in enumerate(observations[1:]):
-            replay.store(step % 7, reached, 0.0, False)
+    replay.begin(reset)
 
-    first, second = (replay.sample("cpu", 32) for replay in replays)
+    assert (replay.ends_on(reset), replay.ends_on(other)) == (True, False)
 
-    assert_close(first.model_dump(), second.model_dump(), atol=0, rtol=0)
+    replay.store(0, reached, 0.0, False)
+
+    assert (replay.ends_on(reset), replay.ends_on(reached)) == (False, True)
 
 
 @mark.parametrize(

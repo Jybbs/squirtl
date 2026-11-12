@@ -562,8 +562,8 @@
           "type": "integer"
         },
         "capacity": {
-          "default": 100000,
-          "description": "The frames replay memory holds for the predictor, one per slot, under\n1 GB at the default frame shape.",
+          "default": 512000,
+          "description": "The frames replay memory holds for the predictor, one per slot, about\n2.95 GB at the default frame shape, whose default follows Mhammedi and\nCohan's Appendix A.3.",
           "exclusiveMinimum": 0,
           "title": "Capacity",
           "type": "integer"

@@ -86,7 +86,7 @@
   },
   "search": {
     "batch_size": 128,
-    "capacity": 100000,
+    "capacity": 512000,
     "epsilon": 0.2,
     "groups": 4,
     "inner_steps": [

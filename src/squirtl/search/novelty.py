@@ -5,13 +5,14 @@ Mhammedi and Cohan's "Decoupling Exploration and Policy Optimization" sets
 it out.
 """
 
+from collections        import defaultdict
 from collections.abc    import Iterable, Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
 from copy               import copy, deepcopy
 from gymnasium.spaces   import Box, Dict
 from gymnasium.wrappers.utils import RunningMeanStd
 from math                import sqrt
-from numpy               import array, asarray, frombuffer, ndarray, uint8
+from numpy               import array, asarray, concatenate, frombuffer, ndarray, uint8
 from numpy.random        import Generator
 from statistics          import fmean
 from torch               import Tensor, as_tensor, channels_last, default_generator, float32, inference_mode, zeros
@@ -112,6 +113,36 @@ class Novelty:
             "updates"   : self.updates
         }
 
+    def chained(self) -> list[tuple[ndarray, ndarray]]:
+        """
+        Orders the rollouts waiting outside replay memory into chains,
+        each opened by the earliest observed rollout not yet ordered and
+        continued by the earliest one not yet ordered that starts from the
+        newest stack the last one reached, until none does.
+
+        Returns:
+            Each waiting rollout's stack and frames, once each.
+        """
+        starting = defaultdict(list)
+
+        for index, (stack, _) in enumerate(self.pending):
+            starting[stack.tobytes()].append(index)
+
+        order = dict[int, None]()
+
+        for first in range(len(self.pending)):
+            index = first
+
+            while index is not None and index not in order:
+                order[index] = None
+                newest = concatenate(self.pending[index])[-self.shape[0]:].tobytes()
+                index  = next(
+                    (later for later in starting[newest] if later not in order),
+                    None
+                )
+
+        return [self.pending[index] for index in order]
+
     def error(
         self,
         frames     : Tensor,
@@ -202,11 +233,12 @@ class Novelty:
     def observe(self, frames: bytes, start: Snapshot):
         """
         Adds each newest frame in `frames` to the running mean and variance
-        and stores the stack `start` holds and each of those frames after
-        it in replay memory, as `Replay` rebuilds each later stack from the
-        frames before it. While updates run, the stack and its frames wait
-        until `wait` stores them, so an update draws only from what replay
-        memory held when the updates started.
+        and stores the stack `start` holds, where replay memory does not
+        already end on it, and each of those frames after it, as `Replay`
+        rebuilds each later stack from the frames before it. While updates
+        run, the stack and its frames wait until `wait` stores them, so
+        an update draws only from what replay memory held when the updates
+        started.
         """
         pressed = frombuffer(frames, uint8).reshape(-1, *self.shape[1:])
 
@@ -233,11 +265,13 @@ class Novelty:
 
     def store(self):
         """
-        Stores each stack and its frames waiting outside replay memory, in
-        the order they were observed.
+        Stores each stack and its frames waiting outside replay memory in
+        the order `chained` gives them, storing a stack only where replay
+        memory does not already end on it.
         """
-        for stack, pressed in self.pending:
-            self.replay.begin({Entry.FRAMES: stack})
+        for stack, pressed in self.chained():
+            if not self.replay.ends_on({Entry.FRAMES: stack}):
+                self.replay.begin({Entry.FRAMES: stack})
 
             for frame in pressed:
                 self.replay.store(0, {Entry.FRAMES: frame[None]}, 0.0, False)
