@@ -64,7 +64,8 @@ class SearchCheckpoint(Record):
         Writes the checkpoint to `path` through `archiving`.
         """
         with archiving(self.arrays, path) as archive:
-            archive.writestr("frontier.json", self.frontier.model_dump_json())
+            with archive.open("frontier.json", "w") as member:
+                member.write(self.frontier.model_dump_json().encode())
 
             with archive.open("networks.pt", "w") as member:
                 save(self.networks, member)

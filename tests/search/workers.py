@@ -4,8 +4,9 @@ Pins the worker each rollout runs in, covering:
 - The process a worker boots, which leads a process group of its own,
   exits printing nothing, and ends once its parent has ended, and the
   modules it imports, none of them PyTorch
-- A rollout dead where it ends on the screen and the position it started
-  from, and surviving where either changes or it earns reward
+- A rollout dead where it ends on the `wTileMap` and the position it started
+  from, whatever its screen shows, or blacks out outside Oak's lab, and
+  surviving where either changes or it earns reward
 - A rollout stopping at the press that earns reward, or playing on where it
   brings back a node
 - What an ending holds, each newest frame and each press

@@ -552,7 +552,7 @@
     },
     "SearchSettings": {
       "additionalProperties": false,
-      "description": "The settings a search over save states reads, each a field of\n`RunSettings.search` and a key under `[tool.squirtl.search]` in\n`pyproject.toml`. The population's defaults are the Montezuma's Revenge\ncolumn of Table 5 in Mhammedi and Cohan's \"Decoupling Exploration and\nPolicy Optimization\", and the predictor's are their Appendix A.3.",
+      "description": "The settings a search over save states reads, each a field of\n`RunSettings.search` and a key under `[tool.squirtl.search]` in\n`pyproject.toml`. The population's defaults are the Montezuma's Revenge\ncolumn of Table 5 in Mhammedi and Cohan's \"Decoupling Exploration and\nPolicy Optimization\", the chance of a random press their Appendix A.2's,\nand the predictor's their Appendix A.3's, its updates per press taken\nfrom their Table 6.",
       "properties": {
         "batch_size": {
           "default": 128,
@@ -563,7 +563,7 @@
         },
         "capacity": {
           "default": 512000,
-          "description": "The frames replay memory holds for the predictor, one per slot, about\n2.95 GB at the default frame shape, whose default follows Mhammedi and\nCohan's Appendix A.3.",
+          "description": "The frames replay memory holds for the predictor, one per slot, about\n2.95 GB at the default frame shape, whose default is the 512,000 entries\nof Mhammedi and Cohan's Appendix A.3, each an observation there and a\nframe here, so a stored start stack takes four.",
           "exclusiveMinimum": 0,
           "title": "Capacity",
           "type": "integer"

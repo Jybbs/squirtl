@@ -1,6 +1,8 @@
 """
 Defines `LineageTree`, the lineage tree of a search, Mhammedi and Cohan's
-section 4.1 with each node held as its parent and the presses reaching it.
+section 4.1 with each node held as its parent and the presses reaching it,
+every node kept for the whole search where section 4.1 prunes a node once no
+particle occupies it or any node below it.
 """
 
 from array           import array

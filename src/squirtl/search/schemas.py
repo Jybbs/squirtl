@@ -128,7 +128,9 @@ class SearchSettings(Record):
     `RunSettings.search` and a key under `[tool.squirtl.search]` in
     `pyproject.toml`. The population's defaults are the Montezuma's Revenge
     column of Table 5 in Mhammedi and Cohan's "Decoupling Exploration and
-    Policy Optimization", and the predictor's are their Appendix A.3.
+    Policy Optimization", the chance of a random press their Appendix A.2's,
+    and the predictor's their Appendix A.3's, its updates per press taken
+    from their Table 6.
     """
 
     batch_size: PositiveInt = 128
@@ -140,8 +142,9 @@ class SearchSettings(Record):
     capacity: PositiveInt = 512_000
     """
     The frames replay memory holds for the predictor, one per slot, about
-    2.95 GB at the default frame shape, whose default follows Mhammedi and
-    Cohan's Appendix A.3.
+    2.95 GB at the default frame shape, whose default is the 512,000 entries
+    of Mhammedi and Cohan's Appendix A.3, each an observation there and a
+    frame here, so a stored start stack takes four.
     """
 
     epsilon: UnitInterval = 0.2

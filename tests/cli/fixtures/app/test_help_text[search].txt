@@ -248,9 +248,11 @@ Each of these exits 1 before any directory is made:
 │                               Cohan's Appendix A.3. [default: 128]           │
 │ --search.capacity INT         The frames replay memory holds for the         │
 │                               predictor, one per slot, about 2.95 GB at the  │
-│                               default frame shape, whose default follows     │
-│                               Mhammedi and Cohan's Appendix A.3. [default:   │
-│                               512000]                                        │
+│                               default frame shape, whose default is the      │
+│                               512,000 entries of Mhammedi and Cohan's        │
+│                               Appendix A.3, each an observation there and a  │
+│                               frame here, so a stored start stack takes      │
+│                               four. [default: 512000]                        │
 │ --search.epsilon FLOAT        The chance a press takes a random action in    │
 │                               place of the one its rollout holds, whose      │
 │                               default follows Mhammedi and Cohan's Appendix  │

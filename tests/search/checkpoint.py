@@ -5,12 +5,14 @@ Pins the file a stopped search continues from, covering:
   compresses and whose networks read onto the CPU
 - A cut-short or damaged file refused naming it
 - A write leaving no `.partial` file beside the checkpoint
+- The same checkpoint writing the same bytes whatever date the
+  environment sets
 """
 
 from collections.abc import Callable
 from common.search   import assert_same_checkpoint, ending
 from pathlib         import Path
-from pytest          import fixture, mark, param, raises
+from pytest          import MonkeyPatch, fixture, mark, param, raises
 from zipfile         import ZIP_ZSTANDARD, ZipFile
 
 from squirtl.search.checkpoint import SearchCheckpoint
@@ -76,6 +78,28 @@ def test_a_checkpoint_reads_back_as_the_one_written(
     frontier, the same arrays bit for bit, and the same networks.
     """
     assert_same_checkpoint(SearchCheckpoint.from_path(saved), checkpoint)
+
+
+def test_a_checkpoint_writes_the_same_bytes_whatever_the_date(
+    checkpoint  : SearchCheckpoint,
+    monkeypatch : MonkeyPatch,
+    tmp_path    : Path
+):
+    """
+    Asserts that the checkpoint written under two values of
+    `SOURCE_DATE_EPOCH`, which dates a member `ZipFile.writestr` adds, holds
+    the same bytes both times.
+    """
+    written = []
+
+    for epoch in ("1000000000", "2000000000"):
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", epoch)
+
+        checkpoint.save(path := tmp_path / f"{epoch}.npz")
+
+        written.append(path.read_bytes())
+
+    assert written[0] == written[1]
 
 
 def test_a_write_leaves_no_partial_file(saved: Path):

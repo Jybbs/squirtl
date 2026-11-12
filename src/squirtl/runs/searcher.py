@@ -105,7 +105,8 @@ class Searcher(Driver):
         Puts back the signal handlers and shuts the worker processes and
         the predictor's thread down, dropping each rollout and update not
         yet started, whether or not the `with` block raised, so a second
-        interrupt waits only on the update already running.
+        interrupt waits only on the rollouts the workers already took up and
+        the update already running.
         """
         super().__exit__(*raised)
         self.pool.shutdown(cancel_futures=True)

@@ -213,8 +213,8 @@ class Novelty:
         images, unnormalized, beneath the appendix's head, two 1024-unit
         linear layers separated by a ReLU. An observation of zeros sets
         each lazy layer's depth and width, and the convolutions take the
-        orthogonal weights at a gain of the square root of 2 and the zero
-        biases of Burda et al.'s `conv`.
+        orthogonal weights and zero biases of Burda et al.'s `conv`, at the
+        gain of the square root of 2 their networks pass it.
         """
         network = Sequential(
             Encoder.encoder(Identity, Identity, shape),
@@ -281,14 +281,14 @@ class Novelty:
     def train(self, presses: int):
         """
         Starts the updates owed once a search has taken `presses` presses,
-        one for every `update_steps` of them, each queued on a thread of its
-        own as a future of its own, so shutting the executor down cancels
-        every update not yet running, after copying the predictor for scores
-        to read meanwhile. Each update normalizes its batch by the running
-        statistics as they stand now, so the frames observed while the
-        updates run leave them unchanged. A copy of the normalizer holds
-        them, since its `update` replaces its arrays rather than writing
-        into them.
+        one for every `update_steps` of them, each a future of its own on
+        the executor's one thread, so shutting it down with `cancel_futures`
+        cancels every update not yet running, after copying the predictor
+        for scores to read meanwhile. Each update normalizes its batch by
+        the running statistics as they stand now, so the frames observed
+        while the updates run leave them unchanged. A copy of the normalizer
+        holds them, since its `update` replaces its arrays rather than
+        writing into them.
         """
         self.scorer.load_state_dict(self.predictor.state_dict())
         normalizer    = copy(self.normalizer)
