@@ -1,7 +1,7 @@
 """
 Defines `Inventory`, every file `squirtl write docs` writes into `docs/`
 from a declaration in the package, which the `docs:write` task writes
-and the `🗺️ Audit` row of `🕹️ CI` holds to its declaration, and `Output`,
+and the `🪧 Audit` row of `🕹️ CI` holds to its declaration, and `Output`,
 one of those files, leaving the footnotes of each Markdown file to
 `squirtl.docs.schemas`.
 """

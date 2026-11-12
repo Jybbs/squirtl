@@ -27,7 +27,7 @@ jobs:
 
       matrix:
         include:
-          - name   : 🗺️ Audit
+          - name   : 🪧 Audit
             caches : uv
             task   : repo:audit
             tools  : &package python uv
