@@ -53,24 +53,34 @@ describe('argmaxOf', () => {
 describe('argmaxOf’s takeaway', () => {
   it('reads the takeaway from every count, the two ways differing early and matching from a step on', () => {
     expect(LAID.takeaway).toStrictEqual({
-      head : 'Early in training, PPO’s most likely press misses the goal where sampling reaches it, and '
-           + 'from 1.00M steps on the two match on every seed.',
-      says : 'A seed’s two counts differ at 1 of PPO’s 12 evaluations, the most likely press reaching '
-           + 'the goal in fewer episodes at 1 of them.'
+      head : 'Sampling and the most likely press differ at 1 of PPO’s 12 evaluations, and at none from 1.00M '
+           + 'steps on.',
+      says : 'The most likely press reaches the goal in fewer episodes at 1 of the 1, and at the last '
+           + 'evaluation, 1.50M steps, every seed’s two counts match.'
     })
   })
 
   it.each([
     [2, 0, 0.5, 'PPO’s most likely press reaches the goal in as many episodes as sampling its presses '
-              + 'at every evaluation.'],
-    [2, 0, 1, 'Early in training, PPO’s most likely press reaches the goal where sampling misses it, '
-            + 'and from 1.00M steps on the two match on every seed.'],
-    [3, 2, 0, 'PPO’s most likely press misses the goal where sampling reaches it, and the two still '
-            + 'differ at the last evaluation.']
-  ])('reads its heading from the counts once seed %i at evaluation %i reads %d', (seed, n, to, head) => {
-    expect(scored(seed, n, { argmax: to }).takeaway.head).toBe(head)
+              + 'at every evaluation.', 'Every seed reaches the goal in as many of its 30 episodes both ways '
+              + 'at each of PPO’s 12 evaluations.'],
+    [2, 0, 1, 'Sampling and the most likely press differ at 1 of PPO’s 12 evaluations, and at none from '
+            + '1.00M steps on.', 'The most likely press reaches the goal in fewer episodes at 0 of the 1, '
+            + 'and at the last evaluation, 1.50M steps, every seed’s two counts match.'],
+    [3, 2, 0, 'Sampling and the most likely press differ at 2 of PPO’s 12 evaluations, and still at the '
+            + 'last.', 'The most likely press reaches the goal in fewer episodes at 2 of the 2.']
+  ])('reads its takeaway from the counts once seed %i at evaluation %i reads %d', (seed, n, to, head, says) => {
+    expect(scored(seed, n, { argmax: to }).takeaway).toStrictEqual({ head, says })
   })
 
+  it('names no direction where the most likely press reaches the goal in fewer episodes at half', () => {
+    expect(scored(3, 0, { argmax: 0.3 }).takeaway).toStrictEqual({
+      head : 'Sampling and the most likely press differ at 2 of PPO’s 12 evaluations, and at none from 1.00M '
+           + 'steps on.',
+      says : 'The most likely press reaches the goal in fewer episodes at 1 of the 2, and at the last '
+           + 'evaluation, 1.50M steps, every seed’s two counts match.'
+    })
+  })
 })
 
 describe('argmaxOf’s evaluations', () => {
@@ -101,7 +111,7 @@ describe('argmaxOf’s evaluations', () => {
 
 describe('evaluationText and differingText', () => {
   it.each([
-    [0, 'Evaluation 1 of 3, 0.50M steps', '1 of 4 seeds differ, each marked with its count at the most '
+    [0, 'Evaluation 1 of 3, 0.50M steps', '1 of 4 seeds differs, each marked with its count at the most '
                                         + 'likely press'],
     [2, 'Evaluation 3 of 3, 1.50M steps', 'No seed differs, so nothing is marked']
   ])('names evaluation %i and how many seeds differ there', (n, named, differing) => {

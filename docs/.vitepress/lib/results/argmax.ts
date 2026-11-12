@@ -69,12 +69,13 @@ function sharedStep(steps: readonly number[]): number {
 }
 
 /**
- * Reads what the counts of `seeds` show across `steps`: where the two ways of
- * playing differ early and match from some evaluation on, which way the most
- * likely press mostly differs and the step they match from, and otherwise
- * that they still differ at the last evaluation or never differ at all.
+ * Reads what the counts of `seeds` show across `steps`: how many evaluations
+ * the two ways of playing differ at, and the step from which they match or
+ * that they still differ at the last, beside how many of those the most
+ * likely press reaches the goal in fewer episodes and, where they match, the
+ * last evaluation's step, or otherwise that they never differ at all.
  */
-function takeawayOf(seeds: readonly Seeded[], steps: readonly number[], episodes: number): Takeaway {
+function takeawayOf(seeds: readonly Seeded[], episodes: number, steps: readonly number[]): Takeaway {
   const counts  = seeds.flatMap(seeded => seeded.counts)
   const differ  = counts.filter(each => each.differs)
   const fewer   = differ.filter(each => each.argmax < each.sampled).length
@@ -88,18 +89,14 @@ function takeawayOf(seeds: readonly Seeded[], steps: readonly number[], episodes
          + `${counts.length} evaluations.`
   }
 
-  const way  = 2 * fewer >= differ.length
-    ? 'misses the goal where sampling reaches it'
-    : 'reaches the goal where sampling misses it'
-  const head = matched === -1
-    ? `PPO’s most likely press ${way}, and the two still differ at the last evaluation.`
-    : `Early in training, PPO’s most likely press ${way}, and from ${millions(steps[matched]!)} steps on `
-    + 'the two match on every seed.'
+  const last = millions(steps.at(-1)!)
+  const head = `Sampling and the most likely press differ at ${differ.length} of PPO’s ${counts.length} evaluations, `
+             + (matched === -1 ? 'and still at the last.' : `and at none from ${millions(steps[matched]!)} steps on.`)
 
   return {
     head : head,
-    says : `A seed’s two counts differ at ${differ.length} of PPO’s ${counts.length} evaluations, `
-         + `the most likely press reaching the goal in fewer episodes at ${fewer} of them.`
+    says : `The most likely press reaches the goal in fewer episodes at ${fewer} of the ${differ.length}`
+         + (matched === -1 ? '.' : `, and at the last evaluation, ${last} steps, every seed’s two counts match.`)
   }
 }
 
@@ -137,7 +134,7 @@ export function argmaxOf(source: results.Results = results.COMMITTED): Argmax | 
     lanes     : lanes,
     seeds     : seeds.length,
     steps     : steps,
-    takeaway  : takeawayOf(seeds, steps, episodes)
+    takeaway  : takeawayOf(seeds, episodes, steps)
   }
 }
 
@@ -149,7 +146,7 @@ export function differingText(argmax: Argmax, n: number): string {
   const differing = argmax.differing[n]!
   return differing === 0
     ? 'No seed differs, so nothing is marked'
-    : `${differing} of ${argmax.seeds} seeds differ, each marked with its count at the most likely press`
+    : `${differing} of ${argmax.seeds} seeds ${differing === 1 ? 'differs' : 'differ'}, each marked with its count at the most likely press`
 }
 
 /**

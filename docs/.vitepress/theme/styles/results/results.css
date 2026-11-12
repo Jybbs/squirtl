@@ -77,4 +77,3 @@
 @media (prefers-reduced-motion: no-preference) {
   .results-toggle { transition: background-color var(--default-transition-duration) var(--ease-travel), box-shadow var(--default-transition-duration) var(--ease-travel), color var(--default-transition-duration) var(--ease-travel); }
 }
-

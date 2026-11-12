@@ -6,10 +6,10 @@ import { DETAIL, LABEL, SCRUB_PARTS } from '../kit/widget.ts'
 
 /**
  * The classes of the widget's parts: the takeaway as its heading and the
- * sentence beneath it, the row of evaluations that serves as its slider and
- * each evaluation in it, the Brick Red mark naming a count, a lane's name,
- * its tiles, a seed's tile and the parts of its count, and the line naming
- * what the evaluation shows.
+ * sentence beneath it, the row of evaluations that serves as its slider, each
+ * evaluation in it, and its thumb one evaluation wide, the Brick Red mark
+ * naming a count, a lane's name, its tiles, a seed's tile and the parts of its
+ * count, and the line naming what the evaluation shows.
  */
 const PARTS = {
   count   : 'grid justify-items-center gap-1 @sm:flex @sm:items-baseline',
@@ -20,7 +20,7 @@ const PARTS = {
   named   : 'rounded-1 bg-critical px-1 text-athens-gray',
   of      : 'font-code text-small leading-none text-quiet tabular-nums',
   pick    : 'results-pick grid justify-items-center gap-1 rounded-1 bg-lift py-1',
-  picks   : 'focus-ring-within relative grid grid-cols-10 gap-1 rounded-1 select-none',
+  picks   : 'focus-ring-within relative grid gap-1 rounded-1 select-none',
   says    : 'm-0 font-body text-small leading-normal text-quiet',
   status  : 'm-0 min-h-7 font-body text-body leading-normal text-ink @sm:min-h-5',
   thumb   : 'absolute top-0 left-0 outline-none',
@@ -59,7 +59,7 @@ function drawMark(value: number, word = '') {
  * most likely press where the two differ, in a slot holding its height either
  * way.
  */
-function drawTile(seeded: argmax.Seeded, n: number, episodes: number) {
+function drawTile(seeded: argmax.Seeded, episodes: number, n: number) {
   const counts = seeded.counts[n]!
   return (
     <div class={PARTS.tile} data-differs={counts.differs ? '' : undefined}>
@@ -107,14 +107,14 @@ export const ResultsArgmax = defineComponent({
         </div>
         <div {...scrub.root.value} class="grid gap-2">
           <span class={LABEL}>{WORDS.picks}</span>
-          <div {...scrub.control.value} class={[SCRUB_PARTS.control, PARTS.picks]}>
+          <div {...scrub.control.value} class={[SCRUB_PARTS.control, PARTS.picks]} style={{ gridTemplateColumns: `repeat(${laid.steps.length}, minmax(0, 1fr))` }}>
             {laid.differing.map((differing, n) => (
               <span class={PARTS.pick} data-picked={n === at.value ? '' : undefined}>
                 <span class={DETAIL}>{n + 1}</span>
                 <span class={PARTS.mark}>{differing > 0 ? drawMark(differing) : null}</span>
               </span>
             ))}
-            <span {...scrub.thumb.value} class={PARTS.thumb} />
+            <span {...scrub.thumb.value} class={PARTS.thumb} style={{ width: `${100 / laid.steps.length}%` }} />
           </div>
         </div>
         <div class="grid gap-1">
@@ -124,7 +124,7 @@ export const ResultsArgmax = defineComponent({
         {laid.lanes.map(lane => (
           <section class={PARTS.lane}>
             <span class={LABEL}>{lane.group.name}</span>
-            <div class={PARTS.tiles}>{lane.seeds.map(each => drawTile(each, at.value, laid.episodes))}</div>
+            <div class={PARTS.tiles}>{lane.seeds.map(each => drawTile(each, laid.episodes, at.value))}</div>
           </section>
         ))}
       </div>
