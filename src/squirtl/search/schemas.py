@@ -64,8 +64,9 @@ class Iteration(Record):
 
     loss: float | None
     """
-    The mean squared error over the predictor's updates that followed the
-    iteration, or `None` where none did.
+    The mean squared error over the predictor's updates run while the
+    iteration played, those owed for the iterations before it, or `None`
+    where none were.
     """
 
     memory: int

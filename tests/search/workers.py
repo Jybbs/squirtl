@@ -1,8 +1,8 @@
 """
 Pins the worker each rollout runs in, covering:
 
-- The process a worker boots, which leads a process group of its own, and
-  the modules it imports, none of them PyTorch
+- The process a worker boots, which leads a process group of its own and
+  exits printing nothing, and the modules it imports, none of them PyTorch
 - A rollout dead where it ends on the screen and the position it started
   from, and surviving where either changes or it earns reward
 - A rollout stopping at the press that earns reward, or playing on where it
@@ -21,7 +21,7 @@ from gymnasium.envs.registration import EnvSpec
 from multiprocessing             import get_context
 from numpy      import frombuffer, uint8
 from os         import getpgrp, getpid
-from pytest     import MonkeyPatch, mark, param
+from pytest     import CaptureFixture, MonkeyPatch, mark, param
 from subprocess import check_output
 from sys        import executable
 
@@ -58,15 +58,40 @@ def test_a_boot_moves_into_a_group_of_its_own_and_makes_the_environment(
     """
     Asserts that a boot moves its process into a process group of its own,
     which a signal to the main process's group then leaves out, and makes
-    the environment that `specification` names.
+    the environment that `specification` names, closing it as the process
+    exits.
     """
-    moved = []
+    moved, closing = [], []
+    monkeypatch.setattr(workers, "register", closing.append)
     monkeypatch.setattr(workers, "setpgrp", lambda: moved.append(True))
 
     boot(specification)
 
     with workers.environment as environment:
         assert (moved, environment.spec.id) == ([True], specification.id)
+        assert closing == [environment.close]
+
+
+def test_a_spawned_worker_exits_printing_nothing(
+    capfd         : CaptureFixture[str],
+    specification : EnvSpec
+):
+    """
+    Asserts that spawned workers booting the environment print nothing to
+    the standard error they share with the main process as the pool shuts
+    them down, the emulator stopping before the interpreter tears down.
+    """
+    capfd.readouterr()
+
+    with ProcessPoolExecutor(
+        initargs    = (specification,),
+        initializer = boot,
+        max_workers = 2,
+        mp_context  = get_context("spawn")
+    ) as pool:
+        [*pool.map(abs, range(2))]
+
+    assert "excepthook" not in capfd.readouterr().err
 
 
 def test_a_spawned_worker_leads_a_process_group_apart_from_the_main_process(

@@ -5,15 +5,17 @@ Mhammedi and Cohan's "Decoupling Exploration and Policy Optimization" sets
 it out.
 """
 
-from collections.abc          import Iterable, Mapping
-from gymnasium.spaces         import Box, Dict
+from collections.abc    import Iterable, Mapping
+from concurrent.futures import Future, ThreadPoolExecutor
+from copy               import copy, deepcopy
+from gymnasium.spaces   import Box, Dict
 from gymnasium.wrappers.utils import RunningMeanStd
 from math                import sqrt
 from numpy               import array, asarray, frombuffer, ndarray, uint8
 from numpy.random        import Generator
 from statistics          import fmean
 from torch               import Tensor, as_tensor, channels_last, default_generator, float32, inference_mode, zeros
-from torch.nn            import Identity, LazyLinear, Linear, ReLU, Sequential
+from torch.nn            import Identity, LazyLinear, Linear, Module, ReLU, Sequential
 from torch.nn.functional import mse_loss
 from torch.nn.init       import orthogonal_, zeros_
 from torch.optim         import Adam
@@ -31,8 +33,11 @@ class Novelty:
     A fixed random target network and the predictor trained toward it, whose
     squared error on a frame stack falls the more often replay memory has
     held stacks like it. Each network reads a `(depth, height, width)` stack
-    normalized by the running mean and standard deviation of each pixel and
-    clipped to `[-5, 5]`.
+    normalized by the running mean and standard deviation of each pixel
+    and clipped to `[-5, 5]`. The updates `train` starts run on a thread of
+    their own while the search goes on, and until `wait` returns their loss,
+    every score reads a copy of the predictor as it stood when they started
+    and every frame observed waits outside replay memory.
     """
 
     def __init__(
@@ -46,8 +51,9 @@ class Novelty:
         """
         Builds both networks over the frame stacks `space` declares, on the
         device and threads `agent` names and with each convolution's weights
-        in the `channels_last` memory format, Adam over the predictor, and
-        empty replay memory drawing every batch from `sampling`.
+        in the `channels_last` memory format, a copy of the predictor that
+        scores read while it trains, Adam over the predictor, and empty
+        replay memory drawing every batch from `sampling`.
 
         Args:
             seed: The unsigned 64-bit seed both networks' weights start
@@ -68,12 +74,16 @@ class Novelty:
             )
 
         self.device     = agent.device
+        self.executor   = ThreadPoolExecutor(1, "novelty")
         self.normalizer = RunningMeanStd(shape=space.shape[1:])
         self.optimizer  = Adam(self.predictor.parameters(), lr=settings.learning_rate)
+        self.pending: list[tuple[ndarray, ndarray]] = []
         self.replay   = Replay(settings.capacity, sampling, Dict({Entry.FRAMES: space}))
+        self.scorer   = deepcopy(self.predictor).requires_grad_(False)
         self.settings = settings
         self.shape    = space.shape
-        self.updates  = 0
+        self.training: Future[float | None] | None = None
+        self.updates = 0
 
     @property
     def arrays(self) -> dict[str, ndarray]:
@@ -102,19 +112,25 @@ class Novelty:
             "updates"   : self.updates
         }
 
-    def error(self, frames: Tensor) -> Tensor:
+    def error(
+        self,
+        frames     : Tensor,
+        normalizer : RunningMeanStd,
+        predictor  : Module
+    ) -> Tensor:
         """
-        Measures the predictor's squared error against the target on each
-        stack of `frames`, a `(batch, depth, height, width)` tensor of
-        `uint8`, after normalizing each pixel and clipping it, the stacks
-        laid out in the `channels_last` memory format the convolutions hold.
+        Measures the squared error of `predictor` against the target on
+        each stack of `frames`, a `(batch, depth, height, width)` tensor
+        of `uint8`, after normalizing each pixel by the running statistics
+        `normalizer` holds and clipping it, the stacks laid out in the
+        `channels_last` memory format the convolutions hold.
 
         Returns:
             A `(batch,)` tensor.
         """
         mean, deviation = (
             as_tensor(values, device=self.device, dtype=float32)
-            for values in (self.normalizer.mean, self.normalizer.var ** 0.5)
+            for values in (normalizer.mean, normalizer.var ** 0.5)
         )
         inputs = (
             ((frames.to(float32) - mean) / deviation)
@@ -123,7 +139,7 @@ class Novelty:
         )
 
         return mse_loss(
-            self.predictor(inputs),
+            predictor(inputs),
             self.target(inputs),
             reduction = "none"
         ).mean(1)
@@ -149,6 +165,8 @@ class Novelty:
             raise ValueError(
                 f"the checkpoint's networks differ from the search's: {error}"
             ) from error
+
+        self.scorer.load_state_dict(networks["predictor"])
 
         self.normalizer.count = arrays["count"].item()
         self.normalizer.mean  = arrays["mean"]
@@ -183,19 +201,20 @@ class Novelty:
 
     def observe(self, frames: bytes, start: Snapshot):
         """
-        Stores the stack `start` holds and each newest frame in `frames`
-        after it in replay memory, as `Replay` rebuilds each later stack
-        from the frames before it, and adds those frames to the running mean
-        and variance.
+        Adds each newest frame in `frames` to the running mean and variance
+        and stores the stack `start` holds and each of those frames after
+        it in replay memory, as `Replay` rebuilds each later stack from the
+        frames before it. While updates run, the stack and its frames wait
+        until `wait` stores them, so an update draws only from what replay
+        memory held when the updates started.
         """
         pressed = frombuffer(frames, uint8).reshape(-1, *self.shape[1:])
 
-        self.replay.begin({Entry.FRAMES: start.stack(self.shape)})
-
-        for frame in pressed:
-            self.replay.store(0, {Entry.FRAMES: frame[None]}, 0.0, False)
-
         self.normalizer.update(pressed)
+        self.pending.append((start.stack(self.shape), pressed))
+
+        if not self.training:
+            self.store()
 
     @inference_mode()
     def score(self, snapshots: Iterable[Snapshot]) -> list[float]:
@@ -207,35 +226,67 @@ class Novelty:
             as_tensor(
                 array([snapshot.stack(self.shape) for snapshot in snapshots]),
                 device = self.device
-            )
+            ),
+            self.normalizer,
+            self.scorer if self.training else self.predictor
         ).tolist()
 
-    def train(self, presses: int) -> float | None:
+    def store(self):
         """
-        Takes the updates owed once a search has taken `presses` presses,
-        one for every `update_steps` of them.
+        Stores each stack and its frames waiting outside replay memory, in
+        the order they were observed.
+        """
+        for stack, pressed in self.pending:
+            self.replay.begin({Entry.FRAMES: stack})
+
+            for frame in pressed:
+                self.replay.store(0, {Entry.FRAMES: frame[None]}, 0.0, False)
+
+        self.pending.clear()
+
+    def take(self, normalizer: RunningMeanStd, updates: int) -> float | None:
+        """
+        Takes `updates` updates, each normalizing its batch by `normalizer`.
 
         Returns:
-            The mean loss over the updates it took, or `None` where it took
-            none.
+            The mean loss over the updates, or `None` where there were none.
         """
-        losses = [
-            self.update()
-            for _ in range(presses // self.settings.update_steps - self.updates)
-        ]
+        losses = [self.update(normalizer) for _ in range(updates)]
 
         return fmean(losses) if losses else None
 
-    def update(self) -> float:
+    def train(self, presses: int):
+        """
+        Starts the updates owed once a search has taken `presses` presses,
+        one for every `update_steps` of them, on a thread of its own, after
+        copying the predictor for scores to read meanwhile. Each update
+        normalizes its batch by the running statistics as they stand now,
+        so the frames observed while the updates run leave them unchanged.
+        A copy of the normalizer holds them, since its `update` replaces its
+        arrays rather than writing into them.
+        """
+        self.scorer.load_state_dict(self.predictor.state_dict())
+        self.training = self.executor.submit(
+            self.take,
+            copy(self.normalizer),
+            presses // self.settings.update_steps - self.updates
+        )
+
+    def update(self, normalizer: RunningMeanStd) -> float:
         """
         Takes one gradient step on the mean squared error between the
-        predictor and the target on a batch drawn from replay memory.
+        predictor and the target on a batch drawn from replay memory,
+        normalized by `normalizer`.
 
         Returns:
             The loss.
         """
         batch = self.replay.sample(self.device, self.settings.batch_size)
-        loss  = self.error(batch.next_observations[Entry.FRAMES]).mean()
+        loss  = self.error(
+            batch.next_observations[Entry.FRAMES],
+            normalizer,
+            self.predictor
+        ).mean()
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -244,3 +295,19 @@ class Novelty:
         self.updates += 1
 
         return loss.item()
+
+    def wait(self) -> float | None:
+        """
+        Waits for the updates `train` started, if any, raising whatever an
+        update raised, then stores each stack and its frames observed while
+        they ran.
+
+        Returns:
+            The mean loss over the updates, or `None` where none ran.
+        """
+        training, self.training = self.training, None
+        loss = training.result() if training else None  # prose: ignore[inlinable-bindings]
+
+        self.store()
+
+        return loss

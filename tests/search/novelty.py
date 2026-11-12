@@ -11,6 +11,8 @@ stacks, covering:
   rebuilt from the frames before it
 - The updates owed for the presses taken, which train the predictor and
   leave the target alone, and the score falling on what it has seen
+- The updates running on a thread of their own, which the scores and the
+  frames observed meanwhile leave as they would run alone
 - The arrays and the networks loading back into a search, and a network of
   another shape refused
 """
@@ -54,7 +56,14 @@ def centered(level: int, novelty: Novelty) -> Tensor:
     """
     novelty.normalizer.mean = full((72, 80), float(level))
 
-    return novelty.error(as_tensor(full((1, 4, 72, 80), level, uint8)))
+    return errors(as_tensor(full((1, 4, 72, 80), level, uint8)), novelty)
+
+
+def errors(frames: Tensor, novelty: Novelty) -> Tensor:
+    """
+    Measures the predictor's error on `frames` under the running statistics.
+    """
+    return novelty.error(frames, novelty.normalizer, novelty.predictor)
 
 
 def seen(novelty: Novelty, *shades: int):
@@ -136,7 +145,7 @@ def test_an_update_steps_the_predictor_and_leaves_the_target_alone(novelty: Nove
     )
 
     seen(novelty, *range(20))
-    novelty.update()
+    novelty.update(novelty.normalizer)
 
     assert novelty.predictor[-1].weight.ne(predictor).any()
     assert_close(novelty.target[-1].weight, target, atol=0, rtol=0)
@@ -224,13 +233,13 @@ def test_the_arrays_and_networks_load_back_as_a_search_continues_from_them(
     another seed, then draws the same batches and takes the same updates.
     """
     seen(novelty, *range(1, 21))
-    novelty.update()
+    novelty.update(novelty.normalizer)
 
     loaded = build(small, space, seed=9)
     loaded.load(novelty.arrays, deepcopy(novelty.networks))
 
     assert loaded.updates == novelty.updates
-    assert loaded.update() == novelty.update()
+    assert loaded.update(loaded.normalizer) == novelty.update(novelty.normalizer)
     assert_close(
         loaded.predictor.state_dict(),
         novelty.predictor.state_dict(),
@@ -259,7 +268,7 @@ def test_the_convolutions_and_their_inputs_take_the_channels_last_format(
         if isinstance(module, Conv2d)
     )
     assert_close(
-        novelty.error(stack),
+        errors(stack, novelty),
         (novelty.predictor(inputs) - novelty.target(inputs)).square().mean(1),
         atol = 1e-6,
         rtol = 1e-5
@@ -297,7 +306,7 @@ def test_the_inputs_clip_to_five_deviations_of_the_running_statistics(novelty: N
     novelty.normalizer.var  = full((72, 80), 4.0)
 
     frames    = (full((1, 4, 72, 80), value, uint8) for value in (110, 200))
-    near, far = (novelty.error(as_tensor(stack)) for stack in frames)
+    near, far = (errors(as_tensor(stack), novelty) for stack in frames)
 
     assert_close(near, far, atol=0, rtol=0)
 
@@ -336,14 +345,94 @@ def test_training_takes_the_updates_the_presses_owe(novelty: Novelty):
     """
     Asserts that training after 20 presses at one update every 8 takes two,
     that training at those presses again takes none and returns `None`, and
-    that it counts on from there.
+    that it counts on from there, while waiting with nothing started returns
+    `None`.
     """
     seen(novelty, *range(20))
 
-    loss = novelty.train(20)
+    assert novelty.wait() is None
 
-    assert (loss > 0.0, novelty.updates, novelty.train(20)) == (True, 2, None)
-    assert (novelty.train(24) is not None, novelty.updates) == (True, 3)
+    novelty.train(20)
+
+    assert (novelty.wait() > 0.0, novelty.updates) == (True, 2)
+
+    novelty.train(20)
+
+    assert novelty.wait() is None
+
+    novelty.train(24)
+
+    assert (novelty.wait() is not None, novelty.updates) == (True, 3)
+
+
+def test_updates_running_alongside_a_search_take_what_they_would_alone(
+    small : SearchSettings,
+    space : Box
+):
+    """
+    Asserts that updates observing a rollout and scoring while they run
+    reach the weights and the loss of the same updates run with nothing
+    beside them, since each draws only from what replay memory held and
+    normalizes by the running statistics as they stood when the updates
+    started.
+    """
+    alone, beside = build(small, space), build(small, space)
+
+    for novelty in (alone, beside):
+        seen(novelty, *range(1, 41))
+        novelty.train(40)
+
+    seen(beside, *range(100, 140))
+    beside.score([snapshot(shade=60)])
+
+    assert beside.wait() == alone.wait()
+    assert_close(
+        beside.predictor.state_dict(),
+        alone.predictor.state_dict(),
+        atol = 0,
+        rtol = 0
+    )
+
+
+def test_while_updates_run_a_score_reads_the_predictor_from_their_start(
+    novelty: Novelty
+):
+    """
+    Asserts that a score taken while updates run equals one taken before
+    they started, and that once they are waited for, a score reads the
+    updated predictor.
+    """
+    seen(novelty, *[40] * 32)
+
+    before = novelty.score([snapshot(shade=40)])
+
+    novelty.train(32)
+
+    assert novelty.score([snapshot(shade=40)]) == before
+
+    novelty.wait()
+
+    assert novelty.score([snapshot(shade=40)]) != before
+
+
+def test_while_updates_run_the_frames_observed_wait_outside_replay_memory(
+    novelty: Novelty
+):
+    """
+    Asserts that a rollout observed while updates run adds its frames to
+    the running statistics at once and reaches replay memory only once the
+    updates are waited for, after what it held before.
+    """
+    seen(novelty, 10, 20, 30)
+    novelty.train(0)
+    seen(novelty, 50, 60, 70)
+
+    assert novelty.replay.arrays["pushed"].item() == 7
+    assert novelty.normalizer.count == approx(6, rel=1e-3)
+
+    novelty.wait()
+
+    assert novelty.replay.arrays["pushed"].item() == 14
 
 
 def trained(novelty: Novelty, updates: int) -> float:
@@ -354,6 +443,6 @@ def trained(novelty: Novelty, updates: int) -> float:
         The score of a stack of pixels at 40.
     """
     for _ in range(updates):
-        novelty.update()
+        novelty.update(novelty.normalizer)
 
     return novelty.score([snapshot(shade=40)])[0]

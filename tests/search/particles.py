@@ -11,6 +11,7 @@ Pins the search over particles, Mhammedi and Cohan's Algorithms 1 and
   winner, scored afresh, becomes the winner
 - The search ending at its goal, and on no other flag, or at its steps
 - Each rollout's presses, one action held at the chance of a random one
+- The updates an iteration owes, which run while the next one plays
 - One seed reaching one demonstration, whichever order the rollouts play
   in, a search resumed from its checkpoint going on as an unbroken one does,
   and the demonstration playing back to what the winner reached
@@ -392,6 +393,31 @@ def test_a_rollouts_presses_hold_one_action_at_the_chance_of_a_random_one(
     search = searching(rolled([]), epsilon=epsilon, inner_steps=(200, 200))
 
     assert len(set(search.plan())) == distinct
+
+
+@mark.usefixtures("game")
+def test_each_iteration_runs_the_updates_owed_for_the_presses_before_it(
+    root      : Snapshot,
+    rolling   : Callable[[Iterable[SearchRollout]], Iterable[Ending]],
+    searching : Callable[..., Search]
+):
+    """
+    Asserts that each iteration ends having taken one update of the
+    predictor for every `update_steps` presses taken before it opened, since
+    the updates owed for an iteration's own presses run while the next one
+    plays, and that the presses cross enough multiples for updates to run.
+    """
+    search = searching(rolling, root=root, steps=150)
+    owed   = []
+    taken  = []
+
+    for _ in range(3):
+        owed.append(search.presses // search.settings.update_steps)
+        drive(search)
+        taken.append(search.novelty.updates)
+
+    assert taken == owed
+    assert owed[-1] > owed[0]
 
 
 def test_each_survivor_adds_a_child_holding_its_presses_and_no_state_is_kept(

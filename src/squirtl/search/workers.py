@@ -5,6 +5,7 @@ on it, which imports nothing beyond what that worker needs, since a spawned
 process imports the module its worker sits in.
 """
 
+from atexit import register
 from gymnasium.envs.registration import EnvSpec
 from os import setpgrp
 
@@ -19,13 +20,18 @@ def boot(specification: EnvSpec):
     sends its own group reach only the main process, whose handler ends
     the search at its iteration's end, while the pool's `terminate` still
     reaches the worker. It then makes the environment `specification`
-    describes, which every rollout the process runs restores.
+    describes, which every rollout the process runs restores, and closes
+    it as the process exits, while the interpreter is still whole. A PyBoy
+    left open until the interpreter's final collection raises there after
+    `sys.excepthook` is gone, printing an empty report for each error.
     """
     global environment
 
     setpgrp()
 
     environment = specification.make()
+
+    register(environment.close)
 
 
 def roll(rollout: SearchRollout) -> Ending:

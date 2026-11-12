@@ -32,7 +32,7 @@ from squirtl.emulator.schemas  import Cartridge
 from squirtl.runs.schemas      import Run, RunSettings, Stream
 from squirtl.runs.searcher     import SearchHandover, Searcher
 from squirtl.search.checkpoint import SearchCheckpoint
-from squirtl.search.schemas    import Iteration, SearchSettings
+from squirtl.search.schemas    import SearchSettings
 from squirtl.search.workers    import boot
 
 
@@ -476,9 +476,11 @@ def test_an_iteration_with_no_update_owed_records_no_loss(
     searcher: Callable[..., Searcher]
 ):
     """
-    Asserts that a line holds no loss where its iteration owed no update
-    of the predictor, its presses crossing no multiple of `update_steps`,
-    whereas one owing an update holds a loss.
+    Asserts that a line holds no loss where its iteration ran no update
+    of the predictor, the presses before it crossing no multiple of
+    `update_steps` past those before the iteration ahead of it, since the
+    updates an iteration owes run while the next one plays, whereas one
+    running an update holds a loss.
     """
     settings = SearchSettings(
         batch_size   = 4,
@@ -490,11 +492,9 @@ def test_an_iteration_with_no_update_owed_records_no_loss(
         update_steps = 12,
         workers      = 1
     )
-    lines = iterations(finish(searcher(search=settings, steps=24)))
-    owed  = [
-        line.presses // 12 > before.presses // 12
-        for before, line in pairwise([Iteration.model_construct(presses=0), *lines])
-    ]
+    lines  = iterations(finish(searcher(search=settings, steps=24)))
+    starts = [0, 0, *(line.presses for line in lines[:-1])]
+    owed   = [later // 12 > earlier // 12 for earlier, later in pairwise(starts)]
 
     assert [line.loss is not None for line in lines] == owed
     assert {*owed} == {False, True}

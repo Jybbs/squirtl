@@ -238,17 +238,22 @@ class Search:
     def iterate(self) -> Generator[int, None, float | None]:
         """
         Runs one iteration of Algorithm 2, yielding the presses taken after
-        each outer step. A group ranking below the winner on reward first
-        moves to it, and each group then draws its outer steps. Once each
-        has played them, or the search has finished, each group consolidates
-        on its winner and the best of those and the last winner, scored
-        afresh, becomes the winner. The predictor then trains on what the
-        iteration observed.
+        each outer step. The predictor first starts the updates owed for
+        what earlier iterations observed, which run while the workers play
+        the iteration's rollouts, so each score until the iteration's end
+        reads the predictor as it stood before them. A group ranking below
+        the winner on reward then moves to it, and each group draws its
+        outer steps. Once each has played them, or the search has finished,
+        the updates are waited for, each group consolidates on its winner,
+        and the best of those and the last winner, scored afresh by the
+        updated predictor, becomes the winner.
 
         Returns:
-            The mean loss over the predictor's updates, as `Novelty.train`
+            The mean loss over the predictor's updates, as `Novelty.wait`
             returns it.
         """
+        self.novelty.train(self.presses)
+
         for group in self.groups:
             if group.winner.reward < self.winner.reward:
                 group.reset(self.winner)
@@ -262,9 +267,11 @@ class Search:
 
             yield self.presses
 
+        loss = self.novelty.wait()  # prose: ignore[inlinable-bindings]
+
         self.consolidate()
 
-        return self.novelty.train(self.presses)
+        return loss
 
     def plan(self) -> bytes:
         """
