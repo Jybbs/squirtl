@@ -940,8 +940,8 @@ def test_labels_report_a_label_in_no_category_and_a_malformed_row(scan: Scan):
             [(
                 ".github/PULL_REQUEST_TEMPLATE.md",
                 5,
-                "The heading '🧵 Key Changes' opens on other than `🎒`, the mark "
-                "the identity places on 'Key Changes'"
+                "The heading '🧵 Key Changes' reads other than '🎒 Key Changes', "
+                "the mark the identity places on 'Key Changes' before its name"
             )],
             id = "a-section-on-another-mark"
         ),
@@ -950,10 +950,20 @@ def test_labels_report_a_label_in_no_category_and_a_malformed_row(scan: Scan):
             [(
                 ".github/PULL_REQUEST_TEMPLATE.md",
                 5,
-                "The heading 'Key Changes' opens on other than `🎒`, the mark the "
-                "identity places on 'Key Changes'"
+                "The heading 'Key Changes' reads other than '🎒 Key Changes', "
+                "the mark the identity places on 'Key Changes' before its name"
             )],
             id = "a-section-on-no-mark"
+        ),
+        param(
+            ("### 🎒 Key Changes", "### 🎒 The Key Changes"),
+            [(
+                ".github/PULL_REQUEST_TEMPLATE.md",
+                5,
+                "The heading '🎒 The Key Changes' reads other than '🎒 Key Changes', "
+                "the mark the identity places on 'Key Changes' before its name"
+            )],
+            id = "a-section-on-its-mark-beside-other-words"
         ),
         param(
             ("### 🧵 Related Issues", "### 🧵 Linked Issues"),
@@ -969,7 +979,7 @@ def test_labels_report_a_label_in_no_category_and_a_malformed_row(scan: Scan):
             ("name: 🕹️ CI", "name: 🎒 CI"),
             [(
                 ".github/workflows/ci.yml",
-                1,
+                2,
                 "`.github/workflows/ci.yml` is named '🎒 CI', which opens on other "
                 "than `🕹️`, the mark of every workflow"
             )],
@@ -1012,10 +1022,10 @@ def test_marks_hold_the_template_workflows_and_labels_to_the_identity(
     Pins that the mark check passes a template whose headings each open on
     the mark the identity places on their section, workflows named on the
     workflows' mark, and labels on no project mark, and reports a heading
-    on another mark or on none, a heading on a section the identity places
-    no mark on, a workflow named on another mark or not named, and a label
-    on a project mark with or without its variation selector, leaving out a
-    heading inside an HTML comment.
+    on another mark, on none, or on its mark beside other words, a heading
+    on a section the identity places no mark on, a workflow named on another
+    mark or not named, and a label on a project mark with or without its
+    variation selector, leaving out a heading inside an HTML comment.
     """
     shipped = {
         ".github/PULL_REQUEST_TEMPLATE.md": """
@@ -1039,7 +1049,7 @@ def test_marks_hold_the_template_workflows_and_labels_to_the_identity(
             name        = "🧢 agent"
             """,
 
-        ".github/workflows/ci.yml": "name: 🕹️ CI\non: push\njobs: {}\n"
+        ".github/workflows/ci.yml": "on: push\nname: 🕹️ CI\njobs: {}\n"
     }
     shipped = {
         path: dedent(text).lstrip("\n").replace(*rewrite)

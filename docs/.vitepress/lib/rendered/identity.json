@@ -1298,29 +1298,29 @@
     {
       "depicts": "The joystick of the game the agent learns to play",
       "glyph": "🕹️",
-      "gate": false,
       "section": "Quick Summary",
+      "gate": false,
       "workflows": true
     },
     {
       "depicts": "The trainer’s backpack",
       "glyph": "🎒",
-      "gate": true,
       "section": "Key Changes",
+      "gate": true,
       "workflows": false
     },
     {
       "depicts": "The walk the tagline names",
       "glyph": "👟",
-      "gate": false,
       "section": "Implementation Notes",
+      "gate": false,
       "workflows": false
     },
     {
       "depicts": "The thread tying a pull request to its issues",
       "glyph": "🧵",
-      "gate": false,
       "section": "Related Issues",
+      "gate": false,
       "workflows": false
     }
   ],

@@ -802,14 +802,13 @@ class Marks(Check):
                         "places a mark on"
                     )
                 )
-            elif heading != f"{headings[section]} {section}":
+            elif heading != (expected := f"{headings[section]} {section}"):
                 yield Finding(
                     file    = PullRequestTemplate.file,
                     line    = line,
                     message = (
-                        f"The heading {heading!r} opens on other than "
-                        f"`{headings[section]}`, the mark the identity places on "
-                        f"{section!r}"
+                        f"The heading {heading!r} reads other than {expected!r}, "
+                        f"the mark the identity places on {section!r} before its name"
                     )
                 )
 

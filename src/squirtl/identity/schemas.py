@@ -15,8 +15,8 @@ sheet imports:
 - `Glyph`, `Sprite`, `Badge`, `Letter`, `Letters`, `LogoBlock`, `Scene`, and
   `Logo`, the marks drawn from the display face's dots and from Pokémon
   Blue's pixels
-- `ProjectMark`, an emoji opening a pull request's sections and the
-  workflows' names
+- `ProjectMark`, an emoji opening a section of a pull request's body, and
+  for one mark each, the name of every workflow or the gate each one ends on
 - `Identity`, the whole declaration
 """
 
@@ -451,7 +451,7 @@ class ProjectMark(Declared):
 
     depicts: str
     """
-    What the glyph depicts from the world of Pokémon Blue and its console.
+    What the glyph depicts, such as the trainer’s backpack `🎒` draws.
     """
 
     glyph: str
@@ -459,15 +459,14 @@ class ProjectMark(Declared):
     The emoji the mark is drawn as.
     """
 
+    section: str
+    """
+    The section of a pull request's body whose heading the mark opens.
+    """
+
     gate: bool = False
     """
     Whether the mark opens the name of the gate each workflow ends on.
-    """
-
-    section: str | None = None
-    """
-    The section of a pull request's body whose heading the mark opens, or
-    `None` where it opens none.
     """
 
     workflows: bool = False
@@ -941,7 +940,7 @@ class Identity(Declared):
         Maps each section of a pull request's body a project mark opens to
         the glyph of that mark.
         """
-        return {mark.section: mark.glyph for mark in self.project_marks if mark.section}
+        return {mark.section: mark.glyph for mark in self.project_marks}
 
     @property
     def palette(self) -> dict[str, Color]:
@@ -1086,7 +1085,7 @@ class Identity(Declared):
         marks  = self.project_marks
         places = (
             [mark.glyph for mark in marks],
-            [mark.section for mark in marks if mark.section]
+            [mark.section for mark in marks]
         )
 
         if any(len({*names}) < len(names) for names in places):
