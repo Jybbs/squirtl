@@ -51,8 +51,8 @@ export class Cards {
 /**
  * Draws the card of every page in `pages` as a PNG under `outDir`, at the path
  * `cardPath` gives it, a page of a section taking its section's card and every
- * other page the site's, which the front page and the page at a missing address
- * share, so it is written once.
+ * other page the site's, which the front page, the page at a missing address,
+ * and each page outside every section share, so it is written once.
  *
  * Args:
  *   facts    : The version and the host each card's edition plate names.

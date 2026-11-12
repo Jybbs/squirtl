@@ -1,6 +1,7 @@
 import { defineComponent, ref, useId } from 'vue'
 
 import { type Curve, type Curves, PLOTTING, useCurves } from '../../../lib/results/curves.ts'
+import { CURVES }                                       from '../../../lib/results/legend.ts'
 import { SILHOUETTES, glyphOf }                         from '../../../lib/results/marks.ts'
 import * as results                                     from '../../../lib/results/results.ts'
 import { HUES, ROLES }                                  from '../kit/hues.ts'
@@ -9,26 +10,13 @@ import * as plots                                       from '../kit/plots.tsx'
 import { LABEL }                                        from '../kit/widget.ts'
 
 /**
- * The words the widget sets: the label over the toggles, the heads over the
- * key's figures, and what the key's marks decode.
+ * The words the widget sets, the heads over the key's figures and the label
+ * over the toggles.
  */
 const WORDS = {
-  bedroom    : 'Solid, from the bedroom',
-  curriculum : 'Hollow and dashed, with the curriculum',
-  heads      : ['Reached it', 'Beats random'] as const,
-  random     : 'Random presses',
-  runs       : 'Runs, as many as you like'
+  heads : ['Reached it', 'Beats random'] as const,
+  runs  : 'Runs, as many as you like'
 }
-
-/**
- * The key of the curves' marks, the glyph solid from the bedroom and hollow
- * along the curriculum, and random presses' level line.
- */
-const KEY = [
-  { mark: glyphOf({ agent: 'ppo', curriculum: false }), name: WORDS.bedroom, role: 'agent' as const },
-  { mark: glyphOf({ agent: 'ppo', curriculum: true }), name: WORDS.curriculum, role: 'agent' as const },
-  { name: WORDS.random, role: 'random' as const }
-]
 
 /**
  * The classes laying out the toggles, a grid of them as wide as each one's name
@@ -114,7 +102,7 @@ export const ResultsCurves = defineComponent({
             {curves.value.lines.map((line, n) => drawCurve(line, curves.value, traces[n]!.value, `${id}-${n}`))}
           </svg>
         </div>
-        <Key entries={KEY} />
+        <Key entries={CURVES} />
         <Key entries={results.figuresOf(groups, random, toggles.pressed.value)} heads={WORDS.heads} />
       </div>
     )

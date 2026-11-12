@@ -5,8 +5,10 @@ out as the JSON the site's drawings read and the `@theme` block its Tailwind
 sheet imports:
 
 - `Declared`, the base every record here builds on
-- `Color`, a named color and the luminance WCAG 2.2 measures it at, and
-  `Swatch`, a color of the site's theme on each color scheme's ground
+- `Color`, a named color and the luminance WCAG 2.2 measures it at, `Step`,
+  one of Denim's lighter and darker steps and the share of black or white it
+  mixes in, and `Swatch`, a color of the site's theme on each color scheme's
+  ground
 - `Face`, `Faces`, `Ramp`, `Hue`, `Scheme`, `Schemes`, `Lengths`, and
   `Motion`, the faces, the ramps of each hue, the colors each color
   scheme gives its roles, and the lengths and the timing every drawing shares
@@ -25,7 +27,7 @@ from math         import sumprod
 from operator     import or_
 from pydantic     import BaseModel, BeforeValidator, Field, StringConstraints, computed_field, model_validator
 from tomllib      import loads
-from typing       import Annotated, ClassVar, Literal, Self
+from typing       import Annotated, ClassVar, Literal, NamedTuple, Self
 from urllib.parse import quote_plus
 
 type Cell = tuple[int, int]
@@ -39,6 +41,58 @@ type Grid = Annotated[
 type Hex        = Annotated[str, StringConstraints(pattern=r"^#[0-9a-f]{6}$")]
 type Row        = Annotated[str, StringConstraints(pattern=r"^[0-3]{16}$")]
 type SchemeName = Literal["dark", "light"]
+type Triple     = tuple[float, float, float]
+
+
+class Oklab(NamedTuple):
+    """
+    The matrices Ottosson converts between linear sRGB and OKLab through,
+    each a row per output.
+    """
+
+    lab: tuple[Triple, Triple, Triple]
+    """
+    From the cube roots of the cone responses to OKLab.
+    """
+
+    lms: tuple[Triple, Triple, Triple]
+    """
+    From linear sRGB to the cone responses.
+    """
+
+    lms_from_lab: tuple[Triple, Triple, Triple]
+    """
+    From OKLab back to the cube roots of the cone responses.
+    """
+
+    rgb_from_lms: tuple[Triple, Triple, Triple]
+    """
+    From the cone responses back to linear sRGB.
+    """
+
+
+OKLAB = Oklab(
+    lab = (
+        (0.2104542553, 0.7936177850, -0.0040720468),
+        (1.9779984951, -2.4285922050, 0.4505937099),
+        (0.0259040371, 0.7827717662, -0.8086757660)
+    ),
+    lms = (
+        (0.4122214708, 0.5363325363, 0.0514459929),
+        (0.2119034982, 0.6806995451, 0.1073969566),
+        (0.0883024619, 0.2817188376, 0.6299787005)
+    ),
+    lms_from_lab = (
+        (1, 0.3963377774, 0.2158037573),
+        (1, -0.1055613458, -0.0638541728),
+        (1, -0.0894841775, -1.2914855480)
+    ),
+    rgb_from_lms = (
+        (4.0767416621, -3.3077115913, 0.2309699292),
+        (-1.2684380046, 2.6097574011, -0.3413193965),
+        (-0.0041960863, -0.7034186147, 1.7076147010)
+    )
+)
 
 
 class Declared(BaseModel, extra="forbid", frozen=True, use_attribute_docstrings=True):
@@ -83,19 +137,39 @@ class Color(Declared):
     The color's name, as the identity records it.
     """
 
+    purpose: str
+    """
+    What the site draws in the color.
+    """
+
+    @property
+    def lab(self) -> tuple[float, float, float]:
+        """
+        Converts the color into OKLab, its lightness and its two opposing
+        axes, through the matrices Ottosson defines it by.
+        """
+        cones = [sumprod(row, self.linear) ** (1 / 3) for row in OKLAB.lms]
+
+        return tuple(sumprod(row, cones) for row in OKLAB.lab)
+
+    @property
+    def linear(self) -> tuple[float, float, float]:
+        """
+        Reads each of the color's channels as the linear light sRGB decodes
+        it to, from 0 to 1.
+        """
+        return tuple(
+            value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+            for value in (channel / 255 for channel in bytes.fromhex(self.hex[1:]))
+        )
+
     @property
     def luminance(self) -> float:
         """
         Measures the color's relative luminance as WCAG 2.2 defines it, from
         0 for black to 1 for white.
         """
-        return sumprod(
-            (0.2126, 0.7152, 0.0722),
-            (
-                value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
-                for value in (channel / 255 for channel in bytes.fromhex(self.hex[1:]))
-            )
-        )
+        return sumprod((0.2126, 0.7152, 0.0722), self.linear)
 
     @property
     def swatch(self) -> Swatch:
@@ -113,6 +187,25 @@ class Color(Declared):
         lighter, darker = sorted((self.luminance, other.luminance), reverse=True)
 
         return (lighter + 0.05) / (darker + 0.05)
+
+    def mix(self, share: float, toward: Color) -> Hex:
+        """
+        Mixes the color in OKLab the share `share` of the way toward
+        `toward`, as `color-mix(in oklab, …)` mixes two colors, and encodes
+        the mix back into sRGB, each channel clipped to its range.
+        """
+        lab = [mine + (theirs - mine) * share for mine, theirs in zip(
+            self.lab,
+            toward.lab
+        )]
+        cones   = [sumprod(row, lab) ** 3 for row in OKLAB.lms_from_lab]
+        light   = (min(1, max(0, sumprod(row, cones))) for row in OKLAB.rgb_from_lms)
+        encoded = (
+            12.92 * value if value <= 0.0031308 else 1.055 * value ** (1 / 2.4) - 0.055
+            for value in light
+        )
+
+        return "#" + bytes(round(255 * value) for value in encoded).hex()
 
 
 class Face(Declared):
@@ -135,6 +228,11 @@ class Face(Declared):
     family: str
     """
     The family's name, as Google Fonts lists it.
+    """
+
+    purpose: str
+    """
+    What the site sets in the face.
     """
 
     x_height: float
@@ -346,7 +444,8 @@ class Motion(Declared):
 class Ramp(Declared):
     """
     The steps one hue takes on one color scheme's ground, each mixed in
-    OKLab toward that ground.
+    OKLab, the shades toward that ground, the deep step toward Mirage, the
+    pale step toward Athens Gray, and the text step toward the other ground.
     """
 
     deep: Hex
@@ -368,6 +467,12 @@ class Ramp(Declared):
     """
     The step text in the hue takes on this ground, which holds 4.5:1 on the
     first shade.
+    """
+
+    ink: float = Field(default=0, ge=0, lt=1)
+    """
+    The share of the other color scheme's ground the text step mixes into
+    the hue in OKLab, 0 where text in the hue takes the hue itself.
     """
 
 
@@ -445,6 +550,34 @@ class Sprite(Declared):
     Each frame's 16 rows of 16 pixels, each the Game Boy shade from 0, the
     lightest, to 3, the darkest.
     """
+
+
+class Step(Color):
+    """
+    One of Denim's lighter and darker steps, beside the share of black or
+    white it mixes into Denim in OKLab.
+    """
+
+    toward: Literal["black", "white"]
+    """
+    The color the step mixes Denim toward.
+    """
+
+    share: float = Field(gt=0, lt=1)
+    """
+    The share of `toward` the step mixes in.
+    """
+
+    @property
+    def target(self) -> Color:
+        """
+        The black or the white the step mixes toward.
+        """
+        return Color(
+            hex     = "#000000" if self.toward == "black" else "#ffffff",
+            name    = self.toward,
+            purpose = f"The {self.toward} a step mixes toward"
+        )
 
 
 class Swatch(Declared):
@@ -723,7 +856,7 @@ class Identity(Declared):
     hue a section takes.
     """
 
-    ramp: dict[str, Color]
+    ramp: dict[str, Step]
     """
     Denim's lighter and darker steps, each under its name.
     """
@@ -742,6 +875,12 @@ class Identity(Declared):
     """
     The hue each section of the site takes for its badge, its card, and its
     pages, under the folder the section opens on.
+    """
+
+    shares: tuple[float, float, float, float]
+    """
+    The share of the ground each of a hue's four shades mixes into the hue
+    in OKLab, from nearest the ground to the fourth.
     """
 
     sprites: dict[str, Sprite]
@@ -892,7 +1031,8 @@ class Identity(Declared):
     def refers(self) -> Self:
         """
         Refuses a name that names no color, no hue, or no sprite frame,
-        an order and sections naming a hue other than once between them,
+        an order and sections naming a hue other than once between them, a
+        step, a shade, or a text step that is not the mix its share names,
         sprites leaving out Blue's, and two colors of the site's theme under
         one name, so a misspelled reference fails the read rather than the
         site's build.
@@ -912,6 +1052,34 @@ class Identity(Declared):
             raise ValueError(f"names no color or hue: {', '.join(sorted(missing))}")
         if sorted([*self.order, *self.sections.values()]) != sorted(self.hues):
             raise ValueError("the order and the sections name each hue other than once")
+        if any(
+            step.hex != self.colors["primary"].mix(step.share, step.target)
+            for step in self.ramp.values()
+        ):
+            raise ValueError("a step of Denim's ramp is not the mix it names")
+        if any(
+            shade != self.colors[hue.token].mix(share, self.palette[roles.ground])
+            for hue in self.hues.values()
+            for scheme, roles in self.schemes
+            for shade, share in zip(getattr(hue, scheme).shades, self.shares)
+        ):
+            raise ValueError(
+                "a hue's shade is not the mix of its ground `shares` names"
+            )
+        if any(
+            ramp.text != (
+                self.ramp[getattr(self.schemes, scheme).link].hex
+                if hue.token == "primary"
+                else self.colors[hue.token].mix(
+                    ramp.ink,
+                    self.palette[getattr(self.schemes, other).ground]
+                )
+            )
+            for hue in self.hues.values()
+            for scheme, other in (("light", "dark"), ("dark", "light"))
+            for ramp in [getattr(hue, scheme)]
+        ):
+            raise ValueError("a hue's text step is not the mix its `ink` names")
         if "player" not in self.sprites:
             raise ValueError("the sprites leave out `player`, Blue's")
         if any(

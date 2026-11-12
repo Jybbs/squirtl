@@ -2,7 +2,7 @@ import fs from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-import { type Scheme, rgbOf } from '../../../lib/identity/identity.ts'
+import { type Scheme, contrast } from '../../../lib/identity/identity.ts'
 
 /**
  * The 4.5:1 WCAG 2.2 sets for body text against the ground it sits on.
@@ -31,23 +31,6 @@ const tokens = new Map([...declared(sheet('../../../lib/rendered/theme.css')), .
  * Lists the variables `roles.css` declares whose names match `pattern`.
  */
 const named = (pattern: RegExp): string[] => roles.map(([name]) => name).filter(name => pattern.test(name))
-
-/**
- * Measures the contrast ratio WCAG 2.2 defines between the colors `a` and `b`.
- */
-function contrast(a: string, b: string): number {
-  const [lighter, darker] = [luminance(a), luminance(b)].toSorted((x, y) => y - x)
-  return (lighter! + 0.05) / (darker! + 0.05)
-}
-
-/**
- * Measures the relative luminance WCAG 2.2 defines for the color `hex`.
- */
-function luminance(hex: string): number {
-  const linear = rgbOf(hex).map(byte => byte / 255)
-                           .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
-  return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!
-}
 
 /**
  * Reads the hex the variable `name` takes in `scheme`, through every `var()` it

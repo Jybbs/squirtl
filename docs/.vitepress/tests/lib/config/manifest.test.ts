@@ -10,8 +10,10 @@ import { FACTS }        from '../../common/facts.ts'
  */
 const MANIFEST = [
   '[project]',
-  'description = "Plays."',
-  'version     = "0.2.0"',
+  'description     = "Plays."',
+  'keywords        = ["pokemon", "pyboy"]',
+  'requires-python = ">=3.15"',
+  'version         = "0.2.0"',
   '',
   '[project.urls]',
   'Homepage   = "https://squirtl.fyi/"',
@@ -24,6 +26,13 @@ const MANIFEST = [
 describe('projectFacts', () => {
   test('reads the base path and the host from the homepage beside the declared facts', ({ checkout }) => {
     expect(projectFacts(checkout({ 'pyproject.toml': MANIFEST }).metaUrl)).toStrictEqual(FACTS)
+  })
+
+  test('reads the coverage the suite’s last report measured beside the declared facts', ({ checkout }) => {
+    const report = JSON.stringify({ files: {}, totals: { percent_covered: 99.6 } })
+    const { metaUrl } = checkout({ '.cache/coverage/coverage.json': report, 'pyproject.toml': MANIFEST })
+
+    expect(projectFacts(metaUrl)).toStrictEqual({ ...FACTS, coverage: '100' })
   })
 
   test('serves under the path and at the host a homepage below the root of its host names', ({ checkout }) => {
@@ -40,7 +49,10 @@ describe('projectFacts', () => {
       '',
       'pyproject.toml declares no project.urls.Repository'
     ],
-    ['description = "Plays."', 'description = ""', 'pyproject.toml declares no project.description'],
+    ['description     = "Plays."', 'description     = ""', 'pyproject.toml declares no project.description'],
+    ['keywords        = ["pokemon", "pyboy"]', 'keywords        = []', 'pyproject.toml declares no project.keywords'],
+    ['"pyboy"]', '7]', 'pyproject.toml declares no project.keywords'],
+    ['requires-python = ">=3.15"', '', 'pyproject.toml declares no project.requires-python'],
     ['fail_under = 95', 'fail_under = "95"', 'pyproject.toml declares no tool.coverage.report.fail_under'],
     [
       '"https://squirtl.fyi/"',

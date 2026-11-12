@@ -1,36 +1,40 @@
 name    = "SquiRtL"
 order   = ["denim", "heath", "fern", "amethyst", "seacaller"]
+shares  = [0.88, 0.7, 0.45, 0.2]
 tagline = "An agent that learns the walk to Oak’s lab."
 
 [faces.body]
 axes     = "ital,opsz,wght@0,7..72,400..700;1,7..72,400..700"
 fallback = ["Iowan Old Style", "Georgia", "serif"]
 family   = "Literata"
+purpose  = "Every paragraph and caption"
 x_height = 0.507
 
 [faces.code]
 axes     = "wght@400;500;700"
 fallback = ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"]
 family   = "JetBrains Mono"
+purpose  = "Code, figures, labels, and chips"
 x_height = 0.55
 
 [faces.display]
 axes     = "CRSV,ELSH,wght@0,0,500"
 fallback = ["ui-monospace", "monospace"]
 family   = "Bitcount Prop Double"
+purpose  = "Headings, the hero, and the logo’s letters"
 x_height = 0.5
 
 [colors]
-accent-1 = { hex = "#c08597", name = "Heath" }
-accent-2 = { hex = "#5cb878", name = "Fern" }
-accent-3 = { hex = "#ba55d3", name = "Amethyst" }
-accent-4 = { hex = "#4b8488", name = "Seacaller" }
-cerulean = { hex = "#91ddff", name = "Cerulean" }
-critical = { hex = "#c62d42", name = "Brick Red" }
-forest   = { hex = "#0e5900", name = "Forest" }
-indigo   = { hex = "#5d05a4", name = "Indigo" }
-primary  = { hex = "#3d6fd0", name = "Denim" }
-warning  = { hex = "#e8c840", name = "Eureka" }
+accent-1 = { hex = "#c08597", name = "Heath", purpose = "The second series hue, the milestones’ role" }
+accent-2 = { hex = "#5cb878", name = "Fern", purpose = "The third series hue, the new positions’ role" }
+accent-3 = { hex = "#ba55d3", name = "Amethyst", purpose = "The fourth series hue, the goal’s role" }
+accent-4 = { hex = "#4b8488", name = "Seacaller", purpose = "The fifth series hue, random presses’ role" }
+cerulean = { hex = "#91ddff", name = "Cerulean", purpose = "The Results section’s hue" }
+critical = { hex = "#c62d42", name = "Brick Red", purpose = "The critical state" }
+forest   = { hex = "#0e5900", name = "Forest", purpose = "The Commands section’s hue" }
+indigo   = { hex = "#5d05a4", name = "Indigo", purpose = "The Methods section’s hue" }
+primary  = { hex = "#3d6fd0", name = "Denim", purpose = "The lead, the first series hue, the agent’s role, and the logo’s R and L" }
+warning  = { hex = "#e8c840", name = "Eureka", purpose = "The warning state" }
 
 [citation]
 bolt   = { dark = "#ffd84a", light = "#ffd84a" }
@@ -46,29 +50,29 @@ text   = { dark = "#f0a080", light = "#a43a17" }
 white  = { dark = "#ffffff", light = "#ffffff" }
 
 [neutrals]
-dark        = { hex = "#121722", name = "Mirage" }
-dark-lift   = { hex = "#181e2b", name = "Mirage Lift" }
-dark-rule   = { hex = "#2a3242", name = "Mirage Rule" }
-ground      = { hex = "#f3f4f7", name = "Athens Gray" }
-ground-lift = { hex = "#fbfbfd", name = "Whisper" }
-ground-rule = { hex = "#dcdfe7", name = "Athens Rule" }
-muted       = { hex = "#999999", name = "Mid Gray" }
-quiet       = { hex = "#535353", name = "Emperor" }
+dark        = { hex = "#121722", name = "Mirage", purpose = "The dark ground, and body text on the light ground" }
+dark-lift   = { hex = "#181e2b", name = "Mirage Lift", purpose = "A raised surface on the dark ground" }
+dark-rule   = { hex = "#2a3242", name = "Mirage Rule", purpose = "A rule or a border on the dark ground" }
+ground      = { hex = "#f3f4f7", name = "Athens Gray", purpose = "The light ground, and body text on the dark ground" }
+ground-lift = { hex = "#fbfbfd", name = "Whisper", purpose = "A raised surface on the light ground" }
+ground-rule = { hex = "#dcdfe7", name = "Athens Rule", purpose = "A rule or a border on the light ground" }
+muted       = { hex = "#999999", name = "Mid Gray", purpose = "Quiet text on the dark ground" }
+quiet       = { hex = "#535353", name = "Emperor", purpose = "Quiet text on the light ground" }
 
 [ramp]
-deep  = { hex = "#294e95", name = "Denim Deep" }
-mid   = { hex = "#7097df", name = "Denim Mid" }
-night = { hex = "#162d5b", name = "Denim Night" }
-pale  = { hex = "#92b1e8", name = "Denim Pale" }
+deep  = { hex = "#294e95", name = "Denim Deep", purpose = "A link on the light ground", share = 0.22, toward = "black" }
+mid   = { hex = "#7097df", name = "Denim Mid", purpose = "A link on the dark ground", share = 0.27, toward = "white" }
+night = { hex = "#162d5b", name = "Denim Night", purpose = "A link under the pointer on the light ground", share = 0.45, toward = "black" }
+pale  = { hex = "#92b1e8", name = "Denim Pale", purpose = "A link under the pointer on the dark ground", share = 0.45, toward = "white" }
 
 [hues.amethyst]
-dark  = { deep = "#693a7d", pale = "#d6a0e5", shades = ["#241f34", "#402a52", "#693a7d", "#9549ac"], text = "#bf64d7" }
-light = { deep = "#693a7d", pale = "#d6a0e5", shades = ["#ede2f4", "#e4c6ee", "#d6a0e5", "#c778dc"], text = "#9248a8" }
+dark  = { deep = "#693a7d", ink = 0.08, pale = "#d6a0e5", shades = ["#241f34", "#402a52", "#693a7d", "#9549ac"], text = "#bf64d7" }
+light = { deep = "#693a7d", ink = 0.22, pale = "#d6a0e5", shades = ["#ede2f4", "#e4c6ee", "#d6a0e5", "#c778dc"], text = "#9248a8" }
 token = "accent-3"
 
 [hues.cerulean]
 dark  = { deep = "#547c93", pale = "#c0e8fc", shades = ["#1f2b38", "#344b5c", "#547c93", "#75b1ce"], text = "#91ddff" }
-light = { deep = "#547c93", pale = "#c0e8fc", shades = ["#e8f1f8", "#d7eefa", "#c0e8fc", "#a6e2fe"], text = "#4d7288" }
+light = { deep = "#547c93", ink = 0.5, pale = "#c0e8fc", shades = ["#e8f1f8", "#d7eefa", "#c0e8fc", "#a6e2fe"], text = "#4d7288" }
 token = "cerulean"
 
 [hues.denim]
@@ -78,27 +82,27 @@ token = "primary"
 
 [hues.fern]
 dark  = { deep = "#396a51", pale = "#a4d4b1", shades = ["#1a282c", "#27423c", "#396a51", "#4c9467"], text = "#5cb878" }
-light = { deep = "#396a51", pale = "#a4d4b1", shades = ["#e2ede7", "#c8e3d0", "#a4d4b1", "#7ec491"], text = "#3e7456" }
+light = { deep = "#396a51", ink = 0.39, pale = "#a4d4b1", shades = ["#e2ede7", "#c8e3d0", "#a4d4b1", "#7ec491"], text = "#3e7456" }
 token = "accent-2"
 
 [hues.forest]
-dark  = { deep = "#143b1d", pale = "#789d74", shades = ["#131f22", "#142a21", "#143b1d", "#124b13"], text = "#658f60" }
+dark  = { deep = "#143b1d", ink = 0.36, pale = "#789d74", shades = ["#131f22", "#142a21", "#143b1d", "#124b13"], text = "#658f60" }
 light = { deep = "#143b1d", pale = "#789d74", shades = ["#d7e1d9", "#afc4ae", "#789d74", "#42773b"], text = "#0e5900" }
 token = "forest"
 
 [hues.heath]
 dark  = { deep = "#6c515f", pale = "#d8b6c1", shades = ["#24232f", "#413542", "#6c515f", "#9a6d7e"], text = "#c08597" }
-light = { deep = "#6c515f", pale = "#d8b6c1", shades = ["#ede6eb", "#e5d2d9", "#d8b6c1", "#cb9ba9"], text = "#815e6e" }
+light = { deep = "#6c515f", ink = 0.33, pale = "#d8b6c1", shades = ["#ede6eb", "#e5d2d9", "#d8b6c1", "#cb9ba9"], text = "#815e6e" }
 token = "accent-1"
 
 [hues.indigo]
-dark  = { deep = "#3a1b66", pale = "#9b7fce", shades = ["#1a1930", "#271b46", "#3a1b66", "#4d1588"], text = "#9373c9" }
+dark  = { deep = "#3a1b66", ink = 0.39, pale = "#9b7fce", shades = ["#1a1930", "#271b46", "#3a1b66", "#4d1588"], text = "#9373c9" }
 light = { deep = "#3a1b66", pale = "#9b7fce", shades = ["#dfdaef", "#c2b4e2", "#9b7fce", "#7749b7"], text = "#5d05a4" }
 token = "indigo"
 
 [hues.seacaller]
-dark  = { deep = "#315057", pale = "#96b5b9", shades = ["#19222d", "#22353e", "#315057", "#3f6c72"], text = "#5e9094" }
-light = { deep = "#315057", pale = "#96b5b9", shades = ["#dee6e9", "#c0d1d5", "#96b5b9", "#6d9a9d"], text = "#406d73" }
+dark  = { deep = "#315057", ink = 0.11, pale = "#96b5b9", shades = ["#19222d", "#22353e", "#315057", "#3f6c72"], text = "#5e9094" }
+light = { deep = "#315057", ink = 0.19, pale = "#96b5b9", shades = ["#dee6e9", "#c0d1d5", "#96b5b9", "#6d9a9d"], text = "#406d73" }
 token = "accent-4"
 
 [roles]
@@ -137,7 +141,7 @@ breakpoints = { lg = 960, md = 768, sm = 640 }
 leading     = { none = 1, normal = 1.5, snug = 1.3, tight = 1.15 }
 plate       = 688
 radii       = { 1 = 4, 2 = 8, 3 = 12, footnote-current = 3, footnote-glass = 16, footnote-phone = 22, swatch = 2 }
-sizes       = { chip-block = 6, chip-end = 10, chip-quiet-block = 2, curriculum-head = 136, curriculum-places = 64, curriculum-screen = 86, curriculum-screen-narrow = 72, experience-chip = 240, footnote-above = 12, footnote-alone = 17, footnote-alone-screen = 13, footnote-band = 26, footnote-below = 6, footnote-bezel = 7, footnote-bolt = 26, footnote-camera-top = 17, footnote-cell = 11, footnote-cell-wide = 18, footnote-corner = 5, footnote-foot = 20, footnote-glass-top = 22, footnote-lead = 13, footnote-line = 22, footnote-opener = 36, footnote-opener-height = 54, footnote-opener-left = 19, footnote-opener-line = 18, footnote-opener-top = 21, footnote-phone-top = 34, footnote-rise = 6.5, footnote-screen = 9, footnote-screen-height = 11, footnote-shell = 3, footnote-tile = 14, hero-flight = 544, key-mark = 18, mark = 22, mark-art = 14, memory-side = 240, missing-page = 1024, missing-screen = 480, race-plot = 226, reach-screens = 512, results-figure = 40, results-plot = 288, results-toggle = 200, reward-climb = 288, ribbon = 54, ribbon-circle = 38, ribbon-circle-narrow = 32, ribbon-long = 148, ribbon-narrow = 44, ribbon-room = 72, ribbon-short = 112, ribbon-tail = 30, ribbon-tail-narrow = 22, sees-seam = 2, step-figure = 48, step-label = 28, story-between = 88, story-foot = 36, story-number = 56, story-side = 40, story-widget = 34, swatch = 10, watch-figure = 56, watch-side = 296, watch-status = 80 }
+sizes       = { chip-block = 6, chip-end = 10, chip-quiet-block = 2, curriculum-head = 136, curriculum-places = 64, curriculum-screen = 86, curriculum-screen-narrow = 72, experience-chip = 240, footnote-above = 12, footnote-alone = 17, footnote-alone-screen = 13, footnote-band = 26, footnote-below = 6, footnote-bezel = 7, footnote-bolt = 26, footnote-camera-top = 17, footnote-cell = 11, footnote-cell-wide = 18, footnote-corner = 5, footnote-foot = 20, footnote-glass-top = 22, footnote-lead = 13, footnote-line = 22, footnote-opener = 36, footnote-opener-height = 54, footnote-opener-left = 19, footnote-opener-line = 18, footnote-opener-top = 21, footnote-phone-top = 34, footnote-rise = 6.5, footnote-screen = 9, footnote-screen-height = 11, footnote-shell = 3, footnote-tile = 14, hero-flight = 544, identity-badge-height = 28, identity-band-open = 80, identity-figure = 72, identity-folder = 640, identity-ground = 104, identity-handle = 26, identity-meter = 116, identity-readme = 240, identity-swatch = 52, identity-tick = 14, key-mark = 18, mark = 22, mark-art = 14, memory-side = 240, missing-page = 1024, missing-screen = 480, race-plot = 226, reach-screens = 512, results-figure = 40, results-plot = 288, results-toggle = 200, reward-climb = 288, ribbon = 54, ribbon-circle = 38, ribbon-circle-narrow = 32, ribbon-long = 148, ribbon-narrow = 44, ribbon-room = 72, ribbon-short = 112, ribbon-tail = 30, ribbon-tail-narrow = 22, sees-seam = 2, step-figure = 48, step-label = 28, story-between = 88, story-foot = 36, story-number = 56, story-side = 40, story-widget = 34, swatch = 10, watch-figure = 56, watch-side = 296, watch-status = 80 }
 spacing     = { 0 = 0, 1 = 4, 2 = 8, 3 = 12, 4 = 16, 5 = 24, 6 = 32, 7 = 48 }
 strokes     = { axis = 1, line = 2, reference = 1 }
 text        = { body = 16, citation = 12, citation-opener = 16, figure = 20, hero = 44, label = 11, note = 14, say = 18, small = 13, title = 28 }

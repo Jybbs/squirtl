@@ -218,43 +218,53 @@
   "colors": {
     "accent-1": {
       "hex": "#c08597",
-      "name": "Heath"
+      "name": "Heath",
+      "purpose": "The second series hue, the milestones’ role"
     },
     "accent-2": {
       "hex": "#5cb878",
-      "name": "Fern"
+      "name": "Fern",
+      "purpose": "The third series hue, the new positions’ role"
     },
     "accent-3": {
       "hex": "#ba55d3",
-      "name": "Amethyst"
+      "name": "Amethyst",
+      "purpose": "The fourth series hue, the goal’s role"
     },
     "accent-4": {
       "hex": "#4b8488",
-      "name": "Seacaller"
+      "name": "Seacaller",
+      "purpose": "The fifth series hue, random presses’ role"
     },
     "cerulean": {
       "hex": "#91ddff",
-      "name": "Cerulean"
+      "name": "Cerulean",
+      "purpose": "The Results section’s hue"
     },
     "critical": {
       "hex": "#c62d42",
-      "name": "Brick Red"
+      "name": "Brick Red",
+      "purpose": "The critical state"
     },
     "forest": {
       "hex": "#0e5900",
-      "name": "Forest"
+      "name": "Forest",
+      "purpose": "The Commands section’s hue"
     },
     "indigo": {
       "hex": "#5d05a4",
-      "name": "Indigo"
+      "name": "Indigo",
+      "purpose": "The Methods section’s hue"
     },
     "primary": {
       "hex": "#3d6fd0",
-      "name": "Denim"
+      "name": "Denim",
+      "purpose": "The lead, the first series hue, the agent’s role, and the logo’s R and L"
     },
     "warning": {
       "hex": "#e8c840",
-      "name": "Eureka"
+      "name": "Eureka",
+      "purpose": "The warning state"
     }
   },
   "faces": {
@@ -266,6 +276,7 @@
         "serif"
       ],
       "family": "Literata",
+      "purpose": "Every paragraph and caption",
       "x_height": 0.507,
       "query": "Literata:ital,opsz,wght@0,7..72,400..700;1,7..72,400..700",
       "stack": "'Literata', 'Iowan Old Style', 'Georgia', serif"
@@ -279,6 +290,7 @@
         "monospace"
       ],
       "family": "JetBrains Mono",
+      "purpose": "Code, figures, labels, and chips",
       "x_height": 0.55,
       "query": "JetBrains+Mono:wght@400;500;700",
       "stack": "'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', monospace"
@@ -290,6 +302,7 @@
         "monospace"
       ],
       "family": "Bitcount Prop Double",
+      "purpose": "Headings, the hero, and the logo’s letters",
       "x_height": 0.5,
       "query": "Bitcount+Prop+Double:CRSV,ELSH,wght@0,0,500",
       "stack": "'Bitcount Prop Double', ui-monospace, monospace"
@@ -708,7 +721,8 @@
           "#693a7d",
           "#9549ac"
         ],
-        "text": "#bf64d7"
+        "text": "#bf64d7",
+        "ink": 0.08
       },
       "light": {
         "deep": "#693a7d",
@@ -719,7 +733,8 @@
           "#d6a0e5",
           "#c778dc"
         ],
-        "text": "#9248a8"
+        "text": "#9248a8",
+        "ink": 0.22
       },
       "token": "accent-3"
     },
@@ -733,7 +748,8 @@
           "#547c93",
           "#75b1ce"
         ],
-        "text": "#91ddff"
+        "text": "#91ddff",
+        "ink": 0.0
       },
       "light": {
         "deep": "#547c93",
@@ -744,7 +760,8 @@
           "#c0e8fc",
           "#a6e2fe"
         ],
-        "text": "#4d7288"
+        "text": "#4d7288",
+        "ink": 0.5
       },
       "token": "cerulean"
     },
@@ -758,7 +775,8 @@
           "#2a457c",
           "#345caa"
         ],
-        "text": "#7097df"
+        "text": "#7097df",
+        "ink": 0.0
       },
       "light": {
         "deep": "#162d5b",
@@ -769,7 +787,8 @@
           "#8dace5",
           "#608bda"
         ],
-        "text": "#294e95"
+        "text": "#294e95",
+        "ink": 0.0
       },
       "token": "primary"
     },
@@ -783,7 +802,8 @@
           "#396a51",
           "#4c9467"
         ],
-        "text": "#5cb878"
+        "text": "#5cb878",
+        "ink": 0.0
       },
       "light": {
         "deep": "#396a51",
@@ -794,7 +814,8 @@
           "#a4d4b1",
           "#7ec491"
         ],
-        "text": "#3e7456"
+        "text": "#3e7456",
+        "ink": 0.39
       },
       "token": "accent-2"
     },
@@ -808,7 +829,8 @@
           "#143b1d",
           "#124b13"
         ],
-        "text": "#658f60"
+        "text": "#658f60",
+        "ink": 0.36
       },
       "light": {
         "deep": "#143b1d",
@@ -819,7 +841,8 @@
           "#789d74",
           "#42773b"
         ],
-        "text": "#0e5900"
+        "text": "#0e5900",
+        "ink": 0.0
       },
       "token": "forest"
     },
@@ -833,7 +856,8 @@
           "#6c515f",
           "#9a6d7e"
         ],
-        "text": "#c08597"
+        "text": "#c08597",
+        "ink": 0.0
       },
       "light": {
         "deep": "#6c515f",
@@ -844,7 +868,8 @@
           "#d8b6c1",
           "#cb9ba9"
         ],
-        "text": "#815e6e"
+        "text": "#815e6e",
+        "ink": 0.33
       },
       "token": "accent-1"
     },
@@ -858,7 +883,8 @@
           "#3a1b66",
           "#4d1588"
         ],
-        "text": "#9373c9"
+        "text": "#9373c9",
+        "ink": 0.39
       },
       "light": {
         "deep": "#3a1b66",
@@ -869,7 +895,8 @@
           "#9b7fce",
           "#7749b7"
         ],
-        "text": "#5d05a4"
+        "text": "#5d05a4",
+        "ink": 0.0
       },
       "token": "indigo"
     },
@@ -883,7 +910,8 @@
           "#315057",
           "#3f6c72"
         ],
-        "text": "#5e9094"
+        "text": "#5e9094",
+        "ink": 0.11
       },
       "light": {
         "deep": "#315057",
@@ -894,7 +922,8 @@
           "#96b5b9",
           "#6d9a9d"
         ],
-        "text": "#406d73"
+        "text": "#406d73",
+        "ink": 0.19
       },
       "token": "accent-4"
     }
@@ -962,6 +991,16 @@
       "footnote-shell": 3.0,
       "footnote-tile": 14.0,
       "hero-flight": 544.0,
+      "identity-badge-height": 28.0,
+      "identity-band-open": 80.0,
+      "identity-figure": 72.0,
+      "identity-folder": 640.0,
+      "identity-ground": 104.0,
+      "identity-handle": 26.0,
+      "identity-meter": 116.0,
+      "identity-readme": 240.0,
+      "identity-swatch": 52.0,
+      "identity-tick": 14.0,
       "key-mark": 18.0,
       "mark": 22.0,
       "mark-art": 14.0,
@@ -1209,35 +1248,43 @@
   "neutrals": {
     "dark": {
       "hex": "#121722",
-      "name": "Mirage"
+      "name": "Mirage",
+      "purpose": "The dark ground, and body text on the light ground"
     },
     "dark-lift": {
       "hex": "#181e2b",
-      "name": "Mirage Lift"
+      "name": "Mirage Lift",
+      "purpose": "A raised surface on the dark ground"
     },
     "dark-rule": {
       "hex": "#2a3242",
-      "name": "Mirage Rule"
+      "name": "Mirage Rule",
+      "purpose": "A rule or a border on the dark ground"
     },
     "ground": {
       "hex": "#f3f4f7",
-      "name": "Athens Gray"
+      "name": "Athens Gray",
+      "purpose": "The light ground, and body text on the dark ground"
     },
     "ground-lift": {
       "hex": "#fbfbfd",
-      "name": "Whisper"
+      "name": "Whisper",
+      "purpose": "A raised surface on the light ground"
     },
     "ground-rule": {
       "hex": "#dcdfe7",
-      "name": "Athens Rule"
+      "name": "Athens Rule",
+      "purpose": "A rule or a border on the light ground"
     },
     "muted": {
       "hex": "#999999",
-      "name": "Mid Gray"
+      "name": "Mid Gray",
+      "purpose": "Quiet text on the dark ground"
     },
     "quiet": {
       "hex": "#535353",
-      "name": "Emperor"
+      "name": "Emperor",
+      "purpose": "Quiet text on the light ground"
     }
   },
   "order": [
@@ -1250,19 +1297,31 @@
   "ramp": {
     "deep": {
       "hex": "#294e95",
-      "name": "Denim Deep"
+      "name": "Denim Deep",
+      "purpose": "A link on the light ground",
+      "toward": "black",
+      "share": 0.22
     },
     "mid": {
       "hex": "#7097df",
-      "name": "Denim Mid"
+      "name": "Denim Mid",
+      "purpose": "A link on the dark ground",
+      "toward": "white",
+      "share": 0.27
     },
     "night": {
       "hex": "#162d5b",
-      "name": "Denim Night"
+      "name": "Denim Night",
+      "purpose": "A link under the pointer on the light ground",
+      "toward": "black",
+      "share": 0.45
     },
     "pale": {
       "hex": "#92b1e8",
-      "name": "Denim Pale"
+      "name": "Denim Pale",
+      "purpose": "A link under the pointer on the dark ground",
+      "toward": "white",
+      "share": 0.45
     }
   },
   "roles": {
@@ -1297,6 +1356,12 @@
     "methods": "indigo",
     "results": "cerulean"
   },
+  "shares": [
+    0.88,
+    0.7,
+    0.45,
+    0.2
+  ],
   "sprites": {
     "player": {
       "frames": [

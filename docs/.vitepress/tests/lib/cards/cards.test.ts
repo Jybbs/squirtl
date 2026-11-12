@@ -8,6 +8,7 @@ describe('cardPath', () => {
   it.each([
     [{ relativePath: 'index.md' }, 'cards/site.png'],
     [{ isNotFound: true, relativePath: '404.md' }, 'cards/site.png'],
+    [{ relativePath: 'identity.md' }, 'cards/site.png'],
     [{ relativePath: 'methods/agent.md' }, 'cards/methods/agent.png']
   ])('gives %o the card %s', (page, path) => {
     expect(cards.cardPath(page)).toBe(path)
