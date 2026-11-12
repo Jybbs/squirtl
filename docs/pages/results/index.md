@@ -14,4 +14,8 @@ Each line follows the interquartile mean across one agent's runs of the share of
 
 Each agent's runs, PQN's and PPO's trained with and without the curriculum, take a lane of their own, each run a row of cells along the steps shaded by its share of evaluation episodes reaching its goal, and at the lane's end each run's last evaluation beside the share random presses reach under its seed. A lane's verdict against random presses reads the 95% interval of the probability that a run of the agent beats a run of random presses on mean return, clearing even odds or not, and a lane trained along the curriculum adds the same probability against the agent's runs from the bedroom.
 
+## The Most Likely Press
+
+Each PPO evaluation plays its episodes a second time under the same seeds taking its most likely press at every step, as [The Episodes](../methods/evaluation.md#the-episodes) sets out, while every comparison above reads the sampled episodes alone. Each PPO seed's count of the sampled episodes reaching the goal stands here one evaluation at a time, beside its count at the most likely press wherever the two counts differ.
+
 [^agarwal2021]: Agarwal et al. 2021. "Deep Reinforcement Learning at the Edge of the Statistical Precipice." *Advances in Neural Information Processing Systems* 34: 29304–29320. <https://proceedings.neurips.cc/paper/2021/hash/f514cec81cb148559cf475e7426eed5e-Abstract.html>

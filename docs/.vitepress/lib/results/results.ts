@@ -154,7 +154,7 @@ export function interquartile(values: readonly number[]): number {
  * of the steps the runs had taken by then, leaving out the share at PPO's
  * most likely press, which the curves do not draw.
  */
-export function meansOf(group: Group): Omit<Score, 'argmax'>[] {
+export function meansOf(group: Group) {
   const evaluations = Math.max(...group.runs.map(run => run.scores.length))
   return Array.from({ length: evaluations }, (_, n) => {
     const scores = group.runs.flatMap(run => run.scores[n] ?? [])
