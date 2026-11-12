@@ -1294,6 +1294,36 @@
     "amethyst",
     "seacaller"
   ],
+  "project_marks": [
+    {
+      "depicts": "The joystick of the game the agent learns to play",
+      "glyph": "🕹️",
+      "gate": false,
+      "section": "Quick Summary",
+      "workflows": true
+    },
+    {
+      "depicts": "The trainer’s backpack",
+      "glyph": "🎒",
+      "gate": true,
+      "section": "Key Changes",
+      "workflows": false
+    },
+    {
+      "depicts": "The walk the tagline names",
+      "glyph": "👟",
+      "gate": false,
+      "section": "Implementation Notes",
+      "workflows": false
+    },
+    {
+      "depicts": "The thread tying a pull request to its issues",
+      "glyph": "🧵",
+      "gate": false,
+      "section": "Related Issues",
+      "workflows": false
+    }
+  ],
   "ramp": {
     "deep": {
       "hex": "#294e95",

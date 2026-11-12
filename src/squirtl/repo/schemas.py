@@ -23,8 +23,9 @@ from enum            import StrEnum, auto
 from fnmatch         import fnmatch
 from functools       import cached_property
 from http            import HTTPMethod
-from itertools       import chain, groupby, takewhile
+from itertools       import chain, groupby, pairwise, takewhile
 from json            import load
+from markdown_it     import MarkdownIt
 from packaging.requirements import Requirement
 from packaging.specifiers   import SpecifierSet
 from packaging.utils        import canonicalize_name
@@ -374,6 +375,13 @@ class Label(Record):
             )
         )
 
+    @property
+    def glyph(self) -> str:
+        """
+        Reads the glyph the label's name opens on.
+        """
+        return self.name.partition(" ")[0]
+
 
 class License(Record):
     """
@@ -493,6 +501,42 @@ class Metadata(Record, extra="ignore"):
                 )
             )
         )
+
+
+class PullRequestTemplate(Record):
+    """
+    The template the body of a pull request opens from, read for the
+    headings of its sections.
+    """
+
+    file: ClassVar[Path] = Path(".github/PULL_REQUEST_TEMPLATE.md")
+
+    text: str
+    """
+    What the template holds.
+    """
+
+    @property
+    def headings(self) -> list[tuple[int, str]]:
+        """
+        Pairs the line each heading opens on, counting from 1, with the
+        heading's text, leaving out a heading written inside an HTML
+        comment, which CommonMark reads as raw HTML rather than as Markdown.
+        """
+        return [
+            (opening.map[0] + 1, inline.content)
+            for opening, inline in pairwise(MarkdownIt("commonmark").parse(self.text))
+            if opening.type == "heading_open"
+        ]
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Reads the template at `file`, raising `Unreadable` where it cannot
+        be read.
+        """
+        with Finding.reading(cls.file):
+            return cls(text=cls.file.read_text(encoding="utf-8"))
 
 
 class Ruleset(JsonFile):

@@ -20,6 +20,7 @@ from squirtl.docs.commands    import Command
 from squirtl.docs.results     import Results, addresses
 from squirtl.emulator.schemas import Record, Symbol
 from squirtl.identity.schemas import Color, Identity
+from squirtl.markdown.tables  import tabulate
 from squirtl.reward.schemas   import Event
 
 
@@ -260,7 +261,7 @@ def identity_table(field: str, identity: Identity) -> str:
 
     match field:
         case "colors" | "neutrals":
-            return markdown(
+            return tabulate(
                 header = ("Token", "Name", "Hex", "Purpose"),
                 rows   = (
                     (f"`{token}`", color.name, f"`{color.hex}`", color.purpose)
@@ -268,7 +269,7 @@ def identity_table(field: str, identity: Identity) -> str:
                 )
             )
         case "ramp":
-            return markdown(
+            return tabulate(
                 header = (
                     "Token", "Name", "Hex", "Mixes In",
                     f"On {light.name}",
@@ -289,7 +290,7 @@ def identity_table(field: str, identity: Identity) -> str:
                 )
             )
         case "hues":
-            return markdown(
+            return tabulate(
                 header = ("Hue", "Ground", "Step", "Hex", "Mixes In", "Contrast"),
                 rows   = (
                     (
@@ -330,7 +331,7 @@ def identity_table(field: str, identity: Identity) -> str:
         case "order":
             roles = {hue: role for role, hue in identity.roles.items()}
 
-            return markdown(
+            return tabulate(
                 header = ("Place", "Hue", "Hex", "Role"),
                 rows   = (
                     (place, color.name, f"`{color.hex}`", f"`{roles[hue]}`")
@@ -339,7 +340,7 @@ def identity_table(field: str, identity: Identity) -> str:
                 )
             )
         case "sections":
-            return markdown(
+            return tabulate(
                 header = ("Section", "Hue", "Hex"),
                 rows   = (
                     (folder.capitalize(), color.name, f"`{color.hex}`")
@@ -348,7 +349,7 @@ def identity_table(field: str, identity: Identity) -> str:
                 )
             )
         case "faces":
-            return markdown(
+            return tabulate(
                 header = ("Role", "Family", "Sets", "Axes", "Fallback"),
                 rows   = (
                     (
@@ -371,14 +372,14 @@ def identity_table(field: str, identity: Identity) -> str:
             named = {
                 token: f"{color.name} `{color.hex}`" for token, color in palette.items()
             }
-            trail = markdown(
+            trail = tabulate(
                 header = ("Part", f"On {light.name}", f"On {dark.name}"),
                 rows   = (
                     (parts[part], named[on_light], named[on_dark])
                     for part, (on_light, on_dark) in identity.logo.named.items()
                 )
             )
-            shades = markdown(
+            shades = tabulate(
                 header = ("Game Boy Shade", "Takes"),
                 rows   = ((shade, named[token]) for shade, token in enumerate(
                     identity.logo.shades
@@ -387,7 +388,7 @@ def identity_table(field: str, identity: Identity) -> str:
 
             return f"{trail}\n\n{shades}"
         case "tagline":
-            return markdown(
+            return tabulate(
                 header = ("Line", "Text"),
                 rows   = (
                     ("Tagline", identity.tagline),
@@ -395,17 +396,6 @@ def identity_table(field: str, identity: Identity) -> str:
                 )
             )
         case _: raise ValueError(f"no identity table is named {field}")
-
-
-def markdown(header: Iterable[str], rows: Iterable[Iterable[object]]) -> str:
-    """
-    Lays out a Markdown table, the bolded `header` and its rule over a line
-    for each row of `rows`, each cell written as `str` writes it.
-    """
-    names = [f"**{name}**" for name in header]
-    lines = (f"| {' | '.join(map(str, cells))} |" for cells in (names, *rows))
-
-    return "\n".join((next(lines), "|" + "---|" * len(names), *lines))
 
 
 def table(name: str, train: Command) -> str:
@@ -425,14 +415,14 @@ def table(name: str, train: Command) -> str:
         case ["settings", subject] : return train.table(f"--{subject}.")
         case ["identity", field]   : return identity_table(field, Identity.read())
         case ["symbols"]:
-            return markdown(
+            return tabulate(
                 header = ("Address", "Label"),
                 rows = ((f"`0x{symbol:04X}`", f"`{symbol.label}`") for symbol in sorted(
                     Symbol
                 ))
             )
         case _:
-            return markdown(
+            return tabulate(
                 header = ("Event", "Index"),
                 rows   = ((f"`{event.name}`", f"`0x{event:02X}`") for event in Event)
             )

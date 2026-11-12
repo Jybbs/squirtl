@@ -17,6 +17,7 @@ from re              import sub
 from typing          import Self
 
 from squirtl.emulator.schemas import Record
+from squirtl.markdown.tables  import tabulate
 from squirtl.runs.schemas     import RunSettings
 
 
@@ -48,11 +49,12 @@ class Setting(Record):
     """
 
     @property
-    def row(self) -> str:
+    def row(self) -> tuple[str, str, str]:
         """
-        Lays the setting out as a row of the page's Markdown table.
+        Spells the cells of the setting's row in the page's Markdown table,
+        the flag, the default, and what it sets in italics.
         """
-        return f"| {self.flag} | {self.default} | *{self.help}* |"
+        return self.flag, self.default, f"*{self.help}*"
 
     @classmethod
     def read(cls, argument: Argument) -> Self:
@@ -183,15 +185,13 @@ class Command(Record):
         Lays out the Markdown table of each setting whose flag opens on
         `prefix`, every setting where `prefix` is empty.
         """
-        return "\n".join(
-            [
-                "| **Flag** | **Default** | **What It Sets** |", "|---|---|---|",
-                *(
-                    setting.row
-                    for setting in self.settings
-                    if setting.name.startswith(prefix)
-                )
-            ]
+        return tabulate(
+            header = ("Flag", "Default", "What It Sets"),
+            rows   = (
+                setting.row
+                for setting in self.settings
+                if setting.name.startswith(prefix)
+            )
         )
 
 

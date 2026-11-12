@@ -17,6 +17,9 @@ Pins what the identity's records declare and derive, covering:
 - The names a reference may not misspell, the keys a declaration may not
   leave out, the names two theme colors may not share, and a step or a
   shade other than the mix it names, each refused as the file is read
+- The glyph each project mark places on a section of a pull request's body
+  and on the workflows' names, and a placement two marks share or none
+  takes, refused as the file is read
 """
 
 from functools import reduce
@@ -279,22 +282,22 @@ def test_a_face_quotes_every_family_but_the_generic_ones(
     assert (face.stack, face.query) == (stack, query)
 
 
-def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
+def test_the_project_marks_place_one_glyph_on_each_section_and_the_workflows():
     """
-    Pins that the `@theme` block opens on clearing Tailwind's own theme and
-    declares every value once, in the order of their names, each length in
-    rems from its pixels and each border in pixels.
+    Pins the glyph the declared project marks place on each section of a
+    pull request's body and on every workflow's name.
     """
-    lines = Identity.read().sheet.splitlines()
-    names = [line.strip().partition(":")[0] for line in lines[2:-1]]
+    identity = Identity.read()
 
-    assert lines[:2] == ["@theme static {", "  --*: initial;"]
-    assert names == sorted(names)
-    assert {
-        "  --border-width-bar: 3px;", "  --spacing-4: 1rem;",
-        "  --text-code: 0.9218em;", "  --text-label: 0.6875rem;"
-    } <= {*lines}
-    assert "--color-citation-shell" in names
+    assert (identity.headings, identity.workflow_mark) == (
+        {
+            "Implementation Notes" : "👟",
+            "Key Changes"          : "🎒",
+            "Quick Summary"        : "🕹️",
+            "Related Issues"       : "🧵"
+        },
+        "🕹️"
+    )
 
 
 @mark.parametrize(
@@ -392,6 +395,24 @@ def test_a_declaration_leaving_out_a_key_fails_the_read(
         Identity.model_validate(declared)
 
 
+def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
+    """
+    Pins that the `@theme` block opens on clearing Tailwind's own theme and
+    declares every value once, in the order of their names, each length in
+    rems from its pixels and each border in pixels.
+    """
+    lines = Identity.read().sheet.splitlines()
+    names = [line.strip().partition(":")[0] for line in lines[2:-1]]
+
+    assert lines[:2] == ["@theme static {", "  --*: initial;"]
+    assert names == sorted(names)
+    assert {
+        "  --border-width-bar: 3px;", "  --spacing-4: 1rem;",
+        "  --text-code: 0.9218em;", "  --text-label: 0.6875rem;"
+    } <= {*lines}
+    assert "--color-citation-shell" in names
+
+
 def test_the_shipped_declaration_holds_every_field_the_record_declares(declared: dict):
     """
     Asserts that `identity.toml` declares a key for every field `Identity`
@@ -399,22 +420,6 @@ def test_the_shipped_declaration_holds_every_field_the_record_declares(declared:
     states.
     """
     assert {*declared} == {*Identity.model_fields}
-
-
-def test_tones_read_each_role_from_the_name_its_scheme_gives():
-    """
-    Pins the color each role takes on each scheme to the color the scheme's
-    name for it reads.
-    """
-    tones = Identity.read().tones
-
-    assert (
-        tones["light"]["ground"],
-        tones["dark"]["ground"],
-        tones["light"]["link"]
-    ) == (
-        "#f3f4f7", "#121722", "#294e95"
-    )
 
 
 @mark.parametrize(
@@ -441,16 +446,20 @@ def test_a_mix_matches_the_one_css_color_mix_draws_in_oklab(
     assert colored(start).mix(share, colored(toward)) == mixed
 
 
-def test_two_theme_colors_sharing_a_name_fail_the_read(declared: dict):
+def test_tones_read_each_role_from_the_name_its_scheme_gives():
     """
-    Pins that a role named as one of the logo's colors fails validation,
-    naming the variable both would write, rather than one color of the
-    site's theme silently replacing the other.
+    Pins the color each role takes on each scheme to the color the scheme's
+    name for it reads.
     """
-    declared["roles"]["ahead"] = "fern"
+    tones = Identity.read().tones
 
-    with raises(ValidationError, match="two theme colors share a name: ahead"):
-        Identity.model_validate(declared)
+    assert (
+        tones["light"]["ground"],
+        tones["dark"]["ground"],
+        tones["light"]["link"]
+    ) == (
+        "#f3f4f7", "#121722", "#294e95"
+    )
 
 
 @mark.parametrize(
@@ -552,4 +561,50 @@ def test_a_step_or_a_shade_other_than_its_mix_fails_the_read(
     reduce(getitem, parents, declared)[key] = value
 
     with raises(ValidationError, match=escape(message)):
+        Identity.model_validate(declared)
+
+
+def test_two_theme_colors_sharing_a_name_fail_the_read(declared: dict):
+    """
+    Pins that a role named as one of the logo's colors fails validation,
+    naming the variable both would write, rather than one color of the
+    site's theme silently replacing the other.
+    """
+    declared["roles"]["ahead"] = "fern"
+
+    with raises(ValidationError, match="two theme colors share a name: ahead"):
+        Identity.model_validate(declared)
+
+
+@mark.parametrize(
+    ("index", "key", "value", "message"),
+    [
+        param(1, "glyph", "🕹️", "share a glyph or a section", id="a-shared-glyph"),
+        param(
+            1,
+            "section",
+            "Quick Summary",
+            "share a glyph or a section",
+            id = "a-shared-section"
+        ),
+        param(1, "workflows", True, "the workflows' names", id="two-workflow-marks"),
+        param(0, "workflows", False, "the workflows' names", id="no-workflow-mark"),
+        param(0, "gate", True, "or their gate", id="two-gate-marks")
+    ]
+)
+def test_a_placement_two_project_marks_share_or_none_takes_fails_the_read(
+    declared : dict,
+    index    : int,
+    key      : str,
+    message  : str,
+    value    : object
+):
+    """
+    Pins that two project marks sharing a glyph or a section, and the
+    workflows' names or their gate taking two marks or none, each fail
+    validation, so the audit reads one glyph for each place.
+    """
+    declared["project_marks"][index][key] = value
+
+    with raises(ValidationError, match=message):
         Identity.model_validate(declared)

@@ -10,6 +10,8 @@ Pins what each check `repo:audit` runs reports, covering:
 - The rows of a pull-request workflow against `repo:ci`, and each defect
   `mise tasks validate` reports
 - The label registry against the files naming its labels
+- The pull request template's headings, the workflows' names, and the
+  labels against the project marks the identity declares
 - The layout of the package and the docstrings of its Python
 - The files `squirtl write docs` writes against their declarations, the
   footnotes of each Markdown file against `docs/references.bib`, the
@@ -35,8 +37,8 @@ from squirtl.docs.outputs     import Inventory
 from squirtl.emulator.schemas import Record
 from squirtl.repo.checks  import (
     Anchors, Attribution, Audit, Check, Commits, Docstrings, Footnotes, Gates,
-    Imports, Inputs, Installs, LabelCheck, Layout, Pins, Rendered, Rows, Runners, ScriptCheck,
-    SiteCopies, SitePins, Subsets, Summaries, TaskCheck, Warming
+    Imports, Inputs, Installs, LabelCheck, Layout, Marks, Pins, Rendered, Rows,
+    Runners, ScriptCheck, SiteCopies, SitePins, Subsets, Summaries, TaskCheck, Warming
 )
 from squirtl.repo.schemas import Finding, Severity, Task, TaskIssue, Tasks, Tree, Unreadable
 
@@ -927,6 +929,145 @@ def test_labels_report_a_label_in_no_category_and_a_malformed_row(scan: Scan):
 
     with raises(Unreadable, match="at `labels.0.color`"):
         scan(LabelCheck, {".github/labels.toml": row.format("3AA6F0")})
+
+
+@mark.parametrize(
+    ("rewrite", "found"),
+    [
+        param(("", ""), [], id="every-mark-in-place"),
+        param(
+            ("### 🎒 Key Changes", "### 🧵 Key Changes"),
+            [(
+                ".github/PULL_REQUEST_TEMPLATE.md",
+                5,
+                "The heading '🧵 Key Changes' opens on other than `🎒`, the mark "
+                "the identity places on 'Key Changes'"
+            )],
+            id = "a-section-on-another-mark"
+        ),
+        param(
+            ("### 🎒 Key Changes", "### Key Changes"),
+            [(
+                ".github/PULL_REQUEST_TEMPLATE.md",
+                5,
+                "The heading 'Key Changes' opens on other than `🎒`, the mark the "
+                "identity places on 'Key Changes'"
+            )],
+            id = "a-section-on-no-mark"
+        ),
+        param(
+            ("### 🧵 Related Issues", "### 🧵 Linked Issues"),
+            [(
+                ".github/PULL_REQUEST_TEMPLATE.md",
+                9,
+                "The heading '🧵 Linked Issues' names no section the identity "
+                "places a mark on"
+            )],
+            id = "a-section-the-identity-places-no-mark-on"
+        ),
+        param(
+            ("name: 🕹️ CI", "name: 🎒 CI"),
+            [(
+                ".github/workflows/ci.yml",
+                1,
+                "`.github/workflows/ci.yml` is named '🎒 CI', which opens on other "
+                "than `🕹️`, the mark of every workflow"
+            )],
+            id = "a-workflow-on-another-mark"
+        ),
+        param(
+            ("name: 🕹️ CI\n", ""),
+            [(
+                ".github/workflows/ci.yml",
+                1,
+                "`.github/workflows/ci.yml` is named '', which opens on other than "
+                "`🕹️`, the mark of every workflow"
+            )],
+            id = "a-workflow-with-no-name"
+        ),
+        param(
+            ('name        = "🧢 agent"', 'name        = "🎒 agent"'),
+            [(
+                ".github/labels.toml", 4,
+                "The label `🎒 agent` takes a project mark as its glyph"
+            )],
+            id = "a-label-on-a-mark"
+        ),
+        param(
+            ('name        = "🧢 agent"', 'name        = "\U0001f579 agent"'),
+            [(
+                ".github/labels.toml", 4,
+                "The label `\U0001f579 agent` takes a project mark as its glyph"
+            )],
+            id = "a-label-on-a-mark-without-its-variation-selector"
+        )
+    ]
+)
+def test_marks_hold_the_template_workflows_and_labels_to_the_identity(
+    found   : list[tuple[str, int, str]],
+    rewrite : tuple[str, str],
+    scan    : Scan
+):
+    """
+    Pins that the mark check passes a template whose headings each open on
+    the mark the identity places on their section, workflows named on the
+    workflows' mark, and labels on no project mark, and reports a heading
+    on another mark or on none, a heading on a section the identity places
+    no mark on, a workflow named on another mark or not named, and a label
+    on a project mark with or without its variation selector, leaving out a
+    heading inside an HTML comment.
+    """
+    shipped = {
+        ".github/PULL_REQUEST_TEMPLATE.md": """
+            ### 🕹️ Quick Summary
+
+            ---
+
+            ### 🎒 Key Changes
+
+            ---
+
+            ### 🧵 Related Issues
+
+            <!-- ### 🪧 Implementation Notes -->
+            """,
+
+        ".github/labels.toml": """
+            [[labels]]
+            color       = "3aa6f0"
+            description = "The agent"
+            name        = "🧢 agent"
+            """,
+
+        ".github/workflows/ci.yml": "name: 🕹️ CI\non: push\njobs: {}\n"
+    }
+    shipped = {
+        path: dedent(text).lstrip("\n").replace(*rewrite)
+        for path, text in shipped.items()
+    }
+
+    assert scan(Marks, shipped) == found
+
+
+def test_marks_report_an_identity_that_fails_validation(
+    monkeypatch : MonkeyPatch,
+    scan        : Scan
+):
+    """
+    Pins that the mark check raises `Unreadable` on the identity's
+    declaration where the identity fails to validate, so the audit reports
+    it as a finding rather than ending.
+    """
+    monkeypatch.setattr(
+        "squirtl.identity.schemas.Identity.read",
+        classmethod(lambda cls: cls.model_validate({}))
+    )
+
+    with raises(
+        Unreadable,
+        match = "`src/squirtl/identity/identity.toml` fails validation"
+    ):
+        scan(Marks, {})
 
 
 def test_rendered_reports_an_identity_that_fails_validation(
@@ -2083,6 +2224,7 @@ def test_the_audit_reports_each_unreadable_file_once(
     audit = Audit.read()
 
     assert {str(finding.file) for finding in audit.findings} == {
+        ".github/PULL_REQUEST_TEMPLATE.md",
         ".github/labels.toml",
         ".github/release.yml",
         ".mise/config.toml",
