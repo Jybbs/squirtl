@@ -14,15 +14,10 @@ const FAVICON = { corner: 18, inset: 8, side: 100, top: 25 }
  * edges of the dots beside it.
  */
 function body(mark: logo.Mark, scheme: identity.Scheme): string {
-  const fill   = logo.logoColors(scheme).block
-  const dots   = mark.dots.map(dot =>
+  const dots = mark.dots.map(dot =>
     `<circle cx="${dot.x}" cy="${dot.y}" r="${logo.dotRadius}" fill="${logo.paintOf(dot, scheme)}"/>`)
-  const blocks = mark.blocks.map(block =>
-      `<rect x="${block.x}" y="${block.y}" width="${block.side}" height="${block.side}" `
-    + `rx="${block.radius}" fill="${fill}"/>`
-    + poseOf(block, block.frame))
 
-  return [...dots, ...blocks, ballOf(mark)].join('')
+  return [...dots, blocksOf(mark, scheme)].join('')
 }
 
 /**
@@ -38,6 +33,21 @@ function svgOf(inner: string, view: logo.ViewBox, attributes = ''): string {
  * Writes `view` as the value of an SVG `viewBox`.
  */
 export const viewBoxOf = (view: logo.ViewBox): string => `${view.x} ${view.y} ${view.width} ${view.height}`
+
+/**
+ * Draws Blue's blocks in `mark`, each in the block color `scheme` gives it with
+ * him walking in it, and the Poké Ball that ends the trail, everything the mark
+ * draws over its dots.
+ */
+export function blocksOf(mark: logo.Mark, scheme: identity.Scheme): string {
+  const fill   = logo.logoColors(scheme).block
+  const blocks = mark.blocks.map(block =>
+      `<rect x="${block.x}" y="${block.y}" width="${block.side}" height="${block.side}" `
+    + `rx="${block.radius}" fill="${fill}"/>`
+    + poseOf(block, block.frame))
+
+  return [...blocks, ballOf(mark)].join('')
+}
 
 /**
  * Draws the Poké Ball that ends the trail of `mark`, in the shades every sprite

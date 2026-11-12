@@ -10,8 +10,10 @@ import { FACTS }        from '../../common/facts.ts'
  */
 const MANIFEST = [
   '[project]',
-  'description = "Plays."',
-  'version     = "0.2.0"',
+  'description     = "Plays."',
+  'keywords        = ["pokemon", "pyboy"]',
+  'requires-python = ">=3.15"',
+  'version         = "0.2.0"',
   '',
   '[project.urls]',
   'Homepage   = "https://squirtl.fyi/"',
@@ -40,7 +42,10 @@ describe('projectFacts', () => {
       '',
       'pyproject.toml declares no project.urls.Repository'
     ],
-    ['description = "Plays."', 'description = ""', 'pyproject.toml declares no project.description'],
+    ['description     = "Plays."', 'description     = ""', 'pyproject.toml declares no project.description'],
+    ['keywords        = ["pokemon", "pyboy"]', 'keywords        = []', 'pyproject.toml declares no project.keywords'],
+    ['"pyboy"]', '7]', 'pyproject.toml declares no project.keywords'],
+    ['requires-python = ">=3.15"', '', 'pyproject.toml declares no project.requires-python'],
     ['fail_under = 95', 'fail_under = "95"', 'pyproject.toml declares no tool.coverage.report.fail_under'],
     [
       '"https://squirtl.fyi/"',

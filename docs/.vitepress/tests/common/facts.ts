@@ -10,6 +10,8 @@ export const FACTS: ProjectFacts = {
   gate        : 95,
   homepage    : 'https://squirtl.fyi/',
   host        : 'squirtl.fyi',
+  keywords    : ['pokemon', 'pyboy'],
+  python      : '3.15',
   repository  : 'https://github.com/Jybbs/squirtl',
   version     : '0.2.0'
 }

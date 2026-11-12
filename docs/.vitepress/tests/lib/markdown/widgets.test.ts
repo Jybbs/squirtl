@@ -4,7 +4,7 @@ import { createMarkdownRenderer } from 'vitepress'
 import { describe, expect, it }   from 'vitest'
 
 import { pagesDir }                                from '../../../lib/config/paths.ts'
-import { placed }                                  from '../../../lib/config/sections.ts'
+import { SINGLES, placed, slugOf }                 from '../../../lib/config/sections.ts'
 import { type Placement, WIDGETS, sectionWidgets } from '../../../lib/markdown/widgets.ts'
 
 /**
@@ -60,9 +60,16 @@ describe('sectionWidgets', () => {
     expect(missing).toStrictEqual([])
   })
 
-  it('places every widget in a section the site carries', () => {
+  it('places every widget in a section or on a page outside them the site carries', () => {
     const folders = new Set(placed().map(section => section.folder as string))
+    const singles = new Set(SINGLES.map(single => `${slugOf(single)}.md`))
 
-    expect(WIDGETS.filter(widget => !folders.has(widget.page.split('/')[0]!))).toStrictEqual([])
+    expect(WIDGETS.map(({ page }) => page).filter(page => !folders.has(page.split('/')[0]!)).filter(page => !singles.has(page))).toStrictEqual([])
+  })
+
+  it('closes a part folding a table shut on its widget, ahead of the fold', async () => {
+    const html = await rendered('# `squirtl watch`\n\nLead.\n\n<details>\n<summary>The table</summary>\n\nA table.\n\n</details>\n', 'commands/watch.md')
+
+    expect(html).toMatch(/Lead\.<\/p>\n<CommandsWatch \/>\n<details>/u)
   })
 })

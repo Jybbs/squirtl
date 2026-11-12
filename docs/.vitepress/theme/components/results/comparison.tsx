@@ -4,9 +4,8 @@ import { useComparison }                                                        
 import { LANES, type Lane, type Lanes, type OddsLine, type SeedRow, type Side } from '../../../lib/results/lanes.ts'
 import { SILHOUETTES }                                                          from '../../../lib/results/marks.ts'
 import { HUES, ROLES }                                                          from '../kit/hues.ts'
-import { Key }                                                                  from '../kit/key.tsx'
 import * as plots                                                               from '../kit/plots.tsx'
-import { LABEL }                                                                from '../kit/widget.ts'
+import { ResultsLegend }                                                        from './legend.tsx'
 
 /**
  * What a screen reader reads for each side a reader widens.
@@ -174,9 +173,7 @@ export const ResultsComparison = defineComponent({
             />
           ))}
         </div>
-        <div class="results-legend grid gap-x-4 gap-y-1">
-          {legend.map(row => [<span class={[LABEL, 'pt-1.5']}>{row.head}</span>, <Key entries={row.entries} />])}
-        </div>
+        <ResultsLegend rows={legend} />
       </div>
     )
   }

@@ -30,6 +30,14 @@ export default defineConfigWithTheme<navigation.SiteTheme>({
     edition   : { host: facts.host, version: facts.version },
     logo      : { alt: IDENTITY.name, dark: '/mark-dark.svg', light: '/mark-light.svg' },
     nav       : navigation.buildNav(),
+    project   : {
+      description : facts.description,
+      gate        : facts.gate,
+      host        : facts.host,
+      keywords    : facts.keywords,
+      python      : facts.python,
+      repository  : facts.repository
+    },
     sidebar   : navigation.buildSidebar(pages),
     siteTitle : false
   },

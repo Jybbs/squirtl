@@ -1,6 +1,6 @@
 import type { KeyEntry }                                     from '../widgets/chips.ts'
 import { EDGES }                                             from './lanes.ts'
-import { SILHOUETTES }                                       from './marks.ts'
+import { SILHOUETTES, glyphOf }                              from './marks.ts'
 import { AGENTS, type Estimate, type Group, hueOf, percent } from './results.ts'
 
 /**
@@ -9,6 +9,26 @@ import { AGENTS, type Estimate, type Group, hueOf, percent } from './results.ts'
 export interface LegendRow {
   entries : readonly KeyEntry[]
   head    : string
+}
+
+/**
+ * The key of the curves' marks, the glyph solid from the bedroom and hollow
+ * along the curriculum, and random presses' level line.
+ */
+export const CURVES: readonly KeyEntry[] = [
+  { mark: glyphOf({ agent: 'ppo', curriculum: false }), name: 'Solid, from the bedroom', role: 'agent' },
+  { mark: glyphOf({ agent: 'ppo', curriculum: true }), name: 'Hollow and dashed, with the curriculum', role: 'agent' },
+  { name: 'Random presses', role: 'random' }
+]
+
+/**
+ * Made-up groups and a made-up share for random presses, one group for each
+ * agent, which a legend set out apart from any run draws in place of the
+ * committed ones.
+ */
+export const SAMPLE: { groups: readonly Pick<Group, 'agent'>[], random: Estimate } = {
+  groups : (Object.keys(AGENTS) as Group['agent'][]).map(agent => ({ agent })),
+  random : { interval: [0.19, 0.31], runs: [30], value: 0.25 }
 }
 
 /**
@@ -84,7 +104,7 @@ const VERDICT: readonly KeyEntry[] = [
  * share `random` across every seed, and the verdict's odds, the curriculum's
  * hatching drawn through the pattern `hatch`.
  */
-export function legendOf(groups: readonly Group[], random: Estimate, hatch: string): LegendRow[] {
+export function legendOf(groups: readonly Pick<Group, 'agent'>[], random: Estimate, hatch: string): LegendRow[] {
   const agents = [...new Set(groups.map(group => group.agent))]
   const band   = '<rect class="fill-random opacity-15" x="1" y="1" width="16" height="16"/>'
                + '<path class="stroke-random" d="M9,1V17" stroke-width="2"/>'
@@ -106,4 +126,14 @@ export function legendOf(groups: readonly Group[], random: Estimate, hatch: stri
     { entries: [{ mark: marked(band), name: 'Across every seed', role: 'random', value: percent(random) }], head: 'Random presses' },
     { entries: VERDICT, head: 'Verdict' }
   ]
+}
+
+/**
+ * Lists every part the Results charts draw, the legend of the figure drawing
+ * `groups` with the curves' key set after what each start draws, so one
+ * legend names the look the charts share.
+ */
+export function lookOf(groups: readonly Pick<Group, 'agent'>[], random: Estimate, hatch: string): LegendRow[] {
+  const [agents, start, ...rest] = legendOf(groups, random, hatch)
+  return [agents!, start!, { entries: CURVES, head: 'Curve' }, ...rest]
 }
