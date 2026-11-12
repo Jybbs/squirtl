@@ -197,8 +197,6 @@ class Novelty:
                 f"the checkpoint's networks differ from the search's: {error}"
             ) from error
 
-        self.scorer.load_state_dict(networks["predictor"])
-
         self.normalizer.count = arrays["count"].item()
         self.normalizer.mean  = arrays["mean"]
         self.normalizer.var   = arrays["var"]
