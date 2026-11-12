@@ -6,10 +6,10 @@ running it, and the collection hook lets a test open a network connection
 only when it carries the `network` mark. The `rom`, `cartridge`, `timed`,
 and `settings` fixtures serve the tests of the emulator, the reward, and
 the environment, so none needs the user's own ROM, `clone` serves every
-test starting a run, which reads the clone it runs in, `outside` every test
-reading a working directory no clone holds, `evaluators` every test of a
-run's evaluation that starts no worker process, and `github` every test
-reading a release.
+test starting a run, which reads the clone it runs in, `git` every test
+committing to one, `outside` every test reading a working directory no clone
+holds, `evaluators` every test of a run's evaluation that starts no worker
+process, and `github` every test reading a release.
 """
 
 from collections.abc   import Callable, Iterable, Iterator, Mapping
@@ -91,6 +91,28 @@ def cleared(request: FixtureRequest) -> Iterator[str]:
     with MonkeyPatch.context() as patched:
         patched.setenv(request.param, "1")
         yield request.param
+
+
+@fixture
+def git(monkeypatch: MonkeyPatch) -> Callable[..., None]:
+    """
+    Builds a runner of `git` under a placeholder author, failing on a
+    nonzero exit.
+
+    `GIT_CONFIG_NOSYSTEM` keeps the machine's system-wide git configuration
+    out of every run, and `GIT_CONFIG_GLOBAL` pointed at the null device
+    keeps the developer's own out.
+    """
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", devnull)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+
+    return lambda *arguments: check_call(
+        [
+            "git", "-c", "user.email=squirtl@example.invalid",
+            "-c", "user.name=SquiRtL",
+            *arguments
+        ]
+    )
 
 
 @fixture(autouse=True)
@@ -264,30 +286,18 @@ def outside(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
 
 @fixture
 def clone(
-    checkout    : Callable[[Mapping[str, str]], None],
-    monkeypatch : MonkeyPatch,
-    tmp_path    : Path
+    checkout : Callable[[Mapping[str, str]], None],
+    git      : Callable[..., None],
+    tmp_path : Path
 ) -> Path:
     """
     Makes `tmp_path`, the working directory `checkout` sets, a git clone
     whose one commit holds a `uv.lock` and a `.gitignore` covering `data/`,
     as the repository's own `.gitignore` does.
-
-    `GIT_CONFIG_NOSYSTEM` keeps the machine's system-wide git configuration
-    out of the clone, and `GIT_CONFIG_GLOBAL` pointed at the null device
-    keeps the developer's own out.
     """
-    monkeypatch.setenv("GIT_CONFIG_GLOBAL", devnull)
-    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     checkout({".gitignore": "/data/\n", "uv.lock": "version = 1\n"})
 
     for command in (["init"], ["add", "."], ["commit", "--message", "Lock"]):
-        check_call(
-            [
-                "git", "-c", "user.email=squirtl@example.invalid",
-                "-c", "user.name=SquiRtL",
-                *command
-            ]
-        )
+        git(*command)
 
     return tmp_path

@@ -1,0 +1,54 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE alias       = "affected"
+#MISE description = "Run the test modules the files changed since the merge base with `main` reach, uncommitted and untracked files included, passing any further arguments to pytest"
+
+reach() {
+  local path rest
+  while IFS= read -r path; do
+    case "$path" in
+      "")
+        ;;
+      pyproject.toml | uv.lock | .mise/config.toml | .mise/mise.lock)
+        echo tests ;;
+      src/squirtl/*.py)
+        echo "tests/${path#src/squirtl/}" ;;
+      tests/*/fixtures/*/*)
+        rest=${path#*/fixtures/}
+        echo "${path%%/fixtures/*}/${rest%%/*}.py" ;;
+      tests/conftest.py | tests/*/conftest.py)
+        echo "${path%/*}" ;;
+      tests/common/*)
+        echo tests ;;
+      tests/*.py)
+        echo "$path" ;;
+      .mise/tasks/*/*)
+        rest=${path#.mise/tasks/}
+        echo "tests/tasks/${rest%%/*}.py" ;;
+      .mise/bin/*)
+        echo tests/tasks/bin.py ;;
+      *)
+        grep \
+          --exclude-dir common \
+          --exclude-dir fixtures \
+          --include '*.py' \
+          -lFr \
+          -- "$path" tests \
+          || true ;;
+    esac
+  done
+}
+
+forwarded=$#
+base=$(git merge-base HEAD origin/main)
+changed=$(
+  git diff --name-only --no-renames "$base" \
+    && git ls-files --exclude-standard --others
+)
+
+while IFS= read -r module; do
+  [[ ! -e "$module" ]] || set -- "$@" "$module"
+done < <(reach <<<"$changed" | sort -u)
+
+(( $# > forwarded )) \
+  || { echo "No test module reaches a file changed since $base"; exit 0; }
+pytest "$@"

@@ -1,8 +1,8 @@
-import vueJsx           from '@vitejs/plugin-vue-jsx'
-import { defineConfig } from 'vitest/config'
+import vueJsx                           from '@vitejs/plugin-vue-jsx'
+import { configDefaults, defineConfig } from 'vitest/config'
 
-import { projectFacts } from './lib/config/manifest.ts'
-import { cacheDir }     from './lib/config/paths.ts'
+import { projectFacts }                 from './lib/config/manifest.ts'
+import { cacheDir }                     from './lib/config/paths.ts'
 
 const { gate } = projectFacts(import.meta.url)
 
@@ -27,6 +27,12 @@ export default defineConfig({
       reportsDirectory : cacheDir(import.meta.url, 'coverage/site'),
       thresholds       : { branches: gate, functions: gate, lines: gate, statements: gate }
     },
+
+    forceRerunTriggers: [
+      ...configDefaults.forceRerunTriggers, '**/.vitepress/lib/config/**',
+      '**/.vitepress/{lib/rendered,theme}/**/*.css', '**/docs/bun.lock', '**/docs/pages/**',
+      '**/pyproject.toml'
+    ],
 
     reporters: process.env.GITHUB_ACTIONS
              ? ['default', ['github-actions', { jobSummary: { enabled: false } }]]
