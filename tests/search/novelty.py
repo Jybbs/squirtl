@@ -5,7 +5,8 @@ stacks, covering:
 - The networks of Appendix A.3, built from a seed on the convolutions the
   Q-network builds, with the initialization Burda et al. release, and the
   global generator left undrawn
-- The inputs normalized by the running mean and deviation and clipped
+- The inputs normalized by the running mean and deviation and clipped, and
+  each convolution and its inputs in the `channels_last` memory format
 - The frames stored in replay memory, capped at its capacity, with each stack
   rebuilt from the frames before it
 - The updates owed for the presses taken, which train the predictor and
@@ -20,7 +21,7 @@ from gymnasium.spaces import Box
 from numpy            import array_equal, full, identity, uint8
 from numpy.random     import default_rng
 from pytest           import approx, raises
-from torch            import Tensor, as_tensor, get_rng_state, manual_seed, ones, zeros
+from torch            import Tensor, as_tensor, channels_last, get_rng_state, manual_seed, ones, zeros
 from torch.nn         import Conv2d, Linear
 from torch.testing    import assert_close
 
@@ -237,6 +238,32 @@ def test_the_arrays_and_networks_load_back_as_a_search_continues_from_them(
         rtol = 0
     )
     assert array_equal(loaded.normalizer.mean, novelty.normalizer.mean)
+
+
+def test_the_convolutions_and_their_inputs_take_the_channels_last_format(
+    novelty: Novelty
+):
+    """
+    Asserts that every convolution of both networks holds its weights
+    in the `channels_last` memory format, and that the error on a stack
+    equals the error both networks give the same normalized stack laid out
+    contiguously, so the format changes the layout and not the result.
+    """
+    stack  = as_tensor(default_rng(3).integers(0, 256, (2, 4, 72, 80), uint8))
+    inputs = (stack.float() - as_tensor(novelty.normalizer.mean).float()).clamp(-5, 5)
+
+    assert all(
+        module.weight.is_contiguous(memory_format=channels_last)
+        for network in (novelty.predictor, novelty.target)
+        for module in network.modules()
+        if isinstance(module, Conv2d)
+    )
+    assert_close(
+        novelty.error(stack),
+        (novelty.predictor(inputs) - novelty.target(inputs)).square().mean(1),
+        atol = 1e-6,
+        rtol = 1e-5
+    )
 
 
 def test_the_convolutions_take_orthogonal_weights_at_a_gain_of_root_2_and_no_bias(

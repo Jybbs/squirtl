@@ -8,6 +8,7 @@ Defines what the tests of a search build from:
 - `boot_in_place`, which boots a worker in the process running the test
 - `searched`, which runs a search to its end, and `finish`, which runs a
   searcher to its end, stopping it where `stop_at_thirty` writes its `stop`
+  or where `terminate_at_twenty` signals its process group
 - `assert_same_checkpoint`, which compares what two searches hold
 - `iterations`, which reads each iteration a run records, and `lines`, which
   reads them apart from their wall time
@@ -16,14 +17,18 @@ Defines what the tests of a search build from:
 from collections.abc  import Callable, Iterable, Iterator
 from compression.zstd import compress
 from contextlib       import AbstractContextManager
+from datetime         import UTC, datetime
 from gymnasium.envs.registration import EnvSpec
 from numpy         import full, uint8
-from signal        import SIGINT, getsignal, signal
+from os            import killpg, setsid
+from pytest        import MonkeyPatch
+from signal        import SIGTERM
 from torch.testing import assert_close
 
+from squirtl.emulator.schemas    import Cartridge
 from squirtl.environment.schemas import Snapshot
 from squirtl.reward.schemas      import Event, Position, ProgressTally
-from squirtl.runs.schemas        import Run
+from squirtl.runs.schemas        import Run, RunSettings
 from squirtl.runs.searcher       import Searcher
 from squirtl.search              import workers
 from squirtl.search.checkpoint   import SearchCheckpoint
@@ -96,16 +101,13 @@ def assert_same_checkpoint(first: SearchCheckpoint, second: SearchCheckpoint):
 
 def boot_in_place(specification: EnvSpec):
     """
-    Runs `boot` on `specification`, putting back the handler it replaces for
-    the interrupt signal, since the test's process receives that signal as
-    the main process of a search does.
+    Runs `boot` on `specification` with the move into a process group of its
+    own left out, since the test's process stays in the group the terminal
+    or the runner signals, as the main process of a search does.
     """
-    handler = getsignal(SIGINT)
-
-    try:
+    with MonkeyPatch.context() as patch:
+        patch.setattr(workers, "setpgrp", lambda: None)
         boot(specification)
-    finally:
-        signal(SIGINT, handler)
 
 
 def drive(search: Search) -> float | None:
@@ -233,3 +235,25 @@ def stop_at_thirty(presses: int, searcher: Searcher):
     """
     if presses >= 30:
         searcher.run.stop.touch()
+
+
+def terminate_at_twenty(cartridge: Cartridge, settings: RunSettings):
+    """
+    Runs a search of `settings` on `cartridge` as the leader of a session
+    of its own, sending the termination signal once to its whole process
+    group after 20 presses at an outer step some group still plays past, as
+    `timeout` signals the group of the command it runs.
+    """
+    setsid()
+
+    def terminate(presses: int, searcher: Searcher):
+        """
+        Signals the group once 20 presses have played and a group has outer
+        steps left.
+        """
+        if presses >= 20 and not searcher.interrupted and any(
+            group.remaining for group in searcher.search.groups
+        ):
+            killpg(0, SIGTERM)
+
+    finish(Searcher(cartridge, settings, datetime(2026, 10, 4, tzinfo=UTC)), terminate)

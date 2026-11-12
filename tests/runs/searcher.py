@@ -7,8 +7,9 @@ Pins the loop of one search, covering:
   the search's end, each written after the iterations are flushed to disk
 - A search ending at its goal, writing the path as an episode, or at its
   steps, and a `stop` file, an
-  interrupt, or a termination signal ending it at an iteration's end, with a
-  second interrupt ending it at once
+  interrupt, or a termination signal ending it at an iteration's end, the
+  last also where it reaches the run's whole process group, with a second
+  interrupt ending it at once
 - A search stopped halfway and resumed ending as one that never stopped, and
   a checkpoint differing from the search refused with no directory left behind
 - The handover a resume reads, and the training run, the search at its
@@ -20,11 +21,15 @@ Pins the loop of one search, covering:
 
 from collections.abc import Callable
 from common.search   import PoolStandIn, assert_same_checkpoint, finish, iterations, lines, stop_at_thirty
+from common.search   import terminate_at_twenty
 from itertools       import pairwise
+from multiprocessing import get_context
+from pathlib         import Path
 from pytest          import MonkeyPatch, mark, raises
 from signal          import SIGINT, SIGTERM, Signals, getsignal, raise_signal
 
-from squirtl.runs.schemas      import Run, Stream
+from squirtl.emulator.schemas  import Cartridge
+from squirtl.runs.schemas      import Run, RunSettings, Stream
 from squirtl.runs.searcher     import SearchHandover, Searcher
 from squirtl.search.checkpoint import SearchCheckpoint
 from squirtl.search.schemas    import Iteration, SearchSettings
@@ -350,6 +355,44 @@ def test_a_search_over_a_real_pool_reaches_the_lines_of_one_in_the_process(
     )
 
     assert lines(real) == lines(twin)
+
+
+@mark.usefixtures("clone")
+def test_a_termination_signal_to_the_runs_group_ends_it_at_its_iterations_end(
+    cartridge : Cartridge,
+    searching : RunSettings
+):
+    """
+    Asserts that the termination signal reaching the whole process group
+    of a search over two real workers partway through an iteration,
+    as `timeout` sends it, ends the search at its iteration's end on a
+    checkpoint holding that iteration's presses, exiting cleanly rather than
+    on a worker the signal ended.
+    """
+    process = get_context("spawn").Process(
+        args = (
+            cartridge,
+            searching.model_copy(
+                update = {
+                    "search": searching.search.model_copy(
+                        update = {"workers": 2, "outer_steps": (2, 2)}
+                    )
+                }
+            )
+        ),
+        target = terminate_at_twenty
+    )
+    process.start()
+    process.join(120)
+
+    run, = map(Run.read, Path("data/runs").iterdir())
+    line = iterations(run)[-1]
+
+    assert (
+        process.exitcode,
+        SearchCheckpoint.from_path(run.checkpoint).frontier.presses,
+        line.presses < run.settings.steps
+    ) == (0, line.presses, True)
 
 
 def test_a_second_interrupt_ends_the_search_at_once_on_its_last_checkpoint(

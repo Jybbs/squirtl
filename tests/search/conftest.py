@@ -83,9 +83,8 @@ def specification(cartridge: Cartridge) -> EnvSpec:
 @fixture
 def booted(specification: EnvSpec) -> Iterator[Env]:
     """
-    Runs `boot` on `specification`, putting back the handler of the
-    interrupt signal it replaces and closing the environment it makes with
-    the test.
+    Runs `boot` on `specification` in the process running the test, as
+    `boot_in_place` runs it, closing the environment it makes with the test.
 
     Yields:
         The environment, reset at seed 0 and stepped with no press past the

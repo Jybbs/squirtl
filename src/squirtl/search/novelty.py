@@ -12,7 +12,7 @@ from math                import sqrt
 from numpy               import array, asarray, frombuffer, ndarray, uint8
 from numpy.random        import Generator
 from statistics          import fmean
-from torch               import Tensor, as_tensor, default_generator, float32, inference_mode, zeros
+from torch               import Tensor, as_tensor, channels_last, default_generator, float32, inference_mode, zeros
 from torch.nn            import Identity, LazyLinear, Linear, ReLU, Sequential
 from torch.nn.functional import mse_loss
 from torch.nn.init       import orthogonal_, zeros_
@@ -45,8 +45,9 @@ class Novelty:
     ):
         """
         Builds both networks over the frame stacks `space` declares, on the
-        device and threads `agent` names, Adam over the predictor, and empty
-        replay memory drawing every batch from `sampling`.
+        device and threads `agent` names and with each convolution's weights
+        in the `channels_last` memory format, Adam over the predictor, and
+        empty replay memory drawing every batch from `sampling`.
 
         Args:
             seed: The unsigned 64-bit seed both networks' weights start
@@ -56,10 +57,13 @@ class Novelty:
 
         with fork_rng(devices=[]):
             default_generator.manual_seed(seed)
-            self.predictor = self.network(space.shape).to(agent.device)
-            self.target    = (
+            self.predictor = self.network(space.shape).to(
+                agent.device,
+                memory_format = channels_last
+            )
+            self.target = (
                 self.network(space.shape)
-                    .to(agent.device)
+                    .to(agent.device, memory_format=channels_last)
                     .requires_grad_(False)
             )
 
@@ -102,7 +106,8 @@ class Novelty:
         """
         Measures the predictor's squared error against the target on each
         stack of `frames`, a `(batch, depth, height, width)` tensor of
-        `uint8`, after normalizing each pixel and clipping it.
+        `uint8`, after normalizing each pixel and clipping it, the stacks
+        laid out in the `channels_last` memory format the convolutions hold.
 
         Returns:
             A `(batch,)` tensor.
@@ -111,7 +116,11 @@ class Novelty:
             as_tensor(values, device=self.device, dtype=float32)
             for values in (self.normalizer.mean, self.normalizer.var ** 0.5)
         )
-        inputs = ((frames.to(float32) - mean) / deviation).clamp(-5, 5)
+        inputs = (
+            ((frames.to(float32) - mean) / deviation)
+            .clamp(-5, 5)
+            .contiguous(memory_format=channels_last)
+        )
 
         return mse_loss(
             self.predictor(inputs),

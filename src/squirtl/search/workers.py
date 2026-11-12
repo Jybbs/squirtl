@@ -6,7 +6,7 @@ process imports the module its worker sits in.
 """
 
 from gymnasium.envs.registration import EnvSpec
-from signal import SIGINT, SIG_IGN, signal
+from os import setpgrp
 
 from squirtl.environment.schemas import Entry
 from squirtl.search.schemas      import Ending, SearchRollout
@@ -14,15 +14,16 @@ from squirtl.search.schemas      import Ending, SearchRollout
 
 def boot(specification: EnvSpec):
     """
-    Ignores the interrupt signal, which a terminal sends every process
-    in its foreground group, so a first interrupt reaches only the main
-    process, whose handler ends the search at its iteration's end. It then
-    makes the environment `specification` describes, which every rollout the
-    process runs restores.
+    Moves the process into a process group of its own, so the interrupt a
+    terminal sends its foreground group and the termination signal `timeout`
+    sends its own group reach only the main process, whose handler ends
+    the search at its iteration's end, while the pool's `terminate` still
+    reaches the worker. It then makes the environment `specification`
+    describes, which every rollout the process runs restores.
     """
     global environment
 
-    signal(SIGINT, SIG_IGN)
+    setpgrp()
 
     environment = specification.make()
 

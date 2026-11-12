@@ -1,8 +1,8 @@
 """
 Pins the worker each rollout runs in, covering:
 
-- The process a worker boots, which ignores a terminal's interrupt, and the
-  modules it imports, none of them PyTorch
+- The process a worker boots, which leads a process group of its own, and
+  the modules it imports, none of them PyTorch
 - A rollout dead where it ends on the screen and the position it started
   from, and surviving where either changes or it earns reward
 - A rollout stopping at the press that earns reward, or playing on where it
@@ -20,8 +20,8 @@ from gymnasium          import Env
 from gymnasium.envs.registration import EnvSpec
 from multiprocessing             import get_context
 from numpy      import frombuffer, uint8
+from os         import getpgrp, getpid
 from pytest     import MonkeyPatch, mark, param
-from signal     import SIGINT, SIG_IGN, getsignal, signal
 from subprocess import check_output
 from sys        import executable
 
@@ -51,23 +51,40 @@ def pressing_after(effect: Callable[[GameBoy], object], monkeypatch: MonkeyPatch
     monkeypatch.setattr(GameBoy, "press", pressing)
 
 
-def test_a_boot_ignores_the_interrupt_and_makes_the_environment(specification: EnvSpec):
+def test_a_boot_moves_into_a_group_of_its_own_and_makes_the_environment(
+    monkeypatch   : MonkeyPatch,
+    specification : EnvSpec
+):
     """
-    Asserts that a boot ignores the interrupt a terminal sends its whole
-    foreground group, and makes the environment that `specification` names.
+    Asserts that a boot moves its process into a process group of its own,
+    which a signal to the main process's group then leaves out, and makes
+    the environment that `specification` names.
     """
-    handler = getsignal(SIGINT)
+    moved = []
+    monkeypatch.setattr(workers, "setpgrp", lambda: moved.append(True))
 
     boot(specification)
 
-    try:
-        with workers.environment as environment:
-            assert (
-                getsignal(SIGINT),
-                environment.spec.id
-            ) == (SIG_IGN, specification.id)
-    finally:
-        signal(SIGINT, handler)
+    with workers.environment as environment:
+        assert (moved, environment.spec.id) == ([True], specification.id)
+
+
+def test_a_spawned_worker_leads_a_process_group_apart_from_the_main_process(
+    specification: EnvSpec
+):
+    """
+    Asserts that a spawned worker leads a process group of its own, apart
+    from the group of the process that started it.
+    """
+    with ProcessPoolExecutor(
+        initargs    = (specification,),
+        initializer = boot,
+        max_workers = 1,
+        mp_context  = get_context("spawn")
+    ) as pool:
+        worker, group = (pool.submit(call).result() for call in (getpid, getpgrp))
+
+    assert (group, group == getpgrp()) == (worker, False)
 
 
 def test_a_worker_imports_no_pytorch():
