@@ -30,3 +30,30 @@ describe('WEIGHTS', () => {
     expect(faces.ROLES.every(role => faces.WEIGHTS[role].length > 0)).toBe(true)
   })
 })
+
+describe('glidesOf', () => {
+  it.each([
+    ['ital,opsz,wght@0,7..72,400..700;1,7..72,400..700', true],
+    ['wght@400;500;700', false],
+    ['CRSV,ELSH,wght@0,0,500', false]
+  ])('reads whether %s loads the weight axis as a range', (axes, glides) => {
+    expect(faces.glidesOf(axes)).toBe(glides)
+  })
+})
+
+describe('copiesOf', () => {
+  it('sets one upright copy of a gliding face at the weight picked beside its italic', () => {
+    const heaviest = faces.WEIGHTS.body.findLastIndex(each => !each.italic)
+
+    expect(faces.copiesOf('body', heaviest).map(({ shown, weight }) => [shown, weight.italic, weight.weight]))
+      .toStrictEqual([[true, false, faces.WEIGHTS.body[heaviest]!.weight], [false, true, 400]])
+  })
+
+  it('shows a gliding face’s italic alone once the italic is picked', () => {
+    expect(faces.copiesOf('body', faces.WEIGHTS.body.length - 1).map(copy => copy.shown)).toStrictEqual([false, true])
+  })
+
+  it('stacks a copy of any other face at each weight it loads, the one picked shown', () => {
+    expect(faces.copiesOf('code', 1)).toStrictEqual(faces.WEIGHTS.code.map((weight, n) => ({ shown: n === 1, weight })))
+  })
+})

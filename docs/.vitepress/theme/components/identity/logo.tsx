@@ -1,11 +1,11 @@
 import { defineComponent, ref } from 'vue'
 
-import { type Scheme, IDENTITY }      from '../../../lib/identity/identity.ts'
-import { GROUNDS, SCHEMES }           from '../../../lib/identity/palette.ts'
-import * as seam                      from '../../../lib/identity/seam.ts'
-import { blocksOf, viewBoxOf }        from '../../../lib/marks/drawings.ts'
-import { dotRadius, paintOf }         from '../../../lib/marks/logo.ts'
-import { DETAIL, LABEL, SCRUB_PARTS } from '../kit/widget.ts'
+import { type Scheme, type Token, hexOf, IDENTITY } from '../../../lib/identity/identity.ts'
+import { GROUNDS, SCHEMES }                         from '../../../lib/identity/palette.ts'
+import * as seam                                    from '../../../lib/identity/seam.ts'
+import { blocksOf, viewBoxOf }                      from '../../../lib/marks/drawings.ts'
+import { dotRadius, paintOf }                       from '../../../lib/marks/logo.ts'
+import { DETAIL, LABEL, SCRUB_PARTS }               from '../kit/widget.ts'
 
 /**
  * The opacity a dot of the trail the fill has not reached stands at.
@@ -45,7 +45,7 @@ function drawStrip({ strip }: Seam) {
             aria-hidden="true"
             class="identity-side absolute inset-0 flex items-center px-3 font-code text-label font-medium tracking-caps uppercase"
             data-scheme={scheme}
-            style={{ background: GROUNDS[scheme].hex, color: IDENTITY.hues.denim[scheme].text }}
+            style={{ background: GROUNDS[scheme].hex, color: hexOf(IDENTITY.logo[scheme].thirds.at(-1) as Token) }}
           >
             {scheme}
           </span>
@@ -115,8 +115,7 @@ export const IdentityLogo = defineComponent({
 
     return () => (
       <div class="identity-seam @container grid gap-3" ref={box} style={{ '--seam': `${state.at.value}%` }}>
-        <div class="flex items-baseline justify-between gap-3">
-          <span class="font-body text-small">Drag the strip to set how much of the logo sits on each ground</span>
+        <div class="flex justify-end">
           <span class={[DETAIL, 'flex-none']}>{state.at.value} · {seam.SEAM - 1 - state.at.value}</span>
         </div>
         {drawStrip(state)}

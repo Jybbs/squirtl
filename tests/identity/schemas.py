@@ -149,6 +149,14 @@ def test_each_section_marks_in_its_hue_at_the_contrast_the_identity_records(
     ) == (hue, light, dark)
 
 
+def test_a_mix_past_the_srgb_gamut_clips_each_channel():
+    """
+    Pins that a mix whose channel leaves the sRGB gamut is clipped to that
+    channel's range rather than failing to encode.
+    """
+    assert colored("#ff0000").mix(0.5, colored("#ffffff")) == "#ffa191"
+
+
 def test_body_text_holds_four_and_a_half_to_one_on_every_surface():
     """
     Pins that each tone the site sets body text in reaches the 4.5:1 WCAG
@@ -167,18 +175,6 @@ def test_body_text_holds_four_and_a_half_to_one_on_every_surface():
             palette[getattr(roles, surface)]
         ) < 4.5
     ] == []
-
-
-def test_code_sets_at_the_size_putting_its_x_height_at_the_bodys():
-    """
-    Pins that code sets at the share of the text around it that stands its
-    lowercase letters at the body's height, the body face's x-height over
-    the code face's.
-    """
-    faces = Identity.read().faces
-
-    assert faces.code_size * faces.code.x_height == approx(faces.body.x_height)
-    assert faces.code_size == approx(0.507 / 0.55)
 
 
 @mark.parametrize(
@@ -201,6 +197,18 @@ def test_a_swatch_writes_light_dark_only_where_the_schemes_differ(
     that differs is written through `light-dark()`, light first.
     """
     assert swatch.value == value
+
+
+def test_code_sets_at_the_size_putting_its_x_height_at_the_bodys():
+    """
+    Pins that code sets at the share of the text around it that stands its
+    lowercase letters at the body's height, the body face's x-height over
+    the code face's.
+    """
+    faces = Identity.read().faces
+
+    assert faces.code_size * faces.code.x_height == approx(faces.body.x_height)
+    assert faces.code_size == approx(0.507 / 0.55)
 
 
 def test_contrast_is_the_same_whichever_color_comes_first():
@@ -227,24 +235,6 @@ def test_motion_writes_its_curves_as_css_functions():
     assert (motion.easing, motion.traveling) == (
         "cubic-bezier(0.32, 0.72, 0, 1)", "cubic-bezier(0.42, 0, 0.58, 1)"
     )
-
-
-def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
-    """
-    Pins that the `@theme` block opens on clearing Tailwind's own theme and
-    declares every value once, in the order of their names, each length in
-    rems from its pixels and each border in pixels.
-    """
-    lines = Identity.read().sheet.splitlines()
-    names = [line.strip().partition(":")[0] for line in lines[2:-1]]
-
-    assert lines[:2] == ["@theme static {", "  --*: initial;"]
-    assert names == sorted(names)
-    assert {
-        "  --border-width-bar: 3px;", "  --spacing-4: 1rem;",
-        "  --text-code: 0.9218em;", "  --text-label: 0.6875rem;"
-    } <= {*lines}
-    assert "--color-citation-shell" in names
 
 
 @mark.parametrize(
@@ -289,13 +279,22 @@ def test_a_face_quotes_every_family_but_the_generic_ones(
     assert (face.stack, face.query) == (stack, query)
 
 
-def test_the_shipped_declaration_holds_every_field_the_record_declares(declared: dict):
+def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
     """
-    Asserts that `identity.toml` declares a key for every field `Identity`
-    reads and no other, so no field falls back on a default the file never
-    states.
+    Pins that the `@theme` block opens on clearing Tailwind's own theme and
+    declares every value once, in the order of their names, each length in
+    rems from its pixels and each border in pixels.
     """
-    assert {*declared} == {*Identity.model_fields}
+    lines = Identity.read().sheet.splitlines()
+    names = [line.strip().partition(":")[0] for line in lines[2:-1]]
+
+    assert lines[:2] == ["@theme static {", "  --*: initial;"]
+    assert names == sorted(names)
+    assert {
+        "  --border-width-bar: 3px;", "  --spacing-4: 1rem;",
+        "  --text-code: 0.9218em;", "  --text-label: 0.6875rem;"
+    } <= {*lines}
+    assert "--color-citation-shell" in names
 
 
 @mark.parametrize(
@@ -393,6 +392,15 @@ def test_a_declaration_leaving_out_a_key_fails_the_read(
         Identity.model_validate(declared)
 
 
+def test_the_shipped_declaration_holds_every_field_the_record_declares(declared: dict):
+    """
+    Asserts that `identity.toml` declares a key for every field `Identity`
+    reads and no other, so no field falls back on a default the file never
+    states.
+    """
+    assert {*declared} == {*Identity.model_fields}
+
+
 def test_tones_read_each_role_from_the_name_its_scheme_gives():
     """
     Pins the color each role takes on each scheme to the color the scheme's
@@ -407,18 +415,6 @@ def test_tones_read_each_role_from_the_name_its_scheme_gives():
     ) == (
         "#f3f4f7", "#121722", "#294e95"
     )
-
-
-def test_two_theme_colors_sharing_a_name_fail_the_read(declared: dict):
-    """
-    Pins that a role named as one of the logo's colors fails validation,
-    naming the variable both would write, rather than one color of the
-    site's theme silently replacing the other.
-    """
-    declared["roles"]["ahead"] = "fern"
-
-    with raises(ValidationError, match="two theme colors share a name: ahead"):
-        Identity.model_validate(declared)
 
 
 @mark.parametrize(
@@ -443,6 +439,18 @@ def test_a_mix_matches_the_one_css_color_mix_draws_in_oklab(
     <start>, <toward> <share>)` in, at each end of the way and between.
     """
     assert colored(start).mix(share, colored(toward)) == mixed
+
+
+def test_two_theme_colors_sharing_a_name_fail_the_read(declared: dict):
+    """
+    Pins that a role named as one of the logo's colors fails validation,
+    naming the variable both would write, rather than one color of the
+    site's theme silently replacing the other.
+    """
+    declared["roles"]["ahead"] = "fern"
+
+    with raises(ValidationError, match="two theme colors share a name: ahead"):
+        Identity.model_validate(declared)
 
 
 @mark.parametrize(
@@ -489,6 +497,18 @@ def test_a_step_mixing_none_or_all_of_the_way_fails_the_read(share: float):
             0.3,
             "a step of Denim's ramp is not the mix it names",
             id = "step"
+        ),
+        param(
+            ("ramp", "pale", "share"),
+            0.4,
+            "a step of Denim's ramp is not the mix it names",
+            id = "last-step"
+        ),
+        param(
+            ("hues", "fern", "dark", "shades"),
+            ["#1a282d", "#27423c", "#396a51", "#4c9467"],
+            "a hue's shade is not the mix of its ground `shares` names",
+            id = "dark-shade"
         ),
         param(
             ("shares",),

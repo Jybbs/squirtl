@@ -72,4 +72,10 @@ describe('sectionWidgets', () => {
 
     expect(html).toMatch(/Lead\.<\/p>\n<CommandsWatch \/>\n<details>/u)
   })
+
+  it('closes a part with no fold of its own at its next heading, ahead of a later part’s fold', async () => {
+    const html = await rendered('# `squirtl watch`\n\nLead.\n\n## Later\n\n<details>\n<summary>The table</summary>\n\nA table.\n\n</details>\n', 'commands/watch.md')
+
+    expect(html).toMatch(/Lead\.<\/p>\n<CommandsWatch \/>\n<h2/u)
+  })
 })

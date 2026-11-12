@@ -197,7 +197,22 @@ def test_each_pair_takes_its_subjects_table_in_place_of_what_it_held():
             "| The dot still ahead | Denim Pale `#92b1e8` | Denim Night `#162d5b` |",
             id = "logo"
         ),
-        param("tagline", f"| Byline | {metadata('squirtl')['Summary']} |", id="tagline")
+        param(
+            "hues",
+            "| Fern | Mirage | Text | `#5cb878` | None | 7.33:1 |",
+            id = "hues-text"
+        ),
+        param(
+            "logo",
+            "| The first third, oldest | Denim Mid `#7097df` | Denim Deep `#294e95` |",
+            id = "logo-oldest"
+        ),
+        param(
+            "tagline",
+            f"| Byline | {metadata('squirtl')['Summary']} |",
+            id = "tagline"
+        ),
+        param("tagline", f"| Tagline | {IDENTITY.tagline} |", id="tagline-tagline")
     ]
 )
 def test_each_identity_table_rows_its_part_of_the_identity(field: str, row: str):

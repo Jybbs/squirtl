@@ -166,7 +166,7 @@ The table below is written from `[faces]` in `identity.toml`, and `mise write` r
 
 ## The Logo
 
-The logo sets the project's name in the display face's dots, with Blue standing in the R and in the L and a Poké Ball ending the path he walks, a trail of dots in Denim's ramp running from the oldest third to the newest. The trail runs from light to dark on the light ground and from dark to light on the dark one, so its newest dots stand farthest from each ground, and each Game Boy shade of Blue's sprite takes a step of Denim's ramp.
+The logo sets the project's name in the display face's dots, with Blue standing in the R and in the L and a Poké Ball ending the path he walks, a trail of dots in Denim's ramp running from the oldest third to the newest. The trail runs from light to dark on the light ground and from dark to light on the dark one, so its newest dots stand farthest from each ground. Blue's sprite takes the light ground for the Game Boy's lightest shade and a step of Denim's ramp for each darker one.
 
 <details>
 <summary>The trail on each ground and the Game Boy shades</summary>
@@ -179,9 +179,9 @@ The tables below are written from `[logo]` in `identity.toml`, and `mise write` 
 |---|---|---|
 | The dot still ahead | Denim Pale `#92b1e8` | Denim Night `#162d5b` |
 | Blue’s block | Denim `#3d6fd0` | Denim Mid `#7097df` |
-| The trail’s oldest third | Denim Mid `#7097df` | Denim Deep `#294e95` |
-| The trail’s middle third | Denim `#3d6fd0` | Denim `#3d6fd0` |
-| The trail’s newest third | Denim Deep `#294e95` | Denim Pale `#92b1e8` |
+| The first third, oldest | Denim Mid `#7097df` | Denim Deep `#294e95` |
+| The middle third | Denim `#3d6fd0` | Denim `#3d6fd0` |
+| The last third, newest | Denim Deep `#294e95` | Denim Pale `#92b1e8` |
 
 | **Game Boy Shade** | **Takes** |
 |---|---|

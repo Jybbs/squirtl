@@ -20,9 +20,9 @@
 .identity-copy[data-shown='true'], .identity-inline > [data-shown='true'] { opacity: 1; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .identity-copy, .identity-inline > *, .identity-face {
+  .identity-copy, .identity-copy > *, .identity-inline > *, .identity-face {
     transition-duration        : calc(2 * var(--default-transition-duration));
-    transition-property        : opacity, box-shadow;
+    transition-property        : opacity, box-shadow, font-weight;
     transition-timing-function : var(--ease-travel);
   }
 }

@@ -43,19 +43,25 @@ export const WORDS = {
 const HUNDRED = 100
 
 /**
- * Reads the weights `axes` loads a face at, written as the Google Fonts CSS API
- * takes them, each upright weight from the lightest, a range read as every
- * hundred across it, and then the italic at its lightest weight where the
- * face loads one.
+ * Reads each tuple of axis values `axes` loads a face at, written as the
+ * Google Fonts CSS API takes them, as a record keyed by each axis's tag.
  */
-export function weightsOf(axes: string): Weight[] {
+function tuplesOf(axes: string): Record<string, string>[] {
   const [names, tuples] = axes.split('@') as [string, string]
   const axis            = names.split(',')
-  const loaded          = tuples.split(';').map(tuple => {
-    const values = tuple.split(',')
-    const [from, to = from] = values[axis.indexOf('wght')]!.split('..').map(Number) as [number, number?]
+  return tuples.split(';').map(tuple => Object.fromEntries(tuple.split(',').map((value, n) => [axis[n]!, value])))
+}
+
+/**
+ * Reads the weights `axes` loads a face at, each upright weight from the
+ * lightest, a range read as every hundred across it, and then the italic at
+ * its lightest weight where the face loads one.
+ */
+export function weightsOf(axes: string): Weight[] {
+  const loaded = tuplesOf(axes).map(tuple => {
+    const [from, to = from] = tuple.wght!.split('..').map(Number) as [number, number?]
     const weights = Array.from({ length: (to - from) / HUNDRED + 1 }, (_, n) => from + n * HUNDRED)
-    return { italic: values[axis.indexOf('ital')] === '1', weights }
+    return { italic: tuple.ital === '1', weights }
   })
   const upright = [...new Set(loaded.filter(each => !each.italic).flatMap(each => each.weights))].toSorted((a, b) => a - b)
   const italic  = loaded.filter(each => each.italic).flatMap(each => each.weights)
@@ -67,10 +73,50 @@ export function weightsOf(axes: string): Weight[] {
 }
 
 /**
+ * Reads whether `axes` loads a face's weight axis as a range, so one copy of
+ * the face moves along the axis from weight to weight rather than one font
+ * file per weight standing in for each.
+ */
+export function glidesOf(axes: string): boolean {
+  return tuplesOf(axes).some(tuple => tuple.wght!.includes('..'))
+}
+
+/**
  * The weights each role's face loads.
  */
 export const WEIGHTS: Readonly<Record<Role, Weight[]>> = Object.fromEntries(
   ROLES.map(role => [role, weightsOf(IDENTITY.faces[role].axes)])) as Record<Role, Weight[]>
+
+/**
+ * Whether each role's face loads its weight axis as a range.
+ */
+const GLIDES: Readonly<Record<Role, boolean>> = Object.fromEntries(
+  ROLES.map(role => [role, glidesOf(IDENTITY.faces[role].axes)])) as Record<Role, boolean>
+
+/**
+ * One copy of a part a face sets, at its weight, and whether it is the copy
+ * shown.
+ */
+export interface Copy {
+  shown  : boolean
+  weight : Weight
+}
+
+/**
+ * Lays out the copies of a part `role`'s face sets with its weight at `at` in
+ * `WEIGHTS` picked. A face loading its weight axis as a range takes one
+ * upright copy set at the weight picked, which moves along the axis, beside
+ * its italic, whereas any other face takes a copy at each weight it loads.
+ */
+export function copiesOf(role: Role, at: number): Copy[] {
+  const weights = WEIGHTS[role]
+  const picked  = weights[at]!
+  if (!GLIDES[role]) return weights.map((weight, n) => ({ shown: n === at, weight }))
+  return [
+    { shown: !picked.italic, weight: { ...picked, italic: false } },
+    ...weights.filter(each => each.italic).map(weight => ({ shown: weight === picked, weight }))
+  ]
+}
 
 /**
  * Holds the weight a reader picks for each face, the lightest at first.

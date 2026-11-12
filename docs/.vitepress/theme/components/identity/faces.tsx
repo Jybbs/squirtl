@@ -51,18 +51,20 @@ function drawPart(role: faces.Role, weight: faces.Weight, code: number): VNode {
 }
 
 /**
- * Stacks a copy of the part `role`'s face sets at each of its weights over a
- * hidden copy at the heaviest, which holds the part's size as the copies
- * crossfade, the copy at the weight picked alone shown.
+ * Stacks the copies of the part `role`'s face sets that `copiesOf` lays out
+ * over a hidden copy at the heaviest weight, which holds the part's size as
+ * the shown copy changes, Literata's upright copy moving along its weight axis
+ * and every other change crossfading.
  */
 function drawStack({ at }: Faces, role: faces.Role) {
-  const weights  = faces.WEIGHTS[role]
-  const heaviest = weights.reduce((most, each) => each.weight > most.weight ? each : most)
+  const heaviest = faces.WEIGHTS[role].reduce((most, each) => each.weight > most.weight ? each : most)
 
   return (
     <div class="identity-stack grid min-w-0">
       <div aria-hidden="true" class="invisible">{drawPart(role, heaviest, at.code)}</div>
-      {weights.map((weight, n) => <div aria-hidden={n !== at[role]} class="identity-copy" data-shown={n === at[role]}>{drawPart(role, weight, at.code)}</div>)}
+      {faces.copiesOf(role, at[role]).map(({ shown, weight }) => (
+        <div aria-hidden={!shown} class="identity-copy" data-shown={shown}>{drawPart(role, weight, at.code)}</div>
+      ))}
     </div>
   )
 }

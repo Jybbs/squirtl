@@ -12,9 +12,9 @@ export interface Placement {
 }
 
 /**
- * The widgets the sections' pages and the Identity page carry, each under the component name the
- * theme registers it by, in the order of their pages and then of their places
- * on each page.
+ * The widgets the sections' pages and the Identity page carry, each under the
+ * component name the theme registers it by, in the order of their pages and
+ * then of their places on each page.
  */
 export const WIDGETS: readonly Placement[] = [
   { heading: 'At the Terminal', name: 'CommandsTerminal', page: 'commands/index.md' },

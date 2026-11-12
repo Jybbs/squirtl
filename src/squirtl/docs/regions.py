@@ -234,9 +234,9 @@ def identity_table(field: str, identity: Identity) -> str:
             parts = {
                 "ahead"   : "The dot still ahead",
                 "block"   : "Blue’s block",
-                "trail-1" : "The trail’s oldest third",
-                "trail-2" : "The trail’s middle third",
-                "trail-3" : "The trail’s newest third"
+                "trail-1" : "The first third, oldest",
+                "trail-2" : "The middle third",
+                "trail-3" : "The last third, newest"
             }
             named = {
                 token: f"{color.name} `{color.hex}`" for token, color in palette.items()

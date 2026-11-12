@@ -34,13 +34,37 @@ describe('IdentityFaces', () => {
     expect(wrapper.findAll('[role="radiogroup"]').map(group => group.get('button').attributes('disabled') !== undefined)).toStrictEqual(lone)
   })
 
-  it('shows the copy of every part a face sets at the weight a reader presses', async () => {
+})
+
+describe('IdentityFaces’s weights', () => {
+  it('moves Literata’s one upright copy to the weight a reader presses and crossfades to its italic', async () => {
     const wrapper = mount(IdentityFaces, { attachTo: document.body })
     const body    = faces.ROLES.indexOf('body')
+    const buttons = wrapper.findAll('[role="radiogroup"]')[body]!.findAll('button')
+    const upright = () => wrapper.findAll('.identity-stack')[body]!.get('.identity-copy > div').attributes('style')
 
-    await wrapper.findAll('[role="radiogroup"]')[body]!.findAll('button').at(-1)!.trigger('click')
+    await buttons.at(-2)!.trigger('click')
+    const pressed = [shownCopies(wrapper)[body], upright()]
+    await buttons.at(-1)!.trigger('click')
 
-    expect(shownCopies(wrapper)[body]).toBe(faces.WEIGHTS.body.length - 1)
+    expect([...pressed, shownCopies(wrapper)[body]]).toStrictEqual([0, expect.stringContaining('font-weight: 700'), 1])
+  })
+
+  it('shows the copy of a face loading static weights at the weight a reader presses', async () => {
+    const wrapper = mount(IdentityFaces, { attachTo: document.body })
+    const code    = faces.ROLES.indexOf('code')
+
+    await wrapper.findAll('[role="radiogroup"]')[code]!.findAll('button').at(-1)!.trigger('click')
+
+    expect(shownCopies(wrapper)[code]).toBe(faces.WEIGHTS.code.length - 1)
+  })
+
+  it('holds each face’s parts in the slot its heaviest weight takes', () => {
+    const wrapper = mount(IdentityFaces)
+    const sizers  = wrapper.findAll('.identity-stack > .invisible > div')
+
+    expect(sizers.map(sizer => sizer.attributes('style'))).toStrictEqual(faces.ROLES.map(role =>
+      expect.stringContaining(`font-weight: ${Math.max(...faces.WEIGHTS[role].map(each => each.weight))}`)))
   })
 
   it('sets the setting’s name in the body’s paragraph at the weight pressed for code', async () => {
