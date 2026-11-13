@@ -8,9 +8,9 @@ import { drawPlace }           from './places.tsx'
 /**
  * The tagline and the byline in each place a reader meets them, three folder
  * cards stacked with their tabs offset, GitHub's repository page with the
- * byline in its About box beside the keywords, the README with the logo, the
- * tagline in italics, and its badges, and the site's card in a link, the stack
- * folding from one to the next until a reader points at it or picks a tab.
+ * byline in its About box beside the keywords, the site's front page with the
+ * tagline beneath the name, and the site's card in a link, the stack folding
+ * from one to the next until a reader points at it or picks a tab.
  */
 export const IdentityTagline = defineComponent({
   name  : 'IdentityTagline',

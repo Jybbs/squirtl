@@ -1,20 +1,10 @@
 import type { VNode } from 'vue'
 
-import coverage from '../../../../assets/badges/coverage.svg'
-import docs     from '../../../../assets/badges/docs.svg'
-import python   from '../../../../assets/badges/python.svg'
-
-import { drawSiteCard }                from '../../../lib/cards/site-card.ts'
-import type { SiteTheme }              from '../../../lib/config/navigation.ts'
-import { type Scheme, IDENTITY }       from '../../../lib/identity/identity.ts'
-import { type Place, badgesOf, repositoryOf } from '../../../lib/identity/places.ts'
-import { drawLogo }                    from '../../../lib/marks/drawings.ts'
-
-/**
- * The icon each badge of the README draws beside its value, by the name it
- * stands for.
- */
-const ICONS: Readonly<Record<string, string>> = { Coverage: coverage, Docs: docs, Python: python }
+import { drawSiteCard }              from '../../../lib/cards/site-card.ts'
+import type { SiteTheme }            from '../../../lib/config/navigation.ts'
+import { type Scheme, IDENTITY }     from '../../../lib/identity/identity.ts'
+import { type Place, repositoryOf }  from '../../../lib/identity/places.ts'
+import { logoLetters }               from '../../../lib/marks/logo.ts'
 
 /**
  * The tabs GitHub's repository page sets above its files, the first open.
@@ -50,27 +40,20 @@ function drawGithub({ project }: SiteTheme): VNode {
 }
 
 /**
- * Draws the README as GitHub shows it, the logo on `scheme`'s ground over the
- * tagline in italics and the badges.
+ * Draws the site's front page under its host, the name in the display face
+ * with the R and the L Blue walks through in the link color, over the tagline
+ * and the byline beneath it.
  */
-function drawReadme({ project }: SiteTheme, scheme: Scheme): VNode {
+function drawFront({ project }: SiteTheme): VNode {
   return (
     <div class="grid">
-      <div aria-hidden="true" class="flex gap-3 border-b-hairline border-rule px-3 pt-2 text-small">
-        <span class="identity-gh-tab pb-2" data-on="true">README</span>
-        <span class="pb-2 text-quiet">MIT license</span>
-      </div>
-      <div class="grid justify-items-center gap-3 px-3 py-4 text-center">
-        <span class="identity-readme-mark block w-full" innerHTML={drawLogo(scheme)} />
-        <div class="font-body text-body italic">{IDENTITY.tagline}</div>
-        <div class="flex flex-wrap justify-center gap-1">
-          {badgesOf(project).map(badge => (
-            <span class="inline-flex">
-              <img alt={badge.name} class="identity-badge block" src={ICONS[badge.name]} />
-              <span class="flex items-center bg-primary px-2 font-code text-label font-bold tracking-caps text-athens-gray uppercase">{badge.value}</span>
-            </span>
-          ))}
-        </div>
+      <div class="border-b-hairline border-rule px-3 py-2 font-code text-label text-quiet">{project.host}</div>
+      <div class="grid gap-2 px-3 py-4">
+        <span class="font-display text-figure leading-tight font-medium text-ink">
+          {Array.from(IDENTITY.name, char => <span class={logoLetters.includes(char) ? 'text-link' : undefined}>{char}</span>)}
+        </span>
+        <span class="font-display text-body leading-tight font-medium text-ink">{IDENTITY.tagline}</span>
+        <span class="font-body text-small text-quiet">{project.description}</span>
       </div>
     </div>
   )
@@ -96,6 +79,6 @@ function drawCard({ edition, project }: SiteTheme, scheme: Scheme): VNode {
  */
 export function drawPlace(place: Place, theme: SiteTheme, scheme: Scheme): VNode {
   if (place === 'github') return drawGithub(theme)
-  if (place === 'readme') return drawReadme(theme, scheme)
+  if (place === 'front') return drawFront(theme)
   return drawCard(theme, scheme)
 }
