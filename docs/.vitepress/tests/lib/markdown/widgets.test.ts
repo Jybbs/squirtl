@@ -77,7 +77,7 @@ describe('sectionWidgets', () => {
     expect(html).toMatch(/Lead\.<\/p>\n<CommandsWatch \/>\n<details>/u)
   })
 
-  it('closes a page’s last part ahead of the footnotes its page cites', async () => {
+  it('closes a page’s last part ahead of the footnotes closing the page', async () => {
     const html = await rendered('# `squirtl watch`\n\nLead.[^source]\n\n[^source]: A source.\n', 'commands/watch.md')
 
     expect(html).toMatch(/Lead\.<sup[^\n]*<\/p>\n<CommandsWatch \/>\n<hr class="footnotes-sep">/u)

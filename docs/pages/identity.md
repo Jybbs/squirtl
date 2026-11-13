@@ -249,4 +249,4 @@ The table below is written from `tagline` in `identity.toml` and the `descriptio
 
 ## The Results Charts
 
-The charts in the [Results](results/index.md) section share one look, each part named below by the row of their legend it sits in. The runs it draws are made up, so none of its figures is a measured result.
+The charts in the [Results](results/index.md) section share one look, each part named below by the row of their legend it sits in. The widget below draws made-up runs, so none of its figures is a measured result.

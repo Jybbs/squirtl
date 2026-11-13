@@ -1,6 +1,6 @@
 # Results
 
-Each comparison in this section plays a trained agent from Blue's bedroom beside random presses under the same seeds, so the two players meet the same draws of the game's randomness, and reports each figure's interquartile mean across runs with its 95% percentile bootstrap interval and the count of runs behind it, the aggregate Agarwal et al.[^agarwal2021] recommend over a handful of runs.
+The learning curves and the comparison against random presses each play a trained agent from Blue's bedroom beside random presses under the same seeds, so the two players meet the same draws of the game's randomness, and report each figure's interquartile mean across runs with its 95% percentile bootstrap interval and the count of runs behind it, the aggregate Agarwal et al.[^agarwal2021] recommend over a handful of runs.
 
 ## The Comparisons
 

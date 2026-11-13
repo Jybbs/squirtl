@@ -302,7 +302,7 @@ class Results(Record):
         Spells the sentence the README opens its results on, each agent's
         share reaching the runs' goal from each start, the agents reaching
         more first and those sharing a phrase joined, beside random presses'
-        share, or the comparison alone where no run is committed.
+        share, or a sentence naming no share where no run is committed.
         """
         if self.random is None:
             return "measures each agent under the same seeds."

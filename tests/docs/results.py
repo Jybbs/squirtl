@@ -453,7 +453,7 @@ def test_the_summary_of_no_run_names_no_share(
     checkout: Callable[[Mapping[str, str]], None]
 ):
     """
-    Pins that results holding no run spell the comparison alone.
+    Pins that results holding no run spell a sentence naming no share.
     """
     checkout({})
 
