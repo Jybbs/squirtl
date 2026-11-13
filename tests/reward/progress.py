@@ -8,6 +8,8 @@ Pins how `Progress` scores each step of an episode, covering:
 - A flag past the goal, or already set when the episode starts, which earns
   nothing
 - The step of the episode first setting each flag
+- The blackout of a party that faints, which Oak's lab spares until the
+  rival's battle there has ended
 - The share every term reports on every step, the most one step earns, and
   each term's total across the episode's steps
 - The grid of reached positions centered on the player, the squares it
@@ -23,6 +25,7 @@ from operator        import attrgetter
 from pytest          import mark, param
 
 from squirtl.emulator.console import GameBoy
+from squirtl.emulator.schemas import Symbol
 from squirtl.reward.progress  import Progress
 from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Term
 
@@ -130,6 +133,46 @@ def test_a_flag_set_when_the_episode_starts_earns_nothing(
     progress = Progress(game_boy, goal, settings)
 
     assert (progress.score(), progress.firsts) == (earning(), {})
+
+
+@mark.parametrize(
+    ("hp", "place", "battled", "blacked_out"),
+    [
+        param(0, 0x00, False, True, id="fainted"),
+        param(1, 0x00, False, False, id="standing"),
+        param(0, 0x28, False, False, id="fainted-in-oaks-lab"),
+        param(0, 0x28, True, True, id="fainted-in-oaks-lab-after-the-rival"),
+        param(1, 0x28, True, False, id="standing-in-oaks-lab-after-the-rival")
+    ]
+)
+def test_a_fainted_party_blacks_out_unless_oaks_lab_holds_the_rivals_battle(
+    battled     : bool,
+    blacked_out : bool,
+    flag        : Callable[[Event], None],
+    game_boy    : GameBoy,
+    hp          : int,
+    move        : Callable[[Position], None],
+    place       : int,
+    progress    : Progress
+):
+    """
+    Asserts that a party of one Pokémon holding `hp` blacks out once it
+    faints on the position a step reached, unless that position is in Oak's
+    lab, map $28, before `EVENT_BATTLED_RIVAL_IN_OAKS_LAB` is set, which
+    `battled` sets.
+    """
+    memory = game_boy.emulator.memory
+
+    memory[Symbol.W_PARTY_COUNT]    = 1
+    memory[Symbol.W_PARTY_MONS + 2] = hp
+
+    if battled:
+        flag(Event.EVENT_BATTLED_RIVAL_IN_OAKS_LAB)
+
+    move(Position(map=place, x=0, y=0))
+    progress.score()
+
+    assert progress.blacked_out is blacked_out
 
 
 def test_a_new_episode_earns_novelty_again_for_a_position_an_earlier_one_reached(

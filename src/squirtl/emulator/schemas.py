@@ -63,7 +63,9 @@ class Symbol(IntEnum):
       Pokémon in battle, its species first and its HP after
     - `W_CUR_MAP`, the map the player stands on
     - `W_EVENT_FLAGS`, the first byte of the event flag array
-    - `W_IS_IN_BATTLE`, nonzero while a battle runs
+    - `W_IS_IN_BATTLE`, 1 in a wild battle, 2 in a trainer's, and $FF,
+      pret/pokered's `LOST_BATTLE`, once a battle is lost until the
+      blackout clears it
     - `W_PARTY_COUNT`, the Pokémon in the player's party
     - `W_PARTY_MONS`, the first byte of the party's structs, one of
       `PARTYMON_STRUCT_LENGTH` bytes for each Pokémon, its species first and

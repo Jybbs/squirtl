@@ -45,6 +45,21 @@ class Progress:
         self.terms     = goal.terms
 
     @property
+    def blacked_out(self) -> bool:
+        """
+        Reads whether the player's party has fainted, per `GameBoy.fainted`,
+        on the position the last step reached, unless that position is in
+        Oak's lab before `EVENT_BATTLED_RIVAL_IN_OAKS_LAB` is set, since
+        losing the rival's battle there blacks nobody out and pret/pokered's
+        `OaksLab.asm` heals the party before setting the flag.
+        """
+        # `OAKS_LAB` is map $28.
+        return self.game_boy.fainted and (
+            self.position.map != 0x28
+            or Event.EVENT_BATTLED_RIVAL_IN_OAKS_LAB in self.events
+        )
+
+    @property
     def flags(self) -> ndarray:
         """
         Marks each flag `Event` names with 1 where set and 0 where not, in

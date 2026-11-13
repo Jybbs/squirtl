@@ -75,7 +75,7 @@ def roll(rollout: SearchRollout) -> Ending:
         frames.append(observation[Entry.FRAMES][-1])
         pressed.append(action)
 
-        if blackout := game_boy.blacked_out:
+        if blackout := progress.blacked_out:
             break
 
         if rollout.halting and overworld.reward.total(progress.earned) > reward:

@@ -207,29 +207,26 @@ def test_a_read_past_a_symbol_reads_the_byte_at_its_offset(game_boy: GameBoy):
 
 
 @mark.parametrize(
-    ("hp", "place", "blacked_out"),
+    ("hp", "fainted"),
     [
-        param([], 0x00, False, id="no-party"),
-        param([0, 0], 0x00, True, id="every-one-fainted"),
-        param([0, 0], 0x28, False, id="every-one-fainted-in-oaks-lab"),
-        param([0, 1], 0x00, False, id="low-byte-left"),
-        param([0, 256], 0x00, False, id="high-byte-left")
+        param([], False, id="no-party"),
+        param([0, 0], True, id="every-one-fainted"),
+        param([0, 1], False, id="low-byte-left"),
+        param([0, 256], False, id="high-byte-left")
     ]
 )
-def test_a_party_blacks_out_once_every_pokemon_holds_no_hp_outside_oaks_lab(
-    blacked_out : bool,
-    game_boy    : GameBoy,
-    hp          : list[int],
-    place       : int
+def test_a_party_faints_once_every_pokemon_holds_no_hp(
+    fainted  : bool,
+    game_boy : GameBoy,
+    hp       : list[int]
 ):
     """
-    Asserts that a party blacks out where it holds a Pokémon and every one's
-    two bytes of HP, read $2C bytes apart, are zero on a map other than
-    Oak's lab, map $28, and that a party of none stands.
+    Asserts that a party faints where it holds a Pokémon and every one's
+    two bytes of HP, read $2C bytes apart, are zero, and that a party of
+    none stands.
     """
     memory = game_boy.emulator.memory
 
-    memory[Symbol.W_CUR_MAP]     = place
     memory[Symbol.W_PARTY_COUNT] = len(hp)
 
     for mon, points in enumerate(hp):
@@ -237,44 +234,41 @@ def test_a_party_blacks_out_once_every_pokemon_holds_no_hp_outside_oaks_lab(
 
         memory[address : address + 2] = points.to_bytes(2)
 
-    assert game_boy.blacked_out is blacked_out
+    assert game_boy.fainted is fainted
 
 
 @mark.parametrize(
-    ("hp", "fighting", "species", "points", "number", "place", "blacked_out"),
+    ("hp", "fighting", "species", "points", "number", "fainted"),
     [
-        param([3], 1, 0xB0, 0, 0, 0x0C, True, id="knocked-out-in-battle"),
-        param([3], 1, 0xB0, 0, 0, 0x28, False, id="knocked-out-in-oaks-lab"),
-        param([19], 1, 0x00, 0, 0, 0x0C, False, id="battle-intro"),
-        param([21], 0, 0xB0, 0, 0, 0x0C, False, id="after-a-battle"),
-        param([0], 1, 0xB0, 1, 0, 0x0C, False, id="low-byte-left"),
-        param([0], 1, 0xB0, 256, 0, 0x0C, False, id="high-byte-left"),
-        param([3, 10], 1, 0xB0, 0, 0, 0x0C, False, id="one-left-in-the-party"),
-        param([0, 10], 1, 0xB0, 0, 1, 0x0C, True, id="second-knocked-out")
+        param([3], 1, 0xB0, 0, 0, True, id="knocked-out-in-battle"),
+        param([19], 1, 0x00, 0, 0, False, id="battle-intro"),
+        param([21], 0, 0xB0, 0, 0, False, id="after-a-battle"),
+        param([0], 1, 0xB0, 1, 0, False, id="low-byte-left"),
+        param([0], 1, 0xB0, 256, 0, False, id="high-byte-left"),
+        param([3, 10], 1, 0xB0, 0, 0, False, id="one-left-in-the-party"),
+        param([0, 10], 1, 0xB0, 0, 1, True, id="second-knocked-out")
     ]
 )
-def test_a_party_in_battle_blacks_out_once_the_pokemon_sent_out_faints(
-    blacked_out : bool,
-    fighting    : int,
-    game_boy    : GameBoy,
-    hp          : list[int],
-    number      : int,
-    place       : int,
-    points      : int,
-    species     : int
+def test_a_party_in_battle_faints_once_the_pokemon_sent_out_faints(
+    fainted  : bool,
+    fighting : int,
+    game_boy : GameBoy,
+    hp       : list[int],
+    number   : int,
+    points   : int,
+    species  : int
 ):
     """
     Asserts that, in a battle whose Pokémon `LoadBattleMonFromParty`
     has written, the Pokémon `wPlayerMonNumber` names reads its HP from
-    `wBattleMon` rather than from its party struct, so a party blacks out at
-    the faint outside Oak's lab, whereas a battle's intro, its species zero
-    over the last battle's HP, and the map after a battle read the party.
-    `fighting` is `wIsInBattle`, and `species` and `points` are the species
-    and the HP `wBattleMon` holds.
+    `wBattleMon` rather than from its party struct, so a party faints at
+    the faint itself, whereas a battle's intro, its species zero over the
+    last battle's HP, and the map after a battle read the party. `fighting`
+    is `wIsInBattle`, and `species` and `points` are the species and the HP
+    `wBattleMon` holds.
     """
     memory = game_boy.emulator.memory
 
-    memory[Symbol.W_CUR_MAP]           = place
     memory[Symbol.W_IS_IN_BATTLE]      = fighting
     memory[Symbol.W_BATTLE_MON]        = species
     memory[Symbol.W_PLAYER_MON_NUMBER] = number
@@ -287,7 +281,7 @@ def test_a_party_in_battle_blacks_out_once_the_pokemon_sent_out_faints(
 
         memory[address : address + 2] = left.to_bytes(2)
 
-    assert game_boy.blacked_out is blacked_out
+    assert game_boy.fainted is fainted
 
 
 def test_a_reset_at_one_timer_div_leaves_a_state_of_one_digest(game_boy: GameBoy):
