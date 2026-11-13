@@ -305,7 +305,7 @@ class Results(Record):
         share, or the comparison alone where no run is committed.
         """
         if self.random is None:
-            return "compares each agent against random presses under the same seeds."
+            return "measures each agent under the same seeds."
 
         agents = sorted(
             (
@@ -326,7 +326,7 @@ class Results(Record):
         head = f"{' and '.join(names)} {verb} `{self.runs[0].goal.name}` {first}"
 
         return (
-            f"compares each agent against random presses under the same {seeds} "
+            f"measures each agent under the same {seeds} "
                 f"{'seed' if seeds == 1 else 'seeds'}, where {head}, "
             + "".join(f"{' and '.join(names)} {text}, " for text, names in rest)
             + f"and random presses {self.random.share}."

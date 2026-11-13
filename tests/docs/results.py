@@ -443,7 +443,7 @@ def test_the_summary_joins_the_agents_sharing_a_phrase(
         )
 
     assert Results.read().summary == (
-        "compares each agent against random presses under the same 1 seed, "
+        "measures each agent under the same 1 seed, "
         "where DQN and PPO reach `EVENT_GOT_STARTER` in every evaluation episode "
         "from the bedroom, and random presses in no evaluation episode."
     )
@@ -457,9 +457,7 @@ def test_the_summary_of_no_run_names_no_share(
     """
     checkout({})
 
-    assert Results.read().summary == (
-        "compares each agent against random presses under the same seeds."
-    )
+    assert Results.read().summary == "measures each agent under the same seeds."
 
 
 def test_the_summary_spells_each_agents_share_from_each_start(
@@ -492,7 +490,7 @@ def test_the_summary_spells_each_agents_share_from_each_start(
             )
 
     assert Results.read().summary == (
-        "compares each agent against random presses under the same 2 seeds, "
+        "measures each agent under the same 2 seeds, "
         "where PPO reaches `EVENT_GOT_STARTER` in every evaluation episode from "
         "the bedroom, PQN in no evaluation episode from the bedroom and in every "
         "evaluation episode along the curriculum, DQN in no evaluation episode "
