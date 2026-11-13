@@ -1,0 +1,68 @@
+.identity-fan {
+  overflow-x       : clip;
+  padding-block    : var(--spacing-7) var(--spacing-3);
+  padding-inline   : var(--spacing-3) var(--spacing-6);
+}
+
+.identity-folder {
+  box-shadow : inset 0 0 0 var(--border-width-hairline) var(--color-rule);
+  grid-area  : 1 / 1;
+  max-inline-size : var(--spacing-identity-folder);
+}
+
+.identity-folder[data-depth='0'] { z-index: 3; }
+
+.identity-folder[data-depth='1'] {
+  transform : translate(var(--spacing-3), calc(-1 * var(--spacing-3)));
+  z-index   : 2;
+}
+
+.identity-folder[data-depth='2'] {
+  transform : translate(var(--spacing-5), calc(-1 * var(--spacing-5)));
+  z-index   : 1;
+}
+
+.identity-folder:not([data-depth='0']) .identity-folder-body { opacity: 0.55; }
+
+.identity-folder-tab {
+  box-shadow        : inset 0 0 0 var(--border-width-hairline) var(--color-rule);
+  inline-size       : calc(100% / 3 - var(--spacing-2));
+  inset-block-end   : 100%;
+  inset-inline-start: calc(var(--tab) * 100% / 3);
+}
+
+.identity-folder-tab[data-state='on'] {
+  box-shadow  : inset 0 0 0 var(--border-width-hairline) var(--color-rule), inset 0 var(--border-width-bar) 0 var(--color-primary);
+  font-weight : var(--font-weight-semibold);
+}
+
+.identity-gh-tab[data-on='true'] {
+  box-shadow  : inset 0 calc(-1 * var(--border-width-ring)) 0 var(--color-primary);
+  color       : var(--color-ink);
+  font-weight : var(--font-weight-semibold);
+}
+
+.identity-topic { background: color-mix(in oklab, var(--color-primary) 14%, transparent); }
+
+.identity-readme-mark { max-inline-size: var(--spacing-identity-readme); }
+
+.identity-readme-mark > svg, .identity-card-art > svg {
+  block-size  : auto;
+  display     : block;
+  inline-size : 100%;
+}
+
+.identity-badge {
+  block-size  : var(--spacing-identity-badge-height);
+  inline-size : var(--spacing-6);
+}
+
+.identity-card-art { box-shadow: 0 0 0 var(--border-width-hairline) var(--color-rule); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .identity-folder {
+    transition-duration        : calc(2 * var(--default-transition-duration));
+    transition-property        : transform;
+    transition-timing-function : var(--ease-travel);
+  }
+}

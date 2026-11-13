@@ -3,7 +3,8 @@ import path from 'node:path'
 
 import { parse } from 'smol-toml'
 
-import { repoRoot } from './paths.ts'
+import { coverageOf } from './coverage.ts'
+import { repoRoot }   from './paths.ts'
 
 /**
  * The type a manifest value of each kind `required` reads takes.
@@ -18,10 +19,13 @@ interface Kinds {
  */
 export interface ProjectFacts {
   base        : string
+  coverage    : string | undefined
   description : string
   gate        : number
   homepage    : string
   host        : string
+  keywords    : readonly string[]
+  python      : string
   repository  : string
   version     : string
 }
@@ -43,12 +47,27 @@ function required<K extends keyof Kinds>(manifest: unknown, kind: K, ...keys: st
 }
 
 /**
+ * Reads the keywords `[project]` declares, failing where it declares none or
+ * any keyword is not a string.
+ */
+function keywordsOf(manifest: unknown): string[] {
+  const keywords = ((manifest as Table).project as Table | undefined)?.keywords
+  if (!Array.isArray(keywords) || keywords.length === 0 || !keywords.every(each => typeof each === 'string')) {
+    throw new Error('pyproject.toml declares no project.keywords')
+  }
+  return keywords
+}
+
+/**
  * Reads what the site states about the project out of the `pyproject.toml` at
  * the root of the checkout holding `metaUrl`, the base path the site serves
  * under being the path of `[project.urls].Homepage` and the host the host of
  * that address, beside the description, the repository's address, the version,
- * and the coverage `[tool.coverage.report].fail_under` holds the package's
- * suite to, which the site's suite takes as well.
+ * the coverage `[tool.coverage.report].fail_under` holds the package's suite
+ * to, which the site's suite takes as well, the keywords, and the least
+ * Python `requires-python` accepts, read from its `>=` bound, and beside them
+ * the coverage the suite's last report measured, where one sits in the
+ * checkout.
  */
 export function projectFacts(metaUrl: string): ProjectFacts {
   const manifest = parse(fs.readFileSync(path.join(repoRoot(metaUrl), 'pyproject.toml'), 'utf8'))
@@ -60,10 +79,13 @@ export function projectFacts(metaUrl: string): ProjectFacts {
 
   return {
     base        : pathname,
+    coverage    : coverageOf(metaUrl),
     description : required(manifest, 'string', 'project', 'description'),
     gate        : required(manifest, 'number', 'tool', 'coverage', 'report', 'fail_under'),
     homepage    : homepage,
     host        : host,
+    keywords    : keywordsOf(manifest),
+    python      : required(manifest, 'string', 'project', 'requires-python').replace(/^>=/u, ''),
     repository  : required(manifest, 'string', 'project', 'urls', 'Repository'),
     version     : required(manifest, 'string', 'project', 'version')
   }

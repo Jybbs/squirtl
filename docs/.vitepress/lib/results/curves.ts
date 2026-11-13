@@ -5,7 +5,7 @@ import { type Frame, type PlotLabel, frameOf, multiplesOf, round } from '../draw
 import { IDENTITY }                                                from '../identity/identity.ts'
 import { BEAT, TRAVEL, useMotion }                                 from '../widgets/motion.ts'
 import { useDrawnWidth }                                           from '../widgets/width.ts'
-import { COMMITTED, type Group, type Score, groupsOf, meansOf }    from './results.ts'
+import { COMMITTED, type Group, type Results, type Score, groupsOf, meansOf } from './results.ts'
 import { useToggles }                                              from './toggles.ts'
 
 /**
@@ -130,18 +130,18 @@ function useTraces(groups: readonly Group[], pressed: Ref<ReadonlySet<string>>, 
 }
 
 /**
- * Draws the committed runs' learning curves in `box`, measuring the width they
- * take there and tracing each group's curve out once `box` first comes into
- * view.
+ * Draws the learning curves of the runs `results` holds, the committed runs
+ * unless given others, in `box`, measuring the width they take there and
+ * tracing each group's curve out once `box` first comes into view.
  *
  * Returns:
  *   The curves laid out, the groups, random presses' share across every seed,
  *   the toggles pressing each group, how far each group's curve has traced
  *   out, and the width drawn at.
  */
-export function useCurves(box: Ref<HTMLElement | undefined>) {
-  const groups  = groupsOf()
-  const random  = COMMITTED.random
+export function useCurves(box: Ref<HTMLElement | undefined>, results: Results = COMMITTED) {
+  const groups  = groupsOf(results)
+  const random  = results.random
   const width   = useDrawnWidth(box, 240)
   const seen    = useElementVisibility(box, { once: true })
   const toggles = useToggles(groups)

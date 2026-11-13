@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment happy-dom
+import { enableAutoUnmount, mount }        from '@vue/test-utils'
+import { afterEach, describe, expect, it } from 'vitest'
+import { defineComponent, ref }            from 'vue'
 
-import { curvesOf } from '../../../lib/results/curves.ts'
-import * as results from '../../../lib/results/results.ts'
-import FIXTURE      from './fixtures/results.json' with { type: 'json' }
+import { curvesOf, useCurves } from '../../../lib/results/curves.ts'
+import * as results            from '../../../lib/results/results.ts'
+import FIXTURE                 from './fixtures/results.json' with { type: 'json' }
+
+enableAutoUnmount(afterEach)
 
 /**
  * The groups of the seven runs the fixture holds.
@@ -36,5 +41,14 @@ describe('curvesOf', () => {
     expect([...curves.labels, ...curves.titles].map(label => label.text)).toStrictEqual([
       '0%', '25%', '50%', '75%', '100%', '0', '0.5', '1', '1.5', 'Environment steps (millions)', 'Episodes reaching the goal (%)'
     ])
+  })
+})
+
+describe('useCurves', () => {
+  it('draws the runs it is handed in place of the committed ones', () => {
+    let drawn: readonly results.Group[] = []
+    mount(defineComponent({ setup: () => { drawn = useCurves(ref(), FIXTURE as unknown as results.Results).groups; return () => null } }))
+
+    expect(drawn).toStrictEqual(GROUPS)
   })
 })

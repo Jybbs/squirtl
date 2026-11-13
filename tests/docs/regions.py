@@ -1,21 +1,28 @@
 """
 Pins how `Region` writes each table into a page, covering the pages it
-finds, a table written between its pair of markers in place of what the
-pair held, the tables of the addresses and the flags, and a marker left
-unpaired, how `Page` writes the parts of a command's page around its own
-prose, covering a page not yet written and markers naming other parts, and
-how `Summary` writes the README's sentence on the results, covering a README
-holding no marker.
+finds, a table written between its pair of markers in place of what the pair
+held, the tables of the addresses and the flags, each table of the identity
+and a name it does not table, and a marker left unpaired, how `Page` writes
+the parts of a command's page around its own prose, covering a page not
+yet written and markers naming other parts, and how `Summary` writes the
+README's sentence on the results, covering a README holding no marker.
 """
 
-from collections.abc import Callable, Mapping
-from pathlib         import Path
-from pytest          import mark, param, raises
+from collections.abc    import Callable, Mapping
+from importlib.metadata import metadata
+from pathlib            import Path
+from pytest             import mark, param, raises
 
-from squirtl.cli           import app
-from squirtl.docs.commands import Command
-from squirtl.docs.regions  import Page, Region, Summary, table
-from squirtl.docs.results  import Results
+from squirtl.cli              import app
+from squirtl.docs.commands    import Command
+from squirtl.docs.regions     import Page, Region, Summary, identity_table, table
+from squirtl.docs.results     import Results
+from squirtl.identity.schemas import Identity
+
+IDENTITY = Identity.read()
+"""
+The identity the package declares, which each identity table reads.
+"""
 
 STOP = Command.read(app, ("stop",))
 """
@@ -28,28 +35,13 @@ The page of `squirtl train`, whose settings each table lists.
 """
 
 
-def test_a_page_keeps_its_prose_and_rewrites_each_part(
-    checkout: Callable[[Mapping[str, str]], None]
-):
+def test_a_name_the_identity_tables_no_part_of_fails():
     """
-    Asserts that rewriting a command's page puts each part of its command in
-    place of what its pair of markers held while the prose before, between,
-    and after the pairs stays as it was.
+    Pins that a marker naming no part of the identity fails the write by
+    name, rather than writing another part's table in its place.
     """
-    checkout(
-        {
-            "docs/pages/commands/stop.md": (
-                "Above\n<!-- help -->\nstale\n<!-- /help -->\n\nBetween\n\n"
-                "<!-- settings -->\n<!-- /settings -->\nBelow\n"
-            )
-        }
-    )
-
-    assert Page.read(STOP).written(STOP) == (
-        "Above\n<!-- help -->\n\n" + STOP.parts["help"]
-        + "\n\n<!-- /help -->\n\nBetween\n\n<!-- settings -->\n\n"
-        + STOP.parts["settings"] + "\n\n<!-- /settings -->\nBelow\n"
-    )
+    with raises(ValueError, match="no identity table is named palette"):
+        identity_table("palette", IDENTITY)
 
 
 @mark.parametrize(
@@ -90,6 +82,30 @@ def test_the_addresses_and_the_flags_are_tabled_in_their_order(
     assert table(name, TRAIN).splitlines()[2:] == rows
 
 
+def test_a_page_keeps_its_prose_and_rewrites_each_part(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Asserts that rewriting a command's page puts each part of its command in
+    place of what its pair of markers held while the prose before, between,
+    and after the pairs stays as it was.
+    """
+    checkout(
+        {
+            "docs/pages/commands/stop.md": (
+                "Above\n<!-- help -->\nstale\n<!-- /help -->\n\nBetween\n\n"
+                "<!-- settings -->\n<!-- /settings -->\nBelow\n"
+            )
+        }
+    )
+
+    assert Page.read(STOP).written(STOP) == (
+        "Above\n<!-- help -->\n\n" + STOP.parts["help"]
+        + "\n\n<!-- /help -->\n\nBetween\n\n<!-- settings -->\n\n"
+        + STOP.parts["settings"] + "\n\n<!-- /settings -->\nBelow\n"
+    )
+
+
 def test_a_page_not_yet_written_holds_each_part_of_its_command(
     checkout: Callable[[Mapping[str, str]], None]
 ):
@@ -103,6 +119,24 @@ def test_a_page_not_yet_written_holds_each_part_of_its_command(
         "<!-- help -->\n\n" + STOP.parts["help"] + "\n\n<!-- /help -->\n\n"
         "<!-- settings -->\n\n" + STOP.parts["settings"]
         + "\n\n<!-- /settings -->\n"
+    )
+
+
+def test_a_pair_of_identity_markers_takes_the_table_of_its_field():
+    """
+    Asserts that a page's pair of `identity:<field>` markers holds the table
+    of that field of the identity once written.
+    """
+    region = Region(
+        path = Path("page.md"),
+        text = "<!-- identity:faces -->\n<!-- /identity:faces -->\n"
+    )
+
+    assert region.written(TRAIN) == (
+        "<!-- identity:faces -->\n\n" + identity_table(
+            "faces",
+            IDENTITY
+        ) + "\n\n<!-- /identity:faces -->\n"
     )
 
 
@@ -175,6 +209,82 @@ def test_each_pair_takes_its_subjects_table_in_place_of_what_it_held():
         + "\n\n<!-- /settings:reward -->\nBetween\n<!-- settings:seed -->\n\n"
         + TRAIN.table("--seed.") + "\n\n<!-- /settings:seed -->\nAfter\n"
     )
+
+
+@mark.parametrize(
+    ("field", "row"),
+    [
+        param(
+            "colors",
+            f"| `primary` | Denim | `#3d6fd0` | {IDENTITY.colors['primary'].purpose} |",
+            id = "colors"
+        ),
+        param(
+            "neutrals",
+            f"| `ground` | Athens Gray | `#f3f4f7` "
+            f"| {IDENTITY.neutrals['ground'].purpose} |",
+            id = "neutrals"
+        ),
+        param(
+            "ramp",
+            "| `deep` | Denim Deep | `#294e95` | 22% black | 7.29:1 | 2.23:1 "
+            f"| {IDENTITY.ramp['deep'].purpose} |",
+            id = "ramp"
+        ),
+        param(
+            "hues",
+            "| Fern | Mirage | Shade 1 | `#1a282c` | 88% Mirage | 1.18:1 |",
+            id = "hues"
+        ),
+        param("order", "| 1 | Denim | `#3d6fd0` | `agent` |", id="order"),
+        param("sections", "| Methods | Indigo | `#5d05a4` |", id="sections"),
+        param(
+            "faces",
+            f"| Code | {IDENTITY.faces.code.family} | Code, figures, labels, and chips "
+            f"| `{IDENTITY.faces.code.axes}` "
+            f"| {', '.join(IDENTITY.faces.code.fallback)} |",
+            id = "faces"
+        ),
+        param(
+            "logo",
+            "| The dot still ahead | Denim Pale `#92b1e8` | Denim Night `#162d5b` |",
+            id = "logo"
+        ),
+        param(
+            "hues",
+            "| Fern | Mirage | Text | `#5cb878` | None | 7.33:1 |",
+            id = "hues-text"
+        ),
+        param(
+            "hues",
+            "| Heath | Athens Gray | Text | `#815e6e` | 33% Mirage | 5.08:1 |",
+            id = "hues-text-mixed"
+        ),
+        param(
+            "hues",
+            "| Denim | Athens Gray | Text | `#294e95` | 22% black | 7.29:1 |",
+            id = "hues-text-link"
+        ),
+        param(
+            "logo",
+            "| The first third, oldest | Denim Mid `#7097df` | Denim Deep `#294e95` |",
+            id = "logo-oldest"
+        ),
+        param(
+            "tagline",
+            f"| Byline | {metadata('squirtl')['Summary']} |",
+            id = "tagline"
+        ),
+        param("tagline", f"| Tagline | {IDENTITY.tagline} |", id="tagline-tagline")
+    ]
+)
+def test_each_identity_table_rows_its_part_of_the_identity(field: str, row: str):
+    """
+    Pins a row of each table the identity lays out to the figures and the
+    names its declaration holds, the contrast each step stands at on its
+    ground among them.
+    """
+    assert row in identity_table(field, IDENTITY).splitlines()
 
 
 def test_only_a_page_holding_a_marker_is_a_region(
@@ -255,6 +365,17 @@ def test_a_readme_holding_no_marker_holds_no_summary(
     checkout(files)
 
     assert [*Summary.found(Results.read())] == []
+
+
+def test_the_logo_table_closes_on_the_color_each_game_boy_shade_takes():
+    """
+    Pins the logo's table to close on the Game Boy's four shades, each
+    beside the color of the identity a sprite takes for it.
+    """
+    assert identity_table("logo", IDENTITY).splitlines()[-4:] == [
+        f"| {shade} | {IDENTITY.palette[token].name} `{IDENTITY.palette[token].hex}` |"
+        for shade, token in enumerate(IDENTITY.logo.shades)
+    ]
 
 
 def test_the_summary_links_the_results_before_its_sentence(
