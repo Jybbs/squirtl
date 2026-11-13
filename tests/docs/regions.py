@@ -58,9 +58,11 @@ def test_a_page_keeps_its_prose_and_rewrites_each_part(
         param(
             "symbols",
             [
-                "| `0xC3A0` | `wTileMap` |", "| `0xD35E` | `wCurMap` |",
-                "| `0xD361` | `wYCoord` |", "| `0xD362` | `wXCoord` |",
-                "| `0xD747` | `wEventFlags` |"
+                "| `0xC3A0` | `wTileMap` |", "| `0xCC2F` | `wPlayerMonNumber` |",
+                "| `0xD014` | `wBattleMon` |", "| `0xD057` | `wIsInBattle` |",
+                "| `0xD163` | `wPartyCount` |", "| `0xD16B` | `wPartyMons` |",
+                "| `0xD35E` | `wCurMap` |", "| `0xD361` | `wYCoord` |",
+                "| `0xD362` | `wXCoord` |", "| `0xD747` | `wEventFlags` |"
             ],
             id = "symbols"
         ),

@@ -4,13 +4,18 @@ The reward pays a step for what it adds to its episode, a little for each square
 
 ## The Bytes It Reads
 
-`wCurMap` holds the map Blue stands on, `wYCoord` and `wXCoord` his row and column on that map, and `wEventFlags` the first byte of the event flags, one bit per event the game has seen. A search reads one more, `wTileMap`, for the tiles the game last drew beneath the sprites, and marks a rollout dead where it leaves the flags, the position, and those tiles as it found them, whereas a rollout in which Blue blacks out plays on from the map the game warps him to, his party healed, per [`squirtl search`](../commands/search.md). The table below is written from the addresses `Symbol` declares, and `mise write` rewrites it.
+`wCurMap` holds the map Blue stands on, `wYCoord` and `wXCoord` his row and column on that map, and `wEventFlags` the first byte of the event flags, one bit per event the game has seen. A search reads more of them. `wPartyCount` and `wPartyMons` hold the HP left in Blue's party, and in a battle `wIsInBattle`, `wPlayerMonNumber`, and `wBattleMon` hold the HP of the Pokémon he has sent out, which the party's copy lags behind until the turn's end. `wTileMap` holds the tiles the game last drew beneath the sprites. A search marks a rollout dead where it leaves the flags, the position, and those tiles as it found them, and where Blue's last Pokémon faints outside Oak's lab, the rollout stopping at the faint itself rather than at the blackout that follows, per [`squirtl search`](../commands/search.md). The table below is written from the addresses `Symbol` declares, and `mise write` rewrites it.
 
 <!-- symbols -->
 
 | **Address** | **Label** |
 |---|---|
 | `0xC3A0` | `wTileMap` |
+| `0xCC2F` | `wPlayerMonNumber` |
+| `0xD014` | `wBattleMon` |
+| `0xD057` | `wIsInBattle` |
+| `0xD163` | `wPartyCount` |
+| `0xD16B` | `wPartyMons` |
 | `0xD35E` | `wCurMap` |
 | `0xD361` | `wYCoord` |
 | `0xD362` | `wXCoord` |

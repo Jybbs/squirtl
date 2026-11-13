@@ -59,19 +59,33 @@ class Symbol(IntEnum):
     its `ram/wram.asm` label in pret/pokered and valued at the address its
     Pokémon Blue symbol file gives:
 
+    - `W_BATTLE_MON`, the first byte of the struct of the player's
+      Pokémon in battle, its species first and its HP after
     - `W_CUR_MAP`, the map the player stands on
     - `W_EVENT_FLAGS`, the first byte of the event flag array
+    - `W_IS_IN_BATTLE`, nonzero while a battle runs
+    - `W_PARTY_COUNT`, the Pokémon in the player's party
+    - `W_PARTY_MONS`, the first byte of the party's structs, one of
+      `PARTYMON_STRUCT_LENGTH` bytes for each Pokémon, its species first and
+      its HP after
+    - `W_PLAYER_MON_NUMBER`, the index in the party of the player's
+      Pokémon in battle
     - `W_TILE_MAP`, the first of the 20 by 18 tiles the game last drew
       beneath the sprites, a row at a time
     - `W_X_COORD` and `W_Y_COORD`, the player's square of 2x2 tiles on the
       current map
     """
 
-    W_CUR_MAP     = 0xD35E
-    W_EVENT_FLAGS = 0xD747
-    W_TILE_MAP    = 0xC3A0
-    W_X_COORD     = 0xD362
-    W_Y_COORD     = 0xD361
+    W_BATTLE_MON        = 0xD014
+    W_CUR_MAP           = 0xD35E
+    W_EVENT_FLAGS       = 0xD747
+    W_IS_IN_BATTLE      = 0xD057
+    W_PARTY_COUNT       = 0xD163
+    W_PARTY_MONS        = 0xD16B
+    W_PLAYER_MON_NUMBER = 0xCC2F
+    W_TILE_MAP          = 0xC3A0
+    W_X_COORD           = 0xD362
+    W_Y_COORD           = 0xD361
 
     @property
     def label(self) -> str:

@@ -5,8 +5,8 @@ Pins the worker each rollout runs in, covering:
   exits printing nothing, and ends once its parent has ended, and the
   modules it imports, none of them PyTorch
 - A rollout dead where it ends on the `wTileMap` and the position it started
-  from, whatever its screen shows, and surviving where either changes, it
-  earns reward, or its party faints
+  from, whatever its screen shows, or blacks out outside Oak's lab, at the
+  faint in a battle, and surviving where either changes or it earns reward
 - A rollout stopping at the press that earns reward, or playing on where it
   brings back a node
 - What an ending holds, each newest frame and each press
@@ -263,31 +263,48 @@ def test_a_rollout_changing_the_screen_alone_in_place_is_dead(
     assert playing(b"\x00").dead
 
 
+@mark.parametrize(
+    ("map", "battle", "dead"),
+    [
+        param(0x00, False, True, id="pallet-town"),
+        param(0x28, False, False, id="oaks-lab"),
+        param(0x0C, True, True, id="knocked-out-on-route-1"),
+        param(0x28, True, False, id="knocked-out-in-oaks-lab")
+    ]
+)
 @mark.usefixtures("booted", "game")
-def test_a_rollout_whose_party_faints_plays_on_alive(
+def test_a_rollout_whose_party_faints_blacks_out_outside_oaks_lab(
+    battle      : bool,
+    dead        : bool,
+    map         : int,
     monkeypatch : MonkeyPatch,
     playing     : Callable[..., Ending]
 ):
     """
-    Asserts that a rollout moving the player plays every press and ends
-    alive where its one Pokémon holds no HP outside Oak's lab, since the
-    game's blackout heals the party and play goes on from there.
+    Asserts that a rollout moving the player ends dead on the press its one
+    Pokémon faints on, stopping there, where the map is any but Oak's lab,
+    in which the game lets Blue lose to the rival, and plays on alive there.
+    In a battle, the faint is a battle HP of zero beside a party struct
+    still holding the HP of the turn before.
     """
     def faint(game_boy: GameBoy):
         """
-        Puts the player on Pallet Town, map $00, with one Pokémon of the
-        party, $D163 in pret/pokered's symbols, holding no HP.
+        Puts the player on `map` with one Pokémon holding no HP, in a battle
+        where `battle` holds.
         """
         memory = game_boy.emulator.memory
 
-        memory[Symbol.W_CUR_MAP] = 0x00
-        memory[0xD163]           = 1
+        memory[Symbol.W_CUR_MAP]        = map
+        memory[Symbol.W_PARTY_COUNT]    = 1
+        memory[Symbol.W_IS_IN_BATTLE]   = battle
+        memory[Symbol.W_BATTLE_MON]     = 0xB0 if battle else 0x00
+        memory[Symbol.W_PARTY_MONS + 2] = 3 if battle else 0
 
     pressing_after(faint, monkeypatch)
 
     ended = playing(b"\x01\x01\x01")
 
-    assert (ended.dead, len(ended.presses)) == (False, 3)
+    assert (ended.dead, len(ended.presses)) == (dead, 1 if dead else 3)
 
 
 @mark.usefixtures("booted")
