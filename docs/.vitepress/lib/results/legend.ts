@@ -99,8 +99,9 @@ const VERDICT: readonly KeyEntry[] = [
 
 /**
  * The key of the most likely press's marks, a seed's tile ringed in Brick Red
- * where its count at the most likely press differs from its sampled count, and
- * the evaluation the widget shows ringed in ink.
+ * where its count at the most likely press differs from its sampled count, the
+ * evaluation the widget shows ringed in ink, and the Brick Red pill naming a
+ * tile's count at the most likely press or an evaluation's differing seeds.
  */
 export const ARGMAX: readonly KeyEntry[] = [
   {
@@ -111,6 +112,11 @@ export const ARGMAX: readonly KeyEntry[] = [
   {
     mark : marked('<rect class="results-shown" x="2" y="3" width="14" height="12" rx="2"/>'),
     name : 'The evaluation shown',
+    role : 'none'
+  },
+  {
+    mark : marked('<rect class="results-named" x="2" y="5" width="14" height="8" rx="2"/>'),
+    name : 'A count at the most likely press',
     role : 'none'
   }
 ]

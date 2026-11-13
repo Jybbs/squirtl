@@ -44,9 +44,14 @@ describe('lookOf', () => {
     ])
   })
 
-  it('draws the differing seed’s ring in Brick Red and the evaluation shown in ink', () => {
-    expect(ARGMAX.map(entry => [entry.name, entry.mark!.includes('results-differs'), entry.mark!.includes('results-shown')]))
-      .toStrictEqual([['A seed differing at its most likely press', true, false], ['The evaluation shown', false, true]])
+  it('marks the differing seed, the evaluation shown, and the count at the most likely press each through its own class', () => {
+    const classes = ['results-differs', 'results-shown', 'results-named']
+
+    expect(ARGMAX.map(entry => [entry.name, classes.filter(name => entry.mark!.includes(name))])).toStrictEqual([
+      ['A seed differing at its most likely press', ['results-differs']],
+      ['The evaluation shown', ['results-shown']],
+      ['A count at the most likely press', ['results-named']]
+    ])
   })
 })
 

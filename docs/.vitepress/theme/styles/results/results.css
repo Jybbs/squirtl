@@ -74,6 +74,8 @@
   stroke-width : 2;
 }
 
+.results-named { fill: var(--color-critical); }
+
 .results-shown {
   fill         : var(--color-lift);
   stroke       : var(--color-ink);
