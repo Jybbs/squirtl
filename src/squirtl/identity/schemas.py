@@ -15,6 +15,8 @@ sheet imports:
 - `Glyph`, `Sprite`, `Badge`, `Letter`, `Letters`, `LogoBlock`, `Scene`, and
   `Logo`, the marks drawn from the display face's dots and from Pokémon
   Blue's pixels
+- `ProjectMark`, an emoji opening a section of a pull request's body, and
+  for one mark each, the name of every workflow or the gate each one ends on
 - `Identity`, the whole declaration
 """
 
@@ -441,6 +443,38 @@ class Motion(Declared):
         return f"cubic-bezier({', '.join(f'{point:g}' for point in points)})"
 
 
+class ProjectMark(Declared):
+    """
+    One project mark, the glyph opening a part of what the repository
+    publishes, beside what it depicts and each place it opens.
+    """
+
+    depicts: str
+    """
+    What the glyph depicts, such as the trainer’s backpack `🎒` draws.
+    """
+
+    glyph: str
+    """
+    The emoji the mark is drawn as.
+    """
+
+    section: str
+    """
+    The section of a pull request's body whose heading the mark opens.
+    """
+
+    gate: bool = False
+    """
+    Whether the mark opens the name of the gate each workflow ends on.
+    """
+
+    workflows: bool = False
+    """
+    Whether the mark opens the name of every workflow.
+    """
+
+
 class Ramp(Declared):
     """
     The steps one hue takes on one color scheme's ground, each mixed in
@@ -856,6 +890,12 @@ class Identity(Declared):
     hue a section takes.
     """
 
+    project_marks: tuple[ProjectMark, ...]
+    """
+    The marks opening the sections of a pull request's body, the name of
+    every workflow, and the gate each workflow ends on.
+    """
+
     ramp: dict[str, Step]
     """
     Denim's lighter and darker steps, each under its name.
@@ -893,6 +933,14 @@ class Identity(Declared):
     """
     The one sentence the front page and the site's card set beneath the name.
     """
+
+    @property
+    def headings(self) -> dict[str, str]:
+        """
+        Maps each section of a pull request's body a project mark opens to
+        the glyph of that mark.
+        """
+        return {mark.section: mark.glyph for mark in self.project_marks}
 
     @property
     def palette(self) -> dict[str, Color]:
@@ -995,6 +1043,13 @@ class Identity(Declared):
 
         return reduce(or_, groups)
 
+    @property
+    def workflow_mark(self) -> str:
+        """
+        Names the glyph of the project mark opening every workflow's name.
+        """
+        return next(mark.glyph for mark in self.project_marks if mark.workflows)
+
     @computed_field
     @property
     def marks(self) -> dict[str, Swatch]:
@@ -1019,6 +1074,31 @@ class Identity(Declared):
             for name, hue in self.hues.items()
             for hue_color in [self.colors[hue.token]]
         }
+
+    @model_validator(mode="after")
+    def placed(self) -> Self:
+        """
+        Refuses project marks sharing a glyph, two marks opening one
+        section, and other than one mark opening every workflow's name or
+        the gate each workflow ends on.
+        """
+        marks  = self.project_marks
+        places = (
+            [mark.glyph for mark in marks],
+            [mark.section for mark in marks]
+        )
+
+        if any(len({*names}) < len(names) for names in places):
+            raise ValueError("two project marks share a glyph or a section")
+        if any(
+            sum(getattr(mark, place) for mark in marks) != 1
+            for place in ("gate", "workflows")
+        ):
+            raise ValueError(
+                "other than one project mark opens the workflows' names or their gate"
+            )
+
+        return self
 
     @classmethod
     def read(cls) -> Self:

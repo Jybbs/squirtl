@@ -869,3 +869,25 @@ grid = """
 0000000000000330
 0000000000000000
 """
+
+[[project_marks]]
+depicts   = "The joystick of the game the agent learns to play"
+glyph     = "🕹️"
+section   = "Quick Summary"
+workflows = true
+
+[[project_marks]]
+depicts = "The trainer’s backpack"
+gate    = true
+glyph   = "🎒"
+section = "Key Changes"
+
+[[project_marks]]
+depicts = "The walk the tagline names"
+glyph   = "👟"
+section = "Implementation Notes"
+
+[[project_marks]]
+depicts = "The thread tying a pull request to its issues"
+glyph   = "🧵"
+section = "Related Issues"

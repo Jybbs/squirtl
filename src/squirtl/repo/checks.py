@@ -22,10 +22,11 @@ from squirtl.cli              import app
 from squirtl.docs.outputs     import Inventory
 from squirtl.docs.schemas     import Bibliography, Manuscripts
 from squirtl.emulator.schemas import Record
+from squirtl.identity.schemas import Identity
 from squirtl.repo.schemas import (
     Actions, Citation, Finding, Labels, License, Lockfile, Manifest, MiseConfig,
-    Project, ReleaseNotes, Rulesets, Scripts, Severity, SiteLockfile, SiteManifest, Tasks,
-    Templates, Tree, Unreadable, Workflows
+    Project, PullRequestTemplate, ReleaseNotes, Rulesets, Scripts, Severity,
+    SiteLockfile, SiteManifest, Tasks, Templates, Tree, Unreadable, Workflows
 )
 
 
@@ -416,9 +417,11 @@ class Imports(Check):
     beneath: ClassVar[dict[str, tuple[str, ...]]] = {
         "agent"       : ("emulator",),
         "cli"         : ("docs", "releases"),
-        "docs"        : ("agent", "evaluation", "identity", "reward", "runs"),
+        "docs"        : (
+            "agent", "evaluation", "identity", "markdown", "reward", "runs"
+        ),
         "environment" : ("reward",),
-        "evaluation"  : ("agent", "environment"),
+        "evaluation"  : ("agent", "environment", "markdown"),
         "releases"    : ("agent", "docs", "runs"),
         "repo"        : ("cli", "docs", "emulator", "releases"),
         "reward"      : ("emulator",),
@@ -747,6 +750,90 @@ class Layout(Check):
                 yield Finding(
                     file    = test,
                     message = f"`{test}` mirrors no module of the package"
+                )
+
+
+class Marks(Check):
+    """
+    Holds the headings of the pull request template, the name of every
+    workflow, and the label registry to the project marks the identity
+    declares, so each section opens on the mark placed on it, every workflow
+    on the workflows' mark, and no label on a project mark.
+    """
+
+    identity  : Identity
+    labels    : Labels
+    template  : PullRequestTemplate
+    workflows : Workflows
+
+    @classmethod
+    def read(cls, documents: Callable[[type], Record]) -> Self:
+        """
+        Builds the check as `Check.read` builds it, raising `Unreadable`
+        on `Rendered.identity` where the identity fails to parse or to
+        validate.
+        """
+        with Finding.reading(Rendered.identity):
+            return super().read(documents)
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding on each heading of the template naming no section
+        the identity places a mark on or opening on other than the mark it
+        places on the section the heading ends on, on each workflow whose
+        name opens on anything other than the workflows' mark, and on each
+        label whose glyph is a project mark.
+        """
+        headings = self.identity.headings
+        mark     = self.identity.workflow_mark
+
+        # Strips the variation selector U+FE0F, so a label drawing a mark
+        # without it still matches.
+        bare   = methodcaller("removesuffix", "\ufe0f")
+        glyphs = {bare(project.glyph) for project in self.identity.project_marks}
+
+        for line, heading in self.template.headings:
+            if (section := next(filter(heading.endswith, headings), None)) is None:
+                yield Finding(
+                    file    = PullRequestTemplate.file,
+                    line    = line,
+                    message = (
+                        f"The heading {heading!r} names no section the identity "
+                        "places a mark on"
+                    )
+                )
+            elif heading != (expected := f"{headings[section]} {section}"):
+                yield Finding(
+                    file    = PullRequestTemplate.file,
+                    line    = line,
+                    message = (
+                        f"The heading {heading!r} reads other than {expected!r}, "
+                        f"the mark the identity places on {section!r} before its name"
+                    )
+                )
+
+        for workflow in self.workflows.workflows:
+            name = workflow.root.get("name", default="")
+
+            if not str(name).startswith(f"{mark} "):
+                yield Finding(
+                    file    = workflow.path,
+                    line    = (workflow.root.at("name") or workflow.root).line,
+                    message = (
+                        f"`{workflow.path}` is named {name!r}, which opens on "
+                        f"other than `{mark}`, the mark of every workflow"
+                    )
+                )
+
+        for label in self.labels.labels:
+            if bare(label.glyph) in glyphs:
+                yield Finding.locate(
+                    Labels.file,
+                    f'"{label.name}"',
+                    message = (
+                        f"The label `{label.name}` takes a project mark as its "
+                        "glyph"
+                    )
                 )
 
 
