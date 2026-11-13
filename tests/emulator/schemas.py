@@ -100,8 +100,6 @@ def test_each_symbol_holds_the_address_pret_pokered_gives_its_label():
     assert {symbol.name: symbol.value for symbol in Symbol} == {
         "W_CUR_MAP"     : 0xD35E,
         "W_EVENT_FLAGS" : 0xD747,
-        "W_PARTY_COUNT" : 0xD163,
-        "W_PARTY_MONS"  : 0xD16B,
         "W_TILE_MAP"    : 0xC3A0,
         "W_X_COORD"     : 0xD362,
         "W_Y_COORD"     : 0xD361
@@ -114,8 +112,7 @@ def test_each_symbol_spells_its_label():
     for.
     """
     assert [symbol.label for symbol in Symbol] == [
-        "wCurMap", "wEventFlags", "wPartyCount", "wPartyMons",
-        "wTileMap", "wXCoord", "wYCoord"
+        "wCurMap", "wEventFlags", "wTileMap", "wXCoord", "wYCoord"
     ]
 
 

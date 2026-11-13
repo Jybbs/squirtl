@@ -123,28 +123,6 @@ class GameBoy(AbstractContextManager):
         self.settings = settings
 
     @property
-    def blacked_out(self) -> bool:
-        """
-        Reads whether the player holds a party whose every Pokémon has no HP
-        left, as pret/pokered's `AnyPartyAlive` finds before a blackout, on
-        a map other than Oak's lab, where losing to the rival blacks nobody
-        out.
-        """
-        party = range(self.read(Symbol.W_PARTY_COUNT))
-
-        # Each struct is pret/pokered's `PARTYMON_STRUCT_LENGTH` of $2C bytes, its
-        # two bytes of HP following the species byte, and `OAKS_LAB` is map $28.
-        return (
-            bool(party)
-            and self.read(Symbol.W_CUR_MAP) != 0x28
-            and not any(
-                self.read(Symbol.W_PARTY_MONS, 0x2C * mon + byte)
-                for mon in party
-                for byte in (1, 2)
-            )
-        )
-
-    @property
     def digest(self) -> str:
         """
         Hashes the whole state of the console as `state` reads it, which is

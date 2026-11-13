@@ -24,8 +24,8 @@ class Ending(Record):
 
     dead: bool
     """
-    Whether the rollout blacked out, or set no flag and ended on the map
-    position and the `wTileMap` it started from.
+    Whether the rollout set no flag and ended on the map position and the
+    `wTileMap` it started from.
     """
 
     frames: bytes

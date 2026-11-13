@@ -206,40 +206,6 @@ def test_a_read_past_a_symbol_reads_the_byte_at_its_offset(game_boy: GameBoy):
     assert game_boy.read(Symbol.W_EVENT_FLAGS, 4) == 0x5A
 
 
-@mark.parametrize(
-    ("hp", "place", "blacked_out"),
-    [
-        param([], 0x00, False, id="no-party"),
-        param([0, 0], 0x00, True, id="every-one-fainted"),
-        param([0, 0], 0x28, False, id="every-one-fainted-in-oaks-lab"),
-        param([0, 1], 0x00, False, id="low-byte-left"),
-        param([0, 256], 0x00, False, id="high-byte-left")
-    ]
-)
-def test_a_party_blacks_out_once_every_pokemon_holds_no_hp_outside_oaks_lab(
-    blacked_out : bool,
-    game_boy    : GameBoy,
-    hp          : list[int],
-    place       : int
-):
-    """
-    Asserts that a party blacks out where it holds a Pokémon and every one's
-    two bytes of HP, read $2C bytes apart, are zero on a map other than
-    Oak's lab, map $28, and that a party of none stands.
-    """
-    memory = game_boy.emulator.memory
-
-    memory[Symbol.W_CUR_MAP]     = place
-    memory[Symbol.W_PARTY_COUNT] = len(hp)
-
-    for mon, points in enumerate(hp):
-        address = Symbol.W_PARTY_MONS + 1 + 0x2C * mon
-
-        memory[address : address + 2] = points.to_bytes(2)
-
-    assert game_boy.blacked_out is blacked_out
-
-
 def test_a_reset_at_one_timer_div_leaves_a_state_of_one_digest(game_boy: GameBoy):
     """
     Asserts that a reset at one `timer_div` leaves the console in a state of
