@@ -14,6 +14,8 @@ Pins what `Results` reads from the run directories under
   that do not match its agent, which `Trained.read` refuses
 - The goal each run ended its episodes at, and runs ending at more than one,
   which `Results.read` refuses
+- The run `ReleaseSettings` recommends by default, one of the runs
+  committed under `docs/runs/`
 - The README's sentence on the runs, each agent's share from each start
   with the agents sharing a phrase joined
 """
@@ -25,7 +27,7 @@ from pathlib           import Path
 from pytest            import approx, mark, param, raises
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm
-from squirtl.docs.results        import Results, Trained
+from squirtl.docs.results        import ReleaseSettings, Results, Trained
 from squirtl.emulator.schemas    import EmulatorSettings
 from squirtl.environment.schemas import EnvironmentSettings, Outcome
 from squirtl.evaluation.schemas  import Evaluation
@@ -409,6 +411,19 @@ def test_the_curriculum_compares_against_the_same_agents_runs_from_the_bedroom(
         (Algorithm.PQN, False, None),
         (Algorithm.PQN, True, approx(1.0))
     ]
+
+
+def test_the_recommended_run_is_one_of_the_committed_runs():
+    """
+    Asserts that the run `ReleaseSettings` recommends by default is one of
+    the trained runs committed under `docs/runs/`, its record on disk there,
+    so a release packs it rather than `squirtl pack` refusing a stale name.
+    """
+    settings = ReleaseSettings()
+
+    settings.check_recommends({run.name for run in Results.read().runs})
+
+    assert (Results.folder / settings.recommended_run / "run.json").is_file()
 
 
 def test_the_summary_joins_the_agents_sharing_a_phrase(
