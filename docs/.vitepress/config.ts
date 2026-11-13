@@ -30,11 +30,9 @@ export default defineConfigWithTheme<navigation.SiteTheme>({
     logo      : { alt: IDENTITY.name, dark: '/mark-dark.svg', light: '/mark-light.svg' },
     nav       : navigation.buildNav(),
     project   : {
-      coverage    : facts.coverage,
       description : facts.description,
       host        : facts.host,
       keywords    : facts.keywords,
-      python      : facts.python,
       repository  : facts.repository
     },
     sidebar   : await navigation.buildSidebar(pages),

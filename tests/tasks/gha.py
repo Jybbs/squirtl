@@ -5,8 +5,9 @@ Pins what each `gha` task decides from its inputs, covering:
   beside the further arguments it forwards
 - The verdict and summary `gha:brief` writes for the jobs a gate waited on
 - Which cache entries `gha:prune` treats as replaced, and how it deletes one
-- Which path `gha:cut` takes for the releases GitHub holds, and what it
-  sends on each
+- Which path `gha:cut` takes for the releases GitHub holds, what it
+  sends on each, and where the runs the draft's manifest lists differ from
+  the runs `docs/runs/` commits
 
 The stand-in under `fixtures/` answers for `zizmor`, printing each argument
 it receives on a line of its own, and the `fp` fixture pytest-subprocess
@@ -25,12 +26,16 @@ from runpy             import run_path
 from syrupy.assertion  import SnapshotAssertion
 from types             import ModuleType
 
+from squirtl.docs.results     import Results
+from squirtl.releases.schemas import ReleaseManifest
+
 ATTACHED  = "https://github.com/Jybbs/squirtl/actions/runs/1/artifacts/2"
 GENERATED = (
     "<!-- Release notes generated using configuration in "
     ".github/release.yml at main -->"
 )
 LATER    = "2026-09-02T00:00:00Z"
+MANIFEST = {"id": 7, "name": ReleaseManifest.file}
 UNTAGGED = "https://github.com/Jybbs/squirtl/releases/tag/untagged-0123456789abcdef"
 
 
@@ -72,18 +77,20 @@ def job(result: str, outputs: dict[str, str] | None = None) -> dict:
 def release(
     tag_name   : str,
     *,
-    body       : str | None = None,
-    draft      : bool       = True,
-    release_id : int        = 1
+    assets     : list[dict] | None = None,
+    body       : str | None        = None,
+    draft      : bool              = True,
+    release_id : int               = 1
 ) -> dict:
     """
     Poses one release in the shape `gha:cut` reads it from the listing.
 
     Returns:
-        That release, a draft of `main` holding no body unless a case says
-        otherwise.
+        That release, a draft of `main` attaching no asset and holding no
+        body unless a case says otherwise.
     """
     return {
+        "assets"           : assets or [],
         "body"             : body,
         "draft"            : draft,
         "id"               : release_id,
@@ -103,12 +110,14 @@ def cut(load_task: Callable[[str], ModuleType]) -> ModuleType:
 @fixture
 def draft(cut: ModuleType) -> Callable[..., object]:
     """
-    Builds a reader of the `Draft` for version `0.2.0` among the releases a
-    case poses, each in the shape `gha:cut` reads it from the listing.
+    Builds a reader of the `Draft` for version `0.2.0` among the releases
+    a case poses, each in the shape `gha:cut` reads it from the listing,
+    beside the runs a case names as committed, none where it names no run.
     """
-    return lambda *listing: cut.Draft(
-        releases = [cut.Release(**each) for each in listing],
-        version  = "0.2.0"
+    return lambda *listing, committed=frozenset(): cut.Draft(
+        committed = set(committed),
+        releases  = [cut.Release(**each) for each in listing],
+        version   = "0.2.0"
     )
 
 
@@ -339,29 +348,33 @@ def test_the_summary_names_the_head_of_the_branch_it_ran_for(
     assert sentence in capsys.readouterr().out
 
 
-def test_a_failed_gh_call_stops_the_task_with_what_gh_reported(
+def test_a_draft_whose_manifest_matches_docs_runs_passes(
     draft   : Callable[..., object],
     fp      : FakeProcess,
     outputs : Path
 ):
     """
-    Pins that a `gh` call that fails stops the task with an error annotation
-    naming the call and carrying what `gh` reported, before any output is
-    written.
+    Pins that a refreshed draft whose manifest lists exactly the runs
+    `docs/runs/` commits, in whatever order, finishes with its outputs
+    written and no annotation.
     """
     fp.register(
-        ["gh", "release", "create", fp.any()],
-        returncode = 1,
-        stderr     = "HTTP 422: Validation Failed\n"
+        ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
+        stdout = dumps({"body": GENERATED})
     )
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/1", fp.any()],
+        stdout = dumps({"html_url": UNTAGGED})
+    )
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/assets/7", fp.any()],
+        stdout = dumps({"runs": [{"name": "late"}, {"name": "early"}]})
+    )
+    draft(release("0.2.0", assets=[MANIFEST]), committed={"early", "late"}).maintain()
 
-    with raises(
-        SystemExit,
-        match = r"^::error::gh release create failed, HTTP 422: Validation Failed\Z"
-    ):
-        draft().maintain()
-
-    assert not outputs.exists()
+    assert outputs.read_text(encoding="utf-8") == (
+        f"state=refreshed\nurl={UNTAGGED}\nversion=0.2.0\n"
+    )
 
 
 @mark.parametrize(
@@ -505,6 +518,31 @@ def test_delete_reports_whether_github_accepted_it(
     assert list(fp.calls) == [["gh", "cache", "delete", "7"]]
 
 
+def test_a_failed_gh_call_stops_the_task_with_what_gh_reported(
+    draft   : Callable[..., object],
+    fp      : FakeProcess,
+    outputs : Path
+):
+    """
+    Pins that a `gh` call that fails stops the task with an error annotation
+    naming the call and carrying what `gh` reported, before any output is
+    written.
+    """
+    fp.register(
+        ["gh", "release", "create", fp.any()],
+        returncode = 1,
+        stderr     = "HTTP 422: Validation Failed\n"
+    )
+
+    with raises(
+        SystemExit,
+        match = r"^::error::gh release create failed, HTTP 422: Validation Failed\Z"
+    ):
+        draft().maintain()
+
+    assert not outputs.exists()
+
+
 def test_a_failed_listing_stops_the_task_before_any_delete(
     fp    : FakeProcess,
     prune : ModuleType
@@ -546,21 +584,6 @@ def test_a_published_version_stops_the_task_naming_mise_bump(
     assert not outputs.exists()
 
 
-def test_a_template_naming_an_unknown_variable_fails_the_gate(
-    gate      : Callable[..., object],
-    templates : Callable[..., None]
-):
-    """
-    Pins that a template naming a variable the gate does not pass raises
-    rather than rendering it as empty text, so a misspelled name fails the
-    gate instead of writing a summary with a gap in it.
-    """
-    templates(base="{{ verdict }}\n")
-
-    with raises(TemplateError):
-        gate().write()
-
-
 @mark.parametrize(
     ("shell", "kind"),
     [
@@ -589,29 +612,19 @@ def test_lint_hands_zizmor_the_format_its_shell_reads(
     ]
 
 
-def test_running_the_task_creates_the_draft_where_only_earlier_versions_are_published(
-    checkout     : Callable[..., None],
-    fp           : FakeProcess,
-    outputs      : Path,
-    pytestconfig : Config
+def test_a_template_naming_an_unknown_variable_fails_the_gate(
+    gate      : Callable[..., object],
+    templates : Callable[..., None]
 ):
     """
-    Pins that running the task where the listing holds only an earlier
-    published version, as it does at the first merge of a cycle, creates the
-    draft for the version `pyproject.toml` carries.
+    Pins that a template naming a variable the gate does not pass raises
+    rather than rendering it as empty text, so a misspelled name fails the
+    gate instead of writing a summary with a gap in it.
     """
-    checkout({"pyproject.toml": '[project]\nversion = "0.2.0"\n'})
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases", fp.any()],
-        stdout = f"{dumps(release('0.1.0', draft=False))}\n"
-    )
-    fp.register(["gh", "release", "create", fp.any()], stdout=f"{UNTAGGED}\n")
-    run_path(str(pytestconfig.rootpath / ".mise/tasks/gha/cut.py"), run_name="__main__")
+    templates(base="{{ verdict }}\n")
 
-    assert fp.calls[1][-3:] == ["--title", "0.2.0", "0.2.0"]
-    assert outputs.read_text(encoding="utf-8") == (
-        f"state=created\nurl={UNTAGGED}\nversion=0.2.0\n"
-    )
+    with raises(TemplateError):
+        gate().write()
 
 
 @mark.parametrize(
@@ -720,6 +733,45 @@ def test_each_path_sends_the_commands_its_snapshot_holds(
     )
 
 
+def test_running_the_task_creates_the_draft_where_only_earlier_versions_are_published(
+    checkout     : Callable[..., None],
+    fp           : FakeProcess,
+    outputs      : Path,
+    pytestconfig : Config
+):
+    """
+    Pins that running the task where the listing holds only an earlier
+    published version, as it does at the first merge of a cycle, creates the
+    draft for the version `pyproject.toml` carries, then fails naming each
+    run `docs/runs/` commits, since a created draft attaches no manifest.
+    """
+    checkout(
+        {
+            "docs/runs/20261108T230559.402534Z/run.json": "{}",
+            "pyproject.toml": '[project]\nversion = "0.2.0"\n'
+        }
+    )
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases", fp.any()],
+        stdout = f"{dumps(release('0.1.0', draft=False))}\n"
+    )
+    fp.register(["gh", "release", "create", fp.any()], stdout=f"{UNTAGGED}\n")
+
+    with raises(
+        SystemExit,
+        match = r"^::error::docs/runs/ commits 20261108T230559\.402534Z,"
+    ):
+        run_path(
+            str(pytestconfig.rootpath / ".mise/tasks/gha/cut.py"),
+            run_name = "__main__"
+        )
+
+    assert fp.calls[1][-3:] == ["--title", "0.2.0", "0.2.0"]
+    assert outputs.read_text(encoding="utf-8") == (
+        f"state=created\nurl={UNTAGGED}\nversion=0.2.0\n"
+    )
+
+
 def test_running_the_task_lists_every_field_and_deletes_only_replaced_entries(
     capsys       : CaptureFixture[str],
     fp           : FakeProcess,
@@ -768,18 +820,29 @@ def test_running_the_task_reads_the_manifest_version_and_every_release(
     in the working directory and lists every page of releases, asking for
     each field `Release` declares. It then refreshes the draft whose tag is
     that version rather than one carrying another, against the branch that
-    draft targets.
+    draft targets, and passes where the manifest that draft attaches lists
+    the one run `docs/runs/` commits.
     """
-    checkout({"pyproject.toml": '[project]\nversion = "0.2.0"\n'})
+    checkout(
+        {
+            "docs/runs/20261108T230559.402534Z/run.json": "{}",
+            "pyproject.toml": '[project]\nversion = "0.2.0"\n'
+        }
+    )
     fp.register(
         ["gh", "api", "repos/{owner}/{repo}/releases", fp.any()],
         stdout = "".join(
             f"{dumps(each)}\n"
             for each in [
                 release("0.1.0", draft=False),
-                release("0.2.0", release_id=2) | {"target_commitish": "release/0.2"}
+                release("0.2.0", assets=[MANIFEST], release_id=2)
+                | {"target_commitish": "release/0.2"}
             ]
         )
+    )
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/assets/7", fp.any()],
+        stdout = dumps({"runs": [{"name": "20261108T230559.402534Z"}]})
     )
     fp.register(
         ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
@@ -805,41 +868,34 @@ def test_running_the_task_reads_the_manifest_version_and_every_release(
     assert outputs.read_text(encoding="utf-8").startswith("state=refreshed\n")
 
 
-def test_the_closing_line_counts_only_the_deletes_github_accepted(
-    capsys : CaptureFixture[str],
-    fp     : FakeProcess,
-    prune  : ModuleType
+def test_the_attached_runs_download_only_the_manifest_by_its_asset_id(
+    cut : ModuleType,
+    fp  : FakeProcess
 ):
     """
-    Pins that the closing line counts only the deletes GitHub accepted, so a
-    refused delete frees no bytes.
+    Pins that `Release.attached` downloads the release's `manifest.json`
+    alone, by its asset's id under the octet-stream media type that returns
+    the file's bytes, and reads each trained run's name from it, leaving out
+    the demonstrations it lists apart.
     """
-    fp.register(["gh", "cache", "delete", "1"], returncode=1, stderr="HTTP 404")
-    prune.Caches(
+    fp.register(
         [
-            prune.Cache(**entry("mise-v1-zizmor-aaa", size_bytes=5)),
-            prune.Cache(**entry("mise-v1-zizmor-bbb", cache_id=2, created=LATER))
-        ]
-    ).prune()
-
-    assert capsys.readouterr().out.endswith(
-        "0 of 1 replaced entries deleted, 0 bytes freed\n"
+            "gh", "api", "repos/{owner}/{repo}/releases/assets/7",
+            "--header", "Accept: application/octet-stream"
+        ],
+        stdout = dumps(
+            {
+                "demonstrations" : [{"name": "followed"}],
+                "runs"           : [{"name": "early"}, {"name": "late"}]
+            }
+        )
     )
+    attached = cut.Release(
+        **release("0.2.0", assets=[{"id": 6, "name": "early.tar.zst"}, MANIFEST])
+    ).attached
 
-
-def test_the_outputs_print_where_github_output_is_unset(
-    capsys : CaptureFixture[str],
-    draft  : Callable[..., object],
-    fp     : FakeProcess
-):
-    """
-    Pins that `Draft.maintain` prints the path, the address, and the version
-    one per line where `GITHUB_OUTPUT` is unset, as it is outside a runner.
-    """
-    fp.register(["gh", "release", "create", fp.any()], stdout=f"{UNTAGGED}\n")
-    draft().maintain()
-
-    assert capsys.readouterr().out == f"state=created\nurl={UNTAGGED}\nversion=0.2.0\n"
+    assert attached == {"early", "late"}
+    assert len(fp.calls) == 1
 
 
 @mark.parametrize(
@@ -880,6 +936,111 @@ def test_the_draft_summary_names_the_path_beside_the_address(
     assert capsys.readouterr().out.endswith(closing)
 
 
+def test_the_closing_line_counts_only_the_deletes_github_accepted(
+    capsys : CaptureFixture[str],
+    fp     : FakeProcess,
+    prune  : ModuleType
+):
+    """
+    Pins that the closing line counts only the deletes GitHub accepted, so a
+    refused delete frees no bytes.
+    """
+    fp.register(["gh", "cache", "delete", "1"], returncode=1, stderr="HTTP 404")
+    prune.Caches(
+        [
+            prune.Cache(**entry("mise-v1-zizmor-aaa", size_bytes=5)),
+            prune.Cache(**entry("mise-v1-zizmor-bbb", cache_id=2, created=LATER))
+        ]
+    ).prune()
+
+    assert capsys.readouterr().out.endswith(
+        "0 of 1 replaced entries deleted, 0 bytes freed\n"
+    )
+
+
+@mark.parametrize(
+    ("listed", "annotations"),
+    [
+        param(
+            None,
+            [
+                "::error::docs/runs/ commits early, late, which the manifest of the "
+                "draft release for 0.2.0 leaves out, so run `mise attach`"
+            ],
+            id = "no-manifest"
+        ),
+        param(
+            ["early", "stray"],
+            [
+                "::error::docs/runs/ commits late, which the manifest of the draft "
+                "release for 0.2.0 leaves out, so run `mise attach`",
+                "::error::The manifest of the draft release for 0.2.0 lists stray, "
+                "which docs/runs/ leaves out, so run `mise attach`"
+            ],
+            id = "both-sides"
+        ),
+        param(
+            ["early", "late", "stray", "unpacked"],
+            [
+                "::error::The manifest of the draft release for 0.2.0 lists stray, "
+                "unpacked, which docs/runs/ leaves out, so run `mise attach`"
+            ],
+            id = "manifest-alone"
+        )
+    ]
+)
+def test_a_refreshed_draft_fails_naming_each_run_one_side_lists_alone(
+    annotations : list[str],
+    draft       : Callable[..., object],
+    fp          : FakeProcess,
+    listed      : list[str] | None,
+    outputs     : Path
+):
+    """
+    Pins that a refreshed draft whose manifest and `docs/runs/` disagree
+    stops the task with one error annotation per side, the committed side
+    first, each naming that side's runs alone in sorted order. A draft
+    attaching no manifest lists no run, and the outputs are written before
+    the task stops.
+    """
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
+        stdout = dumps({"body": GENERATED})
+    )
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/1", fp.any()],
+        stdout = dumps({"html_url": UNTAGGED})
+    )
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/assets/7", fp.any()],
+        stdout = dumps({"runs": [{"name": name} for name in listed or ()]})
+    )
+
+    with raises(SystemExit) as stopped:
+        draft(
+            release("0.2.0", assets=[MANIFEST] if listed else []),
+            committed = {"early", "late"}
+        ).maintain()
+
+    assert stopped.value.code == "\n".join(annotations)
+    assert outputs.read_text(encoding="utf-8").startswith("state=refreshed\n")
+
+
+def test_the_outputs_print_where_github_output_is_unset(
+    capsys : CaptureFixture[str],
+    draft  : Callable[..., object],
+    fp     : FakeProcess
+):
+    """
+    Pins that `Draft.maintain` prints the path, the address, and the version
+    one per line where `GITHUB_OUTPUT` is unset, as it is outside a runner.
+    """
+    fp.register(["gh", "release", "create", fp.any()], stdout=f"{UNTAGGED}\n")
+    draft().maintain()
+
+    assert capsys.readouterr().out == f"state=created\nurl={UNTAGGED}\nversion=0.2.0\n"
+
+
 def test_the_summary_appends_to_the_step_summary_file(
     capsys   : CaptureFixture[str],
     gate     : Callable[..., object],
@@ -896,3 +1057,17 @@ def test_the_summary_appends_to_the_step_summary_file(
 
     assert page.read_text(encoding="utf-8").startswith("earlier\n## 🕹️ ci\n")
     assert capsys.readouterr().out == ""
+
+
+def test_the_task_names_the_manifest_and_the_runs_as_the_package_writes_them(
+    cut: ModuleType
+):
+    """
+    Pins that the asset name `Release.manifest` reads and the folder
+    `Draft.folder` lists are the ones `ReleaseManifest` writes and `Results`
+    reads, since the task runs on the runner's own interpreter without the
+    package.
+    """
+    assert (cut.Release.manifest, cut.Draft.folder) == (
+        ReleaseManifest.file, Results.folder
+    )
