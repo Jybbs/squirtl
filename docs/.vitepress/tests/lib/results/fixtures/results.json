@@ -191,6 +191,7 @@
     {
       "agent": "dqn",
       "baseline": {
+        "argmax": null,
         "reached": 0,
         "reward": 0.5,
         "step": null
@@ -199,16 +200,19 @@
       "name": "dqn-bedroom-1",
       "scores": [
         {
+          "argmax": null,
           "reached": 0,
           "reward": 0,
           "step": 500000
         },
         {
+          "argmax": null,
           "reached": 0,
           "reward": 0,
           "step": 1000000
         },
         {
+          "argmax": null,
           "reached": 0,
           "reward": 0,
           "step": 1500000
@@ -219,6 +223,7 @@
     {
       "agent": "ppo",
       "baseline": {
+        "argmax": null,
         "reached": 0.25,
         "reward": 0.5,
         "step": null
@@ -227,16 +232,19 @@
       "name": "ppo-bedroom-2",
       "scores": [
         {
+          "argmax": 0,
           "reached": 0.5,
           "reward": 1.0,
           "step": 500000
         },
         {
+          "argmax": 1,
           "reached": 1,
           "reward": 2,
           "step": 1000000
         },
         {
+          "argmax": 1,
           "reached": 1,
           "reward": 2,
           "step": 1500000
@@ -247,6 +255,7 @@
     {
       "agent": "ppo",
       "baseline": {
+        "argmax": null,
         "reached": 0,
         "reward": 0.5,
         "step": null
@@ -255,16 +264,19 @@
       "name": "ppo-bedroom-3",
       "scores": [
         {
+          "argmax": 0.25,
           "reached": 0.25,
           "reward": 0.5,
           "step": 500000
         },
         {
+          "argmax": 0.75,
           "reached": 0.75,
           "reward": 1.5,
           "step": 1000000
         },
         {
+          "argmax": 1,
           "reached": 1,
           "reward": 2,
           "step": 1500000
@@ -275,6 +287,7 @@
     {
       "agent": "ppo",
       "baseline": {
+        "argmax": null,
         "reached": 0.25,
         "reward": 0.5,
         "step": null
@@ -283,16 +296,19 @@
       "name": "ppo-curriculum-4",
       "scores": [
         {
+          "argmax": 0.75,
           "reached": 0.75,
           "reward": 1.5,
           "step": 500000
         },
         {
+          "argmax": 1,
           "reached": 1,
           "reward": 2,
           "step": 1000000
         },
         {
+          "argmax": 1,
           "reached": 1,
           "reward": 2,
           "step": 1500000
@@ -303,6 +319,7 @@
     {
       "agent": "ppo",
       "baseline": {
+        "argmax": null,
         "reached": 0,
         "reward": 0.5,
         "step": null
@@ -311,16 +328,19 @@
       "name": "ppo-curriculum-5",
       "scores": [
         {
+          "argmax": 1,
           "reached": 1,
           "reward": 2,
           "step": 500000
         },
         {
+          "argmax": 1,
           "reached": 1,
           "reward": 2,
           "step": 1000000
         },
         {
+          "argmax": 1,
           "reached": 1,
           "reward": 2,
           "step": 1500000
@@ -331,6 +351,7 @@
     {
       "agent": "pqn",
       "baseline": {
+        "argmax": null,
         "reached": 0,
         "reward": 0.5,
         "step": null
@@ -339,16 +360,19 @@
       "name": "pqn-bedroom-6",
       "scores": [
         {
+          "argmax": null,
           "reached": 0,
           "reward": 0,
           "step": 500000
         },
         {
+          "argmax": null,
           "reached": 0.2,
           "reward": 0.4,
           "step": 1000000
         },
         {
+          "argmax": null,
           "reached": 0.4,
           "reward": 0.8,
           "step": 1500000
@@ -359,6 +383,7 @@
     {
       "agent": "pqn",
       "baseline": {
+        "argmax": null,
         "reached": 0,
         "reward": 0.5,
         "step": null
@@ -367,16 +392,19 @@
       "name": "pqn-curriculum-7",
       "scores": [
         {
+          "argmax": null,
           "reached": 0.2,
           "reward": 0.4,
           "step": 500000
         },
         {
+          "argmax": null,
           "reached": 0.6,
           "reward": 1.2,
           "step": 1000000
         },
         {
+          "argmax": null,
           "reached": 0.8,
           "reward": 1.6,
           "step": 1500000

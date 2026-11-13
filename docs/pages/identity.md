@@ -229,7 +229,7 @@ The tables below are written from `order`, `[roles]`, and `[sections]` in `ident
 
 ## The Tagline and Byline
 
-The tagline is the one sentence the front page, the README, and the site's card set beneath the name, and the byline is the description the repository, the package, and a link to the site carry.
+The tagline is the one sentence the front page and the site's card set beneath the name, whereas the README opens on the logo and its badges alone. The byline is the description the repository, the package, and a link to the site carry.
 
 <details>
 <summary>The tagline and the byline</summary>
@@ -249,4 +249,4 @@ The table below is written from `tagline` in `identity.toml` and the `descriptio
 
 ## The Results Charts
 
-The charts on the [Results](results/index.md) page share one look, each part named below by the row of their legend it sits in. The runs it draws are made up, so none of its figures is a measured result.
+The charts in the [Results](results/index.md) section share one look, each part named below by the row of their legend it sits in. The widget below draws made-up runs, so none of its figures is a measured result.

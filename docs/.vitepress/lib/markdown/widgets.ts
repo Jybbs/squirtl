@@ -33,24 +33,28 @@ export const WIDGETS: readonly Placement[] = [
   { heading: 'Moving a Window', name: 'MethodsCurriculum', page: 'methods/curriculum.md' },
   { heading: 'A Step', name: 'MethodsStep', page: 'methods/environment.md' },
   { heading: 'The Bytes It Reads', name: 'MethodsMemory', page: 'methods/reward.md' },
-  { heading: 'Learning Curves', name: 'ResultsCurves', page: 'results/index.md' },
-  { heading: 'Against Random Presses', name: 'ResultsComparison', page: 'results/index.md' }
+  { heading: 'Against Random Presses', name: 'ResultsComparison', page: 'results/comparison.md' },
+  { heading: 'Learning Curves', name: 'ResultsCurves', page: 'results/curves.md' },
+  { heading: 'The Most Likely Press', name: 'ResultsArgmax', page: 'results/most-likely.md' }
 ]
 
 /**
  * Closes each part of a page that `widgets` names on its widget, ahead of the
- * next heading of any level, or else ahead of the first `<details>` the part
- * opens, so a widget stands over the table folded shut beneath it, and the
- * page itself stays bare Markdown that reads whole on GitHub.
+ * next heading of any level or of the footnotes closing the page, or else ahead
+ * of the first `<details>` the part opens, so a widget stands over the table
+ * folded shut beneath it and over the sources its page cites, and the page
+ * itself stays bare Markdown that reads whole on GitHub.
  */
 export function sectionWidgets(md: MarkdownRenderer, widgets: readonly Placement[] = WIDGETS) {
   md.core.ruler.push('section-widgets', state => {
     const tokens = state.tokens
     const opens  = tokens.flatMap((token, i) => token.type === 'heading_open' ? [i] : [])
+    const notes  = tokens.findIndex(token => token.type === 'footnote_block_open')
+    const last   = notes === -1 ? tokens.length : notes
     const placed = widgets.filter(({ page }) => page === state.env.relativePath).flatMap(({ heading, name }) => {
       const at = opens.find(i => tokens[i + 1]?.content === heading)
       if (at === undefined) return []
-      const end    = opens.find(i => i > at) ?? tokens.length
+      const end    = opens.find(i => i > at) ?? last
       const folded = tokens.findIndex((token, i) => i > at && i < end && token.type === 'html_block' && token.content.startsWith('<details'))
       return [{ end: folded === -1 ? end : folded, name }]
     })

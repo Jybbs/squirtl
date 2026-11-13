@@ -63,9 +63,12 @@ export interface Results {
 
 /**
  * What one evaluation of the agent measured, the share of its episodes
- * reaching the goal and their mean return, at the step of the run it read.
+ * reaching the goal and their mean return, beside the share reaching it at
+ * PPO's most likely press, `null` for the deep Q-network and PQN, at the step
+ * of the run it read.
  */
 export interface Score {
+  argmax  : number | null
   reached : number
   reward  : number
   step    : number
@@ -77,7 +80,7 @@ export interface Score {
  */
 interface Trained {
   agent      : Agent
-  baseline   : Omit<Score, 'step'> & { step: null }
+  baseline   : Omit<Score, 'argmax' | 'step'> & { argmax: null, step: null }
   curriculum : boolean
   name       : string
   scores     : readonly Score[]
@@ -148,9 +151,10 @@ export function interquartile(values: readonly number[]): number {
 /**
  * Reads the interquartile mean across the runs of `group` at each evaluation
  * any of them played, its share reaching the goal at the interquartile mean
- * of the steps the runs had taken by then.
+ * of the steps the runs had taken by then, leaving out the share at PPO's
+ * most likely press, which the curves do not draw.
  */
-export function meansOf(group: Group): Score[] {
+export function meansOf(group: Group) {
   const evaluations = Math.max(...group.runs.map(run => run.scores.length))
   return Array.from({ length: evaluations }, (_, n) => {
     const scores = group.runs.flatMap(run => run.scores[n] ?? [])

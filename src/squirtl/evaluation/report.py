@@ -162,9 +162,10 @@ class Report(Record):
     @property
     def listing(self) -> str:
         """
-        Lays out a table holding a row of measures for each evaluation, the
-        agent's or the `--against` run's followed by its baseline's, each
-        naming the goal its episodes ended at.
+        Lays out a table holding a row of measures for each evaluation,
+        the agent's or the `--against` run's, then the same episodes at
+        PPO's most likely action where the evaluation holds them, then its
+        baseline's, each naming the goal its episodes ended at.
         """
         return tabulate(
             header = ["Run", "Policy", "Goal", "Step", "Episodes", *self.measures],
@@ -178,8 +179,13 @@ class Report(Record):
                     *map(figure, evaluation.measures.values())
                 ]
                 for label, group in (("Agent", self.runs), ("Against", self.against))
-                for name, pair in group.items()
-                for policy, evaluation in zip((label, "Baseline"), pair)
+                for name, (agent, baseline) in group.items()
+                for policy, evaluation in (
+                    (label, agent),
+                    ("Argmax", agent.greedy),
+                    ("Baseline", baseline)
+                )
+                if evaluation is not None
             )
         )
 

@@ -1,0 +1,12 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE alias       = "skim"
+#MISE depends     = [
+#MISE   "gha:lint",
+#MISE   "lock:check",
+#MISE   "py:affected",
+#MISE   "py:lint",
+#MISE   "site:affected",
+#MISE   "site:lint",
+#MISE   "site:typecheck"
+#MISE ]
+#MISE description = "Run the lints, the lockfile check, the type check, and the tests reaching the files changed since the merge base with `main`"

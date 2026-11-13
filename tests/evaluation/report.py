@@ -1,8 +1,9 @@
 """
 Pins the Markdown `Report` lays out, covering:
 
-- Each run's measures, each measure's interquartile mean across the runs
-  beside the baseline's and the `--against` runs', and each probability of
+- Each run's measures, a row of PPO's most likely action beneath its
+  agent's, each measure's interquartile mean across the runs beside the
+  baseline's and the `--against` runs', and each probability of
   improvement, under a seeded generator
 - A report naming no `--against` run, which leaves out its column and its
   sentence
@@ -30,7 +31,9 @@ def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
     Asserts that a report of three runs against two prints the table of each
     run's measures, the table of each measure's interquartile mean with its
     interval and runs, and both probabilities of improvement its fixture
-    file holds, one run reaching its goal in 40 steps.
+    file holds, one run reaching its goal in 40 steps, and one run of each
+    group holding the episodes of PPO's most likely action, whose row sits
+    beneath its run's and reaches no figure across the runs.
     """
     reached = outcome(
         length     = 40,
@@ -46,7 +49,9 @@ def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
             ),
 
             "20261007T000000.000000Z": (
-                played([0.5, 0.25], 100),
+                played([0.5, 0.25], 100).model_copy(
+                    update = {"argmax": [outcome(0.0), outcome(0.0)]}
+                ),
                 played([0.0, 0.25], None)
             )
         },
@@ -59,7 +64,9 @@ def test_a_report_lays_out_each_run_each_measure_and_each_comparison(
             ),
 
             "20261004T000000.000000Z": (
-                played([0.5, 0.5], 1_000_000),
+                played([0.5, 0.5], 1_000_000).model_copy(
+                    update = {"argmax": [reached, outcome(0.0)]}
+                ),
                 played([0.0, 0.25], None)
             ),
 

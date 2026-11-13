@@ -44,17 +44,10 @@
 
 .identity-topic { background: color-mix(in oklab, var(--color-primary) 14%, transparent); }
 
-.identity-readme-mark { max-inline-size: var(--spacing-identity-readme); }
-
-.identity-readme-mark > svg, .identity-card-art > svg {
+.identity-card-art > svg {
   block-size  : auto;
   display     : block;
   inline-size : 100%;
-}
-
-.identity-badge {
-  block-size  : var(--spacing-identity-badge-height);
-  inline-size : var(--spacing-6);
 }
 
 .identity-card-art { box-shadow: 0 0 0 var(--border-width-hairline) var(--color-rule); }

@@ -1,23 +1,13 @@
 import { type Ref, ref } from 'vue'
 
-import type { Project } from '../config/navigation.ts'
-import { useAutoplay }  from '../widgets/autoplay.ts'
-import { useChoice }    from '../widgets/choice.ts'
-import { fromMouse }    from '../widgets/scrub.ts'
+import { useAutoplay } from '../widgets/autoplay.ts'
+import { useChoice }   from '../widgets/choice.ts'
+import { fromMouse }   from '../widgets/scrub.ts'
 
 /**
  * A place the tagline or the byline is read in, the name its tab reads.
  */
-export type Place = 'card' | 'github' | 'readme'
-
-/**
- * One badge the README opens on, the name its icon stands for and the value
- * beside it.
- */
-export interface Badge {
-  name  : string
-  value : string
-}
+export type Place = 'card' | 'front' | 'github'
 
 /**
  * The places the widget folds between, in the order their tabs stand, each
@@ -25,7 +15,7 @@ export interface Badge {
  */
 export const PLACES: readonly { name: string, place: Place }[] = [
   { name: 'GitHub’s repository page', place: 'github' },
-  { name: 'The README on GitHub', place: 'readme' },
+  { name: 'The site’s front page', place: 'front' },
   { name: 'The site’s card in a link', place: 'card' }
 ]
 
@@ -42,20 +32,6 @@ export const BEAT = 2400
 export function repositoryOf(repository: string): { name: string, owner: string } {
   const [owner = '', name = ''] = new URL(repository).pathname.split('/').filter(Boolean)
   return { name, owner }
-}
-
-/**
- * Lists the badges the README opens on, the least Python the package accepts,
- * the coverage its suite's last report measured, and the site's host, as the
- * facts about `project` read them, leaving the coverage badge out where no
- * report measured one.
- */
-export function badgesOf(project: Project): Badge[] {
-  return [
-    { name: 'Python', value: `${project.python}+` },
-    ...project.coverage === undefined ? [] : [{ name: 'Coverage', value: `${project.coverage}%` }],
-    { name: 'Docs', value: project.host }
-  ]
 }
 
 /**

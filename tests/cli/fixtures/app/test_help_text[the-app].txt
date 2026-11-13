@@ -11,8 +11,9 @@ Trains an agent to play Pokémon Blue from the screen, through PyBoy and PyTorch
 │              baseline under the same seeds, and writes each evaluation into  │
 │              its run's directory, reading in place of playing any the run    │
 │              already holds. The deep Q-network and PQN play at the epsilon   │
-│              those settings record, and PPO takes its most likely action at  │
-│              every step.                                                     │
+│              those settings record, and PPO samples each action from its     │
+│              policy and plays the same episodes again taking its most likely │
+│              action at every step.                                           │
 │ fetch        Downloads the runs a release attaches and unpacks each into     │
 │              data/runs/, from the release --release names or else the latest │
 │              one.                                                            │

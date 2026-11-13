@@ -41,6 +41,8 @@ The package under `src/squirtl/`, its tests, and the Python task scripts under `
 
 ## 👟 Committing
 
+`mise skim` is the check run after each edit and before each commit. It runs the lints, the type check, the lockfile check, and the tests reaching the files changed since the merge base with `main`, uncommitted and untracked files among them, whereas `mise ci` runs every check below in full before a push.
+
 Every commit on a branch takes the conventional shape, its body one hyphen bullet per thematic change:
 
 ```
