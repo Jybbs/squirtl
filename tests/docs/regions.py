@@ -378,13 +378,14 @@ def test_the_logo_table_closes_on_the_color_each_game_boy_shade_takes():
     ]
 
 
-def test_the_summary_links_the_results_before_its_sentence(
+def test_the_summary_links_the_comparison_before_its_sentence(
     checkout: Callable[[Mapping[str, str]], None]
 ):
     """
-    Pins that the README's pair of markers holds the link to the site's
-    Results section at the package's `Homepage` before the sentence on the
-    results, whatever it held before, the prose around it kept.
+    Pins that the README's pair of markers holds the link to the site's page
+    setting each agent against random presses at the package's `Homepage`
+    before the sentence on the results, whatever it held before, the prose
+    around it kept.
     """
     checkout(
         {
@@ -396,6 +397,7 @@ def test_the_summary_links_the_results_before_its_sentence(
     [summary] = Summary.found(results)
 
     assert summary.written(TRAIN) == (
-        "# SquiRtL\n\n<!-- results -->\n\n**[Results](https://squirtl.fyi/results/)** "
+        "# SquiRtL\n\n<!-- results -->\n\n"
+        "**[Against Random Presses](https://squirtl.fyi/results/comparison)** "
         f"{results.summary}\n\n<!-- /results -->\n"
     )

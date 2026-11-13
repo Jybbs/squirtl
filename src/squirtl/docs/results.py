@@ -302,10 +302,10 @@ class Results(Record):
         Spells the sentence the README opens its results on, each agent's
         share reaching the runs' goal from each start, the agents reaching
         more first and those sharing a phrase joined, beside random presses'
-        share, or the comparison alone where no run is committed.
+        share, or a sentence naming no share where no run is committed.
         """
         if self.random is None:
-            return "compares each agent against random presses under the same seeds."
+            return "measures each agent under the same seeds."
 
         agents = sorted(
             (
@@ -326,7 +326,7 @@ class Results(Record):
         head = f"{' and '.join(names)} {verb} `{self.runs[0].goal.name}` {first}"
 
         return (
-            f"compares each agent against random presses under the same {seeds} "
+            f"measures each agent under the same {seeds} "
                 f"{'seed' if seeds == 1 else 'seeds'}, where {head}, "
             + "".join(f"{' and '.join(names)} {text}, " for text, names in rest)
             + f"and random presses {self.random.share}."
