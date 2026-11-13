@@ -229,7 +229,7 @@ The tables below are written from `order`, `[roles]`, and `[sections]` in `ident
 
 ## The Tagline and Byline
 
-The tagline is the one sentence the front page, the README, and the site's card set beneath the name, and the byline is the description the repository, the package, and a link to the site carry.
+The tagline is the one sentence the front page and the site's card set beneath the name, whereas the README opens on the logo and its badges alone. The byline is the description the repository, the package, and a link to the site carry.
 
 <details>
 <summary>The tagline and the byline</summary>
