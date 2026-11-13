@@ -28,7 +28,7 @@ from pytest            import (
     CaptureFixture, MonkeyPatch, fixture, mark, param, raises
 )
 from pytest_subprocess import FakeProcess
-from subprocess        import CalledProcessError, check_call
+from subprocess        import CalledProcessError
 from syrupy.assertion  import SnapshotAssertion
 from sysconfig         import get_path
 from textwrap          import dedent
@@ -530,7 +530,8 @@ def test_a_checkout_refuses_a_write_matching_other_than_once(
 
 def test_a_clone_holds_the_tree_as_it_stands_without_any_ignored_file(
     checkout : Callable[[Mapping[str, str]], None],
-    clone    : Path
+    clone    : Path,
+    git      : Callable[..., None]
 ):
     """
     Pins that a scratch clone carries a modified tracked file, a staged
@@ -547,7 +548,7 @@ def test_a_clone_holds_the_tree_as_it_stands_without_any_ignored_file(
     )
     (clone / "link").symlink_to("uv.lock")
     (clone / "staged.bin").write_bytes(b"\0\1")
-    check_call(["git", "add", "staged.bin"])
+    git("add", "staged.bin")
 
     copied = Checkout(root=clone).cloned(clone / "data/scratch", StringIO()).root
 
