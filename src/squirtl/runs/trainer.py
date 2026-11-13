@@ -315,22 +315,28 @@ class Trainer(AbstractContextManager, ABC):
         """
         Plays through `play` until the run takes its `steps` or is stopped
         where `play` returns, yielding the agent's step count after each
-        step. It writes a checkpoint where `play` first returns at or past
-        each multiple of `checkpoint_steps` and once the loop ends, unless
-        the run's own checkpoint already holds the last step, and evaluates
-        the agent where `play` first returns at or past a multiple of
+        step. Before each call to `play` and once the loop ends, it writes
+        the checkpoint and plays the evaluation that `due` finds reached,
+        which evaluates a run resumed past an evaluation that never landed
+        before it plays on. A checkpoint lands where `play` first returns at
+        or past each multiple of `checkpoint_steps` and once the loop ends,
+        unless the run's own checkpoint already holds the last step, and
+        an evaluation where `play` first returns at or past a multiple of
         `evaluation_steps`.
         """
         settings = self.settings
 
-        while self.agent.step < settings.steps and not self.stopping:
-            yield from self.play()
-
+        while True:
             if self.due(settings.checkpoint_steps, self.saved):
                 self.checkpoint()
 
             if self.due(settings.evaluation_steps, self.evaluated):
                 self.evaluate()
+
+            if self.agent.step >= settings.steps or self.stopping:
+                break
+
+            yield from self.play()
 
         if self.run.stop.exists():
             logger.warning(
@@ -360,13 +366,26 @@ class Trainer(AbstractContextManager, ABC):
 
         Raises:
             FileNotFoundError : Where the directory they name holds no run.
-            ValueError        : Where its run holds no episode reaching the
-                                starter from Blue's bedroom.
+            ValueError        : Where its run ends its episodes at another
+                                goal than this run's, or holds no episode
+                                reaching its goal from Blue's bedroom.
         """
-        if directory := self.settings.curriculum.demonstration:
-            return Run.read(directory).demonstration
+        if (directory := self.settings.curriculum.demonstration) is None:
+            return None
 
-        return None
+        demonstrated = Run.read(directory)
+        theirs, ours = (
+            settings.environment.goal
+            for settings in (demonstrated.settings, self.settings)
+        )
+
+        if theirs is not ours:
+            raise ValueError(
+                f"the demonstration {directory} ends its episodes at "
+                f"{theirs.name}, where this run ends them at {ours.name}"
+            )
+
+        return demonstrated.demonstration
 
     @property
     @abstractmethod
@@ -440,8 +459,8 @@ class Trainer(AbstractContextManager, ABC):
     def evaluate(self):
         """
         Evaluates the agent at its step through `Benchmark.from_run`,
-        recording the step it landed at, and logs how often the agent
-        and the random baseline reached the starter and the returns each
+        recording the step it landed at, and logs how often the agent and
+        the random baseline reached the run's goal and the returns each
         averaged.
         """
         logger.info("Evaluating the agent at step {:,}", self.agent.step)
@@ -450,10 +469,11 @@ class Trainer(AbstractContextManager, ABC):
         self.evaluated = self.agent.step
 
         logger.info(
-            "At step {:,}, the agent reached the starter in {:.0%} of its "
-            "evaluation episodes for a mean return of {:.4f}, and the random "
-            "baseline in {:.0%} for {:.4f}",
+            "At step {:,}, the agent reached {} in {:.0%} of its evaluation "
+            "episodes for a mean return of {:.4f}, and the random baseline in "
+            "{:.0%} for {:.4f}",
             self.evaluated,
+            benchmark.agent.goal.name,
             benchmark.agent.reached,
             benchmark.agent.reward,
             benchmark.baseline.reached,

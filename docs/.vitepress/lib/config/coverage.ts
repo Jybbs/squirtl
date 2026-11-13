@@ -12,19 +12,28 @@ interface Coverage {
 }
 
 /**
- * Writes `coverage.json` at the root of `outDir` from the report `py:coverage`
- * leaves under `.cache/coverage/` in the checkout holding `metaUrl`, holding
- * the total rounded to a whole percent, and writes nothing where no report
- * sits there.
+ * Reads the total the report `py:coverage` leaves under `.cache/coverage/` in
+ * the checkout holding `metaUrl` holds, rounded to a whole percent, or nothing
+ * where no report sits there.
  */
-export function writeCoverage(outDir: string, metaUrl: string): void {
+export function coverageOf(metaUrl: string): string | undefined {
   const report = path.join(cacheDir(metaUrl, 'coverage'), 'coverage.json')
-  if (!fs.existsSync(report)) return
+  if (!fs.existsSync(report)) return undefined
 
   const { totals } = JSON.parse(fs.readFileSync(report, 'utf8')) as {
     totals: { percent_covered: number }
   }
-  const figure: Coverage = { percent: totals.percent_covered.toFixed(0) }
+  return totals.percent_covered.toFixed(0)
+}
 
+/**
+ * Writes `coverage.json` at the root of `outDir` holding the whole percent
+ * `percent` the suite's last report measured, and writes nothing where no
+ * report measured one.
+ */
+export function writeCoverage(outDir: string, percent: string | undefined): void {
+  if (percent === undefined) return
+
+  const figure: Coverage = { percent }
   fs.writeFileSync(path.join(outDir, 'coverage.json'), `${JSON.stringify(figure)}\n`)
 }

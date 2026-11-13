@@ -94,7 +94,7 @@ describe('StorySees at rest', () => {
     expect(shownStep(wrapper)).toBe(stepAt(0))
     expect(pixels.views).toHaveLength(sees.OBSERVING.stack + 1)
     expect([...pixels.views[0]!.data.subarray(0, 3)]).toStrictEqual(white)
-    expect(flagValues(wrapper)).toStrictEqual(['0', '0', '0', '0'])
+    expect(flagValues(wrapper)).toStrictEqual(['0', '0', '0', '0', '0', '0', '0'])
   })
 
   test('leaves every canvas blank where a room’s image fails to decode', async () => {
@@ -129,9 +129,21 @@ describe('StorySees at rest', () => {
     sight.show(true)
     await flushPromises()
 
-    expect([shownStep(wrapper), flagValues(wrapper)]).toStrictEqual([stepAt(last), ['1', '1', '1', '1']])
+    expect([shownStep(wrapper), flagValues(wrapper)]).toStrictEqual([stepAt(last), ['1', '1', '1', '1', '0', '0', '0']])
     expect(['bg-amethyst-1', 'bg-heath-1'].map(tint => wrapper.findAll(`.sees-flags .${tint}`).length))
       .toStrictEqual([1, 3])
+  })
+})
+
+describe('StorySees past the goal', () => {
+  test('sets the flags past the goal after a rule naming them, as quiet chips the episode never sets', async () => {
+    const { wrapper } = await mounted()
+    const past        = wrapper.findAll('.sees-flags .py-chip-quiet-block')
+
+    expect(wrapper.get('.sees-flags .border-dashed').text()).toBe('Past the goal, paying nothing')
+    expect(past.map(each => [each.get('.tracking-caps').text(), each.get('.ml-auto').text()])).toStrictEqual([
+      ['Battled the rival', '0'], ['Got Oak’s parcel', '0'], ['Got the Pokédex', '0']
+    ])
   })
 })
 

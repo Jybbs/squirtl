@@ -5,7 +5,7 @@ import { type Frame, type PlotLabel, frameOf, multiplesOf, round } from '../draw
 import { IDENTITY }                                                from '../identity/identity.ts'
 import { BEAT, TRAVEL, useMotion }                                 from '../widgets/motion.ts'
 import { useDrawnWidth }                                           from '../widgets/width.ts'
-import { COMMITTED, type Group, type Score, groupsOf, meansOf }    from './results.ts'
+import { COMMITTED, type Group, type Results, type Score, groupsOf, meansOf } from './results.ts'
 import { useToggles }                                              from './toggles.ts'
 
 /**
@@ -48,7 +48,7 @@ export const PLOTTING = {
   shares : [0, 0.25, 0.5, 0.75, 1],
   title  : IDENTITY.lengths.spacing['5'],
   titles : {
-    reached : 'Episodes reaching the starter (%)',
+    reached : 'Episodes reaching the goal (%)',
     steps   : 'Environment steps (millions)'
   },
   box    : {
@@ -61,7 +61,7 @@ export const PLOTTING = {
 
 /**
  * Lays out the curve of each of `groups` at `height` by `width` pixels, the
- * interquartile mean across its runs' shares reaching the starter at each
+ * interquartile mean across its runs' shares reaching the goal at each
  * evaluation, random presses' share `random` as a level line, and the steps
  * along the bottom up to the evaluation read last, labeled in millions every
  * half million.
@@ -70,7 +70,7 @@ export function curvesOf(groups: readonly Group[], random: number, height: numbe
   const frame  = frameOf({ ...PLOTTING.box, top: PLOTTING.box.top + PLOTTING.title }, height, width)
   const means  = groups.map(group => meansOf(group))
   const last   = Math.max(...means.flatMap(scores => scores.map(score => score.step)))
-  const point  = (score: Score) => [frame.x(score.step, last), frame.y(score.reached, 1)] as const
+  const point  = (score: Omit<Score, 'argmax'>) => [frame.x(score.step, last), frame.y(score.reached, 1)] as const
   const left   = frame.x(0, 1)
   const steps  = multiplesOf(PLOTTING.every, last)
   const middle = round((left + frame.end) / 2)
@@ -130,18 +130,18 @@ function useTraces(groups: readonly Group[], pressed: Ref<ReadonlySet<string>>, 
 }
 
 /**
- * Draws the committed runs' learning curves in `box`, measuring the width they
- * take there and tracing each group's curve out once `box` first comes into
- * view.
+ * Draws the learning curves of the runs `results` holds, the committed runs
+ * unless given others, in `box`, measuring the width they take there and
+ * tracing each group's curve out once `box` first comes into view.
  *
  * Returns:
  *   The curves laid out, the groups, random presses' share across every seed,
  *   the toggles pressing each group, how far each group's curve has traced
  *   out, and the width drawn at.
  */
-export function useCurves(box: Ref<HTMLElement | undefined>) {
-  const groups  = groupsOf()
-  const random  = COMMITTED.random
+export function useCurves(box: Ref<HTMLElement | undefined>, results: Results = COMMITTED) {
+  const groups  = groupsOf(results)
+  const random  = results.random
   const width   = useDrawnWidth(box, 240)
   const seen    = useElementVisibility(box, { once: true })
   const toggles = useToggles(groups)

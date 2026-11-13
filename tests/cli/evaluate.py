@@ -5,8 +5,9 @@ Pins what `squirtl evaluate` does, covering:
   processes, and the report it prints from them
 - The evaluations a run already holds, which it reads in place of playing
 - The runs `--against` names, which it compares the first runs with
-- A directory holding no run, a run missing its checkpoint or its
-  cartridge, and a damaged checkpoint, each exiting 1, and a damaged
+- A directory holding no run, runs ending at different goals, a run
+  missing its checkpoint or its cartridge, and a damaged checkpoint, each
+  exiting 1, and a damaged
   member of replay memory, which it never reads
 - A run of PQN or PPO, whose network it builds from the agent the run names
 - The runs of a release, fetched under the default selection, and a run
@@ -60,6 +61,31 @@ def test_a_run_missing_its_checkpoint_or_its_cartridge_exits_1_naming_the_file(
     invocation = invoke(["evaluate", str(trained)])
 
     assert (invocation.code, path.name in invocation.log, evaluators) == (1, True, [])
+
+
+@mark.parametrize("flag", ["--against", None])
+def test_runs_ending_at_different_goals_exit_1_before_any_evaluation(
+    evaluators : list[EvaluatorStandIn],
+    flag       : str | None,
+    invoke     : Invoker,
+    quick      : list[str],
+    trained    : Path
+):
+    """
+    Asserts that evaluating a run ending at the starter beside one ending at
+    the Pokédex, whether named as a run to evaluate or through `--against`,
+    exits 1 naming both goals and starts no evaluator.
+    """
+    later = invoke(
+        ["train", *quick, "--environment.goal", "event-got-pokedex", "--seed", "2"]
+    ).output.strip()
+    invocation = invoke(["evaluate", str(trained), *filter(None, [flag]), later])
+
+    assert (
+        invocation.code,
+        "the runs named end at EVENT_GOT_POKEDEX, EVENT_GOT_STARTER" in invocation.log,
+        evaluators
+    ) == (1, True, [])
 
 
 @mark.usefixtures("evaluators")

@@ -224,7 +224,7 @@ function tabOf(estimate: Estimate, x: number, lane: number): OddsLine {
 
 /**
  * The figure's head for a lane, the group's name in capitals and the
- * interquartile mean of its share reaching the starter with its interval,
+ * interquartile mean of its share reaching the goal with its interval,
  * at `x` and `y` with the figure under the name or at `end` on its line.
  */
 function headsOf(group: Group, x: number, y: number, end: number | null): PlotLabel[] {

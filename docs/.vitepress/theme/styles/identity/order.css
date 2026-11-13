@@ -1,0 +1,30 @@
+.identity-nib {
+  stroke       : var(--color-ground);
+  stroke-width : 1.5;
+}
+
+.identity-switches { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+.identity-switch[data-state='off'] { opacity: 0.45; }
+
+.identity-switch[data-state='off'] .identity-line { stroke: var(--color-quiet); }
+
+.identity-other {
+  stroke-width  : 1.5;
+  vector-effect : non-scaling-stroke;
+}
+
+.identity-line {
+  stroke-width  : 2.5;
+  vector-effect : non-scaling-stroke;
+}
+
+.identity-again:hover { border-color: var(--color-quiet); }
+
+@container (width < 44rem) {
+  .identity-switches { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@container (width < 28rem) {
+  .identity-switches { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

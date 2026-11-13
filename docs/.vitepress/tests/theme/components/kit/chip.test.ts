@@ -9,10 +9,10 @@ enableAutoUnmount(afterEach)
 describe('Chip', () => {
   it.each([
     ['agent', 'bg-denim-1', 'text-denim-text'],
+    ['goal', 'bg-amethyst-1', 'text-amethyst-text'],
     ['milestone', 'bg-heath-1', 'text-heath-text'],
     ['novelty', 'bg-fern-1', 'text-fern-text'],
     ['random', 'bg-seacaller-1', 'text-seacaller-text'],
-    ['starter', 'bg-amethyst-1', 'text-amethyst-text'],
     ['none', 'chip-none', 'text-ink']
   ] as const)('tints a chip naming %s in its hue', (role, ground, name) => {
     const chip = mount(Chip, { props: { name: 'Steps', role } })
@@ -27,6 +27,16 @@ describe('Chip', () => {
     expect(chip.classes()).toStrictEqual(expect.arrayContaining(['bg-indigo-1', 'border-indigo-mark']))
   })
 
+  it.each([
+    [false, ['py-chip-block', 'text-ink', 'text-body']],
+    [true, ['py-chip-quiet-block', 'text-quiet', 'text-small']]
+  ])('draws a chip whose quiet is %s at its size, its name and value in their gray', (quiet, [height, ink, size]) => {
+    const chip = mount(Chip, { props: { name: 'Steps', quiet, value: '0' } })
+
+    expect([chip.classes(), chip.get('.tracking-caps').classes(), chip.get('.ml-auto').classes()])
+      .toStrictEqual([expect.arrayContaining([height]), expect.arrayContaining([ink]), expect.arrayContaining([ink, size])])
+  })
+
   it('sets a swatch where it carries no mark, and leaves out a note and a value it is given none of', () => {
     const chip = mount(Chip, { props: { name: 'Steps', role: 'agent' } })
 
@@ -35,7 +45,7 @@ describe('Chip', () => {
   })
 
   it('sets the game mark it is given in a round tile, then its name, note, and value', () => {
-    const props = { name: 'Starter', note: 'once', role: 'starter', value: '+0.6' } as const
+    const props = { name: 'Starter', note: 'once', role: 'goal', value: '+0.6' } as const
     const chip  = mount(Chip, { props: { ...props, mark: '<svg viewBox="0 0 16 16"></svg>' } })
 
     expect(chip.find('.chip-mark svg').exists()).toBe(true)

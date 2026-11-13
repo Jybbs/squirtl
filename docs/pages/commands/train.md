@@ -1,3 +1,5 @@
+<!-- help -->
+
 # `squirtl train`
 
 Trains the agent `--agent.algorithm` names for the run's `--steps` environment steps, headless unless `--emulator.open-window` is set, logging a line per episode above a progress bar.
@@ -8,8 +10,8 @@ The run writes its record, a line per episode, and a checkpoint into a directory
 
 Each of these exits 1 before any directory is made:
 
-- A `--resume` directory holding no run or no checkpoint
-- A `--curriculum.demonstration` directory holding no run, or no episode reaching the starter from Blue's bedroom, or one whose presses no longer reach the starter on replay
+- A `--resume` directory holding no run, no checkpoint, or an evaluation line that names no `argmax`
+- A `--curriculum.demonstration` directory holding no run, a run whose episodes end at another `--environment.goal` than this run's, no episode reaching that goal from Blue's bedroom, or one whose presses no longer reach it on replay
 - A checkpoint damaged, already holding the run's steps, or differing from the agent the run's settings build
 - A checkpoint whose segments end at other steps than the segments of its demonstration now do
 - An episode log ending short of that checkpoint
@@ -20,6 +22,10 @@ Each of these exits 1 before any directory is made:
 squirtl train [OPTIONS]
 ```
 
+<!-- /help -->
+
+<!-- settings -->
+
 ## Settings
 
 | **Flag** | **Default** | **What It Sets** |
@@ -27,7 +33,7 @@ squirtl train [OPTIONS]
 | `--resume` | `none` | *The directory of a stopped run to continue from its last checkpoint, under the settings that run recorded.* |
 | `--agent.algorithm` | `dqn` | *The agent the run trains, the deep Q-network, PQN, or PPO.* |
 | `--agent.batch-size` | `32` | *The transitions each update of the deep Q-network draws from replay memory, whose default follows Mnih et al.* |
-| `--agent.capacity` | `100000` | *The slots the deep Q-network's replay memory holds before overwriting the oldest, four per reset observation and one per step, whose default takes 606 MB for a 72 by 80 frame, a 48 by 48 grid, and four flags, the grid and the flags packed eight cells to a byte.* |
+| `--agent.capacity` | `100000` | *The slots the deep Q-network's replay memory holds before overwriting the oldest, four per reset observation and one per step, whose default takes 606 MB for a 72 by 80 frame, a 48 by 48 grid, and a flag for each member of `Event`, the grid and the flags packed eight cells to a byte.* |
 | `--agent.device` | *the machine's* | *The device every network and batch sit on, which defaults to the accelerator torch reports and to the CPU where it reports none.* |
 | `--agent.discount` | `0.997` | *The discount on the value of the state each step reaches, whose default is the one Pleines et al. settle on for this game after tuning over 0.99, 0.997, 0.999, and 0.9995.* |
 | `--agent.double-q` | `true` | *Whether the deep Q-network's online network chooses the action at the state each step reaches and the target network values it, as van Hasselt et al.'s Double DQN does, where otherwise the target network does both, as Mnih et al.'s deep Q-network does.* |
@@ -63,7 +69,7 @@ squirtl train [OPTIONS]
 | `--curriculum.back` | `0.25, 0.75` | *The least and the most a window moves back, each a multiple of `window`, between which each move draws uniformly, whose default is the decrease multipliers of Mhammedi and Cohan's Table 8.* |
 | `--curriculum.buffer` | `500` | *The steps an episode from a start takes beyond `multiplier` times the moving average of successful lengths before it truncates, whose default is the rollout length buffer of Mhammedi and Cohan's Table 8.* |
 | `--curriculum.completion` | `0.95` | *The share of the recent episodes from a window reaching Blue's bedroom that have to succeed before its segment counts as solved, whose default is the completion threshold of Mhammedi and Cohan's Table 8.* |
-| `--curriculum.demonstration` | `none` | *The directory of the run whose shortest episode reaching the starter each training episode starts along, or `None` to start every episode in Blue's bedroom.* |
+| `--curriculum.demonstration` | `none` | *The directory of the run whose shortest episode reaching the goal each training episode starts along, a run ending its episodes at the same goal, or `None` to start every episode in Blue's bedroom.* |
 | `--curriculum.forward` | `0.5, 1.0` | *The least and the most a window moves forward, each a multiple of `window`, between which each move draws uniformly, whose default is the increase multipliers of Mhammedi and Cohan's Table 8.* |
 | `--curriculum.multiplier` | `2.0` | *The multiple of the moving average of successful lengths an episode from a start takes before `buffer` and then truncates, whose default is the early termination multiplier of Mhammedi and Cohan's Table 8.* |
 | `--curriculum.recent` | `32` | *The episodes from a window whose share of successes moves it, after which the count starts again, whose default is the minimum rollouts for an update of Mhammedi and Cohan's Table 8.* |
@@ -77,15 +83,18 @@ squirtl train [OPTIONS]
 | `--environment.frame-shape` | `72, 80` | *The height and width in pixels each frame shrinks to, each dividing the screen's own, whose default is the half-resolution grayscale screen Pleines et al. observe.* |
 | `--environment.frame-stack` | `4` | *The frames each observation stacks, the newest last, whose default follows Mnih et al.* |
 | `--environment.frames-per-step` | `17` | *The frames a step advances from its press, by default the fewest under which a direction pressed on open ground moves the player one square whichever frame the press lands on.* |
+| `--environment.goal` | `event-got-starter` | *The flag whose first setting ends an episode, each flag `Event` declares before it paying the milestone, whose default is the starter and whose farthest is the Pokédex, since the old man lying across Viridian City's road north turns Blue back until `EVENT_GOT_POKEDEX` is set, as pret/pokered's `scripts/ViridianCity.asm` holds.* |
 | `--environment.grid-size` | `48` | *The side in squares of the grid of reached positions centered on the player, by default one square per cell of the 48 by 48 crop Pleines et al. observe.* |
 | `--environment.max-episode-steps` | `10240` | *The steps after which `TimeLimit` truncates an episode, by default the budget Pleines et al. start each episode with.* |
 | `--evaluation.environments` | *the machine's* | *The environments an evaluation plays its episodes across in parallel, each in a worker process of its own, which defaults to the CPUs the process may use.* |
 | `--evaluation.episodes` | `30` | *The episodes each evaluation plays of the agent and of the random baseline, whose default follows Mnih et al.* |
-| `--evaluation.epsilon` | `0.05` | *The chance of a random action at each step of an evaluation episode of the deep Q-network or of PQN, whose default follows Mnih et al. PPO takes its most likely action at every step.* |
+| `--evaluation.epsilon` | `0.05` | *The chance of a random action at each step of an evaluation episode of the deep Q-network or of PQN, whose default follows Mnih et al. PPO samples each action from its policy and plays the same episodes again taking its most likely action at every step.* |
 | `--evaluation-steps` | `250000` | *The environment steps between the evaluations a run plays, each where an episode end, the end of a rollout's update for PQN and PPO, or the run's last step first reaches a multiple of them, whose default is the 250,000 steps of each iteration Dopamine's DQN evaluates after.* |
-| `--reward.milestone` | `0.1` | *The reward a step earns for each milestone on the way to the starter whose flag it first sets.* |
+| `--reward.goal` | `0.35` | *The reward the step first setting the run's goal earns, which has to be the largest term.* |
+| `--reward.milestone` | `0.1` | *The reward a step earns for each flag on the way to the goal it first sets.* |
 | `--reward.novelty` | `0.00025` | *The reward a step earns for reaching a position the episode has not reached before, whose default is a 400th of the default milestone, the ratio Pleines et al. pay one new coordinate against one completed event.* |
-| `--reward.starter` | `0.6` | *The reward the step first setting `EVENT_GOT_STARTER` earns, which has to be the largest term.* |
 | `--seed` | `1` | *The seed every random draw in the run derives from, whose default follows CleanRL's `dqn_atari.py`.* |
 | `--steps` | `2500000` | *The environment steps the run takes, a run of PQN or PPO going on to the end of the rollout that reaches them, whose default is ten of the 250,000-step iterations Dopamine's DQN evaluates after.* |
 | `--verbose` | `false` | *Log each step beside the line each episode logs.* |
+
+<!-- /settings -->

@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { enableAutoUnmount, mount }                       from '@vue/test-utils'
+import { enableAutoUnmount }                               from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick }                                        from 'vue'
 
+import { LIST }     from '../../../../theme/components/kit/widget.ts'
 import * as browser from '../../../common/browser.ts'
 
 const { CommandsTerminal } = await import('../../../../theme/components/commands/terminal.tsx')
@@ -14,21 +15,9 @@ beforeEach(() => {
   return () => vi.useRealTimers()
 })
 
-/**
- * Mounts the window on screen.
- */
-async function shown() {
-  const sight   = browser.stubSight()
-  const wrapper = mount(CommandsTerminal, { attachTo: document.body })
-  await nextTick()
-  sight.show(true)
-  await nextTick()
-  return wrapper
-}
-
 describe('CommandsTerminal', () => {
   it('plays the run on its own once it shows, listing what each file holds', async () => {
-    const wrapper = await shown()
+    const wrapper = await browser.shown(CommandsTerminal)
 
     vi.advanceTimersByTime(120 * 3)
     await nextTick()
@@ -39,7 +28,7 @@ describe('CommandsTerminal', () => {
   })
 
   it('runs squirtl stop as the prompt is pressed, hiding it until the run ends, then trains again', async () => {
-    const wrapper = await shown()
+    const wrapper = await browser.shown(CommandsTerminal)
 
     await wrapper.get('button').trigger('click')
     expect([wrapper.get('button').attributes('hidden'), wrapper.text()]).toContain('')
@@ -53,9 +42,16 @@ describe('CommandsTerminal', () => {
     expect(wrapper.get('[role="status"]').text()).toBe('Step 0 of 2,500,000, episode 1')
   })
 
+  it('lists the run’s files a row each, spaced as every other widget’s list', async () => {
+    const wrapper = await browser.shown(CommandsTerminal)
+
+    expect([wrapper.get('ol').classes(), wrapper.findAll('ol > li').length])
+      .toStrictEqual([LIST.split(' '), wrapper.findAll('li').length])
+  })
+
   it('shows the run’s end at once where the reader asks for reduced motion', async () => {
     browser.preference.value = 'reduce'
-    const wrapper = await shown()
+    const wrapper = await browser.shown(CommandsTerminal)
 
     expect(wrapper.get('[role="status"]').text()).toMatch(/^Ended at step 2,500,000/u)
   })

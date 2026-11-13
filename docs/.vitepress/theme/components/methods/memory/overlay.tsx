@@ -12,25 +12,25 @@ import { useMotion }              from '../../../../lib/widgets/motion.ts'
  * The parts of the overlay the key's entries set back, each entry's list in
  * the key's order, and the part each entry sets in a heavier stroke.
  */
-type Part = 'bytes' | 'grid' | 'milestone' | 'starter'
+type Part = 'bytes' | 'goal' | 'grid' | 'milestone'
 
 const DIMS: readonly (readonly Part[])[] = [
-  ['milestone', 'starter', 'bytes'],
-  ['milestone', 'starter', 'bytes', 'grid'],
-  ['starter', 'bytes', 'grid'],
+  ['milestone', 'goal', 'bytes'],
+  ['milestone', 'goal', 'bytes', 'grid'],
+  ['goal', 'bytes', 'grid'],
   ['milestone', 'bytes', 'grid'],
-  ['milestone', 'starter', 'grid']
+  ['milestone', 'goal', 'grid']
 ]
 
-const BOLD: readonly (Part | null)[] = [null, null, 'milestone', 'starter', 'bytes']
+const BOLD: readonly (Part | null)[] = [null, null, 'milestone', 'goal', 'bytes']
 
 /**
  * The stroke and the fill of a flag's site in each term's hue.
  */
 const SITE_HUES = {
+  goal      : { fill: 'fill-amethyst-mark', stroke: 'stroke-amethyst-mark' },
   milestone : { fill: 'fill-heath-mark', stroke: 'stroke-heath-mark' },
-  novelty   : { fill: 'fill-fern-mark', stroke: 'stroke-fern-mark' },
-  starter   : { fill: 'fill-amethyst-mark', stroke: 'stroke-amethyst-mark' }
+  novelty   : { fill: 'fill-fern-mark', stroke: 'stroke-fern-mark' }
 } as const
 
 /**

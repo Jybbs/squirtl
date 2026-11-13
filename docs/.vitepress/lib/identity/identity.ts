@@ -100,3 +100,22 @@ export function roleHue(role: Role): Hue {
 export function sectionHue(folder: Folder): Hue {
   return IDENTITY.sections[folder] as Hue
 }
+
+/**
+ * Measures the relative luminance WCAG 2.2 defines for the color `hex`, from 0
+ * for black to 1 for white.
+ */
+function luminance(hex: string): number {
+  const [red, green, blue] = rgbOf(hex).map(byte => byte / 255)
+    .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+  return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!
+}
+
+/**
+ * Measures the contrast ratio WCAG 2.2 defines between the colors `a` and `b`,
+ * from 1 for two equal colors to 21 for black on white.
+ */
+export function contrast(a: string, b: string): number {
+  const [lighter, darker] = [luminance(a), luminance(b)].toSorted((x, y) => y - x)
+  return (lighter! + 0.05) / (darker! + 0.05)
+}

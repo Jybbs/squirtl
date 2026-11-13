@@ -477,7 +477,27 @@ def test_a_manuscript_refuses_a_file_that_does_not_decode_naming_it(tmp_path: Pa
             f"One.[^smith2020]\n\nTwo.[^note]\n\n[^note]: Stays.\n\n{SMITH}\n",
             id = "moves-replaces-and-removes"
         ),
-        param(f"{SMITH}\n", "\n", id="nothing-but-an-uncited-definition")
+        param(f"{SMITH}\n", "\n", id="nothing-but-an-uncited-definition"),
+        param(
+            "One.[^smith2020]\n\n```\nx\n```\n",
+            f"One.[^smith2020]\n\n```\nx\n```\n\n{SMITH}\n",
+            id = "closed-fence-at-the-end"
+        ),
+        param(
+            "```\nx\n",
+            "```\nx\n",
+            id = "open-fence-without-a-footnote-stands"
+        ),
+        param(
+            "- One.[^smith2020]\n\n  ```\n  x\n",
+            f"- One.[^smith2020]\n\n  ```\n  x\n\n{SMITH}\n",
+            id = "open-fence-in-a-list-item-closes-with-it"
+        ),
+        param(
+            f"{SMITH}\n\n```\nx\n",
+            "```\nx\n",
+            id = "uncited-definition-above-an-open-fence"
+        )
     ]
 )
 def test_a_manuscript_writes_each_cited_definition_at_its_end(
@@ -508,6 +528,49 @@ def test_a_manuscript_refuses_an_unknown_key_at_its_file_and_line(
     """
     with raises(LookupError, match=r"a\.md:3: `\[\^nobody1999\]` names no entry"):
         manuscript("One.\n\nTwo.[^nobody1999]\n").written(bibliography)
+
+
+@mark.parametrize(
+    ("text", "line"),
+    [
+        param("One.[^smith2020]\n\n```python\nx = 1\n", 3, id="open-fence"),
+        param(
+            "One.[^smith2020]\n\n~~~~\nx\n```\n",
+            3,
+            id = "tilde-fence-under-a-backtick-close"
+        ),
+        param("One.[^smith2020]\n\n<!-- open\n", 3, id="open-comment"),
+        param(
+            f"One.[^smith2020]\n\n```\nx\n\n{SMITH}\n",
+            3,
+            id = "definition-already-inside-the-fence"
+        ),
+        param(
+            f"{SMITH}\n\nOne.[^smith2020]\n\n```\nx\n",
+            5,
+            id = "after-a-misplaced-definition"
+        )
+    ]
+)
+def test_a_manuscript_ending_in_an_open_block_refuses_a_write_at_its_line(
+    bibliography : Bibliography,
+    line         : int,
+    manuscript   : Writer,
+    text         : str
+):
+    """
+    Pins that the write refuses a file ending inside an open block, which
+    would hold each definition written after it, naming the file and the
+    line the block opens on in the file as it stands, and that the faults
+    report that line.
+    """
+    read = manuscript(text)
+
+    with raises(SyntaxError, match="ends inside the block") as raised:
+        read.written(bibliography)
+
+    assert (raised.value.filename, raised.value.lineno) == ("a.md", line)
+    assert line in [fault.line for fault in read.faults(bibliography)]
 
 
 @mark.parametrize(
@@ -577,6 +640,14 @@ def test_a_manuscript_refuses_an_unknown_key_at_its_file_and_line(
             f"One.[^smith2020] Two.[^jones2021]\n\n{JONES}\n",
             [(1, "`[^smith2020]` has no definition")],
             id = "missing-beside-one-in-its-place"
+        ),
+        param(
+            "One.[^smith2020]\n\n```\nx\n",
+            [
+                (1, "`[^smith2020]` has no definition"),
+                (3, "The file ends inside the block opening here")
+            ],
+            id = "open-fence"
         )
     ]
 )

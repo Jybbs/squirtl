@@ -20,6 +20,9 @@
   --vp-c-text-1                 : var(--color-ink);
   --vp-c-text-2                 : var(--color-quiet);
   --vp-c-text-3                 : var(--color-quiet);
+  --vp-code-bg                  : var(--color-denim-1);
+  --vp-code-color               : var(--color-denim-text);
+  --vp-code-font-size           : var(--text-code);
   --vp-font-family-base         : var(--font-body);
   --vp-font-family-mono         : var(--font-code);
   --vp-home-hero-name-color     : var(--color-link);

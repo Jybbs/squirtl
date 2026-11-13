@@ -41,7 +41,7 @@ describe('CommandsWatch', () => {
     const { wrapper } = await mounted()
 
     expect([checks(wrapper), pointer.sliderState(wrapper)]).toStrictEqual([
-      ['Digestwaiting', 'Returnwaiting'], ['1', 'Press 1 of 163, Right']
+      ['Digestwaiting', 'Returnwaiting'], ['1', 'Press 1 of 181, Right']
     ])
     expect(wrapper.text()).toBePublishedProse()
   })
@@ -58,7 +58,7 @@ describe('CommandsWatch', () => {
     await nextTick()
 
     expect([before, checks(wrapper), pointer.sliderState(wrapper)[0]]).toStrictEqual([
-      ['Digestmatches', 'Returnwaiting'], ['Digestmatches', 'Returnmatches'], '163'
+      ['Digestmatches', 'Returnwaiting'], ['Digestmatches', 'Returnmatches'], '181'
     ])
     expect(recorder.images.length).toBeGreaterThan(0)
   })
@@ -100,7 +100,7 @@ describe('CommandsWatch’s slider', () => {
     await thumb.trigger('keydown', { key: 'Home' })
     await nextTick()
 
-    expect(pointer.sliderState(wrapper)).toStrictEqual(['1', 'Press 1 of 163, Right'])
+    expect(pointer.sliderState(wrapper)).toStrictEqual(['1', 'Press 1 of 181, Right'])
   })
 
   it('replays from the reset when the slider moves back once the window shows', async () => {

@@ -1,6 +1,6 @@
 import type { KeyEntry }                                     from '../widgets/chips.ts'
 import { EDGES }                                             from './lanes.ts'
-import { SILHOUETTES }                                       from './marks.ts'
+import { SILHOUETTES, glyphOf }                              from './marks.ts'
 import { AGENTS, type Estimate, type Group, hueOf, percent } from './results.ts'
 
 /**
@@ -12,7 +12,27 @@ export interface LegendRow {
 }
 
 /**
- * Names the share of a seed's episodes reaching the starter each shade a cell
+ * The key of the curves' marks, the glyph solid from the bedroom and hollow
+ * along the curriculum, and random presses' level line.
+ */
+export const CURVES: readonly KeyEntry[] = [
+  { mark: glyphOf({ agent: 'ppo', curriculum: false }), name: 'Solid, from the bedroom', role: 'agent' },
+  { mark: glyphOf({ agent: 'ppo', curriculum: true }), name: 'Hollow and dashed, with the curriculum', role: 'agent' },
+  { name: 'Random presses', role: 'random' }
+]
+
+/**
+ * Made-up groups and a made-up share for random presses, one group for each
+ * agent, which a legend set out apart from any run draws in place of the
+ * committed ones.
+ */
+export const SAMPLE: { groups: readonly Pick<Group, 'agent'>[], random: Estimate } = {
+  groups : (Object.keys(AGENTS) as Group['agent'][]).map(agent => ({ agent })),
+  random : { interval: [0.19, 0.31], runs: [30], value: 0.25 }
+}
+
+/**
+ * Names the share of a seed's episodes reaching the goal each shade a cell
  * takes marks, from none, up to each of `EDGES` past the first, then above
  * the last.
  */
@@ -78,13 +98,37 @@ const VERDICT: readonly KeyEntry[] = [
 ]
 
 /**
+ * The key of the most likely press's marks, a seed's tile ringed in Brick Red
+ * where its count at the most likely press differs from its sampled count, the
+ * evaluation the widget shows ringed in ink, and the Brick Red pill naming a
+ * tile's count at the most likely press or an evaluation's differing seeds.
+ */
+export const ARGMAX: readonly KeyEntry[] = [
+  {
+    mark : marked('<rect class="results-differs" x="2" y="3" width="14" height="12" rx="2"/>'),
+    name : 'A seed differing at its most likely press',
+    role : 'none'
+  },
+  {
+    mark : marked('<rect class="results-shown" x="2" y="3" width="14" height="12" rx="2"/>'),
+    name : 'The evaluation shown',
+    role : 'none'
+  },
+  {
+    mark : marked('<rect class="results-named" x="2" y="5" width="14" height="8" rx="2"/>'),
+    name : 'A count at the most likely press',
+    role : 'none'
+  }
+]
+
+/**
  * Lists the legend of the figure drawing `groups`, one row a thing its marks
  * decode, each entry the figure's own mark: each agent's hue, the hatching
  * along the curriculum, a cell's shade, the last evaluation, random presses'
  * share `random` across every seed, and the verdict's odds, the curriculum's
  * hatching drawn through the pattern `hatch`.
  */
-export function legendOf(groups: readonly Group[], random: Estimate, hatch: string): LegendRow[] {
+export function legendOf(groups: readonly Pick<Group, 'agent'>[], random: Estimate, hatch: string): LegendRow[] {
   const agents = [...new Set(groups.map(group => group.agent))]
   const band   = '<rect class="fill-random opacity-15" x="1" y="1" width="16" height="16"/>'
                + '<path class="stroke-random" d="M9,1V17" stroke-width="2"/>'
@@ -100,10 +144,20 @@ export function legendOf(groups: readonly Group[], random: Estimate, hatch: stri
     },
     {
       entries : SHADES.map((name, shade) => ({ mark: swatchOf(shade), name, role: shade === 0 ? 'none' : 'agent' })),
-      head    : 'Share reaching the starter'
+      head    : 'Share reaching the goal'
     },
     { entries: FINALS, head: 'Last evaluation' },
     { entries: [{ mark: marked(band), name: 'Across every seed', role: 'random', value: percent(random) }], head: 'Random presses' },
     { entries: VERDICT, head: 'Verdict' }
   ]
+}
+
+/**
+ * Lists every part the Results charts draw, the legend of the figure drawing
+ * `groups` with the curves' key set after what each start draws and the most
+ * likely press's key last, so one legend names the look the charts share.
+ */
+export function lookOf(groups: readonly Pick<Group, 'agent'>[], random: Estimate, hatch: string): LegendRow[] {
+  const [agents, start, ...rest] = legendOf(groups, random, hatch)
+  return [agents!, start!, { entries: CURVES, head: 'Curve' }, ...rest, { entries: ARGMAX, head: 'Most likely press' }]
 }

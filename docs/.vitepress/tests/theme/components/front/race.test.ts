@@ -58,7 +58,7 @@ describe('StoryRace under reduced motion', () => {
       '120', '10,240 steps: the agent has reached the starter in 30 of 30 episodes and random presses in 8'
     ])
     expect(scores(wrapper)).toStrictEqual([
-      '', 'Reached it', 'Steps to it', 'The agent', 'Reached it30 of 30', 'Steps to it75', 'Random presses', 'Reached it8 of 30', 'Steps to it6,449'
+      '', 'Reached it', 'Steps to it', 'The agent', 'Reached it30 of 30', 'Steps to it93', 'Random presses', 'Reached it8 of 30', 'Steps to it6,498'
     ])
     expect(wrapper.text()).toContain('Episodes that have reached the starter')
   })

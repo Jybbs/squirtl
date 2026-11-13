@@ -4,14 +4,18 @@ import { createMarkdownRenderer } from 'vitepress'
 import { describe, expect, it }   from 'vitest'
 
 import { pagesDir }                                from '../../../lib/config/paths.ts'
-import { placed }                                  from '../../../lib/config/sections.ts'
+import { SINGLES, placed, slugOf }                 from '../../../lib/config/sections.ts'
 import { type Placement, WIDGETS, sectionWidgets } from '../../../lib/markdown/widgets.ts'
 
 /**
- * A command's page in the shape `squirtl write docs` writes one, its title,
- * its help, and its settings.
+ * A command's page in the shape `squirtl write docs` writes one, its title and
+ * its help between their markers, its own prose, and its settings between
+ * theirs.
  */
-const PAGE = ['# `squirtl watch`', '', 'Plays an episode back.', '', '## Settings', '', 'A table.'].join('\n')
+const PAGE = [
+  '<!-- help -->', '', '# `squirtl watch`', '', 'Plays an episode back.', '', '<!-- /help -->', '',
+  'A point of its own.', '', '<!-- settings -->', '', '## Settings', '', 'A table.', '', '<!-- /settings -->', ''
+].join('\n')
 
 /**
  * The widgets a case places, one closing the page's title part and one its
@@ -42,8 +46,8 @@ describe('sectionWidgets', () => {
   it('closes each part a widget names on it, ahead of the next heading or at the page’s end', async () => {
     const html = await rendered(PAGE, 'commands/watch.md')
 
-    expect(html).toMatch(/Plays an episode back\.<\/p>\n<CommandsWatch \/>\n<h2/u)
-    expect(html).toMatch(/A table\.<\/p>\n<SettingsTable \/>\n$/u)
+    expect(html).toMatch(/A point of its own\.<\/p>\n<!-- settings -->\n<CommandsWatch \/>\n<h2/u)
+    expect(html).toMatch(/<!-- \/settings -->\n<SettingsTable \/>\n$/u)
   })
 
   it('leaves a page no widget names as it was written', async () => {
@@ -60,9 +64,22 @@ describe('sectionWidgets', () => {
     expect(missing).toStrictEqual([])
   })
 
-  it('places every widget in a section the site carries', () => {
+  it('places every widget in a section or on a page outside them the site carries', () => {
     const folders = new Set(placed().map(section => section.folder as string))
+    const singles = new Set(SINGLES.map(single => `${slugOf(single)}.md`))
 
-    expect(WIDGETS.filter(widget => !folders.has(widget.page.split('/')[0]!))).toStrictEqual([])
+    expect(WIDGETS.map(({ page }) => page).filter(page => !folders.has(page.split('/')[0]!)).filter(page => !singles.has(page))).toStrictEqual([])
+  })
+
+  it('closes a part folding a table shut on its widget, ahead of the fold', async () => {
+    const html = await rendered('# `squirtl watch`\n\nLead.\n\n<details>\n<summary>The table</summary>\n\nA table.\n\n</details>\n', 'commands/watch.md')
+
+    expect(html).toMatch(/Lead\.<\/p>\n<CommandsWatch \/>\n<details>/u)
+  })
+
+  it('closes a part with no fold of its own at its next heading, ahead of a later part’s fold', async () => {
+    const html = await rendered('# `squirtl watch`\n\nLead.\n\n## Later\n\n<details>\n<summary>The table</summary>\n\nA table.\n\n</details>\n', 'commands/watch.md')
+
+    expect(html).toMatch(/Lead\.<\/p>\n<CommandsWatch \/>\n<h2/u)
   })
 })

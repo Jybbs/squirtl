@@ -70,16 +70,14 @@ export class Player {
   }
 
   /**
-   * Chooses the next press, a reader's queued or held button outside Oak's walk
-   * and the agent's stand-in's press otherwise.
+   * Chooses the next press, the reader's queued button ahead of a held one
+   * unless the game's script holds Blue, behind Oak or through his speech, and
+   * the agent's stand-in's press otherwise.
    */
   choose(): rooms.Button {
-    const { episode, queued } = this
-    const walking             = episode.script.length > 0
-    this.queued               = null
-    if (queued && !walking) return queued
-    if (this.held && !walking) return this.held
-    return autoPress(episode, this.random)
+    const chosen = this.queued ?? this.held
+    this.queued  = null
+    return chosen && !this.episode.scripted ? chosen : autoPress(this.episode, this.random)
   }
 
   /**
@@ -136,13 +134,13 @@ export class Player {
 }
 
 /**
- * Chooses the agent's stand-in's press, B while Oak leads, a random button for
- * the first `wander` presses, and after them the first step of the shortest
- * walk to the room's goal, A once Blue faces Squirtle's Poké Ball, and a random
- * direction where no walk reaches the goal.
+ * Chooses the agent's stand-in's press, B while Oak leads or speaks, a random
+ * button for the first `wander` presses, and after them the first step of the
+ * shortest walk to the room's goal, A once Blue faces Squirtle's Poké Ball, and
+ * a random direction where no walk reaches the goal.
  */
 export function autoPress(episode: Episode, random: Random, wander = WANDER): rooms.Button {
-  if (episode.script.length > 0) return 'b'
+  if (episode.scripted) return 'b'
   if (episode.steps < wander) return pickFrom(rooms.BUTTONS, random)
   if (episode.place === 'lab' && rooms.same(episode.at, pickAt)) return episode.facing === 'up' ? 'a' : 'up'
   if (episode.place === 'house' && rooms.same(episode.at, GOALS.house)) return 'down'

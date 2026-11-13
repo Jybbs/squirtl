@@ -1,7 +1,7 @@
 """
 Defines the fixtures the tests of `squirtl.reward` share, a `game_boy` over
-`StandIn`, the `flag` and `move` writers into its memory, and the `progress`
-of an episode on it.
+`StandIn`, the `flag` and `move` writers into its memory, the `goal` an
+episode ends at, and the `progress` of an episode on it.
 """
 
 from collections.abc import Callable
@@ -34,6 +34,14 @@ def game_boy() -> GameBoy:
 
 
 @fixture
+def goal() -> Event:
+    """
+    Names the flag an episode ends at, the default `EVENT_GOT_STARTER`.
+    """
+    return Event.EVENT_GOT_STARTER
+
+
+@fixture
 def move(game_boy: GameBoy) -> Callable[[Position], None]:
     """
     Builds a writer that stands the player on the position it is given in
@@ -43,9 +51,9 @@ def move(game_boy: GameBoy) -> Callable[[Position], None]:
 
 
 @fixture
-def progress(game_boy: GameBoy, settings: RewardSettings) -> Progress:
+def progress(game_boy: GameBoy, goal: Event, settings: RewardSettings) -> Progress:
     """
-    Starts the progress of an episode on `game_boy` under `settings`, with
-    the player at `x` 0 and `y` 0 on map 0 and no flag set.
+    Starts the progress of an episode on `game_boy` ending at `goal` under
+    `settings`, with the player at `x` 0 and `y` 0 on map 0 and no flag set.
     """
-    return Progress(game_boy, settings)
+    return Progress(game_boy, goal, settings)

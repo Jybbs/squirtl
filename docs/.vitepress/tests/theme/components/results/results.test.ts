@@ -55,18 +55,20 @@ describe.each([ResultsComparison, ResultsCurves])('$name', widget => {
 })
 
 describe('ResultsCurves', () => {
-  it('presses both PQN groups at first, the rest released, and toggles any group on a press', async () => {
+  it('presses the groups of the agent parting furthest, and toggles a group on a press', async () => {
     held.runs     = true
     const wrapper = mount(ResultsCurves)
 
     expect(toggles(wrapper)).toStrictEqual([
-      ['Deep Q-network', 'false'], ['PPO', 'false'], ['PPO, curriculum', 'false'], ['PQN', 'true'], ['PQN, curriculum', 'true']
+      ['Deep Q-network', 'false'], ['PPO', 'false'], ['PPO, curriculum', 'false'], ['PQN', 'true'],
+      ['PQN, curriculum', 'true']
     ])
 
     await wrapper.findAll('button')[1]!.trigger('click')
     await wrapper.findAll('button')[3]!.trigger('click')
 
-    expect(toggles(wrapper).map(([, pressed]) => pressed)).toStrictEqual(['false', 'true', 'false', 'false', 'true'])
+    expect(toggles(wrapper).map(([, pressed]) => pressed))
+      .toStrictEqual(['false', 'true', 'false', 'false', 'true'])
     expect(wrapper.text()).toBePublishedProse()
   })
 

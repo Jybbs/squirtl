@@ -116,8 +116,8 @@ export const HUES: Readonly<Record<Hue, HueClasses>> = {
  */
 export const ROLES: Readonly<Record<Role, RoleClasses>> = {
   agent     : { fill: 'fill-agent', stroke: 'stroke-agent' },
+  goal      : { fill: 'fill-goal', stroke: 'stroke-goal' },
   milestone : { fill: 'fill-milestone', stroke: 'stroke-milestone' },
   novelty   : { fill: 'fill-novelty', stroke: 'stroke-novelty' },
-  random    : { fill: 'fill-random', stroke: 'stroke-random' },
-  starter   : { fill: 'fill-starter', stroke: 'stroke-starter' }
+  random    : { fill: 'fill-random', stroke: 'stroke-random' }
 }

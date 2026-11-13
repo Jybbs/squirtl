@@ -97,14 +97,14 @@
       },
       "bedroom": {
         "interval": [
-          0.12,
-          0.84
+          0.06,
+          0.8
         ],
         "runs": [
           5,
           5
         ],
-        "value": 0.46
+        "value": 0.44
       },
       "curriculum": true,
       "reached": {
@@ -169,35 +169,35 @@
       "beats": {
         "interval": [
           0.0,
-          0.8
+          0.0
         ],
         "runs": [
           5,
           5
         ],
-        "value": 0.4
+        "value": 0.0
       },
       "bedroom": {
         "interval": [
-          0.4,
+          0.24,
           1.0
         ],
         "runs": [
           5,
           5
         ],
-        "value": 0.8
+        "value": 0.64
       },
       "curriculum": true,
       "reached": {
         "interval": [
           0.0,
-          0.8666666666666667
+          0.0
         ],
         "runs": [
           5
         ],
-        "value": 0.2888888888888889
+        "value": 0.0
       }
     }
   ],
@@ -213,1183 +213,541 @@
   },
   "runs": [
     {
-      "agent": "ppo",
+      "agent": "pqn",
       "curriculum": true,
-      "name": "20261108T230559.402534Z",
+      "name": "20261111T020549.763312Z",
+      "seed": 4,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.36666666666666664,
+        "reward": 0.29354166666666653,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0005083333333333334,
+          "step": 253952
+        },
+        {
+          "argmax": null,
+          "reached": 0.23333333333333334,
+          "reward": 0.251475,
+          "step": 503808
+        },
+        {
+          "argmax": null,
+          "reached": 0.43333333333333335,
+          "reward": 0.4356083333333333,
+          "step": 753664
+        },
+        {
+          "argmax": null,
+          "reached": 0.3333333333333333,
+          "reward": 0.25698333333333334,
+          "step": 1003520
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.006091666666666671,
+          "step": 1253376
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.005125000000000003,
+          "step": 1503232
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.005125000000000003,
+          "step": 1753088
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.005125000000000003,
+          "step": 2002944
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.005125000000000003,
+          "step": 2252800
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.005125000000000003,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": false,
+      "name": "20261111T020551.710189Z",
+      "seed": 4,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.36666666666666664,
+        "reward": 0.29354166666666653,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0036250000000000015,
+          "step": 253952
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.001091666666666667,
+          "step": 503808
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0038916666666666687,
+          "step": 753664
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0018083333333333332,
+          "step": 1003520
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.006308333333333337,
+          "step": 1253376
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0025000000000000005,
+          "step": 1503232
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.001533333333333334,
+          "step": 1753088
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0005083333333333334,
+          "step": 2002944
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0064500000000000035,
+          "step": 2252800
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.006533333333333337,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": true,
+      "name": "20261111T020603.026756Z",
       "seed": 5,
       "baseline": {
+        "argmax": null,
         "reached": 0.2,
-        "reward": 0.22651666666666664,
+        "reward": 0.17651666666666666,
         "step": null
       },
+      "goal": "EVENT_GOT_STARTER",
       "scores": [
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.0,
-          "step": 262144
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00025,
-          "step": 507904
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0,
-          "step": 753664
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0,
-          "step": 1015808
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9142500000000001,
-          "step": 1261568
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9142500000000001,
-          "step": 1507328
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9142500000000001,
-          "step": 1753088
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9142500000000001,
-          "step": 2015232
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9142500000000001,
-          "step": 2260992
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9142500000000001,
-          "step": 2506752
-        }
-      ]
-    },
-    {
-      "agent": "ppo",
-      "curriculum": false,
-      "name": "20261108T230602.574663Z",
-      "seed": 5,
-      "baseline": {
-        "reached": 0.2,
-        "reward": 0.22651666666666664,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.002,
-          "step": 262144
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.003000000000000001,
-          "step": 507904
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.10825000000000001,
-          "step": 753664
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 1015808
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 1261568
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 1507328
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 1753088
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 2015232
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 2260992
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9142500000000001,
-          "step": 2506752
-        }
-      ]
-    },
-    {
-      "agent": "pqn",
-      "curriculum": true,
-      "name": "20261108T230603.411044Z",
-      "seed": 4,
-      "baseline": {
-        "reached": 0.36666666666666664,
-        "reward": 0.3852083333333332,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0006083333333333333,
+          "reward": 0.001575,
           "step": 253952
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.008233333333333339,
+          "reward": 0.0024000000000000007,
           "step": 503808
         },
         {
-          "reached": 0.4,
-          "reward": 0.5235666666666666,
+          "argmax": null,
+          "reached": 0.43333333333333335,
+          "reward": 0.3730666666666666,
           "step": 753664
         },
         {
-          "reached": 0.0,
-          "reward": 0.002591666666666667,
+          "argmax": null,
+          "reached": 0.26666666666666666,
+          "reward": 0.28355833333333336,
           "step": 1003520
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.005141666666666669,
+          "reward": 0.005408333333333336,
           "step": 1253376
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.005133333333333336,
+          "reward": 0.005408333333333336,
           "step": 1503232
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.005450000000000003,
+          "reward": 0.005408333333333336,
           "step": 1753088
         },
         {
-          "reached": 0.0,
-          "reward": 0.004925000000000002,
-          "step": 2002944
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.005150000000000003,
-          "step": 2252800
-        },
-        {
-          "reached": 0.8666666666666667,
-          "reward": 0.7934583333333333,
-          "step": 2502656
-        }
-      ]
-    },
-    {
-      "agent": "pqn",
-      "curriculum": false,
-      "name": "20261108T230606.327604Z",
-      "seed": 4,
-      "baseline": {
-        "reached": 0.36666666666666664,
-        "reward": 0.3852083333333332,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0023416666666666677,
-          "step": 253952
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0054166666666666695,
-          "step": 503808
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.01573333333333333,
-          "step": 753664
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.001291666666666667,
-          "step": 1003520
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0064833333333333375,
-          "step": 1253376
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00044166666666666665,
-          "step": 1503232
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0015916666666666672,
-          "step": 1753088
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.007358333333333338,
-          "step": 2002944
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.007600000000000005,
-          "step": 2252800
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0019583333333333336,
-          "step": 2502656
-        }
-      ]
-    },
-    {
-      "agent": "pqn",
-      "curriculum": true,
-      "name": "20261108T230608.506664Z",
-      "seed": 1,
-      "baseline": {
-        "reached": 0.16666666666666666,
-        "reward": 0.21207499999999999,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0012749999999999999,
-          "step": 253952
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0008416666666666667,
-          "step": 503808
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.1511333333333332,
-          "step": 753664
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.004108333333333335,
-          "step": 1003520
-        },
-        {
-          "reached": 0.4666666666666667,
-          "reward": 0.43069166666666664,
-          "step": 1253376
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.035524999999999994,
-          "step": 1503232
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00048333333333333334,
-          "step": 1753088
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.003983333333333335,
-          "step": 2002944
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0005833333333333334,
-          "step": 2252800
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0003083333333333333,
-          "step": 2502656
-        }
-      ]
-    },
-    {
-      "agent": "pqn",
-      "curriculum": false,
-      "name": "20261108T230611.675906Z",
-      "seed": 1,
-      "baseline": {
-        "reached": 0.16666666666666666,
-        "reward": 0.21207499999999999,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.002725000000000001,
-          "step": 253952
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.002000000000000001,
-          "step": 503808
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.002808333333333334,
-          "step": 753664
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0009083333333333335,
-          "step": 1003520
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0008333333333333334,
-          "step": 1253376
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0007333333333333333,
-          "step": 1503232
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0012833333333333336,
-          "step": 1753088
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.002241666666666667,
-          "step": 2002944
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0038500000000000014,
-          "step": 2252800
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0009833333333333335,
-          "step": 2502656
-        }
-      ]
-    },
-    {
-      "agent": "ppo",
-      "curriculum": true,
-      "name": "20261108T230612.186418Z",
-      "seed": 2,
-      "baseline": {
-        "reached": 0.13333333333333333,
-        "reward": 0.171925,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0,
-          "step": 262144
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0,
-          "step": 507904
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0,
-          "step": 753664
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0,
-          "step": 1015808
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0047500000000000025,
-          "step": 1261568
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91475,
-          "step": 1507328
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91475,
-          "step": 1753088
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91475,
-          "step": 2015232
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91475,
-          "step": 2260992
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91475,
-          "step": 2506752
-        }
-      ]
-    },
-    {
-      "agent": "ppo",
-      "curriculum": false,
-      "name": "20261108T230614.405278Z",
-      "seed": 2,
-      "baseline": {
-        "reached": 0.13333333333333333,
-        "reward": 0.171925,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0,
-          "step": 262144
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00025,
-          "step": 507904
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00025,
-          "step": 753664
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 1015808
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 1261568
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 1507328
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 1753088
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 2015232
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 2260992
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 2506752
-        }
-      ]
-    },
-    {
-      "agent": "ppo",
-      "curriculum": true,
-      "name": "20261108T230616.664480Z",
-      "seed": 1,
-      "baseline": {
-        "reached": 0.16666666666666666,
-        "reward": 0.21207499999999999,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0,
-          "step": 262144
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00125,
-          "step": 507904
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.004500000000000002,
-          "step": 753664
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.914,
-          "step": 1015808
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.914,
-          "step": 1261568
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.914,
-          "step": 1507328
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.914,
-          "step": 1753088
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.914,
-          "step": 2015232
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.914,
-          "step": 2260992
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.914,
-          "step": 2506752
-        }
-      ]
-    },
-    {
-      "agent": "ppo",
-      "curriculum": true,
-      "name": "20261108T230618.783391Z",
-      "seed": 4,
-      "baseline": {
-        "reached": 0.36666666666666664,
-        "reward": 0.3852083333333332,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0,
-          "step": 262144
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00075,
-          "step": 507904
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00025,
-          "step": 753664
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00025,
-          "step": 1015808
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 1261568
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 1507328
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 1753088
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 2015232
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 2260992
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 2506752
-        }
-      ]
-    },
-    {
-      "agent": "ppo",
-      "curriculum": false,
-      "name": "20261108T230619.486374Z",
-      "seed": 1,
-      "baseline": {
-        "reached": 0.16666666666666666,
-        "reward": 0.21207499999999999,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0005,
-          "step": 262144
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00025,
-          "step": 507904
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.31475000000000003,
-          "step": 753664
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9148166666666666,
-          "step": 1015808
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9150000000000001,
-          "step": 1261568
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9150000000000001,
-          "step": 1507328
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9150000000000001,
-          "step": 1753088
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9150000000000001,
-          "step": 2015232
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9150000000000001,
-          "step": 2260992
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9150000000000001,
-          "step": 2506752
-        }
-      ]
-    },
-    {
-      "agent": "ppo",
-      "curriculum": false,
-      "name": "20261108T230620.915963Z",
-      "seed": 4,
-      "baseline": {
-        "reached": 0.36666666666666664,
-        "reward": 0.3852083333333332,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.00025,
-          "step": 262144
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00025,
-          "step": 507904
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9142500000000001,
-          "step": 753664
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9142500000000001,
-          "step": 1015808
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 1261568
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 1507328
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 1753088
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 2015232
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 2260992
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.91325,
-          "step": 2506752
-        }
-      ]
-    },
-    {
-      "agent": "pqn",
-      "curriculum": true,
-      "name": "20261108T230621.730506Z",
-      "seed": 3,
-      "baseline": {
-        "reached": 0.26666666666666666,
-        "reward": 0.3006666666666666,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.00044166666666666665,
-          "step": 253952
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0032833333333333343,
-          "step": 503808
-        },
-        {
-          "reached": 0.8666666666666667,
-          "reward": 0.8346833333333332,
-          "step": 753664
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.001775,
-          "step": 1003520
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.004100000000000002,
-          "step": 1253376
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.004100000000000002,
-          "step": 1503232
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.004100000000000002,
-          "step": 1753088
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.004100000000000002,
-          "step": 2002944
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.004100000000000002,
-          "step": 2252800
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.004100000000000002,
-          "step": 2502656
-        }
-      ]
-    },
-    {
-      "agent": "ppo",
-      "curriculum": true,
-      "name": "20261108T230622.098927Z",
-      "seed": 3,
-      "baseline": {
-        "reached": 0.26666666666666666,
-        "reward": 0.3006666666666666,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0,
-          "step": 262144
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0,
-          "step": 507904
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0005,
-          "step": 753664
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 1015808
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9137500000000001,
-          "step": 1261568
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 1507328
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 1753088
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 2015232
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 2260992
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 2506752
-        }
-      ]
-    },
-    {
-      "agent": "pqn",
-      "curriculum": true,
-      "name": "20261108T230623.563042Z",
-      "seed": 2,
-      "baseline": {
-        "reached": 0.13333333333333333,
-        "reward": 0.171925,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0012749999999999999,
-          "step": 253952
-        },
-        {
-          "reached": 0.9,
-          "reward": 0.8558583333333332,
-          "step": 503808
-        },
-        {
-          "reached": 0.1,
-          "reward": 0.37434166666666663,
-          "step": 753664
-        },
-        {
-          "reached": 0.9,
-          "reward": 0.8222833333333334,
-          "step": 1003520
-        },
-        {
-          "reached": 0.8,
-          "reward": 0.783875,
-          "step": 1253376
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0020333333333333336,
-          "step": 1503232
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0006916666666666667,
-          "step": 1753088
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9130166666666667,
-          "step": 2002944
-        },
-        {
-          "reached": 0.8666666666666667,
-          "reward": 0.8032,
-          "step": 2252800
-        }
-      ]
-    },
-    {
-      "agent": "pqn",
-      "curriculum": false,
-      "name": "20261108T230623.764050Z",
-      "seed": 3,
-      "baseline": {
-        "reached": 0.26666666666666666,
-        "reward": 0.3006666666666666,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0014750000000000006,
-          "step": 253952
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0008416666666666669,
-          "step": 503808
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.005041666666666669,
-          "step": 753664
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0012833333333333334,
-          "step": 1003520
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0025500000000000006,
-          "step": 1253376
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0019,
-          "step": 1503232
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00614166666666667,
-          "step": 1753088
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.00878333333333334,
-          "step": 2002944
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0020333333333333336,
-          "step": 2252800
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0008083333333333334,
-          "step": 2502656
-        }
-      ]
-    },
-    {
-      "agent": "pqn",
-      "curriculum": true,
-      "name": "20261108T230624.105364Z",
-      "seed": 5,
-      "baseline": {
-        "reached": 0.2,
-        "reward": 0.22651666666666664,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0009583333333333337,
-          "step": 253952
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0006000000000000001,
-          "step": 503808
-        },
-        {
-          "reached": 0.6666666666666666,
-          "reward": 0.6184999999999999,
-          "step": 753664
-        },
-        {
-          "reached": 0.9,
-          "reward": 0.8338666666666666,
-          "step": 1003520
-        },
-        {
-          "reached": 0.16666666666666666,
-          "reward": 0.15580833333333333,
-          "step": 1253376
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0018833333333333334,
-          "step": 1503232
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.005808333333333336,
-          "step": 1753088
-        },
-        {
+          "argmax": null,
           "reached": 0.0,
           "reward": 0.005408333333333336,
           "step": 2002944
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.005408333333333336,
+          "step": 2252800
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.000325,
+          "step": 2502656
         }
       ]
     },
     {
-      "agent": "ppo",
+      "agent": "dqn",
       "curriculum": false,
-      "name": "20261108T230624.179244Z",
-      "seed": 3,
+      "name": "20261111T020603.100736Z",
+      "seed": 1,
       "baseline": {
-        "reached": 0.26666666666666666,
-        "reward": 0.3006666666666666,
+        "argmax": null,
+        "reached": 0.16666666666666666,
+        "reward": 0.17040833333333333,
         "step": null
       },
+      "goal": "EVENT_GOT_STARTER",
       "scores": [
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.00025,
-          "step": 262144
+          "reward": 0.0007083333333333334,
+          "step": 251743
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.00025,
-          "step": 507904
+          "reward": 0.0008333333333333334,
+          "step": 507743
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.008333333333333338,
-          "step": 753664
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.9137500000000001,
-          "step": 1015808
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 1261568
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 1507328
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 1753088
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 2015232
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 2260992
-        },
-        {
-          "reached": 1.0,
-          "reward": 0.913,
-          "step": 2506752
+          "reward": 0.00010833333333333334,
+          "step": 753503
         }
       ]
     },
     {
       "agent": "pqn",
       "curriculum": false,
-      "name": "20261108T230625.703524Z",
-      "seed": 2,
+      "name": "20261111T020604.873861Z",
+      "seed": 5,
       "baseline": {
-        "reached": 0.13333333333333333,
-        "reward": 0.171925,
+        "argmax": null,
+        "reached": 0.2,
+        "reward": 0.17651666666666666,
         "step": null
       },
+      "goal": "EVENT_GOT_STARTER",
       "scores": [
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.001175,
+          "reward": 0.00125,
           "step": 253952
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.0011,
+          "reward": 0.003033333333333334,
           "step": 503808
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.000475,
+          "reward": 0.0007500000000000002,
           "step": 753664
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.00075,
+          "reward": 0.003225000000000001,
           "step": 1003520
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.000475,
+          "reward": 0.002016666666666667,
           "step": 1253376
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.0042916666666666685,
+          "reward": 0.0011666666666666668,
           "step": 1503232
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.0010083333333333333,
+          "reward": 0.0006083333333333333,
           "step": 1753088
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.002475,
+          "reward": 0.00534166666666667,
           "step": 2002944
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.004741666666666669,
+          "reward": 0.006608333333333338,
           "step": 2252800
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.002066666666666667,
+          "reward": 0.0007333333333333334,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "dqn",
+      "curriculum": false,
+      "name": "20261111T020604.912486Z",
+      "seed": 2,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.13333333333333333,
+        "reward": 0.13859166666666667,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0027000000000000006,
+          "step": 254906
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.003008333333333334,
+          "step": 500666
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0010833333333333335,
+          "step": 756666
+        }
+      ]
+    },
+    {
+      "agent": "dqn",
+      "curriculum": false,
+      "name": "20261111T020609.898794Z",
+      "seed": 3,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.26666666666666666,
+        "reward": 0.23399999999999993,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.000775,
+          "step": 256531
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.004100000000000002,
+          "step": 501490
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0006916666666666667,
+          "step": 752566
+        }
+      ]
+    },
+    {
+      "agent": "dqn",
+      "curriculum": false,
+      "name": "20261111T020614.873002Z",
+      "seed": 4,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.36666666666666664,
+        "reward": 0.29354166666666653,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.00045,
+          "step": 258208
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0035333333333333345,
+          "step": 503968
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0006833333333333333,
+          "step": 759968
+        }
+      ]
+    },
+    {
+      "agent": "dqn",
+      "curriculum": false,
+      "name": "20261111T020619.922380Z",
+      "seed": 5,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.2,
+        "reward": 0.17651666666666666,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0008500000000000001,
+          "step": 259048
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.000325,
+          "step": 500529
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0004916666666666667,
+          "step": 755609
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": true,
+      "name": "20261111T020644.679152Z",
+      "seed": 1,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.16666666666666666,
+        "reward": 0.17040833333333333,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0015,
+          "step": 253952
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0020250000000000003,
+          "step": 503808
+        },
+        {
+          "argmax": null,
+          "reached": 0.5,
+          "reward": 0.48825833333333335,
+          "step": 753664
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 1003520
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 1253376
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 1503232
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 1753088
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 2002944
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
+          "step": 2252800
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.003833333333333335,
           "step": 2502656
         }
       ]
@@ -1397,188 +755,1125 @@
     {
       "agent": "pqn",
       "curriculum": false,
-      "name": "20261108T230626.159025Z",
-      "seed": 5,
+      "name": "20261111T020647.886274Z",
+      "seed": 1,
       "baseline": {
-        "reached": 0.2,
-        "reward": 0.22651666666666664,
+        "argmax": null,
+        "reached": 0.16666666666666666,
+        "reward": 0.17040833333333333,
         "step": null
       },
+      "goal": "EVENT_GOT_STARTER",
       "scores": [
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.0006416666666666669,
+          "reward": 0.0033083333333333346,
           "step": 253952
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.001025,
+          "reward": 0.0005833333333333334,
           "step": 503808
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.001541666666666667,
+          "reward": 0.0009750000000000001,
           "step": 753664
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.0033916666666666683,
+          "reward": 0.0005833333333333334,
           "step": 1003520
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.002908333333333334,
+          "reward": 0.0008416666666666667,
           "step": 1253376
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.006008333333333337,
+          "reward": 0.006966666666666671,
           "step": 1503232
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.0004833333333333334,
+          "reward": 0.003233333333333334,
           "step": 1753088
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.0011916666666666668,
+          "reward": 0.004225000000000002,
           "step": 2002944
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0009083333333333334,
+          "step": 2252800
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0007333333333333333,
+          "step": 2502656
         }
       ]
     },
     {
-      "agent": "dqn",
-      "curriculum": false,
-      "name": "20261108T230629.427762Z",
-      "seed": 1,
-      "baseline": {
-        "reached": 0.16666666666666666,
-        "reward": 0.21207499999999999,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0018750000000000004,
-          "step": 259827
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.002508333333333334,
-          "step": 505587
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0008500000000000001,
-          "step": 751347
-        }
-      ]
-    },
-    {
-      "agent": "dqn",
-      "curriculum": false,
-      "name": "20261108T230631.611071Z",
+      "agent": "pqn",
+      "curriculum": true,
+      "name": "20261111T021753.346516Z",
       "seed": 2,
       "baseline": {
+        "argmax": null,
         "reached": 0.13333333333333333,
-        "reward": 0.171925,
+        "reward": 0.13859166666666667,
         "step": null
       },
+      "goal": "EVENT_GOT_STARTER",
       "scores": [
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.001716666666666667,
-          "step": 259795
+          "reward": 0.00048333333333333334,
+          "step": 253952
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.0016833333333333333,
-          "step": 505555
+          "reward": 0.0028416666666666673,
+          "step": 503808
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0010916666666666668,
+          "step": 753664
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.31628333333333314,
+          "step": 1003520
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.2542583333333333,
+          "step": 1253376
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.004875000000000003,
+          "step": 1503232
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.004875000000000003,
+          "step": 1753088
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.004875000000000003,
+          "step": 2002944
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.005183333333333336,
+          "step": 2252800
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.004875000000000003,
+          "step": 2502656
         }
       ]
     },
     {
-      "agent": "dqn",
-      "curriculum": false,
-      "name": "20261108T230636.598162Z",
+      "agent": "pqn",
+      "curriculum": true,
+      "name": "20261111T021755.026391Z",
       "seed": 3,
       "baseline": {
+        "argmax": null,
         "reached": 0.26666666666666666,
-        "reward": 0.3006666666666666,
+        "reward": 0.23399999999999993,
         "step": null
       },
+      "goal": "EVENT_GOT_STARTER",
       "scores": [
         {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0009333333333333333,
+          "step": 253952
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.005375000000000003,
+          "step": 503808
+        },
+        {
+          "argmax": null,
+          "reached": 0.36666666666666664,
+          "reward": 0.4449749999999998,
+          "step": 753664
+        },
+        {
+          "argmax": null,
+          "reached": 0.1,
+          "reward": 0.35116666666666657,
+          "step": 1003520
+        },
+        {
+          "argmax": null,
+          "reached": 0.13333333333333333,
+          "reward": 0.17503333333333326,
+          "step": 1253376
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.01705,
+          "step": 1503232
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.005883333333333337,
+          "step": 1753088
+        },
+        {
+          "argmax": null,
           "reached": 0.0,
           "reward": 0.00571666666666667,
-          "step": 254399
+          "step": 2002944
         },
         {
+          "argmax": null,
           "reached": 0.0,
-          "reward": 0.0006916666666666667,
-          "step": 507403
+          "reward": 0.005458333333333337,
+          "step": 2252800
         },
         {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.005525000000000003,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": false,
+      "name": "20261111T021755.393320Z",
+      "seed": 2,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.13333333333333333,
+        "reward": 0.13859166666666667,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0021333333333333343,
+          "step": 253952
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.00075,
+          "step": 503808
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0018166666666666667,
+          "step": 753664
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0013583333333333334,
+          "step": 1003520
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0016750000000000005,
+          "step": 1253376
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.000875,
+          "step": 1503232
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.006900000000000004,
+          "step": 1753088
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.00589166666666667,
+          "step": 2002944
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.004583333333333336,
+          "step": 2252800
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0013,
+          "step": 2502656
+        }
+      ]
+    },
+    {
+      "agent": "pqn",
+      "curriculum": false,
+      "name": "20261111T021756.525800Z",
+      "seed": 3,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.26666666666666666,
+        "reward": 0.23399999999999993,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.01615,
+          "step": 253952
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.004850000000000003,
+          "step": 503808
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.00551666666666667,
+          "step": 753664
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0045083333333333355,
+          "step": 1003520
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.001708333333333334,
+          "step": 1253376
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.000825,
+          "step": 1503232
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0011916666666666668,
+          "step": 1753088
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.0012083333333333334,
+          "step": 2002944
+        },
+        {
+          "argmax": null,
+          "reached": 0.0,
+          "reward": 0.006308333333333337,
+          "step": 2252800
+        },
+        {
+          "argmax": null,
           "reached": 0.0,
           "reward": 0.000775,
-          "step": 753163
+          "step": 2502656
         }
       ]
     },
     {
-      "agent": "dqn",
+      "agent": "ppo",
       "curriculum": false,
-      "name": "20261108T230641.641695Z",
-      "seed": 4,
-      "baseline": {
-        "reached": 0.36666666666666664,
-        "reward": 0.3852083333333332,
-        "step": null
-      },
-      "scores": [
-        {
-          "reached": 0.0,
-          "reward": 0.0005916666666666668,
-          "step": 258687
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0023250000000000007,
-          "step": 504054
-        },
-        {
-          "reached": 0.0,
-          "reward": 0.0007083333333333334,
-          "step": 760054
-        }
-      ]
-    },
-    {
-      "agent": "dqn",
-      "curriculum": false,
-      "name": "20261108T230646.624479Z",
+      "name": "20261112T004843.739914Z",
       "seed": 5,
       "baseline": {
+        "argmax": null,
         "reached": 0.2,
-        "reward": 0.22651666666666664,
+        "reward": 0.17651666666666666,
         "step": null
       },
+      "goal": "EVENT_GOT_STARTER",
       "scores": [
         {
-          "reached": 0.0,
-          "reward": 0.0024500000000000004,
-          "step": 257158
+          "argmax": 0.0,
+          "reached": 0.9333333333333333,
+          "reward": 0.6503416666666663,
+          "step": 262144
         },
         {
-          "reached": 0.0,
-          "reward": 0.0024000000000000002,
-          "step": 502918
+          "argmax": 0.0,
+          "reached": 1.0,
+          "reward": 0.6665333333333333,
+          "step": 507904
         },
         {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6634416666666667,
+          "step": 753664
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6632583333333333,
+          "step": 1015808
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 1261568
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6632666666666667,
+          "step": 1507328
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6632583333333333,
+          "step": 1753088
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 2015232
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 2260992
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": true,
+      "name": "20261112T004900.934640Z",
+      "seed": 5,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.2,
+        "reward": 0.17651666666666666,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": 0.0,
           "reached": 0.0,
-          "reward": 0.0038916666666666683,
-          "step": 758918
+          "reward": 0.010408333333333342,
+          "step": 262144
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.005075000000000002,
+          "step": 507904
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.002800000000000001,
+          "step": 753664
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6634916666666667,
+          "step": 1015808
+        },
+        {
+          "argmax": 1.0,
+          "reached": 0.9666666666666667,
+          "reward": 0.64165,
+          "step": 1261568
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.66335,
+          "step": 1507328
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 1753088
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 2015232
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6632583333333333,
+          "step": 2260992
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.66325,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": true,
+      "name": "20261112T141444.155027Z",
+      "seed": 2,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.13333333333333333,
+        "reward": 0.13859166666666667,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.008066666666666672,
+          "step": 262144
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.5666666666666667,
+          "reward": 0.38810833333333333,
+          "step": 507904
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.03333333333333333,
+          "reward": 0.025158333333333335,
+          "step": 753664
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.9666666666666667,
+          "reward": 0.64325,
+          "step": 1015808
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.66335,
+          "step": 1261568
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.66305,
+          "step": 1507328
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6631333333333334,
+          "step": 1753088
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2015232
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2260992
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6631083333333334,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": false,
+      "name": "20261112T141501.166143Z",
+      "seed": 1,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.16666666666666666,
+        "reward": 0.17040833333333333,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": 0.0,
+          "reached": 0.8,
+          "reward": 0.5891416666666666,
+          "step": 262144
+        },
+        {
+          "argmax": 0.0,
+          "reached": 1.0,
+          "reward": 0.6644000000000001,
+          "step": 507904
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6636416666666667,
+          "step": 753664
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1015808
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6630083333333334,
+          "step": 1261568
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1507328
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1753088
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2031616
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2260992
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": false,
+      "name": "20261112T150440.869035Z",
+      "seed": 2,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.13333333333333333,
+        "reward": 0.13859166666666667,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.02762500000000002,
+          "step": 262144
+        },
+        {
+          "argmax": 0.0,
+          "reached": 1.0,
+          "reward": 0.6754916666666665,
+          "step": 507904
+        },
+        {
+          "argmax": 0.0,
+          "reached": 1.0,
+          "reward": 0.6658083333333333,
+          "step": 753664
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6646333333333333,
+          "step": 1015808
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6645,
+          "step": 1261568
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.9,
+          "reward": 0.6009166666666667,
+          "step": 1507328
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6647416666666666,
+          "step": 1753088
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6640250000000001,
+          "step": 2015232
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6640250000000001,
+          "step": 2260992
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6641666666666667,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": true,
+      "name": "20261112T155121.909761Z",
+      "seed": 4,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.36666666666666664,
+        "reward": 0.29354166666666653,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.00930833333333334,
+          "step": 262144
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.004541666666666669,
+          "step": 507904
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.0036250000000000015,
+          "step": 753664
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.03333333333333333,
+          "reward": 0.024333333333333335,
+          "step": 1015808
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.664875,
+          "step": 1261568
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6648166666666666,
+          "step": 1507328
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6648083333333333,
+          "step": 1753088
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6647583333333333,
+          "step": 2015232
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6647583333333333,
+          "step": 2260992
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6652833333333333,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": true,
+      "name": "20261112T155248.056860Z",
+      "seed": 1,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.16666666666666666,
+        "reward": 0.17040833333333333,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": 0.0,
+          "reached": 0.06666666666666667,
+          "reward": 0.07102500000000002,
+          "step": 262144
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.007375000000000005,
+          "step": 507904
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663425,
+          "step": 753664
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6630833333333334,
+          "step": 1015808
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663025,
+          "step": 1261568
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1507328
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 1753088
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2015232
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2260992
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.663,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": true,
+      "name": "20261112T170210.341255Z",
+      "seed": 3,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.26666666666666666,
+        "reward": 0.23399999999999993,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.00985833333333334,
+          "step": 262144
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.012666666666666677,
+          "step": 507904
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.004625000000000002,
+          "step": 753664
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.0022166666666666667,
+          "step": 1015808
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.0,
+          "reward": 0.002800000000000001,
+          "step": 1261568
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.9333333333333333,
+          "reward": 0.6396000000000001,
+          "step": 1523712
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6640916666666666,
+          "step": 1753088
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6637833333333334,
+          "step": 2015232
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6637000000000001,
+          "step": 2260992
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6636583333333335,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": false,
+      "name": "20261112T170226.269385Z",
+      "seed": 4,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.36666666666666664,
+        "reward": 0.29354166666666653,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": 0.0,
+          "reached": 0.6,
+          "reward": 0.43387499999999996,
+          "step": 262144
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.3333333333333333,
+          "reward": 0.22862500000000002,
+          "step": 507904
+        },
+        {
+          "argmax": 0.0,
+          "reached": 0.06666666666666667,
+          "reward": 0.048775000000000006,
+          "step": 753664
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6643166666666667,
+          "step": 1015808
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6642666666666667,
+          "step": 1261568
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6643583333333333,
+          "step": 1507328
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6642666666666667,
+          "step": 1753088
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6642500000000001,
+          "step": 2015232
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6642500000000001,
+          "step": 2260992
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6642666666666667,
+          "step": 2506752
+        }
+      ]
+    },
+    {
+      "agent": "ppo",
+      "curriculum": false,
+      "name": "20261112T181650.959608Z",
+      "seed": 3,
+      "baseline": {
+        "argmax": null,
+        "reached": 0.26666666666666666,
+        "reward": 0.23399999999999993,
+        "step": null
+      },
+      "goal": "EVENT_GOT_STARTER",
+      "scores": [
+        {
+          "argmax": 0.0,
+          "reached": 0.9,
+          "reward": 0.6288249999999997,
+          "step": 262144
+        },
+        {
+          "argmax": 0.0,
+          "reached": 1.0,
+          "reward": 0.6655416666666666,
+          "step": 507904
+        },
+        {
+          "argmax": 0.0,
+          "reached": 1.0,
+          "reward": 0.66395,
+          "step": 753664
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6639166666666667,
+          "step": 1015808
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 1261568
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 1507328
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 1753088
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 2015232
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 2260992
+        },
+        {
+          "argmax": 1.0,
+          "reached": 1.0,
+          "reward": 0.6635000000000001,
+          "step": 2506752
         }
       ]
     }
