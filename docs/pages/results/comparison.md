@@ -1,0 +1,3 @@
+# Against Random Presses
+
+Each agent's runs, PQN's and PPO's trained with and without the curriculum, take a lane of their own, each run a row of cells along the steps shaded by its share of evaluation episodes reaching its goal, and at the lane's end each run's last evaluation beside the share random presses reach under its seed. A lane's verdict against random presses reads the 95% interval of the probability that a run of the agent beats a run of random presses on mean return, clearing even odds or not, and a lane trained along the curriculum adds the same probability against the agent's runs from the bedroom.
