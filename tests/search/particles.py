@@ -691,7 +691,7 @@ def test_the_winner_is_the_best_of_the_groups_and_the_last_one_scored_afresh(
         ),
         param(Event.EVENT_GOT_STARTER, (Event.EVENT_GOT_STARTER,), True, id="the-goal"),
         param(
-            Event.EVENT_GOT_POKEDEX,
+            Event.EVENT_BATTLED_RIVAL_IN_OAKS_LAB,
             (Event.EVENT_GOT_STARTER,),
             False,
             id = "a-flag-short-of-a-later-goal"
