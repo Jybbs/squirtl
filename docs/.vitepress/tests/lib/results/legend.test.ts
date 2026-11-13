@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { CURVES, SAMPLE, legendOf, lookOf } from '../../../lib/results/legend.ts'
+import { ARGMAX, CURVES, SAMPLE, legendOf, lookOf } from '../../../lib/results/legend.ts'
 import * as results                         from '../../../lib/results/results.ts'
 import FIXTURE                              from './fixtures/results.json' with { type: 'json' }
 
@@ -36,11 +36,17 @@ describe('legendOf', () => {
 })
 
 describe('lookOf', () => {
-  it('sets the curves’ key after what each start draws, every other row the legend’s', () => {
+  it('sets the curves’ key after what each start draws and the most likely press’s key last, every other row the legend’s', () => {
     const legend = legendOf(GROUPS, RESULTS.random!, 'hatch')
 
-    expect(lookOf(GROUPS, RESULTS.random!, 'hatch'))
-      .toStrictEqual([legend[0], legend[1], { entries: CURVES, head: 'Curve' }, ...legend.slice(2)])
+    expect(lookOf(GROUPS, RESULTS.random!, 'hatch')).toStrictEqual([
+      legend[0], legend[1], { entries: CURVES, head: 'Curve' }, ...legend.slice(2), { entries: ARGMAX, head: 'Most likely press' }
+    ])
+  })
+
+  it('draws the differing seed’s ring in Brick Red and the evaluation shown in ink', () => {
+    expect(ARGMAX.map(entry => [entry.name, entry.mark!.includes('results-differs'), entry.mark!.includes('results-shown')]))
+      .toStrictEqual([['A seed differing at its most likely press', true, false], ['The evaluation shown', false, true]])
   })
 })
 

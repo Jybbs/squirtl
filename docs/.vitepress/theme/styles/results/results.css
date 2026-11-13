@@ -68,6 +68,18 @@
   box-shadow : inset 0 0 0 var(--border-width-ring) var(--color-critical);
 }
 
+.results-differs {
+  fill         : color-mix(in oklab, var(--color-critical) 10%, var(--color-lift));
+  stroke       : var(--color-critical);
+  stroke-width : 2;
+}
+
+.results-shown {
+  fill         : var(--color-lift);
+  stroke       : var(--color-ink);
+  stroke-width : 2;
+}
+
 .results-legend { grid-template-columns: minmax(0, 1fr); }
 
 @container (width >= 40rem) {
