@@ -15,7 +15,8 @@ the last checkpoint and exits 130.
 
 Each of these exits 1 before any directory is made:                             
 
- • A --resume directory holding no run or no checkpoint                         
+ • A --resume directory holding no run, no checkpoint, or an evaluation line    
+   that names no argmax                                                         
  • A --curriculum.demonstration directory holding no run, a run whose episodes  
    end at another --environment.goal than this run's, no episode reaching that  
    goal from Blue's bedroom, or one whose presses no longer reach it on replay  
@@ -300,8 +301,9 @@ Each of these exits 1 before any directory is made:
 │ --evaluation.epsilon FLOAT    The chance of a random action at each step of  │
 │                               an evaluation episode of the deep Q-network or │
 │                               of PQN, whose default follows Mnih et al. PPO  │
-│                               takes its most likely action at every step.    │
-│                               [default: 0.05]                                │
+│                               samples each action from its policy and plays  │
+│                               the same episodes again taking its most likely │
+│                               action at every step. [default: 0.05]          │
 │ --evaluation-steps INT        The environment steps between the evaluations  │
 │                               a run plays, each where an episode end, the    │
 │                               end of a rollout's update for PQN and PPO, or  │

@@ -1,11 +1,9 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="../docs/assets/logo-dark.svg">
-    <img alt="squirtl" src="../docs/assets/logo-light.svg" width="480">
+    <img alt="squirtl" src="../docs/assets/logo-light.svg" width="640">
   </picture>
 </p>
-
-<p align="center"><em>An agent that learns the walk to Oak’s lab.</em></p>
 
 <p align="center">
   <a href="https://www.python.org/"><img alt="Python" src="../docs/assets/badges/python.svg"><img alt="Python 3.15 and later" src="https://img.shields.io/badge/3.15%2B-3d6fd0?style=for-the-badge&label="></a>
@@ -36,7 +34,7 @@ squirtl evaluate data/runs/<run>
 
 `squirtl train` prints the run's directory under `data/runs/` once it ends, and `squirtl evaluate` prints its measures as Markdown beside the random baseline's under the same seeds.
 
-Each release attaches every run the [Results](https://squirtl.fyi/results/) page measures, each recording the cartridge at `data/rom.gb`. `squirtl fetch` unpacks a release's runs under `data/runs/`, and `--release` plays or measures them in place of a run directory, fetching any run that is missing:
+Each release attaches every run the **[Results](https://squirtl.fyi/results/)** section measures, each recording the cartridge at `data/rom.gb`. `squirtl fetch` unpacks a release's runs under `data/runs/`, and `--release` plays or measures them in place of a run directory, fetching any run that is missing:
 
 ```bash
 squirtl watch --release 0.2.0
@@ -73,7 +71,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 
 <!-- results -->
 
-**[Results](https://squirtl.fyi/results/)** compares each agent against random presses under the same 5 seeds, where PPO reaches `EVENT_GOT_STARTER` in every evaluation episode from the bedroom and along the curriculum, DQN in no evaluation episode from the bedroom, PQN in no evaluation episode from the bedroom and along the curriculum, and random presses in 21% [14, 31].
+**[Against Random Presses](https://squirtl.fyi/results/comparison)** measures each agent under the same 5 seeds, where PPO reaches `EVENT_GOT_STARTER` in every evaluation episode from the bedroom and along the curriculum, DQN in no evaluation episode from the bedroom, PQN in no evaluation episode from the bedroom and along the curriculum, and random presses in 21% [14, 31].
 
 <!-- /results -->
 

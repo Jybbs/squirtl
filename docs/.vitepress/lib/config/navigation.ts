@@ -9,11 +9,10 @@ import type { ProjectFacts }              from './manifest.ts'
 import { SECTIONS, SINGLES, type Section, type Single, placed, slugOf } from './sections.ts'
 
 /**
- * The facts about the project a component sets out in a page, the coverage
- * the suite's last report measured, the byline, the host, the keywords, the
- * least Python, and the repository's address.
+ * The facts about the project a component sets out in a page, the byline, the
+ * host, the keywords, and the repository's address.
  */
-export type Project = Pick<ProjectFacts, 'coverage' | 'description' | 'host' | 'keywords' | 'python' | 'repository'>
+type Project = Pick<ProjectFacts, 'description' | 'host' | 'keywords' | 'repository'>
 
 /**
  * The theme's configuration as the site sets it, the default theme's beside the

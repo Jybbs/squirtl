@@ -184,8 +184,9 @@ class Page(Region):
 class Summary(Region):
     """
     The README, holding its sentence on the results between `<!-- results
-    -->` and `<!-- /results -->`, linked to the site's Results section at
-    the `Homepage` address the package metadata names.
+    -->` and `<!-- /results -->`, linked to the site's page setting each
+    agent against random presses at the `Homepage` address the package
+    metadata names.
     """
 
     marker: ClassVar[Pattern[str]] = compile(r"<!-- (/?)(results) -->")
@@ -197,12 +198,12 @@ class Summary(Region):
 
     def fill(self, command: Command, name: str) -> str:
         """
-        Spells the sentence on `results`, after the link to the site's
-        Results section.
+        Spells the sentence on `results`, after the link to the site's page
+        setting each agent against random presses.
         """
-        site = addresses()["Homepage"]
+        link = f"[Against Random Presses]({addresses()['Homepage']}results/comparison)"
 
-        return f"**[Results]({site}results/)** {self.results.summary}"
+        return f"**{link}** {self.results.summary}"
 
     @classmethod
     def found(cls, results: Results) -> Iterator[Self]:

@@ -5,6 +5,9 @@ Pins the records an evaluation reads and writes, covering:
   goal among them, which no episode reaching it leaves out
 - The environments an evaluation runs by default, and an evaluation holding
   no episode, which is refused
+- The episodes PPO played at its most likely action, which a line must
+  name, which pair one with each sampled episode, and which read as an
+  evaluation of their own
 """
 
 from common.evaluation import outcome, played
@@ -22,6 +25,7 @@ def test_an_evaluation_averages_each_measure_over_its_episodes():
     mean of their positions and returns, and each term's mean pay.
     """
     evaluation = Evaluation(
+        argmax   = None,
         goal     = Event.EVENT_GOT_STARTER,
         outcomes = [
             outcome(
@@ -47,6 +51,18 @@ def test_an_evaluation_averages_each_measure_over_its_episodes():
     }
 
 
+def test_an_evaluation_line_written_without_the_argmax_episodes_is_refused():
+    """
+    Asserts that a line holding no `argmax` field, as a line written before
+    the field holds, is refused naming it rather than read as a sampled
+    result.
+    """
+    line = played([0.5], 100).model_dump_json(exclude={"argmax"})
+
+    with raises(ValidationError, match=r"argmax\n  Field required"):
+        Evaluation.model_validate_json(line)
+
+
 def test_an_evaluation_no_episode_of_which_reaches_the_goal_takes_no_steps_to_it():
     """
     Asserts that an evaluation none of whose episodes reaches the goal
@@ -66,7 +82,28 @@ def test_an_evaluation_refuses_an_empty_list_of_episodes():
     its measures averages over its episodes.
     """
     with raises(ValidationError, match="at least 1 item"):
-        Evaluation(goal=Event.EVENT_GOT_STARTER, outcomes=[], step=None)
+        Evaluation(
+            argmax   = None,
+            goal     = Event.EVENT_GOT_STARTER,
+            outcomes = [],
+            step     = None
+        )
+
+
+def test_an_evaluation_refuses_argmax_episodes_other_than_its_own():
+    """
+    Asserts that an evaluation whose `argmax` holds another count of
+    episodes than `outcomes` is refused, since it plays the same episodes
+    again, an empty one among them.
+    """
+    for argmax in ([outcome()], []):
+        with raises(ValidationError, match=r"number \d and 2"):
+            Evaluation(
+                argmax   = argmax,
+                goal     = Event.EVENT_GOT_STARTER,
+                outcomes = [outcome(), outcome()],
+                step     = 100
+            )
 
 
 def test_an_evaluation_runs_one_environment_where_the_cpus_are_unknown(
@@ -79,3 +116,20 @@ def test_an_evaluation_runs_one_environment_where_the_cpus_are_unknown(
     monkeypatch.setattr("squirtl.evaluation.schemas.process_cpu_count", lambda: None)
 
     assert EvaluationSettings().environments == 1
+
+
+def test_the_argmax_episodes_read_as_an_evaluation_of_their_own():
+    """
+    Asserts that `greedy` reads the episodes `argmax` holds at the same step
+    and goal, measured apart from the sampled episodes, and reads `None`
+    where the evaluation holds none.
+    """
+    sampled = played([0.0, 0.0], 100, goal=Event.EVENT_GOT_POKEDEX)
+    argmax  = played([0.5, 0.5], 100, terminated=True).outcomes
+
+    greedy = sampled.model_copy(update={"argmax": argmax}).greedy
+
+    assert (greedy.goal, greedy.outcomes, greedy.step, greedy.argmax) == (
+        Event.EVENT_GOT_POKEDEX, argmax, 100, None
+    )
+    assert (greedy.reached, sampled.reached, sampled.greedy) == (1.0, 0.0, None)

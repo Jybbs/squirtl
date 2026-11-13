@@ -5,6 +5,7 @@ import { nextTick, ref }                                   from 'vue'
 
 import { IDENTITY }   from '../../../../lib/identity/identity.ts'
 import * as places    from '../../../../lib/identity/places.ts'
+import { logoLetters } from '../../../../lib/marks/logo.ts'
 import * as browser   from '../../../common/browser.ts'
 import { FACTS }      from '../../../common/facts.ts'
 
@@ -46,14 +47,15 @@ describe('IdentityTagline', () => {
     expect(wrapper.text()).toBePublishedProse()
   })
 
-  it('draws the README’s tagline and badges and the card’s byline in the folders beneath', async () => {
+  it('draws the front page’s name, tagline, and byline under its host, and the card, in the folders beneath', async () => {
     const wrapper = await browser.shown(IdentityTagline)
+    const front   = wrapper.get(`.identity-folder[aria-label="${places.PLACES[1]!.name}"]`)
 
     expect([
-      wrapper.text().includes(IDENTITY.tagline),
-      wrapper.findAll('.identity-badge').map(badge => badge.attributes('alt')),
+      front.text(),
+      front.findAll('.text-link').map(letter => letter.text()).join(''),
       wrapper.findAll('.identity-card-art').length
-    ]).toStrictEqual([true, places.badgesOf(FACTS).map(badge => badge.name), 1])
+    ]).toStrictEqual([`${places.PLACES[1]!.name}${FACTS.host}${IDENTITY.name}${IDENTITY.tagline}${FACTS.description}`, logoLetters, 1])
   })
 
 })
@@ -124,10 +126,10 @@ describe('IdentityTagline’s holds', () => {
     expect(top(wrapper)).toBe(places.PLACES[0]!.name)
   })
 
-  it('draws the README’s logo for the dark ground in the dark scheme, its letters in the light ground’s hex', async () => {
+  it('draws the card on the dark ground in the dark scheme', async () => {
     dark.value    = true
     const wrapper = await browser.shown(IdentityTagline)
 
-    expect(wrapper.get('.identity-readme-mark').html()).toContain(`fill="${IDENTITY.neutrals.ground.hex}"`)
+    expect(wrapper.get('.identity-card-art').html()).toContain(`stop-color="${IDENTITY.tones.dark.ground}"`)
   })
 })
