@@ -4,7 +4,7 @@ An evaluation plays a trained agent's episodes from Blue's bedroom beside the sa
 
 ## The Episodes
 
-Each evaluation plays 30 episodes of each player, the count Mnih et al.[^mnih2015] evaluate over. The deep Q-network and PQN choose a random press with probability 0.05 at each step, the epsilon Mnih et al. evaluate at, whereas PPO takes its most likely press at every step. Random presses choose uniformly among the seven presses at every step.
+Each evaluation plays 30 episodes of each player, the count Mnih et al.[^mnih2015] evaluate over. The deep Q-network and PQN choose a random press with probability 0.05 at each step, the epsilon Mnih et al. evaluate at, since each acts through its highest-valued press and holds no distribution to sample from. PPO samples each press from its policy, as Schulman et al.[^schulman2017] score PPO on the episodes its training samples, and plays the same episodes again under the same seeds taking its most likely press at every step, as Mhammedi and Cohan[^mhammedi2026] play it in the evaluation rollouts that choose their best checkpoint. Every comparison reads the sampled episodes, and the [Results](../results/index.md) page sets beside them the share of the episodes at the most likely press reaching the goal. Random presses choose uniformly among the seven presses at every step. Each random draw of an episode comes from a generator seeded for that episode's number, so an evaluation plays press for press alike however many environments run it.
 
 ## The Measures
 
@@ -24,10 +24,14 @@ The table below is written from the help `squirtl train` prints for each `--eval
 |---|---|---|
 | `--evaluation.environments` | *the machine's* | *The environments an evaluation plays its episodes across in parallel, each in a worker process of its own, which defaults to the CPUs the process may use.* |
 | `--evaluation.episodes` | `30` | *The episodes each evaluation plays of the agent and of the random baseline, whose default follows Mnih et al.* |
-| `--evaluation.epsilon` | `0.05` | *The chance of a random action at each step of an evaluation episode of the deep Q-network or of PQN, whose default follows Mnih et al. PPO takes its most likely action at every step.* |
+| `--evaluation.epsilon` | `0.05` | *The chance of a random action at each step of an evaluation episode of the deep Q-network or of PQN, whose default follows Mnih et al. PPO samples each action from its policy and plays the same episodes again taking its most likely action at every step.* |
 
 <!-- /settings:evaluation -->
 
 [^mnih2015]: Mnih et al. 2015. "Human-level control through deep reinforcement learning." *Nature* 518(7540): 529–533. <https://doi.org/10.1038/nature14236>
+
+[^schulman2017]: Schulman et al. 2017. "Proximal Policy Optimization Algorithms." arXiv:1707.06347. <https://arxiv.org/abs/1707.06347>
+
+[^mhammedi2026]: Mhammedi and Cohan 2026. "Decoupling Exploration and Policy Optimization: Uncertainty Guided Tree Search for Hard Exploration." arXiv:2603.22273v4. <https://arxiv.org/abs/2603.22273v4>
 
 [^agarwal2021]: Agarwal et al. 2021. "Deep Reinforcement Learning at the Edge of the Statistical Precipice." *Advances in Neural Information Processing Systems* 34: 29304–29320. <https://proceedings.neurips.cc/paper/2021/hash/f514cec81cb148559cf475e7426eed5e-Abstract.html>

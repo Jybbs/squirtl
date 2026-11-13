@@ -34,7 +34,8 @@ export const WIDGETS: readonly Placement[] = [
   { heading: 'A Step', name: 'MethodsStep', page: 'methods/environment.md' },
   { heading: 'The Bytes It Reads', name: 'MethodsMemory', page: 'methods/reward.md' },
   { heading: 'Learning Curves', name: 'ResultsCurves', page: 'results/index.md' },
-  { heading: 'Against Random Presses', name: 'ResultsComparison', page: 'results/index.md' }
+  { heading: 'Against Random Presses', name: 'ResultsComparison', page: 'results/index.md' },
+  { heading: 'The Most Likely Press', name: 'ResultsArgmax', page: 'results/index.md' }
 ]
 
 /**

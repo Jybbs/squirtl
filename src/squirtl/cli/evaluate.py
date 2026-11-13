@@ -42,7 +42,8 @@ def evaluate(
     episodes the run's settings record, beside the random baseline under the
     same seeds, and writes each evaluation into its run's directory, reading
     in place of playing any the run already holds. The deep Q-network and
-    PQN play at the epsilon those settings record, and PPO takes its most
+    PQN play at the epsilon those settings record, and PPO samples each
+    action from its policy and plays the same episodes again taking its most
     likely action at every step.
 
     The runs are the ones the directories hold, or the runs `--release`
@@ -50,7 +51,8 @@ def evaluate(
     `--agent`, `--start`, and `--seed` select among the release's runs, and
     without them every seed of the recommended run's agent and start plays.
 
-    Prints as Markdown each run's measures, then each measure's
+    Prints as Markdown each run's measures, with PPO's at its most
+    likely action in a row beneath its sampled ones, then each measure's
     interquartile mean across the runs with its 95% percentile bootstrap
     interval and the count of runs behind it, then the probability that the
     agent beats its baseline, and the runs `--against` names where it names
@@ -61,10 +63,11 @@ def evaluate(
     selection matching none of its runs, a download whose digest differs or
     whose tar does not unpack, or runs ending their episodes at more than
     one goal, whose shares reaching it do not compare, exits 1 before any
-    evaluation. A run holding no checkpoint, holding a damaged one, reading
-    a cartridge the emulator refuses, or recording another digest than the
-    state its intro leaves on the cartridge exits 1, keeping the evaluations
-    already written for the runs evaluated before it.
+    evaluation. A run holding no checkpoint, holding a damaged one, holding
+    an evaluation line that names no `argmax`, reading a cartridge the
+    emulator refuses, or recording another digest than the state its intro
+    leaves on the cartridge exits 1, keeping the evaluations already written
+    for the runs evaluated before it.
     """
     listen()
 

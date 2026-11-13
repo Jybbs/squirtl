@@ -1,7 +1,7 @@
 """
 Defines `Evaluator`, which plays an evaluation's episodes across the
-environments `gymnasium.make_vec` runs in parallel, and `Policy`, the
-epsilon-greedy policy it plays.
+environments `gymnasium.make_vec` runs in parallel, and `Policy`, the policy
+it plays, epsilon-greedy or sampled from a network's logits.
 """
 
 from collections.abc import Callable, Mapping, Sequence
@@ -29,11 +29,17 @@ from squirtl.evaluation.schemas  import Evaluation, EvaluationSettings
 
 class Policy(Record):
     """
-    The policy an evaluation plays, choosing a random action with
-    probability `epsilon` and otherwise the action `network` scores highest,
-    the highest value of a Q-network or the largest logit of PPO's policy,
-    or a random action at every step where it holds no network. Each
-    environment's random actions come from that environment's own action
+    The policy an evaluation plays, which chooses each action in one of
+    three ways:
+
+    - A random action at every step, where it holds no `network`
+    - An action drawn from the softmax of the logits of PPO's policy, where
+      `sampled` holds
+    - Otherwise a random action with probability `epsilon` and the action
+      `network` scores highest the rest of the time, the highest value of a
+      Q-network or the largest logit of PPO's policy
+
+    Each environment's random draws come from that environment's own action
     space, which the evaluation seeds for each episode.
     """
 
@@ -53,27 +59,43 @@ class Policy(Record):
     for the random baseline.
     """
 
+    sampled: bool = False
+    """
+    Whether each action is drawn from the softmax of the network's scores,
+    PPO's policy, in place of the epsilon-greedy choice.
+    """
+
     @inference_mode()
     def act(self, observations: Mapping[str, ndarray], spaces: Sequence[Discrete]) -> ndarray:
         """
         Chooses each environment's action from the batch of `observations`,
-        sampling one from its space in `spaces` and then, where a network is
-        held, drawing from that space's generator whether to keep it or take
-        the action the network scores highest, which it evaluates without
-        building an autograd graph.
+        which the network scores without building an autograd graph.
+
+        - Without a network, samples each action from its space in `spaces`
+        - Where `sampled` holds, takes the largest of each logit plus Gumbel
+          noise that space's generator draws, which samples an action from the
+          softmax of the logits as PPO's training does
+        - Otherwise samples an action from each space and then draws from its
+          generator whether to keep it or take the action the network scores
+          highest
 
         Returns:
             One action per environment, a `(len(spaces),)` array of `int64`.
         """
-        actions = array([space.sample() for space in spaces])
-
         if self.network is None:
-            return actions
+            return array([space.sample() for space in spaces])
 
+        scores = self.network(tensors(self.device, observations))
+
+        if self.sampled:
+            noise = array([space.np_random.gumbel(size=space.n) for space in spaces])
+
+            return (scores.numpy(force=True) + noise).argmax(1)
+
+        actions = array([space.sample() for space in spaces])
         explore = array([space.np_random.random() < self.epsilon for space in spaces])
-        greedy  = self.network(tensors(self.device, observations))
 
-        return where(explore, actions, greedy.argmax(1).numpy(force=True))
+        return where(explore, actions, scores.argmax(1).numpy(force=True))
 
 
 class Evaluator(AbstractContextManager):
@@ -146,6 +168,7 @@ class Evaluator(AbstractContextManager):
         seeded action space.
         """
         return Evaluation(
+            argmax   = None,
             goal     = self.goal,
             outcomes = self.play(Policy()),
             step     = None
@@ -154,11 +177,13 @@ class Evaluator(AbstractContextManager):
     def evaluate(self, weights: Weights) -> Evaluation:
         """
         Plays the episodes of the agent's network holding `weights`, at
-        their step, epsilon-greedily for the deep Q-network and PQN and
-        taking PPO's most likely action at every step, as Mhammedi and Cohan
-        evaluate the agents their PPO trains. The network is built anew,
-        under a fork of PyTorch's global generator, so the evaluation leaves
-        the agent and that generator as they were.
+        their step, epsilon-greedily for the deep Q-network and PQN, and
+        for PPO sampling each action from its policy, as Schulman et al.
+        score PPO, and again taking its most likely action at every step, as
+        Mhammedi and Cohan play the rollouts choosing their best checkpoint
+        and as Stable-Baselines3's `evaluate_policy` plays by default. The
+        network is built anew, under a fork of PyTorch's global generator,
+        so the evaluation leaves the agent and that generator as they were.
 
         Raises:
             ValueError: Where the entries of `weights` differ from the
@@ -175,16 +200,21 @@ class Evaluator(AbstractContextManager):
         with matching_networks():
             network.load_state_dict(weights.online)
 
+        sampled = self.algorithm.sampled
+        policy  = Policy(
+            device  = self.device,
+            epsilon = 0.0 if sampled else self.settings.epsilon,
+            network = network.to(self.device),
+            sampled = sampled
+        )
+
         return Evaluation(
+            argmax = self.play(
+                policy.model_copy(update={"sampled": False})
+            ) if sampled else None,
             goal     = self.goal,
-            outcomes = self.play(
-                Policy(
-                    device  = self.device,
-                    epsilon = 0.0 if self.algorithm.sampled else self.settings.epsilon,
-                    network = network.to(self.device)
-                )
-            ),
-            step = weights.step
+            outcomes = self.play(policy),
+            step     = weights.step
         )
 
     def play(self, policy: Policy) -> list[Outcome]:
