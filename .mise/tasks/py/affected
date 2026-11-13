@@ -2,6 +2,16 @@
 #MISE alias       = "affected"
 #MISE description = "Run the test modules the files changed since the merge base with `main` reach, uncommitted and untracked files included, passing any further arguments to pytest"
 
+naming() {
+  grep \
+    --exclude-dir common \
+    --exclude-dir fixtures \
+    --include '*.py' \
+    -lFr \
+    -- "$1" tests \
+    || true
+}
+
 reach() {
   local path rest
   while IFS= read -r path; do
@@ -10,6 +20,8 @@ reach() {
         ;;
       pyproject.toml | uv.lock | .mise/config.toml | .mise/mise.lock)
         echo tests ;;
+      src/squirtl/cli/__init__.py)
+        echo tests/cli/app.py ;;
       src/squirtl/*.py)
         echo "tests/${path#src/squirtl/}" ;;
       tests/*/fixtures/*/*)
@@ -26,14 +38,12 @@ reach() {
         echo "tests/tasks/${rest%%/*}.py" ;;
       .mise/bin/*)
         echo tests/tasks/bin.py ;;
+      src/squirtl/*/*)
+        rest=${path#src/squirtl/}
+        echo "tests/${rest%%/*}"
+        naming "$path" ;;
       *)
-        grep \
-          --exclude-dir common \
-          --exclude-dir fixtures \
-          --include '*.py' \
-          -lFr \
-          -- "$path" tests \
-          || true ;;
+        naming "$path" ;;
     esac
   done
 }

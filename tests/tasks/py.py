@@ -21,14 +21,16 @@ BASE = {
     "docs/references.bib"         : "@misc{sutton2018}\n",
     "pyproject.toml"              : "",
     "src/squirtl/agent/memory.py" : "",
+    "src/squirtl/cli/__init__.py" : "",
     "tests/agent/conftest.py"     : "",
     "tests/agent/fixtures/memory/a.txt" : "",
     "tests/agent/memory.py"             : "",
-    "tests/common/cli.py"               : "",
-    "tests/conftest.py"                 : "",
-    "tests/repo/checks.py"              : '"docs/references.bib"\n',
-    "tests/tasks/bin.py"                : "",
-    "tests/tasks/py.py"                 : ""
+    "tests/cli/app.py"     : "",
+    "tests/common/cli.py"  : '"docs/references.bib"\n',
+    "tests/conftest.py"    : "",
+    "tests/repo/checks.py" : '"docs/references.bib"\n"src/squirtl/agent/layout.toml"\n',
+    "tests/tasks/bin.py"   : "",
+    "tests/tasks/py.py"    : ""
 }
 
 
@@ -135,6 +137,12 @@ def test_each_task_hands_its_program_its_flags_and_arguments(
         param("docs/references.bib", ["tests/repo/checks.py"], id="named"),
         param("pyproject.toml", ["tests"], id="manifest"),
         param("src/squirtl/agent/memory.py", ["tests/agent/memory.py"], id="module"),
+        param("src/squirtl/cli/__init__.py", ["tests/cli/app.py"], id="app"),
+        param(
+            "src/squirtl/agent/layout.toml",
+            ["tests/agent", "tests/repo/checks.py"],
+            id = "package-file"
+        ),
         param("tests/agent/conftest.py", ["tests/agent"], id="conftest"),
         param(
             "tests/agent/fixtures/memory/a.txt",
@@ -178,6 +186,40 @@ def test_affected_reaches_the_modules_naming_the_old_path_of_a_renamed_file(
     assert printed("py/affected") == ["tests/repo/checks.py"]
 
 
+def test_affected_reads_each_changed_file_past_one_no_test_module_names(
+    branch  : Callable[[bool, str], None],
+    printed : Callable[..., list[str]]
+):
+    """
+    Pins that `py:affected` keeps reading the changed files past one no test
+    module names, running the module naming the file after it.
+    """
+    branch(True, "docs/glossary.md")
+    branch(True, "docs/references.bib")
+
+    assert printed("py/affected") == ["tests/repo/checks.py"]
+
+
+def test_affected_reads_no_file_main_changed_past_the_merge_base(
+    branch  : Callable[[bool, str], None],
+    git     : Callable[..., None],
+    printed : Callable[..., list[str]]
+):
+    """
+    Pins that `py:affected` diffs the branch against its merge base with
+    `origin/main` rather than its tip, so a file `main` changed after the
+    branch left it reaches no test module.
+    """
+    git("switch", "--create", "next")
+    branch(True, "docs/references.bib")
+    git("update-ref", "refs/remotes/origin/main", "HEAD")
+    git("switch", "-")
+
+    [line] = printed("py/affected")
+
+    assert line.startswith("No test module reaches a file changed since ")
+
+
 @mark.parametrize(
     "path",
     [param(None, id="unchanged"), param("src/squirtl/agent/replay.py", id="unmirrored")]
@@ -188,10 +230,9 @@ def test_affected_starts_no_pytest_where_no_test_module_is_reached(
     printed : Callable[..., list[str]]
 ):
     """
-    Pins that `py:affected` names the merge base and starts no pytest on a
-    branch changing no file, and on one whose one changed file is a module
-    with no mirrored test module, since pytest given no path runs the whole
-    suite.
+    Pins that `py:affected` starts no pytest on a branch changing no file,
+    and on one whose one changed file is a module with no mirrored test
+    module, since pytest given no path runs the whole suite.
     """
     if path:
         branch(False, path)

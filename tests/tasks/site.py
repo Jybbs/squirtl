@@ -1,7 +1,7 @@
 """
 Pins what the `site` tasks decide from the shell and the checkout they run
-in, meaning the output format `site:lint` chooses for the shell it runs
-in, the merge base `site:affected` hands Vitest, each further argument
+in, meaning the output format `site:lint` chooses for the shell it runs in,
+the ref `site:affected` hands Vitest's `--changed`, each further argument
 the tasks forward after their own flags, and the single-file component
 `site:typecheck` refuses before `tsc` starts.
 
