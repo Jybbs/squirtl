@@ -12,7 +12,6 @@ from common.cli        import Invoker
 from pathlib           import Path
 from pytest            import mark, param
 from pytest_subprocess import FakeProcess
-from subprocess        import run
 
 from squirtl.cli          import app
 from squirtl.docs.outputs import Inventory
@@ -79,6 +78,7 @@ def test_writing_docs_it_cannot_write_exits_1_and_writes_nothing(
     checkout : Callable[[Mapping[str, str]], None],
     clone    : Path,
     files    : Mapping[str, str],
+    git      : Callable[..., None],
     invoke   : Invoker
 ):
     """
@@ -87,7 +87,7 @@ def test_writing_docs_it_cannot_write_exits_1_and_writes_nothing(
     1 and leave the Markdown file and the inventory's files unwritten.
     """
     checkout(files)
-    run(["git", "add", "a.md"], check=True, cwd=clone)
+    git("add", "a.md")
 
     invocation = invoke(["write", "docs"])
 
@@ -117,6 +117,7 @@ def test_writing_docs_where_git_fails_exits_1_and_writes_nothing(
 def test_writing_docs_writes_each_file_once_and_prints_its_path(
     checkout : Callable[[Mapping[str, str]], None],
     clone    : Path,
+    git      : Callable[..., None],
     invoke   : Invoker
 ):
     """
@@ -126,7 +127,7 @@ def test_writing_docs_writes_each_file_once_and_prints_its_path(
     nothing drifted and prints nothing.
     """
     checkout({"a.md": "One.[^smith2020]\n", "docs/references.bib": ENTRY})
-    run(["git", "add", "a.md"], check=True, cwd=clone)
+    git("add", "a.md")
 
     paths  = ["a.md", *(str(output.path) for output in Inventory.read(app).outputs)]
     first  = invoke(["write", "docs"])
