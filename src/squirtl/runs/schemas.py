@@ -599,6 +599,22 @@ class Run(Record):
                     )
                 ) from error
 
+    def check_files(self):
+        """
+        Refuses a run whose directory holds no `episodes`, or a run that
+        trained an agent whose directory holds no `checkpoint`, the files a
+        run writes as it trains or searches.
+
+        Raises:
+            FileNotFoundError: Where one is missing, naming the run's
+                               directory and the file it lacks.
+        """
+        for path in (self.episodes,) if self.searches else (
+            self.checkpoint, self.episodes
+        ):
+            if not path.is_file():
+                raise FileNotFoundError(f"{self.directory} holds no {path.name}")
+
     def check_trained(self):
         """
         Refuses a run that searched rather than trained an agent.

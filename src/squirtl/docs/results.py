@@ -10,7 +10,7 @@ It also defines `addresses`, which reads the addresses the package metadata
 names.
 """
 
-from collections.abc    import Iterable, Sequence
+from collections.abc    import Container, Iterable, Sequence
 from importlib.metadata import metadata
 from itertools          import groupby
 from numpy              import array
@@ -33,16 +33,37 @@ class ReleaseSettings(Record):
     committed under `Results.folder`.
     """
 
-    recommended_run: str = "20261111T020527.724383Z"
+    recommended_run: str = "20261112T141501.166143Z"
     """
     The name of the run a release plays where no selection names one.
     """
+
+    def check_recommends(self, names: Container[str]):
+        """
+        Refuses a `recommended_run` naming none of `names`, the names of the
+        trained runs.
+
+        Raises:
+            ValueError: Where none bears that name.
+        """
+        if self.recommended_run not in names:
+            raise ValueError(
+                f"The recommended run {self.recommended_run} is no trained run"
+            )
 
 
 class Score(Record):
     """
     What one evaluation measured, the share of its episodes reaching the
-    run's goal and their mean return, at the step of the run it read.
+    run's goal and their mean return, beside the share reaching it at PPO's
+    most likely action, at the step of the run it read.
+    """
+
+    argmax: float | None
+    """
+    The share of the same episodes reaching the run's goal where PPO took
+    its most likely action at every step, or `None` for the deep Q-network,
+    PQN, and the random baseline.
     """
 
     reached: float
@@ -65,7 +86,12 @@ class Score(Record):
         """
         Reads the score of `evaluation`.
         """
-        return cls.model_validate(evaluation, from_attributes=True)
+        return cls(
+            argmax  = None if (greedy := evaluation.greedy) is None else greedy.reached,
+            reached = evaluation.reached,
+            reward  = evaluation.reward,
+            step    = evaluation.step
+        )
 
 
 class Trained(RunListing):
@@ -105,9 +131,12 @@ class Trained(RunListing):
         Raises:
             ValueError: Where the run read a cartridge other than the
                         default path or followed a demonstration at an
-                        absolute path, either of which would carry a local
-                        path into the checkout, or holds no evaluation of
-                        the agent or of the random baseline.
+                        absolute path, either of which would carry a
+                        local path into the checkout, holds no evaluation
+                        of the agent or of the random baseline, or holds
+                        an evaluation whose episodes at the most likely
+                        action do not match its agent, present for the deep
+                        Q-network or PQN or missing for PPO.
         """
         if run.settings.emulator.cartridge != EmulatorSettings().cartridge:
             raise ValueError(
@@ -124,6 +153,16 @@ class Trained(RunListing):
 
         if not (scores := tuple(map(Score.of, run.evaluated))):
             raise ValueError(f"{run.directory} holds no evaluation")
+
+        if any(
+            (score.argmax is None) is run.settings.agent.algorithm.sampled
+            for score in scores
+        ):
+            raise ValueError(
+                f"{run.directory} holds an evaluation of "
+                f"{run.settings.agent.algorithm.name} whose episodes at the most "
+                "likely action do not match its agent"
+            )
 
         if (baseline := run.baselined) is None:
             raise ValueError(f"{run.directory} holds no baseline")
@@ -264,10 +303,10 @@ class Results(Record):
         Spells the sentence the README opens its results on, each agent's
         share reaching the runs' goal from each start, the agents reaching
         more first and those sharing a phrase joined, beside random presses'
-        share, or the comparison alone where no run is committed.
+        share, or a sentence naming no share where no run is committed.
         """
         if self.random is None:
-            return "compares each agent against random presses under the same seeds."
+            return "measures each agent under the same seeds."
 
         agents = sorted(
             (
@@ -288,7 +327,7 @@ class Results(Record):
         head = f"{' and '.join(names)} {verb} `{self.runs[0].goal.name}` {first}"
 
         return (
-            f"compares each agent against random presses under the same {seeds} "
+            f"measures each agent under the same {seeds} "
                 f"{'seed' if seeds == 1 else 'seeds'}, where {head}, "
             + "".join(f"{' and '.join(names)} {text}, " for text, names in rest)
             + f"and random presses {self.random.share}."

@@ -1,7 +1,7 @@
 import type { PageData } from 'vitepress'
 
 import type { ProjectFacts }     from '../config/manifest.ts'
-import { isFrontPage }           from '../config/pages.ts'
+import { sectionOf }             from '../config/sections.ts'
 import { dotText, layout }       from '../drawing/dots.ts'
 import { IDENTITY, type Scheme } from '../identity/identity.ts'
 
@@ -98,19 +98,12 @@ const plateTop = CARD.height - MARGIN.inset - EDITION.height
 export const plateLine = plateTop + EDITION.height / 2
 
 /**
- * Reports whether the page is one of the two that show the site's own card, the
- * front page and the page a reader meets at a missing address.
- */
-const shared = (page: Pick<PageData, 'isNotFound' | 'relativePath'>): boolean =>
-  Boolean(page.isNotFound) || isFrontPage(page.relativePath)
-
-/**
  * Builds the path of the card a link to the page shows, under the root of the
- * built site, the front page and the page at a missing address sharing the
- * site's card.
+ * built site, every page no section holds sharing the site's card, the front
+ * page and the page at a missing address among them.
  */
 export function cardPath(page: Pick<PageData, 'isNotFound' | 'relativePath'>): string {
-  return shared(page) ? 'cards/site.png' : `cards/${page.relativePath.replace(/\.md$/u, '.png')}`
+  return sectionOf(page) ? `cards/${page.relativePath.replace(/\.md$/u, '.png')}` : 'cards/site.png'
 }
 
 /**

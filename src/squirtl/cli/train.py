@@ -47,7 +47,8 @@ def train(
 
     Each of these exits 1 before any directory is made:
 
-    - A `--resume` directory holding no run, a search, or no checkpoint
+    - A `--resume` directory holding no run, a search, no checkpoint, or an
+      evaluation line that names no `argmax`
     - A `--curriculum.demonstration` directory holding no run, a run whose
       episodes end at another `--environment.goal` than this run's, no
       episode reaching that goal from Blue's bedroom, or one whose presses

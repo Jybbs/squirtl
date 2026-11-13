@@ -41,6 +41,8 @@ The package under `src/squirtl/`, its tests, and the Python task scripts under `
 
 ## 👟 Committing
 
+`mise skim` is the check run after each edit and before each commit. It runs the lints, the type check, the lockfile check, and the tests reaching the files changed since the merge base with `main`, uncommitted and untracked files among them, whereas `mise ci` runs every check below in full before a push.
+
 Every commit on a branch takes the conventional shape, its body one hyphen bullet per thematic change:
 
 ```
@@ -67,7 +69,7 @@ Every pull request runs the checks below in the `🕹️ CI` workflow, each of w
 
 | **Check** | **Local Command** | **Fails When** |
 |---|---|---|
-| `🪧 Audit` | `mise audit` | A pin, a label, a workflow, or the package's layout departs from a rule `squirtl.repo.checks` holds it to, a file `mise write` writes into `docs/` drifts from the declaration it is written from, a footnote's definition drifts from `docs/references.bib`, or a file the audit reads fails to parse, each one an annotation on the file and line it concerns |
+| `🪧 Audit` | `mise audit` | A pin, a label, a workflow, a heading of the pull request template, or the package's layout departs from a rule `squirtl.repo.checks` holds it to, a file `mise write` writes into `docs/` drifts from the declaration it is written from, a footnote's definition drifts from `docs/references.bib`, or a file the audit reads fails to parse, each one an annotation on the file and line it concerns |
 | `📦 Lockfile` | `mise lockfile` | `uv.lock`, a task script's lockfile, `.mise/mise.lock`, or `docs/bun.lock` drifts from its manifest, or a tool the project pins has no entry in `.mise/mise.lock` to install from |
 | `🪻 Prose` | `mise lint` | The formatter reports a rewrite it would make or a lint finding, each one an annotation on the pull request |
 | `🏟️ Suite` | `mise coverage` | A test fails, or the suite's coverage of `src/squirtl/` falls below the **95%** that `fail_under` sets in `pyproject.toml` |

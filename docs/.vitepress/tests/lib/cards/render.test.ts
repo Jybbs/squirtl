@@ -52,14 +52,11 @@ describe('renderCards', () => {
     expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([CARD.width, CARD.height])
   })
 
-  test('draws a page of no section with the site’s card', async ({ checkout }) => {
+  test('draws a page of no section as the site’s card alone', async ({ checkout }) => {
     const { root: folder } = checkout()
-    const page             = { isNotFound: false, relativePath: 'about.md', title: 'About' }
-    await renderCards(FACTS, import.meta.url, folder, [PAGES[0]!, page])
+    const page             = { isNotFound: false, relativePath: 'identity.md', title: 'Identity' }
 
-    const read = (name: string): Buffer => fs.readFileSync(path.join(folder, 'cards', `${name}.png`))
-    // Compares through `buf.equals`, because `toEqual` reads a PNG one byte at a time in JavaScript.
-    expect(read('about').equals(read('site'))).toBe(true)
+    expect(await renderCards(FACTS, import.meta.url, folder, [page])).toEqual(['cards/site.png'])
   })
 })
 

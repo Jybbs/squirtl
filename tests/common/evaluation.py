@@ -103,6 +103,7 @@ def played(
     each episode.
     """
     return Evaluation(
+        argmax   = None,
         goal     = goal,
         outcomes = [outcome(reward, **fields) for reward in rewards],
         step     = step

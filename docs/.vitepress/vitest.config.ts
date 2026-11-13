@@ -1,8 +1,8 @@
-import vueJsx           from '@vitejs/plugin-vue-jsx'
-import { defineConfig } from 'vitest/config'
+import vueJsx                           from '@vitejs/plugin-vue-jsx'
+import { configDefaults, defineConfig } from 'vitest/config'
 
-import { projectFacts } from './lib/config/manifest.ts'
-import { cacheDir }     from './lib/config/paths.ts'
+import { projectFacts }                 from './lib/config/manifest.ts'
+import { cacheDir }                     from './lib/config/paths.ts'
 
 const { gate } = projectFacts(import.meta.url)
 
@@ -16,8 +16,6 @@ export default defineConfig({
     resolveSnapshotPath : (testPath, extension) => testPath + extension,
     restoreMocks        : true,
     sequence            : { shuffle: true },
-    // Raises Vitest's 5,000 ms default, because the slowest cases run past that limit under load.
-    testTimeout         : 15_000,
     unstubEnvs          : true,
     unstubGlobals       : true,
 
@@ -29,6 +27,12 @@ export default defineConfig({
       reportsDirectory : cacheDir(import.meta.url, 'coverage/site'),
       thresholds       : { branches: gate, functions: gate, lines: gate, statements: gate }
     },
+
+    forceRerunTriggers: [
+      ...configDefaults.forceRerunTriggers, '**/.vitepress/lib/config/**',
+      '**/.vitepress/{lib/rendered,theme}/**/*.css', '**/docs/bun.lock', '**/docs/pages/**',
+      '**/pyproject.toml'
+    ],
 
     reporters: process.env.GITHUB_ACTIONS
              ? ['default', ['github-actions', { jobSummary: { enabled: false } }]]

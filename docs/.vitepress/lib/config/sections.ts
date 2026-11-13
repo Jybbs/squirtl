@@ -33,6 +33,27 @@ export const SECTIONS: readonly Section[] = [
 ]
 
 /**
+ * A page the site carries outside every section, a file directly under
+ * `docs/pages/` named by the one word that serves as its file's name, its
+ * label in the navigation bar, and its heading.
+ */
+export interface Single {
+  name: string
+}
+
+/**
+ * The pages the site carries outside every section, in the order the
+ * navigation bar lists them after the sections.
+ */
+export const SINGLES: readonly Single[] = [{ name: 'Identity' }]
+
+/**
+ * Reads the name of `single`'s file under `docs/pages/` and of its address,
+ * without the extension.
+ */
+export const slugOf = (single: Single): string => single.name.toLowerCase()
+
+/**
  * Places each of `sections`, giving each the hue the identity declares for its
  * folder, the first the first badge the game awards, and each later section the
  * badge after its predecessor's.

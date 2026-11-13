@@ -3,9 +3,10 @@ Pins the records a release carries its trained runs through, covering:
 
 - The tar each run packs into, holding its record on the default cartridge
   and its demonstration under `data/runs/`, its episodes, and a checkpoint
-  of its weights alone, the same bytes on a second pack, a run missing its
-  checkpoint or its episodes, which it refuses by name, and a run with a
-  line holding no episode, which the pack refuses before writing any tar
+  of its weights alone, and the same bytes on a second pack
+- The runs a pack refuses before writing any tar, one missing its
+  checkpoint or its episodes, one with a line holding no episode, and a
+  recommended run naming no trained run
 - The manifest beside the tars, holding the demonstration apart from the
   trained runs and refusing a recommended run it does not list
 - A committed search, which packs as a demonstration with no checkpoint
@@ -21,6 +22,7 @@ from email.message     import Message
 from hashlib           import sha256
 from io                import BytesIO
 from json              import dumps, loads
+from operator          import attrgetter
 from pathlib           import Path
 from pydantic          import ValidationError
 from pytest            import MonkeyPatch, mark, param, raises
@@ -33,7 +35,7 @@ from zipfile           import ZipFile
 from squirtl.agent.checkpoint import Weights
 from squirtl.agent.schemas    import Algorithm
 from squirtl.docs.results     import ReleaseSettings
-from squirtl.releases.schemas import GithubRelease, PackedRun, ReleaseManifest, RunSelection, Selector
+from squirtl.releases.schemas import GithubRelease, ReleaseManifest, RunSelection, Selector
 from squirtl.runs.schemas     import Run, Start
 
 
@@ -82,24 +84,20 @@ def test_a_fetch_unpacks_the_run_as_it_was_packed(
     assert release.fetch(release.manifest.recommended, tmp_path / "runs") == run
 
 
-@mark.parametrize(
-    "search",
-    [param(False, id="the-demonstration"), param(True, id="a-search")]
-)
-def test_a_recommended_run_the_manifest_does_not_list_is_refused(
-    committed : list[Run],
-    recorded  : Recorder,
-    search    : bool
+def test_a_manifest_recommending_a_run_it_does_not_list_is_refused(
+    packed: ReleaseManifest
 ):
     """
-    Asserts that packing under a `recommended_run` naming the
-    demonstration or a committed search rather than a trained run raises a
+    Asserts that reading a manifest whose `recommended_run` names
+    the demonstration rather than one of its trained runs raises a
     `ValidationError` naming it.
     """
-    name = recorded(5, searches=True).name if search else committed[3].name
+    demonstration = packed.demonstrations[0].name
 
-    with raises(ValidationError, match=name):
-        ReleaseManifest.pack(ReleaseSettings(recommended_run=name))
+    with raises(ValidationError, match=f"{demonstration} is no trained run"):
+        ReleaseManifest.model_validate(
+            dict(packed) | {"recommended_run": demonstration}
+        )
 
 
 def test_a_release_attaching_no_manifest_is_refused_by_its_tag():
@@ -114,29 +112,55 @@ def test_a_release_attaching_no_manifest_is_refused_by_its_tag():
 
 
 @mark.parametrize(
-    "missing",
-    [
-        param(lambda run: run.checkpoint, id="the-checkpoint"),
-        param(lambda run: run.episodes,   id="the-episodes")
-    ]
+    "search",
+    [param(False, id="the-demonstration"), param(True, id="a-search")]
 )
-def test_a_run_missing_its_checkpoint_or_its_episodes_is_refused_by_name(
-    missing  : Callable[[Run], Path],
-    recorded : Recorder,
-    tmp_path : Path
+def test_a_recommended_run_naming_no_trained_run_is_refused_before_any_tar(
+    committed : list[Run],
+    recorded  : Recorder,
+    search    : bool
 ):
     """
-    Asserts that packing a run whose checkpoint or episodes are gone raises
-    `FileNotFoundError` naming the run's directory and the file it lacks.
+    Asserts that packing under a `recommended_run` naming the demonstration
+    or a committed search rather than a trained run raises `ValueError`
+    naming it, leaving no tar of any run written.
     """
-    run = recorded(1)
+    name = recorded(5, searches=True).name if search else committed[3].name
+
+    with raises(ValueError, match=f"{name} is no trained run"):
+        ReleaseManifest.pack(ReleaseSettings(recommended_run=name))
+
+    assert not ReleaseManifest.folder.exists()
+
+    assert not ReleaseManifest.folder.exists()
+
+
+@mark.parametrize(
+    "missing",
+    [
+        param(attrgetter("checkpoint"), id="the-checkpoint"),
+        param(attrgetter("episodes"),   id="the-episodes")
+    ]
+)
+def test_a_run_missing_its_checkpoint_or_its_episodes_is_refused_before_any_tar(
+    committed : list[Run],
+    missing   : Callable[[Run], Path]
+):
+    """
+    Asserts that a pack raises `FileNotFoundError` naming the directory of
+    the trained run packed last and the file it lacks, where its checkpoint
+    or its episodes are gone, leaving no tar of any run written.
+    """
+    run = committed[2]
     missing(run).unlink()
 
     with raises(
         FileNotFoundError,
-        match = f"{run.directory} holds no {missing(run).name}"
+        match = escape(f"{run.directory} holds no {missing(run).name}")
     ):
-        PackedRun.pack(tmp_path, run)
+        ReleaseManifest.pack(ReleaseSettings(recommended_run=committed[0].name))
+
+    assert not ReleaseManifest.folder.exists()
 
 
 @mark.parametrize(

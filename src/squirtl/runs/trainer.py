@@ -294,22 +294,28 @@ class Trainer(Driver):
         """
         Plays through `play` until the run takes its `steps` or is stopped
         where `play` returns, yielding the agent's step count after each
-        step. It writes a checkpoint where `play` first returns at or past
-        each multiple of `checkpoint_steps` and once the loop ends, unless
-        the run's own checkpoint already holds the last step, and evaluates
-        the agent where `play` first returns at or past a multiple of
+        step. Before each call to `play` and once the loop ends, it writes
+        the checkpoint and plays the evaluation that `due` finds reached,
+        which evaluates a run resumed past an evaluation that never landed
+        before it plays on. A checkpoint lands where `play` first returns at
+        or past each multiple of `checkpoint_steps` and once the loop ends,
+        unless the run's own checkpoint already holds the last step, and
+        an evaluation where `play` first returns at or past a multiple of
         `evaluation_steps`.
         """
         settings = self.settings
 
-        while self.agent.step < settings.steps and not self.stopping:
-            yield from self.play()
-
+        while True:
             if self.due(settings.checkpoint_steps, self.saved):
                 self.checkpoint()
 
             if self.due(settings.evaluation_steps, self.evaluated):
                 self.evaluate()
+
+            if self.agent.step >= settings.steps or self.stopping:
+                break
+
+            yield from self.play()
 
         self.conclude(f"{self.finished:,} episodes")
 

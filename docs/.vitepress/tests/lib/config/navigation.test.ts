@@ -14,8 +14,13 @@ const DECLARED = [METHODS]
 
 describe('buildNav', () => {
   test('links each section in the bar to its overview', () => {
-    expect(buildNav(DECLARED))
+    expect(buildNav(DECLARED, []))
       .toStrictEqual([{ activeMatch: '^/methods/', link: '/methods/', text: 'Methods' }])
+  })
+
+  test('links each page outside every section after the sections, to that page alone', () => {
+    expect(buildNav(DECLARED, [{ name: 'Identity' }]).at(-1))
+      .toStrictEqual({ activeMatch: '^/identity$', link: '/identity', text: 'Identity' })
   })
 })
 

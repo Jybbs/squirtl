@@ -5,7 +5,7 @@ evaluates, as Markdown a reader pastes into an issue or a pull request, and
 behind it.
 """
 
-from collections.abc import Callable, Collection, Iterable
+from collections.abc import Callable, Iterable
 from numpy           import array, ndarray
 from numpy.random    import Generator
 from scipy.stats     import bootstrap, mannwhitneyu, trim_mean
@@ -13,6 +13,7 @@ from typing          import Self
 
 from squirtl.emulator.schemas   import Record
 from squirtl.evaluation.schemas import Evaluation
+from squirtl.markdown.tables    import tabulate
 
 type Pairs = dict[str, tuple[Evaluation, Evaluation]]
 
@@ -161,11 +162,12 @@ class Report(Record):
     @property
     def listing(self) -> str:
         """
-        Lays out a table holding a row of measures for each evaluation, the
-        agent's or the `--against` run's followed by its baseline's, each
-        naming the goal its episodes ended at.
+        Lays out a table holding a row of measures for each evaluation,
+        the agent's or the `--against` run's, then the same episodes at
+        PPO's most likely action where the evaluation holds them, then its
+        baseline's, each naming the goal its episodes ended at.
         """
-        return table(
+        return tabulate(
             header = ["Run", "Policy", "Goal", "Step", "Episodes", *self.measures],
             rows   = (
                 [
@@ -177,8 +179,13 @@ class Report(Record):
                     *map(figure, evaluation.measures.values())
                 ]
                 for label, group in (("Agent", self.runs), ("Against", self.against))
-                for name, pair in group.items()
-                for policy, evaluation in zip((label, "Baseline"), pair)
+                for name, (agent, baseline) in group.items()
+                for policy, evaluation in (
+                    (label, agent),
+                    ("Argmax", agent.greedy),
+                    ("Baseline", baseline)
+                )
+                if evaluation is not None
             )
         )
 
@@ -238,7 +245,7 @@ class Report(Record):
         interval over the resamples `generator` draws.
         """
         columns = self.columns
-        across  = table(
+        across  = tabulate(
             header = ["Measure", *columns],
             rows   = (
                 [
@@ -271,14 +278,3 @@ def figure(value: float | None) -> str:
     `None`.
     """
     return "none" if value is None else f"{value:,.5g}"
-
-
-def table(header: Collection[str], rows: Iterable[Iterable[str]]) -> str:
-    """
-    Lays `rows` out as a Markdown table beneath `header`, bolding each
-    header cell.
-    """
-    return "\n".join(
-        f"| {' | '.join(row)} |"
-        for row in ([f"**{cell}**" for cell in header], ["---"] * len(header), *rows)
-    )

@@ -16,7 +16,8 @@ Pins the training loop of one run on the CPU, covering:
   checkpoint
 - The evaluation at the first episode end reaching each interval, which
   leaves the training as it was and logs what each policy reached, and the
-  evaluations and the baseline a resume copies up to its checkpoint
+  evaluations and the baseline a resume copies up to its checkpoint, and a
+  resume past an evaluation that never landed evaluating before it plays on
 - PQN's and PPO's run across environments, meaning the environments its
   settings name, the reset each starts from, the workers a first interrupt
   leaves stepping and a second terminates partway through a step, a run of
@@ -340,6 +341,24 @@ def test_a_resume_drops_the_lines_past_the_checkpoint_it_continues_from(
         2,
         "".join(lines[:2])
     )
+
+
+def test_a_resume_past_an_evaluation_that_never_landed_evaluates_before_playing_on(
+    evaluators  : list[EvaluatorStandIn],
+    monkeypatch : MonkeyPatch,
+    trainer     : Callable[..., Trainer]
+):
+    """
+    Asserts that resuming a run stopped on step 12 whose evaluation there
+    never landed evaluates the agent at step 12 before it plays on, then at
+    step 20, the steps a run that never stopped evaluates at.
+    """
+    built = trainer(evaluation_steps=10)
+    monkeypatch.setattr(built, "evaluate", lambda: None)
+    finish(built, stop_at_eight)
+    finish(trainer(evaluation_steps=10, resumes=built.run))
+
+    assert [stand_in.asked for stand_in in evaluators] == [[12, None], [20]]
 
 
 @mark.parametrize(

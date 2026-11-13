@@ -1,14 +1,14 @@
 """
 Pins what the `site` tasks decide from the shell and the checkout they run
 in, meaning the output format `site:lint` chooses for the shell it runs in,
-each further argument `site:lint` and `site:typecheck` forward after their
-own flags, and the single-file component `site:typecheck` refuses before
-`tsc` starts.
+the ref `site:affected` hands Vitest's `--changed`, each further argument
+the tasks forward after their own flags, and the single-file component
+`site:typecheck` refuses before `tsc` starts.
 
 Each case runs its task from `tmp_path`, where the links under
 `node_modules/.bin/` lead to the stand-in under `fixtures/`, which prints
-each argument it receives on a line of its own, so no case starts Oxlint
-or `tsc`.
+each argument it receives on a line of its own, so no case starts Oxlint,
+`tsc`, or Vitest.
 """
 
 from collections.abc import Callable, Mapping
@@ -28,10 +28,24 @@ def stand_ins(monkeypatch: MonkeyPatch, pytestconfig: Config, tmp_path: Path):
     monkeypatch.chdir(tmp_path)
     programs.mkdir(parents=True)
 
-    for program in ("oxlint", "tsc"):
+    for program in ("oxlint", "tsc", "vitest"):
         (programs / program).symlink_to(
             pytestconfig.rootpath / "tests/tasks/fixtures/echo.sh"
         )
+
+
+def test_affected_asks_vitest_for_the_files_changed_since_main(
+    printed: Callable[..., list[str]]
+):
+    """
+    Pins that `site:affected` runs Vitest once over the files changed since
+    the merge base with `origin/main`, forwarding `--reporter=dot` after
+    the configuration.
+    """
+    assert printed("site/affected", "--reporter=dot") == [
+        "run", "--changed", "origin/main",
+        "--config", ".vitepress/vitest.config.ts", "--reporter=dot"
+    ]
 
 
 @mark.parametrize(

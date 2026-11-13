@@ -12,9 +12,14 @@ Pins what the identity's records declare and derive, covering:
   schemes share written once, and the `cubic-bezier()` every transition
   eases along
 - The faces' CSS stacks and the Google Fonts queries they load through
+- The OKLab mix Denim's steps and each hue's shades are drawn from, against
+  the mixes CSS `color-mix(in oklab, …)` draws
 - The names a reference may not misspell, the keys a declaration may not
-  leave out, and the names two theme colors may not share, each refused as
-  the file is read
+  leave out, the names two theme colors may not share, and a step or a
+  shade other than the mix it names, each refused as the file is read
+- The glyph each project mark places on a section of a pull request's body
+  and on the workflows' names, and a placement two marks share or none
+  takes, refused as the file is read
 """
 
 from functools import reduce
@@ -24,7 +29,7 @@ from pytest    import approx, fixture, mark, param, raises
 from re        import escape
 from tomllib   import loads
 
-from squirtl.identity.schemas import Color, Face, Identity, Motion, Swatch
+from squirtl.identity.schemas import Color, Face, Identity, Motion, Step, Swatch
 
 
 @fixture
@@ -34,6 +39,13 @@ def declared() -> dict:
     records validate, so a case changes one key before validating it.
     """
     return loads(Identity.file.read_text(encoding="utf-8"))
+
+
+def colored(value: str) -> Color:
+    """
+    Builds a color of the hex `value` for a case to measure or mix.
+    """
+    return Color(hex=value, name=value, purpose="A case's color")
 
 
 @mark.parametrize(
@@ -135,9 +147,17 @@ def test_each_section_marks_in_its_hue_at_the_contrast_the_identity_records(
 
     assert (
         identity.sections[section],
-        round(Color(hex=mark.light, name="Mark").contrast(palette["ground"]), 2),
-        round(Color(hex=mark.dark, name="Mark").contrast(palette["dark"]), 2)
+        round(colored(mark.light).contrast(palette["ground"]), 2),
+        round(colored(mark.dark).contrast(palette["dark"]), 2)
     ) == (hue, light, dark)
+
+
+def test_a_mix_past_the_srgb_gamut_clips_each_channel():
+    """
+    Pins that a mix whose channel leaves the sRGB gamut is clipped to that
+    channel's range rather than failing to encode.
+    """
+    assert colored("#ff0000").mix(0.5, colored("#ffffff")) == "#ffa191"
 
 
 def test_body_text_holds_four_and_a_half_to_one_on_every_surface():
@@ -158,18 +178,6 @@ def test_body_text_holds_four_and_a_half_to_one_on_every_surface():
             palette[getattr(roles, surface)]
         ) < 4.5
     ] == []
-
-
-def test_code_sets_at_the_size_putting_its_x_height_at_the_bodys():
-    """
-    Pins that code sets at the share of the text around it that stands its
-    lowercase letters at the body's height, the body face's x-height over
-    the code face's.
-    """
-    faces = Identity.read().faces
-
-    assert faces.code_size * faces.code.x_height == approx(faces.body.x_height)
-    assert faces.code_size == approx(0.507 / 0.55)
 
 
 @mark.parametrize(
@@ -194,15 +202,24 @@ def test_a_swatch_writes_light_dark_only_where_the_schemes_differ(
     assert swatch.value == value
 
 
+def test_code_sets_at_the_size_putting_its_x_height_at_the_bodys():
+    """
+    Pins that code sets at the share of the text around it that stands its
+    lowercase letters at the body's height, the body face's x-height over
+    the code face's.
+    """
+    faces = Identity.read().faces
+
+    assert faces.code_size * faces.code.x_height == approx(faces.body.x_height)
+    assert faces.code_size == approx(0.507 / 0.55)
+
+
 def test_contrast_is_the_same_whichever_color_comes_first():
     """
     Asserts that the ratio between two colors reads the same from either
     side, the lighter color always on top of the fraction.
     """
-    black, white = Color(hex="#000000", name="Black"), Color(
-        hex  = "#ffffff",
-        name = "White"
-    )
+    black, white = colored("#000000"), colored("#ffffff")
 
     assert (black.contrast(white), white.contrast(black)) == (21.0, 21.0)
 
@@ -223,24 +240,6 @@ def test_motion_writes_its_curves_as_css_functions():
     )
 
 
-def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
-    """
-    Pins that the `@theme` block opens on clearing Tailwind's own theme and
-    declares every value once, in the order of their names, each length in
-    rems from its pixels and each border in pixels.
-    """
-    lines = Identity.read().sheet.splitlines()
-    names = [line.strip().partition(":")[0] for line in lines[2:-1]]
-
-    assert lines[:2] == ["@theme static {", "  --*: initial;"]
-    assert names == sorted(names)
-    assert {
-        "  --border-width-bar: 3px;", "  --spacing-4: 1rem;",
-        "  --text-code: 0.9218em;", "  --text-label: 0.6875rem;"
-    } <= {*lines}
-    assert "--color-citation-shell" in names
-
-
 @mark.parametrize(
     ("face", "stack", "query"),
     [
@@ -249,6 +248,7 @@ def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
                 axes     = "wght@400",
                 fallback = ("ui-monospace", "Menlo", "monospace"),
                 family   = "JetBrains Mono",
+                purpose  = "Code",
                 x_height = 0.55
             ),
             "'JetBrains Mono', ui-monospace, 'Menlo', monospace",
@@ -260,6 +260,7 @@ def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
                 axes     = "ital@0;1",
                 fallback = ("Georgia", "serif"),
                 family   = "Literata",
+                purpose  = "Prose",
                 x_height = 0.507
             ),
             "'Literata', 'Georgia', serif",
@@ -281,13 +282,22 @@ def test_a_face_quotes_every_family_but_the_generic_ones(
     assert (face.stack, face.query) == (stack, query)
 
 
-def test_the_shipped_declaration_holds_every_field_the_record_declares(declared: dict):
+def test_the_project_marks_place_one_glyph_on_each_section_and_the_workflows():
     """
-    Asserts that `identity.toml` declares a key for every field `Identity`
-    reads and no other, so no field falls back on a default the file never
-    states.
+    Pins the glyph the declared project marks place on each section of a
+    pull request's body and on every workflow's name.
     """
-    assert {*declared} == {*Identity.model_fields}
+    identity = Identity.read()
+
+    assert (identity.headings, identity.workflow_mark) == (
+        {
+            "Implementation Notes" : "👟",
+            "Key Changes"          : "🎒",
+            "Quick Summary"        : "🕹️",
+            "Related Issues"       : "🧵"
+        },
+        "🕹️"
+    )
 
 
 @mark.parametrize(
@@ -361,7 +371,10 @@ def test_a_misspelled_reference_fails_the_read(
     "path",
     [
         param(("faces", "code"), id="face"),
+        param(("faces", "body", "purpose"), id="face-purpose"),
+        param(("colors", "primary", "purpose"), id="color-purpose"),
         param(("logo", "letters", "R"), id="letter"),
+        param(("ramp", "deep", "share"), id="step-share"),
         param(("schemes", "dark"), id="scheme")
     ]
 )
@@ -370,15 +383,67 @@ def test_a_declaration_leaving_out_a_key_fails_the_read(
     path     : tuple[str, ...]
 ):
     """
-    Pins that a declaration leaving out a face, one of the logo's letters,
-    or a color scheme fails validation on the key it leaves out, rather than
-    passing until a later read of that key fails.
+    Pins that a declaration leaving out a face, what a face or a color is
+    for, one of the logo's letters, a step's share, or a color scheme fails
+    validation on the key it leaves out, rather than passing until a later
+    read of that key fails.
     """
     *parents, key = path
     del reduce(getitem, parents, declared)[key]
 
     with raises(ValidationError, match=rf"{escape('.'.join(path))}\n  Field required"):
         Identity.model_validate(declared)
+
+
+def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
+    """
+    Pins that the `@theme` block opens on clearing Tailwind's own theme and
+    declares every value once, in the order of their names, each length in
+    rems from its pixels and each border in pixels.
+    """
+    lines = Identity.read().sheet.splitlines()
+    names = [line.strip().partition(":")[0] for line in lines[2:-1]]
+
+    assert lines[:2] == ["@theme static {", "  --*: initial;"]
+    assert names == sorted(names)
+    assert {
+        "  --border-width-bar: 3px;", "  --spacing-4: 1rem;",
+        "  --text-code: 0.9218em;", "  --text-label: 0.6875rem;"
+    } <= {*lines}
+    assert "--color-citation-shell" in names
+
+
+def test_the_shipped_declaration_holds_every_field_the_record_declares(declared: dict):
+    """
+    Asserts that `identity.toml` declares a key for every field `Identity`
+    reads and no other, so no field falls back on a default the file never
+    states.
+    """
+    assert {*declared} == {*Identity.model_fields}
+
+
+@mark.parametrize(
+    ("start", "toward", "share", "mixed"),
+    [
+        param("#3d6fd0", "#000000", 0.22, "#294e95", id="denim-toward-black"),
+        param("#3d6fd0", "#ffffff", 0.45, "#92b1e8", id="denim-toward-white"),
+        param("#5cb878", "#121722", 0.88, "#1a282c", id="fern-toward-mirage"),
+        param("#c62d42", "#ffffff", 0.3, "#de7578", id="brick-red-toward-white"),
+        param("#3d6fd0", "#ffffff", 0, "#3d6fd0", id="none-of-the-way"),
+        param("#3d6fd0", "#ffffff", 1, "#ffffff", id="all-of-the-way")
+    ]
+)
+def test_a_mix_matches_the_one_css_color_mix_draws_in_oklab(
+    mixed  : str,
+    share  : float,
+    start  : str,
+    toward : str
+):
+    """
+    Pins `Color.mix` to the sRGB hex a browser draws `color-mix(in oklab,
+    <start>, <toward> <share>)` in, at each end of the way and between.
+    """
+    assert colored(start).mix(share, colored(toward)) == mixed
 
 
 def test_tones_read_each_role_from_the_name_its_scheme_gives():
@@ -397,6 +462,108 @@ def test_tones_read_each_role_from_the_name_its_scheme_gives():
     )
 
 
+@mark.parametrize(
+    ("toward", "target"),
+    [param("black", "#000000"), param("white", "#ffffff")]
+)
+def test_a_step_mixes_toward_the_black_or_the_white_it_names(target: str, toward: str):
+    """
+    Pins the color a step mixes Denim toward to the black or the white its
+    `toward` names.
+    """
+    step = Step(
+        hex     = "#294e95",
+        name    = "Deep",
+        purpose = "A case's step",
+        share   = 0.22,
+        toward  = toward
+    )
+
+    assert step.target.hex == target
+
+
+@mark.parametrize("share", [param(0, id="none"), param(1, id="all")])
+def test_a_step_mixing_none_or_all_of_the_way_fails_the_read(share: float):
+    """
+    Pins that a step whose share leaves Denim as it is or replaces it whole
+    fails validation, since either is no step of its ramp.
+    """
+    with raises(ValidationError, match="share"):
+        Step(
+            hex     = "#294e95",
+            name    = "Deep",
+            purpose = "A case's step",
+            share   = share,
+            toward  = "black"
+        )
+
+
+@mark.parametrize(
+    ("path", "value", "message"),
+    [
+        param(
+            ("ramp", "deep", "share"),
+            0.3,
+            "a step of Denim's ramp is not the mix it names",
+            id = "step"
+        ),
+        param(
+            ("ramp", "pale", "share"),
+            0.4,
+            "a step of Denim's ramp is not the mix it names",
+            id = "last-step"
+        ),
+        param(
+            ("hues", "fern", "dark", "shades"),
+            ["#1a282d", "#27423c", "#396a51", "#4c9467"],
+            "a hue's shade is not the mix of its ground `shares` names",
+            id = "dark-shade"
+        ),
+        param(
+            ("shares",),
+            [0.9, 0.7, 0.45, 0.2],
+            "a hue's shade is not the mix of its ground `shares` names",
+            id = "shade"
+        ),
+        param(
+            ("hues", "heath", "light", "ink"),
+            0.3,
+            "a hue's text step is not the mix its `ink` names",
+            id = "text"
+        ),
+        param(
+            ("hues", "forest", "light", "ink"),
+            0.1,
+            "a hue's text step is not the mix its `ink` names",
+            id = "text-unmixed"
+        ),
+        param(
+            ("hues", "denim", "dark", "text"),
+            "#294e95",
+            "a hue's text step is not the mix its `ink` names",
+            id = "text-link"
+        )
+    ]
+)
+def test_a_step_or_a_shade_other_than_its_mix_fails_the_read(
+    declared : dict,
+    message  : str,
+    path     : tuple[str, ...],
+    value    : object
+):
+    """
+    Pins that a step of Denim's ramp, a hue's shade, or a hue's text step
+    drifting from the mix its share names fails validation, Denim's text
+    step drifting from the link step of its ground's scheme among them, so a
+    hand-edited hex cannot stand beside a share it no longer matches.
+    """
+    *parents, key = path
+    reduce(getitem, parents, declared)[key] = value
+
+    with raises(ValidationError, match=escape(message)):
+        Identity.model_validate(declared)
+
+
 def test_two_theme_colors_sharing_a_name_fail_the_read(declared: dict):
     """
     Pins that a role named as one of the logo's colors fails validation,
@@ -406,4 +573,38 @@ def test_two_theme_colors_sharing_a_name_fail_the_read(declared: dict):
     declared["roles"]["ahead"] = "fern"
 
     with raises(ValidationError, match="two theme colors share a name: ahead"):
+        Identity.model_validate(declared)
+
+
+@mark.parametrize(
+    ("index", "key", "value", "message"),
+    [
+        param(1, "glyph", "🕹️", "share a glyph or a section", id="a-shared-glyph"),
+        param(
+            1,
+            "section",
+            "Quick Summary",
+            "share a glyph or a section",
+            id = "a-shared-section"
+        ),
+        param(1, "workflows", True, "the workflows' names", id="two-workflow-marks"),
+        param(0, "workflows", False, "the workflows' names", id="no-workflow-mark"),
+        param(0, "gate", True, "or their gate", id="two-gate-marks")
+    ]
+)
+def test_a_placement_two_project_marks_share_or_none_takes_fails_the_read(
+    declared : dict,
+    index    : int,
+    key      : str,
+    message  : str,
+    value    : object
+):
+    """
+    Pins that two project marks sharing a glyph or a section, and the
+    workflows' names or their gate taking two marks or none, each fail
+    validation, so the audit reads one glyph for each place.
+    """
+    declared["project_marks"][index][key] = value
+
+    with raises(ValidationError, match=message):
         Identity.model_validate(declared)

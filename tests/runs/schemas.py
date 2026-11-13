@@ -42,6 +42,8 @@ Pins the records one run reads and writes, covering:
 - A run's check of its episodes, refusing the first line that does not
   parse as an episode by its number and passing a log whose finished lines
   all do
+- A run's check of its files, refusing a directory missing its checkpoint
+  or its episodes by the file it lacks and passing one holding both
 """
 
 from collections.abc   import Callable, Mapping
@@ -183,6 +185,18 @@ def test_a_revision_is_dirty_wherever_git_reports_a_change(
     assert Revision.checked_out().dirty is dirty
 
 
+def test_a_run_holding_its_checkpoint_and_its_episodes_passes_its_file_check(
+    checkout : Callable[[Mapping[str, str]], None],
+    run      : Run
+):
+    """
+    Asserts that checking the files of a run whose directory holds its
+    checkpoint and its episodes raises nothing.
+    """
+    checkout({str(run.checkpoint): "", str(run.episodes): ""})
+    run.check_files()
+
+
 def test_a_run_holding_no_episode_reaching_its_goal_gives_no_demonstration(
     episode : Episode,
     holding : Callable[[str], Run]
@@ -204,14 +218,6 @@ def test_a_run_holding_no_episode_reaching_its_goal_gives_no_demonstration(
         run.demonstration
 
 
-def test_a_run_holding_no_evaluations_reads_none(run: Run):
-    """
-    Asserts that a run whose directory holds no `evaluations`, as a run that
-    has played none leaves it, reads no evaluation rather than raising.
-    """
-    assert list(run.evaluated) == []
-
-
 @mark.parametrize(
     ("first", "second"),
     [
@@ -230,6 +236,14 @@ def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
     )
 
 
+def test_a_run_holding_no_evaluations_reads_none(run: Run):
+    """
+    Asserts that a run whose directory holds no `evaluations`, as a run that
+    has played none leaves it, reads no evaluation rather than raising.
+    """
+    assert list(run.evaluated) == []
+
+
 def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
     """
     Asserts that starting a run where no clone holds the working directory
@@ -240,19 +254,6 @@ def test_a_run_outside_a_clone_raises_before_writing_anything(outside: Path):
         Run.start("0", RunSettings(), datetime(2026, 10, 4, tzinfo=UTC))
 
     assert not (outside / "data").exists()
-
-
-def test_a_run_reads_an_episode_validating_its_line_alone(
-    episode : Episode,
-    holding : Callable[[str], Run]
-):
-    """
-    Asserts that a run reads its second episode though the line before it
-    holds no episode, since it validates the line it returns alone.
-    """
-    run = holding(f'{{"length": 3}}\n{episode.model_dump_json()}\n')
-
-    assert run.episode(2) == episode
 
 
 @mark.parametrize(
@@ -288,6 +289,19 @@ def test_a_run_name_reads_back_as_the_instant_it_started(
     assert datetime.fromisoformat(name) == started
 
 
+def test_a_run_reads_an_episode_validating_its_line_alone(
+    episode : Episode,
+    holding : Callable[[str], Run]
+):
+    """
+    Asserts that a run reads its second episode though the line before it
+    holds no episode, since it validates the line it returns alone.
+    """
+    run = holding(f'{{"length": 3}}\n{episode.model_dump_json()}\n')
+
+    assert run.episode(2) == episode
+
+
 def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path):
     """
     Asserts that reading the directory a run started in returns that run,
@@ -303,21 +317,6 @@ def test_a_run_reads_back_from_its_directory_as_the_run_that_started(clone: Path
         (run.model_dump(), run.directory),
         (run.model_dump(), clone / run.directory)
     ]
-
-
-def test_a_run_reads_the_lines_of_its_first_episodes_reading_no_further(
-    holding : Callable[[str], Run],
-    logged  : list[str]
-):
-    """
-    Asserts that a run reads, as written, the lines of the episodes a count
-    names and reads no further, so the unfinished line past them draws no
-    warning.
-    """
-    lines = ['{"length": 3}\n', '{"length": 4}\n']
-    run   = holding(f'{lines[0]}{lines[1]}{{"length": ')
-
-    assert (run.first(2), logged) == (lines, [])
 
 
 @mark.usefixtures("clone")
@@ -337,14 +336,19 @@ def test_an_untracked_file_marks_a_revision_dirty_whatever_git_config_hides(
     assert Revision.checked_out().dirty
 
 
-def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
+def test_a_run_reads_the_lines_of_its_first_episodes_reading_no_further(
+    holding : Callable[[str], Run],
+    logged  : list[str]
+):
     """
-    Asserts that the JSON a run writes into its directory validates back
-    into a record equal to the run that wrote it.
+    Asserts that a run reads, as written, the lines of the episodes a count
+    names and reads no further, so the unfinished line past them draws no
+    warning.
     """
-    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
+    lines = ['{"length": 3}\n', '{"length": 4}\n']
+    run   = holding(f'{lines[0]}{lines[1]}{{"length": ')
 
-    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
+    assert (run.first(2), logged) == (lines, [])
 
 
 @mark.parametrize(
@@ -363,28 +367,14 @@ def test_a_revision_refuses_output_that_holds_no_hash(commit: str):
         Revision(commit=commit, dirty=False, lockfile="0")
 
 
-def test_a_run_records_its_settings_revision_and_start(clone: Path):
+def test_a_run_record_reads_back_as_the_run_that_wrote_it(clone: Path):
     """
-    Asserts that a run writes its record into the directory named for the
-    instant it started under `data/runs/`, holding the digest of its start,
-    its settings, the revision of the clone, that instant, and no run it
-    resumes.
+    Asserts that the JSON a run writes into its directory validates back
+    into a record equal to the run that wrote it.
     """
-    settings = RunSettings(seed=7)
-    Run.start("0", settings, datetime(2026, 10, 4, 12, 30, 5, 123456, tzinfo=UTC))
+    run = Run.start("0", RunSettings(seed=7), datetime(2026, 10, 4, tzinfo=UTC))
 
-    assert loads(
-        (clone / "data/runs/20261004T123005.123456Z/run.json").read_text(
-            encoding = "utf-8"
-        )
-    ) == {
-        "digest"   : "0",
-        "resumes"  : None,
-        "revision" : Revision.checked_out().model_dump(),
-        "searches" : False,
-        "started"  : "2026-10-04T12:30:05.123456Z",
-        "settings" : settings.model_dump(mode="json")
-    }
+    assert Run.model_validate_json(run.record.read_text(encoding="utf-8")) == run
 
 
 @mark.parametrize(
@@ -510,6 +500,30 @@ def test_a_run_read_from_outside_the_clone_keeps_its_files_where_it_was_read(
     ]
 
 
+def test_a_run_records_its_settings_revision_and_start(clone: Path):
+    """
+    Asserts that a run writes its record into the directory named for the
+    instant it started under `data/runs/`, holding the digest of its start,
+    its settings, the revision of the clone, that instant, and no run it
+    resumes.
+    """
+    settings = RunSettings(seed=7)
+    Run.start("0", settings, datetime(2026, 10, 4, 12, 30, 5, 123456, tzinfo=UTC))
+
+    assert loads(
+        (clone / "data/runs/20261004T123005.123456Z/run.json").read_text(
+            encoding = "utf-8"
+        )
+    ) == {
+        "digest"   : "0",
+        "resumes"  : None,
+        "revision" : Revision.checked_out().model_dump(),
+        "searches" : False,
+        "started"  : "2026-10-04T12:30:05.123456Z",
+        "settings" : settings.model_dump(mode="json")
+    }
+
+
 def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
     """
     Asserts that a run built on an instant carrying no UTC offset raises
@@ -517,20 +531,6 @@ def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
     """
     with raises(ValidationError, match="timezone info"):
         Run(revision=revision, settings=RunSettings(), started=datetime(2026, 10, 4))
-
-
-def test_a_run_refuses_another_digest_naming_both(run: Run):
-    """
-    Asserts that a run passes the digest it recorded and refuses any other,
-    naming its directory, its own digest, and the one it was handed.
-    """
-    run.check("0")
-
-    with raises(
-        ValueError,
-        match = f"{run.directory} .* digest 0, where this cartridge leaves 1"
-    ):
-        run.check("1")
 
 
 @mark.parametrize(
@@ -584,6 +584,20 @@ def test_a_run_with_a_line_holding_no_episode_is_refused_naming_the_line(
         run.check_episodes()
 
 
+def test_a_run_refuses_another_digest_naming_both(run: Run):
+    """
+    Asserts that a run passes the digest it recorded and refuses any other,
+    naming its directory, its own digest, and the one it was handed.
+    """
+    run.check("0")
+
+    with raises(
+        ValueError,
+        match = f"{run.directory} .* digest 0, where this cartridge leaves 1"
+    ):
+        run.check("1")
+
+
 def test_a_run_skips_an_unfinished_last_line_with_a_warning(
     episode : Episode,
     holding : Callable[[str], Run],
@@ -600,22 +614,6 @@ def test_a_run_skips_an_unfinished_last_line_with_a_warning(
         [episode],
         [f"Skipping the unfinished last line of {run.episodes}"]
     )
-
-
-def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
-    """
-    Asserts that a run started at the same instant as an earlier one raises
-    rather than writing into the earlier run's directory, whose record stays
-    as the earlier run wrote it.
-    """
-    started = datetime(2026, 10, 4, tzinfo=UTC)
-    first   = Run.start("0", RunSettings(seed=1), started)
-    record  = first.record.read_text(encoding="utf-8")
-
-    with raises(FileExistsError):
-        Run.start("0", RunSettings(seed=2), started)
-
-    assert first.record.read_text(encoding="utf-8") == record
 
 
 @mark.parametrize(
@@ -745,6 +743,22 @@ def test_an_append_cuts_an_unfinished_last_line_alone(
     ) == ([12] * kept + [20], [f"Cutting the unfinished last line of {path}"] * cut)
 
 
+def test_a_run_started_at_the_instant_of_another_leaves_it_as_it_was(clone: Path):
+    """
+    Asserts that a run started at the same instant as an earlier one raises
+    rather than writing into the earlier run's directory, whose record stays
+    as the earlier run wrote it.
+    """
+    started = datetime(2026, 10, 4, tzinfo=UTC)
+    first   = Run.start("0", RunSettings(seed=1), started)
+    record  = first.record.read_text(encoding="utf-8")
+
+    with raises(FileExistsError):
+        Run.start("0", RunSettings(seed=2), started)
+
+    assert first.record.read_text(encoding="utf-8") == record
+
+
 def test_a_run_whose_finished_lines_each_hold_an_episode_passes_its_check(
     episode : Episode,
     holding : Callable[[str], Run]
@@ -843,6 +857,21 @@ def test_a_search_is_refused_where_a_trained_run_is_read(halted: Run):
         halted.check_trained()
 
 
+def test_a_search_missing_its_checkpoint_passes_the_file_check(
+    checkout : Callable[[Mapping[str, str]], None],
+    run      : Run
+):
+    """
+    Asserts that checking the files of a search whose directory holds its
+    episodes and no checkpoint raises nothing, since a search packs no
+    checkpoint.
+    """
+    search = run.model_copy(update={"searches": True})
+    checkout({str(search.episodes): ""})
+
+    search.check_files()
+
+
 def test_a_sync_writes_the_file_through_the_drives_cache(
     monkeypatch : MonkeyPatch,
     run         : Run,
@@ -870,17 +899,6 @@ def test_each_stream_seed_fits_in_64_unsigned_bits():
     widest seed `torch.manual_seed` takes.
     """
     assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
-
-
-def test_reading_a_directory_holding_no_run_raises(clone: Path):
-    """
-    Asserts that reading a directory holding no run record raises rather
-    than reading a run from somewhere else.
-    """
-    (clone / "data/runs/empty").mkdir(parents=True)
-
-    with raises(FileNotFoundError):
-        Run.read(clone / "data/runs/empty")
 
 
 @mark.parametrize(
@@ -913,6 +931,17 @@ def test_an_episode_reads_back_the_measures_of_the_agent_that_played_it(
     written = episode.model_copy(update={"epsilon": epsilon, "update": update})
 
     assert Episode.model_validate_json(written.model_dump_json()) == written
+
+
+def test_reading_a_directory_holding_no_run_raises(clone: Path):
+    """
+    Asserts that reading a directory holding no run record raises rather
+    than reading a run from somewhere else.
+    """
+    (clone / "data/runs/empty").mkdir(parents=True)
+
+    with raises(FileNotFoundError):
+        Run.read(clone / "data/runs/empty")
 
 
 def test_the_default_capacity_holds_replay_memory_under_three_gigabytes():
@@ -1057,22 +1086,6 @@ def test_the_searchs_stream_leaves_the_seed_of_every_earlier_one_as_it_was():
     assert [*Stream][-1] is Stream.SEARCH
 
 
-def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
-    snapshot: SnapshotAssertion
-):
-    """
-    Asserts that the run's settings, and each subject's settings they
-    hold, carry the default and the bounds each field declares beside the
-    description written beneath it, which cyclopts renders as the help of
-    that field's flag, so a change to any of them is reviewed as a diff.
-    """
-    assert dumps(
-        RunSettings.model_json_schema(),
-        ensure_ascii = False,
-        indent       = 2
-    ) == snapshot
-
-
 @mark.parametrize(
     ("demonstration", "start"),
     [
@@ -1107,6 +1120,22 @@ def test_a_listing_reads_the_settings_naming_its_run(
     )
 
 
+def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
+    snapshot: SnapshotAssertion
+):
+    """
+    Asserts that the run's settings, and each subject's settings they
+    hold, carry the default and the bounds each field declares beside the
+    description written beneath it, which cyclopts renders as the help of
+    that field's flag, so a change to any of them is reviewed as a diff.
+    """
+    assert dumps(
+        RunSettings.model_json_schema(),
+        ensure_ascii = False,
+        indent       = 2
+    ) == snapshot
+
+
 def test_the_settings_count_no_flag_past_the_goal_toward_the_ceiling():
     """
     Asserts that terms summing past 1 over every flag up to the Pokédex are
@@ -1136,6 +1165,35 @@ def test_the_settings_default_to_the_papers_montezuma_column():
         "outer_steps"   : (10, 20),
         "rollback"      : (1, 3)
     }
+
+
+@mark.parametrize(
+    "missing",
+    [
+        param("checkpoint.npz", id="the-checkpoint"),
+        param("episodes.jsonl", id="the-episodes")
+    ]
+)
+def test_a_run_missing_its_checkpoint_or_its_episodes_is_refused_by_name(
+    checkout : Callable[[Mapping[str, str]], None],
+    missing  : str,
+    run      : Run
+):
+    """
+    Asserts that checking the files of a run whose directory lacks its
+    checkpoint or its episodes raises `FileNotFoundError` naming the run's
+    directory and the file it lacks.
+    """
+    checkout(
+        {
+            str(path): ""
+            for path in (run.checkpoint, run.episodes)
+            if path.name != missing
+        }
+    )
+
+    with raises(FileNotFoundError, match=escape(f"{run.directory} holds no {missing}")):
+        run.check_files()
 
 
 def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():

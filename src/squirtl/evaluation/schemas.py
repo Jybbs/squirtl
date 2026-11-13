@@ -7,9 +7,9 @@ Defines the records an evaluation reads and writes:
 """
 
 from functools  import cached_property
-from pydantic   import Field, PositiveInt
+from pydantic   import Field, PositiveInt, model_validator
 from statistics import fmean
-from typing     import Annotated
+from typing     import Annotated, Self
 
 from squirtl.emulator.schemas    import Record, UnitInterval, processors
 from squirtl.environment.schemas import Outcome
@@ -20,7 +20,15 @@ class Evaluation(Record):
     """
     The episodes one evaluation played of one policy, the agent's at a step
     of its run or the random baseline's, from which `measures` derives what
-    a reader judges the policy by.
+    a reader judges the policy by, and for PPO the same episodes played at
+    the policy's most likely action.
+    """
+
+    argmax: list[Outcome] | None
+    """
+    What each episode reached under the same reset seeds where PPO took its
+    most likely action at every step, in the order of `outcomes`, or `None`
+    for the deep Q-network, PQN, and the random baseline.
     """
 
     goal: Flag
@@ -39,6 +47,19 @@ class Evaluation(Record):
     The steps the agent had taken when the evaluation read it, or `None` for
     the random baseline.
     """
+
+    @property
+    def greedy(self) -> Self | None:
+        """
+        Reads the evaluation of the episodes `argmax` holds, at the same
+        step and toward the same goal, or `None` where it holds none.
+        """
+        return None if self.argmax is None else type(self)(
+            argmax   = None,
+            goal     = self.goal,
+            outcomes = self.argmax,
+            step     = self.step
+        )
 
     @cached_property
     def measures(self) -> dict[str, float | None]:
@@ -84,6 +105,24 @@ class Evaluation(Record):
         """
         return fmean(outcome.reward for outcome in self.outcomes)
 
+    @model_validator(mode="after")
+    def pairs_its_episodes(self) -> Self:
+        """
+        Refuses an `argmax` holding another count of episodes than
+        `outcomes`, since it plays the same episodes again.
+
+        Raises:
+            ValueError: Where the counts differ, which Pydantic raises as a
+                        `ValidationError`.
+        """
+        if self.argmax is not None and len(self.argmax) != len(self.outcomes):
+            raise ValueError(
+                "the episodes at the most likely action and the sampled ones "
+                f"number {len(self.argmax):,} and {len(self.outcomes):,}"
+            )
+
+        return self
+
 
 class EvaluationSettings(Record):
     """
@@ -108,6 +147,7 @@ class EvaluationSettings(Record):
     epsilon: UnitInterval = 0.05
     """
     The chance of a random action at each step of an evaluation episode of
-    the deep Q-network or of PQN, whose default follows Mnih et al. PPO takes
-    its most likely action at every step.
+    the deep Q-network or of PQN, whose default follows Mnih et al. PPO
+    samples each action from its policy and plays the same episodes again
+    taking its most likely action at every step.
     """

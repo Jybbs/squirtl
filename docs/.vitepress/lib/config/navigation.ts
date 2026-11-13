@@ -5,15 +5,23 @@ import { createMarkdownRenderer, disposeMdItInstance } from 'vitepress'
 import type { DefaultTheme, MarkdownRenderer }        from 'vitepress'
 
 import type { Edition }                   from '../cards/cards.ts'
-import { SECTIONS, type Section, placed } from './sections.ts'
+import type { ProjectFacts }              from './manifest.ts'
+import { SECTIONS, SINGLES, type Section, type Single, placed, slugOf } from './sections.ts'
+
+/**
+ * The facts about the project a component sets out in a page, the byline, the
+ * host, the keywords, and the repository's address.
+ */
+type Project = Pick<ProjectFacts, 'description' | 'host' | 'keywords' | 'repository'>
 
 /**
  * The theme's configuration as the site sets it, the default theme's beside the
  * version and the host a card's edition plate names, which a component drawing
- * a card in a page reads.
+ * a card in a page reads, and the facts about the project a page sets out.
  */
 export interface SiteTheme extends DefaultTheme.Config {
-  edition: Edition
+  edition : Edition
+  project : Project
 }
 
 /**
@@ -42,14 +50,25 @@ function labelOf(md: MarkdownRenderer, heading: string): { html: string, text: s
 }
 
 /**
- * Lists each section in the navigation bar, linking its overview.
+ * Lists each section in the navigation bar, linking its overview, and after
+ * them each of `singles`, linking its page.
  */
-export function buildNav(sections: readonly Section[] = SECTIONS): DefaultTheme.NavItemWithLink[] {
-  return placed(sections).map(section => ({
-    activeMatch : `^/${section.folder}/`,
-    link        : `/${section.folder}/`,
-    text        : section.name
-  }))
+export function buildNav(
+  sections : readonly Section[] = SECTIONS,
+  singles  : readonly Single[] = SINGLES
+): DefaultTheme.NavItemWithLink[] {
+  return [
+    ...placed(sections).map(section => ({
+      activeMatch : `^/${section.folder}/`,
+      link        : `/${section.folder}/`,
+      text        : section.name
+    })),
+    ...singles.map(single => ({
+      activeMatch : `^/${slugOf(single)}$`,
+      link        : `/${slugOf(single)}`,
+      text        : single.name
+    }))
+  ]
 }
 
 /**

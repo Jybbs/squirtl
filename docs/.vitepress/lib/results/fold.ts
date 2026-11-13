@@ -1,13 +1,13 @@
 import { useElementVisibility, useTransition }       from '@vueuse/core'
 import { type ComputedRef, type Ref, computed, ref } from 'vue'
 
-import { BEAT, TRAVEL, useMotion } from '../widgets/motion.ts'
-import { fromMouse }               from '../widgets/scrub.ts'
-import { useDrawnWidth }           from '../widgets/width.ts'
-import { type Side, finalsWidth }  from './lanes.ts'
-import { lanesOf }                 from './layout.ts'
-import { legendOf }                from './legend.ts'
-import { COMMITTED, groupsOf }     from './results.ts'
+import { BEAT, TRAVEL, useMotion }               from '../widgets/motion.ts'
+import { fromMouse }                             from '../widgets/scrub.ts'
+import { useDrawnWidth }                         from '../widgets/width.ts'
+import { type Side, finalsWidth }                from './lanes.ts'
+import { lanesOf }                               from './layout.ts'
+import { legendOf }                              from './legend.ts'
+import { COMMITTED, type Results, groupsOf }     from './results.ts'
 
 /**
  * The listeners a side of the figure takes, widening it while a mouse rests on
@@ -82,17 +82,17 @@ function useEntrance(seen: Ref<boolean>, seeds: number, lanes: number): {
 }
 
 /**
- * Draws the committed runs' comparison in `box`, measuring the width it takes
- * there, playing it in once `box` first comes into view, and widening the side
- * a reader points at or focuses, its legend's hatching drawn through the
- * pattern `hatch`.
+ * Draws the comparison of the runs `results` holds, the committed runs unless
+ * given others, in `box`, measuring the width it takes there, playing it in
+ * once `box` first comes into view, and widening the side a reader points at
+ * or focuses, its legend's hatching drawn through the pattern `hatch`.
  *
  * Returns:
  *   The figure laid out, how far it has played in, the groups, the legend,
  *   the listeners each side takes, and the width drawn at.
  */
-export function useComparison(box: Ref<HTMLElement | undefined>, hatch: string) {
-  const groups   = groupsOf()
+export function useComparison(box: Ref<HTMLElement | undefined>, hatch: string, results: Results = COMMITTED) {
+  const groups   = groupsOf(results)
   const width    = useDrawnWidth(box, 240)
   const seen     = useElementVisibility(box, { once: true })
   const fold     = useFold(width)
@@ -102,7 +102,7 @@ export function useComparison(box: Ref<HTMLElement | undefined>, hatch: string) 
     drawn     : computed(() => lanesOf(groups, width.value, fold.finals.value)),
     entrance  : entrance,
     groups    : groups,
-    legend    : COMMITTED.random === null ? [] : legendOf(groups, COMMITTED.random, hatch),
+    legend    : results.random === null ? [] : legendOf(groups, results.random, hatch),
     listeners : fold.listeners,
     width     : width
   }
