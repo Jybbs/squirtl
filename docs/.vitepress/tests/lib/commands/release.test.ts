@@ -15,8 +15,8 @@ const RUNS = path.resolve(import.meta.dirname, '../../../../runs')
 const COMMITTED = readdirSync(RUNS).toSorted().map(name => ({
   name,
   run: JSON.parse(readFileSync(path.join(RUNS, name, 'run.json'), 'utf8')) as {
-    searches : boolean
-    settings : { curriculum: { demonstration: string | null } }
+    searches? : boolean
+    settings  : { agent: { algorithm: string }, curriculum: { demonstration: string | null }, seed: number }
   }
 }))
 
@@ -32,8 +32,14 @@ describe('DEMONSTRATION', () => {
 })
 
 describe('SEARCH', () => {
-  it('names the one search docs/runs/ commits', () => {
-    expect(COMMITTED.filter(({ run }) => run.searches).map(({ name }) => name)).toStrictEqual([release.SEARCH])
+  it('names the one search docs/runs/ commits, its tar listing the agent, curriculum, and seed its record holds', () => {
+    const tar = release.DEMONSTRATIONS.find(({ name }) => name === release.SEARCH)
+
+    expect(
+      COMMITTED
+        .filter(({ run }) => run.searches)
+        .map(({ name, run }) => [name, run.settings.agent.algorithm, run.settings.curriculum.demonstration !== null, run.settings.seed])
+    ).toStrictEqual([[tar?.name, tar?.agent, tar?.curriculum, tar?.seed]])
   })
 })
 

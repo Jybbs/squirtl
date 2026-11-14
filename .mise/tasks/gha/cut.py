@@ -8,8 +8,9 @@ repository holds as a `Release`, creates a draft where none carries the
 version, refreshes the generated notes of the draft that does, and fails
 where a published release carries it. The task then writes the path it
 took, the release's address, and the version to the step's outputs, and
-fails where the trained runs the draft's manifest lists differ from the runs
-`docs/runs/` commits that record no search.
+fails where the trained runs the draft's manifest lists differ from the
+runs `docs/runs/` commits that record no search, or where its demonstrations
+leave out a search `docs/runs/` commits.
 """
 
 from contextlib  import nullcontext
@@ -59,11 +60,11 @@ class Release:
     target_commitish : str
 
     @property
-    def attached(self) -> set[str]:
+    def attached(self) -> tuple[set[str], set[str]]:
         """
-        Reads the name of each trained run the release's manifest lists,
-        downloading the asset `manifest` names by its id, or none where the
-        release attaches no such asset.
+        Reads the name of each trained run and of each demonstration the
+        release's manifest lists, downloading the asset `manifest` names by
+        its id, or none of either where the release attaches no such asset.
         """
         asset = next(
             (asset for asset in self.assets if asset["name"] == self.manifest),
@@ -71,7 +72,7 @@ class Release:
         )
 
         if asset is None:
-            return set()
+            return set(), set()
 
         listing = github(
             "api",
@@ -80,7 +81,11 @@ class Release:
             "Accept: application/octet-stream"
         )
 
-        return {run["name"] for run in loads(listing)["runs"]}
+        manifest = loads(listing)
+
+        return tuple(
+            {run["name"] for run in manifest[key]} for key in ("runs", "demonstrations")
+        )
 
     @property
     def context(self) -> str:
@@ -136,6 +141,7 @@ class Draft:
 
     committed : set[str]
     releases  : list[Release]
+    searches  : set[str]
     version   : str
 
     @property
@@ -178,9 +184,9 @@ class Draft:
     def from_github(cls) -> Self:
         """
         Reads the version from `pyproject.toml`, the name of each run
-        directory `folder` holds, and every release the repository holds
-        through one listing of every page, asking for each field `Release`
-        declares.
+        directory `folder` holds, apart by whether its `run.json` records a
+        search, and every release the repository holds through one listing
+        of every page, asking for each field `Release` declares.
         """
         with Path("pyproject.toml").open("rb") as manifest:
             version = load(manifest)["project"]["version"]
@@ -193,16 +199,20 @@ class Draft:
             f".[] | {{{', '.join(field.name for field in fields(Release))}}}"
         )
 
-        return cls(
-            committed = {
-                directory.name
-                for directory in cls.folder.iterdir()
-                if not loads((directory / "run.json").read_text(encoding="utf-8")).get(
+        searched = {
+            directory.name: bool(
+                loads((directory / "run.json").read_text(encoding="utf-8")).get(
                     "searches"
                 )
-            },
-            releases = [Release(**loads(line)) for line in listing.splitlines()],
-            version  = version
+            )
+            for directory in cls.folder.iterdir()
+        }
+
+        return cls(
+            committed = {name for name, searches in searched.items() if not searches},
+            releases  = [Release(**loads(line)) for line in listing.splitlines()],
+            searches  = {name for name, searches in searched.items() if searches},
+            version   = version
         )
 
     def maintain(self):
@@ -212,15 +222,17 @@ class Draft:
         address, and the version to the file `GITHUB_OUTPUT` names, or
         prints them where that variable is unset. It then stops the task
         with one error annotation naming each run `committed` holds that the
-        draft's manifest leaves out and another naming each run the manifest
-        lists that `committed` leaves out, a created draft attaching no
-        manifest. Where a published release carries the version, it stops
-        the task first, with an error annotation naming `mise bump`.
+        draft's manifest leaves out of its trained runs, beside each search
+        `searches` holds that it leaves out of its demonstrations, and
+        another naming each trained run the manifest lists that `committed`
+        leaves out, a created draft attaching no manifest. Where a published
+        release carries the version, it stops the task first, with an error
+        annotation naming `mise bump`.
         """
         match self.release:
-            case None: state, url, attached = "created", self.create(), set()
+            case None: state, url, listed = "created", self.create(), (set(), set())
             case Release(draft=True) as release:
-                state, url, attached = "refreshed", release.refresh(), release.attached
+                state, url, listed = "refreshed", release.refresh(), release.attached
             case Release():
                 raise SystemExit(
                     f"::error::{self.version} is already published, "
@@ -238,10 +250,14 @@ class Draft:
                 sep  = "\n"
             )
 
-        manifest       = f"manifest of the draft release for {self.version}"
-        missing, stray = (
+        attached, demonstrated = listed
+        manifest               = f"manifest of the draft release for {self.version}"
+        missing, stray         = (
             ", ".join(sorted(runs))
-            for runs in (self.committed - attached, attached - self.committed)
+            for runs in (
+                self.committed - attached | self.searches - demonstrated,
+                attached - self.committed
+            )
         )
 
         if annotations := [
