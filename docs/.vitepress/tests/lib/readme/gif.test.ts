@@ -29,6 +29,7 @@ describe('encodeGif', () => {
 
     expect([decoded.loops, decoded.locals]).toStrictEqual([0, 0])
     expect(decoded.delays).toStrictEqual([2, 2, 2])
+    expect(decoded.disposals).toStrictEqual([1, 1, 1])
   })
 
   it('joins a frame changing nothing onto the time of the frame before', () => {

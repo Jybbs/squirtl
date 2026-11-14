@@ -1,16 +1,17 @@
 /**
  * A GIF read back as a viewer shows it, its size, its global palette, the
  * frames carrying a palette of their own, the times it repeats, and each frame
- * whole with the hundredths of a second it holds.
+ * whole with the hundredths of a second it holds and the disposal it takes.
  */
 export interface Decoded {
-  delays  : number[]
-  frames  : Uint32Array[]
-  height  : number
-  locals  : number
-  loops   : number | undefined
-  palette : number[]
-  width   : number
+  delays    : number[]
+  disposals : number[]
+  frames    : Uint32Array[]
+  height    : number
+  locals    : number
+  loops     : number | undefined
+  palette   : number[]
+  width     : number
 }
 
 /**
@@ -77,13 +78,16 @@ export function decodeGif(bytes: Uint8Array): Decoded {
   const palette = Array.from({ length: colors }, (_, n) =>
     bytes[13 + 3 * n]! << 16 | bytes[14 + 3 * n]! << 8 | bytes[15 + 3 * n]!)
   const shown   = new Uint32Array(width * height)
-  const decoded : Decoded = { delays: [], frames: [], height, locals: 0, loops: undefined, palette, width }
-  let [at, clear, delay] = [13 + 3 * colors, -1, 0]
+  const decoded : Decoded = {
+    delays: [], disposals: [], frames: [], height, locals: 0, loops: undefined, palette, width
+  }
+  let [at, clear, delay, disposal] = [13 + 3 * colors, -1, 0, 0]
   while (bytes[at] !== 0x3b) {
     if (bytes[at] === 0x21 && bytes[at + 1] === 0xf9) {
-      delay = short(at + 4)
-      clear = bytes[at + 3]! & 1 ? bytes[at + 6]! : -1
-      at   += 8
+      delay    = short(at + 4)
+      disposal = bytes[at + 3]! >> 2 & 7
+      clear    = bytes[at + 3]! & 1 ? bytes[at + 6]! : -1
+      at      += 8
     } else if (bytes[at] === 0x21) {
       if (bytes[at + 1] === 0xff) decoded.loops = short(at + 16)
       at = subBlocks(bytes, at + 2)[1]
@@ -97,6 +101,7 @@ export function decodeGif(bytes: Uint8Array): Decoded {
       }
       decoded.frames.push(shown.slice())
       decoded.delays.push(delay)
+      decoded.disposals.push(disposal)
       at = next
     }
   }

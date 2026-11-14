@@ -80,8 +80,8 @@ function trailOf(rise: number, trail: Start['trail']): [x: number, y: number][] 
  * block, and his trail in the section's ramp from the oldest third to the
  * newest, ending on a Poké Ball in the section's shades.
  */
-export function drawStartCard(card: StartCard, scheme: identity.Scheme): string {
-  const { ball, block, image, trail, word } = START
+export function drawStartCard(card: StartCard, scheme: identity.Scheme, start: Start = START): string {
+  const { ball, block, image, trail, word } = start
   const hue                                 = identity.sectionHue(card.folder)
   const steps                               = identity.IDENTITY.hues[hue][scheme]
   const mark                                = identity.IDENTITY.marks[hue][scheme]
@@ -100,8 +100,8 @@ export function drawStartCard(card: StartCard, scheme: identity.Scheme): string 
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${image.width}" height="${image.height}" `
        + `viewBox="0 0 ${image.width} ${image.height}" role="img" aria-label="${card.word}">`
-       + `<rect x="${START.card.x}" width="${image.width - 2 * START.card.x}" height="${image.height}" `
-       + `rx="${START.card.radius}" fill="${shades[0]}"/>`
+       + `<rect x="${start.card.x}" width="${image.width - 2 * start.card.x}" height="${image.height}" `
+       + `rx="${start.card.radius}" fill="${shades[0]}"/>`
        + dotText(card.word, { cell, fill: mark, x: word.x, y: word.y })
        + dots.map(([x, y], n) =>
            `<circle cx="${x}" cy="${y}" r="${trail.dot}" fill="${thirds[Math.floor(3 * n / dots.length)]}"/>`)

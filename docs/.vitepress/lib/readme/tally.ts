@@ -26,10 +26,6 @@ export interface Tally {
  * preview's band meets the README around it.
  */
 const PAGES: Readonly<Record<Scheme, string>> = { dark: '#0d1117', light: '#ffffff' }
-/**
- * The figures a count leaves room for, the most presses any walk makes.
- */
-const ROOM = '000'
 
 /**
  * Draws the column of counts beside the town, each walk's rule and episodes in
@@ -38,12 +34,13 @@ const ROOM = '000'
  */
 export function tallyOf(at: number, height: number, scheme: Scheme, tally: Tally, walks: Walks): string {
   const { ink, quiet } = IDENTITY.tones[scheme]
+  const room           = count(walks.longest).length * ADVANCE * tally.figure.size
   const counts         = walks.moments.map((moment, n) => {
     const done = Math.min(at, moment.presses)
     const hue  = walks.hues[n]!
     const x    = tally.left + tally.inset
     const y    = tally.top + n * tally.pitch
-    const word = x + tally.word.gap + ROOM.length * ADVANCE * tally.figure.size
+    const word = x + tally.word.gap + room
     return `<rect x="${tally.left}" y="${y}" width="${tally.rule.width}" height="${tally.rule.height}" `
          + `fill="${IDENTITY.marks[hue][scheme]}"/>`
          + setCaps(`${count(moment.episodes)} episodes`, {
