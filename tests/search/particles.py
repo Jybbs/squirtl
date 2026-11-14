@@ -9,7 +9,8 @@ Pins the search over particles, Mhammedi and Cohan's Algorithms 1 and
 - One iteration, where a group below the winner on reward moves to it, each
   group consolidates on its winner, and the best of those and the last
   winner, scored afresh, becomes the winner
-- The search ending at its goal, and on no other flag, or at its steps
+- The search ending at its goal, and on no other flag, or at its steps,
+  writing the path of the best particle holding the goal
 - Each rollout's presses, one action held at the chance of a random one
 - The updates an iteration owes, which run while the next one plays and
   finish before it consolidates
@@ -301,6 +302,40 @@ def test_consolidating_drops_each_state_no_particle_can_reach(
     drive(search)
 
     assert stray not in search.tree.states and 0 in search.tree.states
+
+
+def test_consolidating_makes_the_best_particle_holding_the_goal_the_winner(
+    monkeypatch : MonkeyPatch,
+    rolled      : Script,
+    searching   : Callable[..., Search]
+):
+    """
+    Asserts that consolidating a search a particle has set the goal in makes
+    the highest-ranked particle holding the goal the winner, so the search
+    reads as reached and finished and demonstrates that particle's path,
+    even where particles without the goal hold more reward through their
+    squares, one of them its own group's winner.
+    """
+    search  = searching(rolled([]))
+    nodes   = [search.tree.add(0, bytes([press])) for press in range(1, 5)]
+    holding = (Event.EVENT_GOT_STARTER,)
+
+    search.groups[0].particles = [
+        particle(nodes[0], 0.5),
+        particle(nodes[1], 0.3, events=holding)
+    ]
+    search.groups[1].particles = [
+        particle(nodes[2], 0.9),
+        particle(nodes[3], 0.2, events=holding)
+    ]
+
+    scored(monkeypatch, search, 0.0)
+    search.consolidate()
+
+    assert (
+        search.reached, search.finished,
+        search.winner.node, search.demonstration.presses
+    ) == (True, True, nodes[1], b"\x02")
 
 
 @mark.parametrize(
@@ -635,7 +670,7 @@ def test_the_demonstration_plays_back_to_what_the_winner_reached(
 
     played.play(search.demonstration)
 
-    assert played.reward.total(played.progress.earned) == winner.reward
+    assert played.progress.total == winner.reward
     assert played.progress.position == winner.snapshot.tally.position
     assert Event.EVENT_GOT_STARTER in played.progress.events
 

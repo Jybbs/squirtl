@@ -300,7 +300,7 @@ class Searcher(Driver):
         self.run.append(self.run.iterations, iteration)
 
         logger.info(
-            "Iteration {:,} reached a reward of {:.4f} and {:,} positions at press "
+            "Iteration {:,} reached a reward of {:.5f} and {:,} positions at press "
             "{:,} in {:.1f} s: path {:,} presses, tree {:,} nodes and {:,} bytes, "
             "loss {}",
             self.search.iterations,

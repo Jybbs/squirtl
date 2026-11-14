@@ -5,8 +5,8 @@ Pins the loop of one search, covering:
   iteration's end, and a directory recording itself as a search
 - The checkpoint at the first iteration end reaching each interval and at
   the search's end, each written after the iterations are flushed to disk
-- A search ending at its goal, writing the path as an episode, or at its
-  steps, and a `stop` file, an
+- A search paying its particles at the run's `reward` settings, ending at
+  its goal, writing the path as an episode, or at its steps, and a `stop` file, an
   interrupt, or a termination signal ending it at an iteration's end, the
   last also where it reaches the run's whole process group, with a second
   interrupt ending it at once
@@ -23,12 +23,14 @@ from collections.abc import Callable
 from common.search   import PoolStandIn, assert_same_checkpoint, finish, iterations, lines, stop_at_thirty
 from common.search   import terminate_at_twenty
 from itertools       import pairwise
+from math            import fsum
 from multiprocessing import get_context
 from pathlib         import Path
-from pytest          import MonkeyPatch, mark, raises
+from pytest          import MonkeyPatch, approx, mark, raises
 from signal          import SIGINT, SIGTERM, Signals, getsignal, raise_signal
 
 from squirtl.emulator.schemas  import Cartridge
+from squirtl.reward.schemas    import RewardSettings
 from squirtl.runs.schemas      import Run, RunSettings, Stream
 from squirtl.runs.searcher     import SearchHandover, Searcher
 from squirtl.search.checkpoint import SearchCheckpoint
@@ -261,6 +263,27 @@ def test_a_search_ending_at_its_last_checkpoint_writes_no_second_one(
     assert len(landed) == len(set(landed))
 
 
+def test_a_search_pays_its_winner_at_the_runs_reward_settings(
+    searcher: Callable[..., Searcher]
+):
+    """
+    Asserts that a search run at a novelty of its own pays its winner what
+    those settings pay the terms its path earned, so the `reward` settings
+    reach the search as they reach training.
+    """
+    reward = RewardSettings(novelty=0.0005)
+    built  = searcher(reward=reward)
+
+    finish(built)
+
+    earned = built.search.winner.snapshot.tally.earned
+
+    assert (bool(earned), built.search.winner.reward) == (
+        True,
+        approx(fsum(reward.shares(earned).values()))
+    )
+
+
 def test_a_search_reaching_its_goal_ends_writing_the_path_as_an_episode(
     searcher: Callable[..., Searcher]
 ):
@@ -268,7 +291,7 @@ def test_a_search_reaching_its_goal_ends_writing_the_path_as_an_episode(
     Asserts that a search whose presses reach the run's goal ends well short
     of its steps, and writes the path its winner took as the one episode of
     its `episodes`, which reaches the goal from Blue's bedroom and earns the
-    winner's reward beside the novelty of each position it passes.
+    winner's reward, the novelty of each position it passes included.
     """
     built = searcher(steps=100_000)
     run   = finish(built)
@@ -279,7 +302,7 @@ def test_a_search_reaching_its_goal_ends_writing_the_path_as_an_episode(
     assert (
         episode.recording, episode.length,
         run.settings.environment.goal in episode.flags,
-        episode.reward > built.search.winner.reward
+        episode.reward == approx(built.search.winner.reward)
     ) == (
         built.search.demonstration,
         len(built.search.demonstration.presses),

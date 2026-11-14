@@ -21,7 +21,7 @@ squirtl search [OPTIONS]
 
 <!-- /help -->
 
-A search starts every particle on the state Blue's bedroom leaves, presses each rollout from a node it saved, and keeps the path of the particle reaching the most reward. Once a particle sets the goal, the path it took becomes the one episode in the search's `episodes.jsonl`, so `squirtl watch` plays it and `--curriculum.demonstration` takes the directory as a demonstration.
+A search starts every particle on the state Blue's bedroom leaves, presses each rollout from a node it saved, and keeps the path of the particle reaching the most reward. A particle's reward is what training would pay the presses of its path from the bedroom, each new square and each flag at the `--reward` settings, and a group ranks its particles on that reward and then on the uncertainty of their frames, as Mhammedi and Cohan's Algorithms 1 and 2 rank them[^mhammedi2026]. A rollout stops at the press setting a flag and plays on past a new square. Once a particle sets the goal, the path of the highest-ranked particle holding it becomes the one episode in the search's `episodes.jsonl`, so `squirtl watch` plays it and `--curriculum.demonstration` takes the directory as a demonstration.
 
 <!-- settings -->
 
@@ -92,3 +92,5 @@ A search starts every particle on the state Blue's bedroom leaves, presses each 
 | `--steps` | `2500000` | *The environment steps the run takes, a run of PQN or PPO going on to the end of the rollout that reaches them, whose default is ten of the 250,000-step iterations Dopamine's DQN evaluates after.* |
 
 <!-- /settings -->
+
+[^mhammedi2026]: Mhammedi and Cohan 2026. "Decoupling Exploration and Policy Optimization: Uncertainty Guided Tree Search for Hard Exploration." arXiv:2603.22273v4. <https://arxiv.org/abs/2603.22273v4>
