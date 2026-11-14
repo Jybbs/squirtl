@@ -10,9 +10,14 @@ from collections.abc import Iterable
 def tabulate(header: Iterable[str], rows: Iterable[Iterable[object]]) -> str:
     """
     Lays out a Markdown table, the bolded `header` and its rule over a line
-    for each row of `rows`, each cell written as `str` writes it.
+    for each row of `rows`, each cell written as `str` writes it with each
+    `|` escaped as `\\|`, which GitHub Flavored Markdown reads as a literal
+    pipe inside a cell rather than as the start of another column.
     """
     names = [f"**{name}**" for name in header]
-    lines = (f"| {' | '.join(map(str, cells))} |" for cells in (names, *rows))
+    lines = (
+        f"| {' | '.join(str(cell).replace('|', r'\|') for cell in cells)} |"
+        for cells in (names, *rows)
+    )
 
     return "\n".join((next(lines), "|" + "---|" * len(names), *lines))

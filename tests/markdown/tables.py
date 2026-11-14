@@ -1,9 +1,20 @@
 """
 Pins the Markdown table `tabulate` lays out, its bolded header, its one rule
-line, and each cell as `str` writes it.
+line, and each cell as `str` writes it with each `|` escaped.
 """
 
 from squirtl.markdown.tables import tabulate
+
+
+def test_a_pipe_inside_a_cell_is_escaped_so_its_row_keeps_one_column_per_header():
+    """
+    Pins that each `|` a header or a cell holds, inside a code span or
+    outside one, is written as `\\|`, so the row splits into no extra
+    column.
+    """
+    assert tabulate(("A|B",), (("`x | y`",), ("a|b|c",))) == (
+        "| **A\\|B** |\n|---|\n| `x \\| y` |\n| a\\|b\\|c |"
+    )
 
 
 def test_a_table_bolds_its_header_over_one_rule_and_a_line_per_row():

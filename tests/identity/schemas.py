@@ -17,8 +17,9 @@ Pins what the identity's records declare and derive, covering:
 - The names a reference may not misspell, the keys a declaration may not
   leave out, the names two theme colors may not share, and a step or a
   shade other than the mix it names, each refused as the file is read
-- The glyph each project mark places on a section of a pull request's body
-  and on the workflows' names, and a placement two marks share or none
+- The glyph each project mark places on a section of a pull request's body,
+  on every workflow's name, and on the name of the gate each workflow ends
+  on, the places each mark names, and a placement two marks share or none
   takes, refused as the file is read
 """
 
@@ -29,7 +30,7 @@ from pytest    import approx, fixture, mark, param, raises
 from re        import escape
 from tomllib   import loads
 
-from squirtl.identity.schemas import Color, Face, Identity, Motion, Step, Swatch
+from squirtl.identity.schemas import Color, Face, Identity, Motion, ProjectMark, Step, Swatch
 
 
 @fixture
@@ -282,22 +283,66 @@ def test_a_face_quotes_every_family_but_the_generic_ones(
     assert (face.stack, face.query) == (stack, query)
 
 
-def test_the_project_marks_place_one_glyph_on_each_section_and_the_workflows():
+def test_the_project_marks_place_one_glyph_on_each_section_the_workflows_and_the_gate():
     """
     Pins the glyph the declared project marks place on each section of a
-    pull request's body and on every workflow's name.
+    pull request's body, on every workflow's name, and on the name of the
+    gate each workflow ends on.
     """
     identity = Identity.read()
 
-    assert (identity.headings, identity.workflow_mark) == (
+    assert (identity.headings, identity.workflow_mark, identity.gate_mark) == (
         {
             "Implementation Notes" : "👟",
             "Key Changes"          : "🎒",
             "Quick Summary"        : "🕹️",
             "Related Issues"       : "🧵"
         },
-        "🕹️"
+        "🕹️", "🎒"
     )
+
+
+@mark.parametrize(
+    ("flags", "places"),
+    [
+        param({}, ("The Key Changes section",), id="a-section-alone"),
+        param(
+            {"workflows": True},
+            ("The Key Changes section", "every workflow’s name"),
+            id = "the-workflows"
+        ),
+        param(
+            {"gate": True},
+            (
+                "The Key Changes section", "the name of the gate each workflow ends on"
+            ),
+            id = "the-gate"
+        ),
+        param(
+            {"gate": True, "workflows": True},
+            (
+                "The Key Changes section", "every workflow’s name",
+                "the name of the gate each workflow ends on"
+            ),
+            id = "the-workflows-and-the-gate"
+        )
+    ]
+)
+def test_a_project_mark_names_its_section_before_the_names_it_opens(
+    flags  : dict[str, bool],
+    places : tuple[str, ...]
+):
+    """
+    Pins that a project mark names the section of a pull request's body it
+    opens first, then every workflow's name and the name of the gate each
+    workflow ends on where it opens either.
+    """
+    assert ProjectMark(
+        depicts = "The trainer’s backpack",
+        glyph   = "🎒",
+        section = "Key Changes",
+        **flags
+    ).places == places
 
 
 @mark.parametrize(

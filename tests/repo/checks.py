@@ -997,6 +997,17 @@ def test_labels_report_a_label_in_no_category_and_a_malformed_row(scan: Scan):
             id = "a-workflow-with-no-name"
         ),
         param(
+            ("name: 🎒 Brief", "name: 🕹️ Brief"),
+            [(
+                ".github/workflows/ci.yml",
+                5,
+                "The gate `brief` is named '🕹️ Brief', which opens on other than "
+                "`🎒`, the mark of every gate"
+            )],
+            id = "a-gate-on-another-mark"
+        ),
+        param(("    name: 🎒 Brief\n", ""), [], id="a-gate-with-no-name"),
+        param(
             ('name        = "🧢 agent"', 'name        = "🎒 agent"'),
             [(
                 ".github/labels.toml", 4,
@@ -1022,11 +1033,13 @@ def test_marks_hold_the_template_workflows_and_labels_to_the_identity(
     """
     Pins that the mark check passes a template whose headings each open on
     the mark the identity places on their section, workflows named on the
-    workflows' mark, and labels on no project mark, and reports a heading
-    on another mark, on none, or on its mark beside other words, a heading
-    on a section the identity places no mark on, a workflow named on another
-    mark or not named, and a label on a project mark with or without its
-    variation selector, leaving out a heading inside an HTML comment.
+    workflows' mark, and labels on no project mark, and reports a heading on
+    another mark, on none, or on its mark beside other words, a heading on a
+    section the identity places no mark on, a workflow named on another mark
+    or not named, a gate named on another mark, and a label on a project
+    mark with or without its variation selector, leaving out a heading
+    inside an HTML comment, a gate setting no name, which `Gates` reports,
+    and a job other than the gate named on no mark.
     """
     shipped = {
         ".github/PULL_REQUEST_TEMPLATE.md": """
@@ -1050,7 +1063,19 @@ def test_marks_hold_the_template_workflows_and_labels_to_the_identity(
             name        = "🧢 agent"
             """,
 
-        ".github/workflows/ci.yml": "on: push\nname: 🕹️ CI\njobs: {}\n"
+        ".github/workflows/ci.yml": """
+            on: push
+            name: 🕹️ CI
+            jobs:
+              brief:
+                name: 🎒 Brief
+                steps:
+                  - run: mise run gha:brief
+              check:
+                name: Check
+                steps:
+                  - run: mise run py:test
+            """
     }
     shipped = {
         path: dedent(text).lstrip("\n").replace(*rewrite)
