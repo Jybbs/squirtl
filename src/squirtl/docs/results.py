@@ -124,20 +124,27 @@ class Trained(RunListing):
         return self.scores[-1]
 
     @classmethod
-    def from_run(cls, run: Run) -> Self:
+    def read(cls, directory: Path) -> Self | None:
         """
-        Reads what `run` measured.
+        Reads what the run `directory` holds measured, or `None` where it
+        searched rather than trained an agent.
 
         Raises:
-            ValueError: Where the run read a cartridge other than the
-                        default path or followed a demonstration at an
-                        absolute path, either of which would carry a
-                        local path into the checkout, holds no evaluation
-                        of the agent or of the random baseline, or holds
-                        an evaluation whose episodes at the most likely
-                        action do not match its agent, present for the deep
-                        Q-network or PQN or missing for PPO.
+            FileNotFoundError : Where `directory` holds no record.
+            ValidationError   : Where the record holds no run.
+            ValueError        : Where the run read a cartridge other than
+                                the default path or followed a demonstration
+                                at an absolute path, either of which would
+                                carry a local path into the checkout,
+                                holds no evaluation of the agent or of the
+                                random baseline, or holds an evaluation
+                                whose episodes at the most likely action do
+                                not match its agent, present for the deep
+                                Q-network or PQN or missing for PPO.
         """
+        if (run := Run.read(directory)).searches:
+            return None
+
         if run.settings.emulator.cartridge != EmulatorSettings().cartridge:
             raise ValueError(
                 f"{run.directory} read the cartridge {run.settings.emulator.cartridge}"
@@ -333,24 +340,25 @@ class Results(Record):
             + f"and random presses {self.random.share}."
         )
 
+    @staticmethod
+    def directories(folder: Path = folder) -> list[Path]:
+        """
+        Lists each directory `folder` holds in the order of its name, none
+        where it is missing.
+        """
+        return sorted(folder.iterdir()) if folder.is_dir() else []
+
     @classmethod
     def read(cls, folder: Path = folder) -> Self:
         """
         Reads every run directory `folder` holds that trained an agent, none
-        where it is missing.
+        where it is missing, each through `Trained.read`.
 
         Raises:
             ValueError: Where the runs end their episodes at more than one
                         goal, whose shares no comparison sets side by side.
         """
-        runs = tuple(
-            Trained.from_run(run)
-            for run in map(
-                Run.read,
-                sorted(folder.iterdir() if folder.is_dir() else ())
-            )
-            if not run.searches
-        )
+        runs = tuple(filter(None, map(Trained.read, cls.directories(folder))))
         Event.check_shared((run.goal for run in runs), f"the runs under {folder}")
 
         baselines = {run.seed: run.baseline.reached for run in Trained.seeded(runs)}

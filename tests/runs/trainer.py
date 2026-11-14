@@ -27,8 +27,6 @@ Pins the training loop of one run on the CPU, covering:
   truncated episode's final observation, the stop, the checkpoint, and the
   evaluation landing as a rollout's update ends, and a resume ending as a
   run that never stopped wherever it stopped
-- A checkpoint of PQN or PPO read back as written, a slot holding a recording
-  of no presses among them, and the episodes a handover of each takes
 - PQN's and PPO's run along a demonstration, each episode starting from the
   window its segment gives and recording its takeover, the curriculum
   taking in each episode at its length, its segment, and its success, the
@@ -52,10 +50,8 @@ from os                import kill
 from pathlib           import Path
 from pytest            import MonkeyPatch, approx, fail, mark, param, raises
 from signal            import ITIMER_REAL, SIGALRM, SIGINT, SIGTERM, getsignal, raise_signal, setitimer, signal
-from torch             import tensor
-from torch.serialization import get_safe_globals
-from torch.testing       import assert_close
-from types               import SimpleNamespace
+from torch.testing     import assert_close
+from types             import SimpleNamespace
 
 from squirtl.agent.checkpoint      import ReplayCheckpoint
 from squirtl.agent.schemas         import AgentSettings, Algorithm, Measures, PolicyUpdate, Update
@@ -65,9 +61,10 @@ from squirtl.environment.schemas   import EnvironmentSettings, Recording
 from squirtl.evaluation.schemas    import Evaluation, EvaluationSettings
 from squirtl.reward.schemas        import Event, Position, RewardSettings, Term
 from squirtl.runs.curriculum       import Curriculum
-from squirtl.runs.schemas          import CurriculumSettings, Run, RunSettings, Stream
-from squirtl.runs.trainer          import EpisodeTrainer, Handover, Moments, RolloutTrainer, Slot, Tally, Trainer
-from squirtl.runs.trainer          import VectorCheckpoint
+from squirtl.runs.handover         import VectorCheckpoint
+from squirtl.runs.schemas          import Run
+from squirtl.runs.settings         import CurriculumSettings, RunSettings, Stream
+from squirtl.runs.trainer          import EpisodeTrainer, RolloutTrainer, Trainer
 
 
 def along(
@@ -1002,55 +999,6 @@ def test_a_rollout_run_stopped_before_its_first_step_resumes_as_one_never_stoppe
     )
 
 
-def test_a_tally_averages_each_environments_updates_until_its_episode_ends():
-    """
-    Asserts that a tally reads the mean of each measure of the updates added
-    since the environment's last episode ended, and `None` where none was,
-    each environment on its own count.
-    """
-    tally = Tally(2, Update)
-    tally.add(Update(loss=1.0, value=2.0))
-    tally.add(Update(loss=3.0, value=4.0))
-
-    assert tally.take(0) == Update(loss=2.0, value=3.0)
-    assert tally.take(0) is None
-
-    tally.add(Update(loss=8.0, value=9.0))
-
-    assert tally.take(0) == Update(loss=8.0, value=9.0)
-    assert tally.take(1) == Update(loss=4.0, value=5.0)
-
-
-def test_a_vector_checkpoint_of_a_recording_of_no_presses_reads_back(tmp_path: Path):
-    """
-    Asserts that a slot whose recording holds no presses reads back as
-    written, whose empty `bytes` `torch.save` pickles through the `bytes`
-    global, and that the read allows that global for its own `torch.load`
-    alone.
-    """
-    written = vector_checkpoint(2, 16, presses=b"")
-    written.save(tmp_path / "checkpoint.npz")
-
-    assert VectorCheckpoint.from_path(
-        tmp_path / "checkpoint.npz"
-    ).slots == written.slots
-    assert bytes not in get_safe_globals()
-
-
-def test_a_vector_checkpoint_reads_back_as_written(tmp_path: Path):
-    """
-    Asserts that a checkpoint of PQN or PPO reads back with the agent's side
-    and each environment's slot as written, under the `weights_only=True`
-    that `torch.load` reads its plain values through.
-    """
-    written = vector_checkpoint(2, 16)
-    written.save(tmp_path / "checkpoint.npz")
-    read = VectorCheckpoint.from_path(tmp_path / "checkpoint.npz")
-
-    assert read.model_dump(exclude={"online"}) == written.model_dump(exclude={"online"})
-    assert read.online["weight"].tolist() == [1.0, 2.0]
-
-
 def test_an_episode_reaching_the_goal_writes_a_terminated_line(
     trainer: Callable[..., Trainer]
 ):
@@ -1233,29 +1181,6 @@ def test_an_interrupt_reaching_each_worker_leaves_the_rollout_stepping(
             kill(process.pid, SIGINT)
 
         assert list(trainer)[-1] == 8
-
-
-@each_agent
-def test_a_handover_of_pqn_or_ppo_takes_the_episodes_its_checkpoint_counts(
-    algorithm : Algorithm,
-    holding   : Callable[[str], Run]
-):
-    """
-    Asserts that a run of either agent hands over its checkpoint and the
-    count of lines that checkpoint names whatever their lengths, dropping
-    the line a run wrote past it.
-    """
-    lines = ['{"length": 99}\n', '{"length": 99}\n']
-    run   = holding("".join(lines)).model_copy(
-        update = {"settings": RunSettings(agent=AgentSettings(algorithm=algorithm))}
-    )
-    vector_checkpoint(1, 16).save(run.checkpoint)
-    handover = Handover.from_run(run)
-
-    assert (
-        type(handover.checkpoint),
-        handover.episodes
-    ) == (VectorCheckpoint, lines[:1])
 
 
 def test_each_checkpoint_follows_the_episodes_written_through_to_disk(
@@ -1513,34 +1438,3 @@ def test_a_demonstration_that_reaches_no_goal_is_refused_before_any_directory(
         )
 
     assert [path.name for path in demonstrated.parent.iterdir()] == [demonstrated.name]
-
-
-def vector_checkpoint(
-    episodes : int,
-    step     : int,
-    presses  : bytes = bytes([1, 4, 4])
-) -> VectorCheckpoint:
-    """
-    Builds the checkpoint of a run of PQN or PPO at `step` after `episodes`
-    episodes, one environment `presses` into its next, by default three.
-    """
-    return VectorCheckpoint(
-        episodes  = episodes,
-        generator = {"bit_generator": "PCG64", "state": {"inc": 1, "state": 2**100}},
-        moments   = Moments(count=8.0001, mean=0.25, var=2.0),
-        online    = {"weight": tensor([1.0, 2.0])},
-        optimizer = {"param_groups": [{"lr": 1e-4, "params": [0]}], "state": {}},
-        slots     = [
-            Slot(
-                count     = 1,
-                generator = {
-                    "bit_generator" : "PCG64",
-                    "state"         : {"inc": 3, "state": 2**70}
-                },
-                recording = Recording(presses=presses, timer_div=9),
-                returned  = -0.5,
-                totals    = [1.0, 2.0]
-            )
-        ],
-        step = step
-    )

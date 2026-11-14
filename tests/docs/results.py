@@ -11,7 +11,7 @@ Pins what `Results` reads from the run directories under
 - A run reading another cartridge than the default path, following a
   demonstration at an absolute path, holding no evaluation of the agent or
   of the random baseline, or holding episodes at the most likely action
-  that do not match its agent, which `Trained.from_run` refuses
+  that do not match its agent, which `Trained.read` refuses
 - The goal each run ended its episodes at, and runs ending at more than one,
   which `Results.read` refuses
 - The run `ReleaseSettings` recommends by default, one of the runs
@@ -32,7 +32,8 @@ from squirtl.emulator.schemas    import EmulatorSettings
 from squirtl.environment.schemas import EnvironmentSettings, Outcome
 from squirtl.evaluation.schemas  import Evaluation
 from squirtl.reward.schemas      import Event
-from squirtl.runs.schemas        import CurriculumSettings, Revision, Run, RunSettings
+from squirtl.runs.schemas        import Revision, Run
+from squirtl.runs.settings       import CurriculumSettings, RunSettings
 
 
 def recorded(
@@ -117,7 +118,7 @@ def test_a_run_following_a_demonstration_at_an_absolute_path_is_refused(
     )
 
     with raises(ValueError, match="/home/demo"):
-        Trained.from_run(Run.read(folder))
+        Trained.read(folder)
 
 
 def test_a_run_holding_no_baseline_is_refused(
@@ -131,7 +132,7 @@ def test_a_run_holding_no_baseline_is_refused(
     (folder / "baseline.json").rename(folder / "moved.json")
 
     with raises(ValueError, match="holds no baseline"):
-        Trained.from_run(Run.read(folder))
+        Trained.read(folder)
 
 
 def test_a_run_holding_no_evaluation_is_refused(
@@ -144,7 +145,7 @@ def test_a_run_holding_no_evaluation_is_refused(
     folder = recorded(checkout, [], 1)
 
     with raises(ValueError, match="holds no evaluation"):
-        Trained.from_run(Run.read(folder))
+        Trained.read(folder)
 
 
 def test_a_run_reading_another_cartridge_is_refused(
@@ -164,7 +165,7 @@ def test_a_run_reading_another_cartridge_is_refused(
     )
 
     with raises(ValueError, match="/home/rom.gb"):
-        Trained.from_run(Run.read(folder))
+        Trained.read(folder)
 
 
 def test_a_search_is_left_out_of_the_results(
@@ -244,8 +245,9 @@ def test_each_score_carries_ppos_share_at_its_most_likely_action(
     ).model_copy(update={"argmax": [outcome(0.75, terminated=True)]})
     (folder / "evaluations.jsonl").write_text(evaluation.model_dump_json() + "\n")
 
-    run = Trained.from_run(Run.read(folder))
+    run = Trained.read(folder)
 
+    assert run is not None
     assert [(score.argmax, score.reached) for score in (*run.scores, run.baseline)] == [
         (1.0, 0.0),
         (None, 0.0)
@@ -282,7 +284,7 @@ def test_an_evaluation_whose_argmax_episodes_do_not_match_its_agent_is_refused(
     (folder / "evaluations.jsonl").write_text(evaluation.model_dump_json() + "\n")
 
     with raises(ValueError, match=rf"of {algorithm.name} whose episodes"):
-        Trained.from_run(Run.read(folder))
+        Trained.read(folder)
 
 
 def test_estimates_hold_whatever_order_the_runs_names_list_in(

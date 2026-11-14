@@ -20,9 +20,11 @@ from squirtl.agent.schemas       import AgentSettings, Algorithm
 from squirtl.emulator.schemas    import Cartridge
 from squirtl.environment.schemas import EnvironmentSettings, Recording
 from squirtl.reward.schemas      import Term
-from squirtl.runs.schemas        import Episode, Revision, Run, RunSettings
+from squirtl.runs.handover       import Handover
+from squirtl.runs.schemas        import Episode, Revision, Run
 from squirtl.runs.searcher       import SearchHandover, Searcher
-from squirtl.runs.trainer        import Handover, Trainer
+from squirtl.runs.settings       import RunSettings
+from squirtl.runs.trainer        import Trainer
 from squirtl.search.schemas      import SearchSettings
 
 

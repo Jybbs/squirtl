@@ -5,8 +5,8 @@ Pins the records a release carries its trained runs through, covering:
   and its demonstration under `data/runs/`, its episodes, and a checkpoint
   of its weights alone, and the same bytes on a second pack
 - The runs a pack refuses before writing any tar, one missing its
-  checkpoint or its episodes, one with a line holding no episode, and a
-  recommended run naming no trained run
+  checkpoint or its episodes, one with a line holding no episode, a
+  recommended run naming no trained run, and a checkout committing no runs
 - The manifest beside the tars, holding the demonstration apart from the
   trained runs and refusing a recommended run it does not list
 - A committed search, which packs as a demonstration with no checkpoint
@@ -16,7 +16,7 @@ Pins the records a release carries its trained runs through, covering:
   directory or a release, with the default selection of each command
 """
 
-from collections.abc   import Callable
+from collections.abc   import Callable, Mapping
 from common.releases   import ADDRESS, GitHub
 from email.message     import Message
 from hashlib           import sha256
@@ -37,6 +37,22 @@ from squirtl.agent.schemas    import Algorithm
 from squirtl.docs.results     import ReleaseSettings
 from squirtl.releases.schemas import GithubRelease, ReleaseManifest, RunSelection, Selector
 from squirtl.runs.schemas     import Run, Start
+
+
+def test_a_checkout_committing_no_runs_is_refused_on_its_recommended_run(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Asserts that packing a checkout holding no `docs/runs/` under the
+    default settings raises `ValueError` naming the recommended run as no
+    trained run, leaving no tar written.
+    """
+    checkout({})
+
+    with raises(ValueError, match="is no trained run"):
+        ReleaseManifest.pack()
+
+    assert not ReleaseManifest.folder.exists()
 
 
 def test_a_directory_selection_reads_each_directory_alone(committed: list[Run]):
@@ -100,17 +116,6 @@ def test_a_manifest_recommending_a_run_it_does_not_list_is_refused(
         )
 
 
-def test_a_release_attaching_no_manifest_is_refused_by_its_tag():
-    """
-    Asserts that reading the manifest of a release attaching none raises
-    `ValueError` naming the release's tag and the manifest's file.
-    """
-    release = GithubRelease(published_at="2026-11-10T00:00:00Z", tag_name="0.1.0")
-
-    with raises(ValueError, match="The release 0.1.0 attaches no manifest.json"):
-        _ = release.manifest
-
-
 @mark.parametrize(
     "search",
     [param(False, id="the-demonstration"), param(True, id="a-search")]
@@ -133,6 +138,17 @@ def test_a_recommended_run_naming_no_trained_run_is_refused_before_any_tar(
     assert not ReleaseManifest.folder.exists()
 
     assert not ReleaseManifest.folder.exists()
+
+
+def test_a_release_attaching_no_manifest_is_refused_by_its_tag():
+    """
+    Asserts that reading the manifest of a release attaching none raises
+    `ValueError` naming the release's tag and the manifest's file.
+    """
+    release = GithubRelease(published_at="2026-11-10T00:00:00Z", tag_name="0.1.0")
+
+    with raises(ValueError, match="The release 0.1.0 attaches no manifest.json"):
+        _ = release.manifest
 
 
 @mark.parametrize(

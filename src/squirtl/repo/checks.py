@@ -20,6 +20,7 @@ from typing import ClassVar, Self
 
 from squirtl.cli              import app
 from squirtl.docs.outputs     import Inventory
+from squirtl.docs.results     import Results, Trained
 from squirtl.docs.schemas     import Bibliography, Manuscripts
 from squirtl.emulator.schemas import Record
 from squirtl.identity.schemas import Identity
@@ -28,6 +29,7 @@ from squirtl.repo.schemas import (
     Project, PullRequestTemplate, ReleaseNotes, Rulesets, Scripts, Severity,
     SiteLockfile, SiteManifest, Tasks, Templates, Tree, Unreadable, Workflows
 )
+from squirtl.runs.schemas import Run
 
 
 class Audit(Record):
@@ -929,13 +931,20 @@ class Rendered(Check):
     @classmethod
     def read(cls, documents: Callable[[type], Record]) -> Self:
         """
-        Builds the check from the inventory of the `squirtl` command, the
-        one `squirtl write docs` writes, raising `Unreadable` on a page
-        whose markers fail to read, at the line naming the fault, and on
-        `identity` where any other part of the inventory fails to read, the
-        identity failing to parse or to validate among them.
+        Builds the check from the inventory of the `squirtl` command,
+        the one `squirtl write docs` writes. It raises `Unreadable` on
+        `identity` where the identity fails to parse or to validate, on the
+        record of each run under `docs/runs/` that `trained` refuses, on a
+        page whose markers fail to read, at the line naming the fault, and
+        on the root of the checkout where any other part of the inventory
+        fails to read.
         """
         with Finding.reading(cls.identity):
+            Identity.read()
+
+        Unreadable.gather(Results.directories(), cls.trained)
+
+        with Finding.reading(Path(".")):
             return cls(inventory=Inventory.read(app))
 
     def scan(self) -> Iterator[Finding]:
@@ -951,6 +960,16 @@ class Rendered(Check):
                     "written from, which `mise write` writes it from again"
                 )
             )
+
+    @staticmethod
+    def trained(directory: Path) -> Trained | None:
+        """
+        Reads the run `directory` holds as the Results section reads it,
+        raising `Unreadable` on the run's `run.json` where the run fails to
+        read or the section refuses it.
+        """
+        with Finding.reading(directory / Run.file):
+            return Trained.read(directory)
 
 
 class Rows(Check):

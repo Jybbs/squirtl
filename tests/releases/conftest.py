@@ -25,7 +25,8 @@ from squirtl.emulator.schemas    import EmulatorSettings
 from squirtl.environment.schemas import Recording
 from squirtl.releases.schemas    import ReleaseManifest
 from squirtl.reward.schemas      import Term
-from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunSettings
+from squirtl.runs.schemas        import Episode, Revision, Run
+from squirtl.runs.settings       import CurriculumSettings, RunSettings
 
 type Recorder = Callable[..., Run]
 

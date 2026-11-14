@@ -29,8 +29,9 @@ from pytest          import MonkeyPatch, mark, raises
 from signal          import SIGINT, SIGTERM, Signals, getsignal, raise_signal
 
 from squirtl.emulator.schemas  import Cartridge
-from squirtl.runs.schemas      import Run, RunSettings, Stream
+from squirtl.runs.schemas      import Run
 from squirtl.runs.searcher     import SearchHandover, Searcher
+from squirtl.runs.settings     import RunSettings, Stream
 from squirtl.search.checkpoint import SearchCheckpoint
 from squirtl.search.schemas    import SearchSettings
 from squirtl.search.workers    import boot

@@ -11,7 +11,7 @@ from statistics   import fmean
 
 from squirtl.emulator.schemas    import Record
 from squirtl.environment.schemas import Starts, Takeover, Window
-from squirtl.runs.schemas        import CurriculumSettings
+from squirtl.runs.settings       import CurriculumSettings
 
 
 class Segment(Record):

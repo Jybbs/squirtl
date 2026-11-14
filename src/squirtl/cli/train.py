@@ -11,8 +11,10 @@ from typing     import Annotated
 from squirtl.cli.logs         import drive, listen, refusing
 from squirtl.cli.runs         import RunDirectory
 from squirtl.emulator.schemas import Cartridge
-from squirtl.runs.schemas     import Run, TrainingSettings
-from squirtl.runs.trainer     import Handover, Trainer
+from squirtl.runs.handover    import Handover
+from squirtl.runs.schemas     import Run
+from squirtl.runs.settings    import TrainingSettings
+from squirtl.runs.trainer     import Trainer
 
 
 def train(

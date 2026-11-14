@@ -216,7 +216,7 @@ def test_attach_uploads_each_packed_file_to_the_draft_once_confirmed(
     monkeypatch.setattr(
         ReleaseManifest,
         "pack",
-        classmethod(lambda cls, settings: manifest)
+        classmethod(lambda cls: manifest)
     )
     answered(reply)
     fp.register(["gh", "release", "upload", fp.any()])
