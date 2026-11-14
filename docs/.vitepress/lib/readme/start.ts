@@ -6,7 +6,7 @@ import * as identity    from '../identity/identity.ts'
 import { logoColors }   from '../marks/logo.ts'
 
 /**
- * How each card of Where to Start is drawn, in its image's pixels: the image's
+ * How each card of Start Here is drawn, in its image's pixels: the image's
  * size, the rounded card inside it, the room the word fits and its baseline's
  * left end, Blue's block, the room around him inside it, and where it stands,
  * and the trail's first dot, the pixels between its dots, their radius, the
@@ -23,7 +23,7 @@ interface Start {
 }
 
 /**
- * One card of the README's Where to Start, the section its link opens, the
+ * One card of the README's Start Here, the section its link opens, the
  * word it shows, and the heading Blue's trail takes toward its Poké Ball, a
  * square up each turn where it climbs, a square down where it descends, and
  * none where it runs level.
@@ -35,7 +35,7 @@ export interface StartCard {
 }
 
 /**
- * Where to Start as the README carries it, each card an image of 260 by 150.
+ * Start Here as the README carries it, each card an image of 260 by 150.
  */
 const START: Start = {
   ball  : 1.5,
@@ -47,7 +47,7 @@ const START: Start = {
 }
 
 /**
- * The cards of Where to Start in the order the README sets them abreast,
+ * The cards of Start Here in the order the README sets them abreast,
  * Understand climbing to the Methods page, Check running level to the Results
  * section, and Run descending to the Commands page.
  */

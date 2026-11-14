@@ -22,12 +22,6 @@ export interface Tally {
 }
 
 /**
- * GitHub's page ground in each scheme, which the column of counts takes so the
- * preview's band meets the README around it.
- */
-const PAGES: Readonly<Record<Scheme, string>> = { dark: '#0d1117', light: '#ffffff' }
-
-/**
  * Draws the column of counts beside the town, each walk's rule and episodes in
  * its hue's mark and text step on GitHub's ground in `scheme`, and the presses
  * it has made by press `at` of the clock the walks share.
@@ -65,5 +59,5 @@ export function tallyOf(at: number, height: number, scheme: Scheme, tally: Tally
          })
   })
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${tally.width}" height="${height}">`
-       + `<rect width="${tally.width}" height="${height}" fill="${PAGES[scheme]}"/>${counts.join('')}</svg>`
+       + `<rect width="${tally.width}" height="${height}" fill="${IDENTITY.github[scheme]}"/>${counts.join('')}</svg>`
 }

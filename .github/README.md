@@ -20,7 +20,7 @@
   </picture>
 </p>
 
-## 📕 Where to Start
+## 📕 Start Here
 
 <div align="center">
   <a href="https://squirtl.fyi/methods/"><picture><source media="(prefers-color-scheme: dark)" srcset="../docs/assets/readme/understand-dark.svg"><img alt="Understand" src="../docs/assets/readme/understand-light.svg" width="260"></picture></a>
