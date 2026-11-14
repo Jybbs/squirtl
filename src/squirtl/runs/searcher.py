@@ -19,7 +19,8 @@ from squirtl.emulator.schemas      import Cartridge, Record
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import Entry
 from squirtl.runs.driver           import Driver
-from squirtl.runs.schemas          import Episode, Run, RunSettings, Stream
+from squirtl.runs.schemas          import Episode, Run
+from squirtl.runs.settings         import RunSettings, Stream
 from squirtl.search.checkpoint     import SearchCheckpoint
 from squirtl.search.particles      import Search
 from squirtl.search.schemas        import Iteration

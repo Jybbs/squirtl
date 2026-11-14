@@ -292,6 +292,7 @@
       "family": "JetBrains Mono",
       "purpose": "Code, figures, labels, and chips",
       "x_height": 0.55,
+      "advance": 0.6,
       "query": "JetBrains+Mono:wght@400;500;700",
       "stack": "'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', monospace"
     },

@@ -7,16 +7,18 @@ Pins the records the emulator reads, covering:
 - The digest each edition holds and the address each symbol holds, against
   what pret/pokered publishes
 - The settings refusing a press held for no frames
+- The wording of each field a validation refuses, at its location or at
+  the record's root
 """
 
 from hashlib  import sha1
 from operator import attrgetter
 from pathlib  import Path
 from pydantic import ValidationError
-from pytest   import MonkeyPatch, mark, raises
+from pytest   import MonkeyPatch, mark, param, raises
 from re       import escape
 
-from squirtl.emulator.schemas import Cartridge, Edition, EmulatorSettings, Symbol
+from squirtl.emulator.schemas import Cartridge, Edition, EmulatorSettings, Symbol, failures
 
 
 def test_a_missing_cartridge_raises_naming_its_path(tmp_path: Path):
@@ -139,3 +141,40 @@ def test_the_settings_refuse_a_hold_of_no_frames():
     """
     with raises(ValidationError, match="greater than 0"):
         EmulatorSettings(hold=0)
+
+
+@mark.parametrize(
+    ("value", "worded"),
+    [
+        param(
+            {"hold": 0, "open_window": "maybe"},
+            [
+                "at `hold` with 'Input should be greater than 0'",
+                "at `open_window` with 'Input should be a valid boolean, unable to "
+                "interpret input'"
+            ],
+            id = "two-fields"
+        ),
+        param(
+            [],
+            [
+                "at its root with 'Input should be a valid dictionary or instance of "
+                "EmulatorSettings'"
+            ],
+            id = "the-root"
+        )
+    ]
+)
+def test_a_validation_failure_words_each_field_at_its_location(
+    value  : object,
+    worded : list[str]
+):
+    """
+    Asserts that each field a validation refuses reads as its location
+    in backticks, or the record's root where Pydantic gives none, beside
+    Pydantic's message, in the order Pydantic reports them.
+    """
+    with raises(ValidationError) as raised:
+        EmulatorSettings.model_validate(value)
+
+    assert list(failures(raised.value)) == worded

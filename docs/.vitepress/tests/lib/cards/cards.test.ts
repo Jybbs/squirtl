@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import * as cards   from '../../../lib/cards/cards.ts'
 import { IDENTITY } from '../../../lib/identity/identity.ts'
@@ -12,6 +12,22 @@ describe('cardPath', () => {
     [{ relativePath: 'methods/agent.md' }, 'cards/methods/agent.png']
   ])('gives %o the card %s', (page, path) => {
     expect(cards.cardPath(page)).toBe(path)
+  })
+})
+
+describe('codeWidth', () => {
+  it.each([
+    ['1,024', 30, 0, 5 * 30 * IDENTITY.faces.code.advance],
+    ['SQUIRTL', 24, 0.08, 7 * 24 * (IDENTITY.faces.code.advance + 0.08)],
+    ['', 24, 0.08, 0]
+  ])('measures %j at %i, tracked by %d of the size, from the code face’s advance', (text, size, track, width) => {
+    expect(cards.codeWidth(text, size, track)).toBe(width)
+  })
+
+  it('reads the advance off the code face’s record', () => {
+    vi.spyOn(IDENTITY.faces.code, 'advance', 'get').mockReturnValue(0.5)
+
+    expect(cards.codeWidth('1,024', 30)).toBe(75)
   })
 })
 
@@ -76,7 +92,7 @@ describe('drawPlate', () => {
     const plate          = cards.drawPlate(FACTS, scheme)
     const { ink, quiet } = IDENTITY.tones[scheme]
 
-    expect(plate).toMatch(/^<rect x="72" y="466" width="[\d.]+" height="92" rx="6" fill="none" /u)
+    expect(plate).toMatch(/^<rect x="72" y="466" width="514\.2" height="92" rx="6" fill="none" /u)
     expect(plate).toContain(`stroke="${quiet}" stroke-width="2"/>`)
     expect(plate).toContain(`fill="${ink}" letter-spacing="1.9">EDITION · SQUIRTL.FYI</text>`)
     expect(plate).toMatch(/<circle [^>]* r="2\.6" /u)

@@ -42,7 +42,8 @@ from squirtl.docs.commands       import commands
 from squirtl.emulator.schemas    import EmulatorSettings
 from squirtl.environment.schemas import EnvironmentSettings
 from squirtl.reward.schemas      import Event, RewardSettings
-from squirtl.runs.schemas        import Run, RunSettings
+from squirtl.runs.schemas        import Run
+from squirtl.runs.settings       import RunSettings
 
 type Reader = Callable[[list[str], str | None], RunSettings]
 

@@ -19,7 +19,7 @@ from squirtl.cli           import app
 from squirtl.docs.commands import Command
 from squirtl.docs.outputs  import Inventory, Output
 from squirtl.emulator.schemas import Symbol
-from squirtl.identity.schemas import Face, Identity
+from squirtl.identity.schemas import Face, Identity, Monospace
 
 PROBE = (
     "from importlib import import_module\n"
@@ -99,10 +99,11 @@ def test_the_inventory_lists_the_rendered_files_and_the_pages_it_writes():
     """
     Pins the files `squirtl write docs` writes, the data the site reads
     under `docs/.vitepress/lib/rendered/`, the identity's JSON carrying
-    every field beside the values the identity derives, which the site
-    reads rather than deriving again, then each command's page under
-    `docs/pages/commands/`, then each page holding a table of settings, then
-    the README holding its sentence on the results.
+    every field, the code face's advance among them, beside the values
+    the identity derives, which the site reads rather than deriving again,
+    then each command's page under `docs/pages/commands/`, then each page
+    holding a table of settings, then the README holding its sentence on
+    the results.
     """
     *listed, readme = Inventory.read(app).outputs
     outputs         = {output.path.as_posix(): output for output in listed}
@@ -130,6 +131,10 @@ def test_the_inventory_lists_the_rendered_files_and_the_pages_it_writes():
     assert {*identity["faces"]["body"]} == {
         *Face.model_fields,
         *Face.model_computed_fields
+    }
+    assert {*identity["faces"]["code"]} == {
+        *Monospace.model_fields,
+        *Monospace.model_computed_fields
     }
 
 

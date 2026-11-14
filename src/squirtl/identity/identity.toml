@@ -12,6 +12,7 @@ purpose  = "Every paragraph and caption"
 x_height = 0.507
 
 [faces.code]
+advance  = 0.6
 axes     = "wght@400;500;700"
 fallback = ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"]
 family   = "JetBrains Mono"

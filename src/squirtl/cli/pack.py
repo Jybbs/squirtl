@@ -40,6 +40,9 @@ def pack(
     listen()
 
     with refusing(OSError, ValueError):
-        ReleaseManifest.pack(settings or ReleaseSettings())
+        if settings:
+            ReleaseManifest.pack(settings)
+        else:
+            ReleaseManifest.pack()
 
     return str(ReleaseManifest.folder)

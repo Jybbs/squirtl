@@ -4,19 +4,21 @@ Defines the records the emulator reads:
 - `Record`, the frozen base every subject's records build on,
   `UnitInterval`, the 0-to-1 float bounding a probability or a reward, and
   `Range`, the least and the most of a count or a move a setting bounds
-- `processors`, the count a setting of worker processes defaults to
+- `processors`, the count a setting of worker processes defaults to, and
+  `failures`, the wording of each field a validation refuses
 - `Button`, `Edition`, and `Symbol`, the buttons a step presses, the
   release a run plays, and the addresses it reads in the game's memory
 - `Cartridge`, the ROM a run boots, and `EmulatorSettings`
 """
 
-from enum      import IntEnum, StrEnum, auto
-from functools import cached_property
-from hashlib   import sha1
-from os        import process_cpu_count
-from pathlib   import Path
-from pydantic  import AfterValidator, BaseModel, Field, PositiveInt, model_validator
-from typing    import Annotated, Self
+from collections.abc import Iterator
+from enum            import IntEnum, StrEnum, auto
+from functools       import cached_property
+from hashlib         import sha1
+from os              import process_cpu_count
+from pathlib         import Path
+from pydantic        import AfterValidator, BaseModel, Field, PositiveInt, ValidationError, model_validator
+from typing          import Annotated, Self
 
 type Range[T]     = Annotated[tuple[T, T], AfterValidator(ascending)]
 type UnitInterval = Annotated[float, Field(ge=0, le=1)]
@@ -214,6 +216,21 @@ def ascending[T: float](bounds: tuple[T, T]) -> tuple[T, T]:
         raise ValueError(f"the least of {bounds[0]} passes the most of {bounds[1]}")
 
     return bounds
+
+
+def failures(error: ValidationError) -> Iterator[str]:
+    """
+    Words each field `error` refuses as the location Pydantic gives it, or
+    the record's root where it gives none, beside Pydantic's message.
+    """
+    for problem in error.errors(include_url=False):
+        location = ".".join(map(str, problem["loc"]))
+
+        yield (
+            "at "
+            + (f"`{location}`" if location else "its root")
+            + f" with {problem['msg']!r}"
+        )
 
 
 def processors() -> int:

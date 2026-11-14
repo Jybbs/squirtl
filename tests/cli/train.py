@@ -21,8 +21,9 @@ from pathlib         import Path
 from pytest          import MonkeyPatch, mark, param
 
 from squirtl.agent.checkpoint import ReplayCheckpoint
+from squirtl.runs.handover    import VectorCheckpoint
 from squirtl.runs.schemas     import Run
-from squirtl.runs.trainer     import Trainer, VectorCheckpoint
+from squirtl.runs.trainer     import Trainer
 
 
 def cut_checkpoint(run: Run):

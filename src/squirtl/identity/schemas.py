@@ -9,9 +9,10 @@ sheet imports:
   one of Denim's lighter and darker steps and the share of black or white it
   mixes in, and `Swatch`, a color of the site's theme on each color scheme's
   ground
-- `Face`, `Faces`, `Ramp`, `Hue`, `Scheme`, `Schemes`, `Lengths`, and
-  `Motion`, the faces, the ramps of each hue, the colors each color
-  scheme gives its roles, and the lengths and the timing every drawing shares
+- `Face`, `Monospace`, `Faces`, `Ramp`, `Hue`, `Scheme`, `Schemes`,
+  `Lengths`, and `Motion`, the faces, the ramps of each hue, the colors
+  each color scheme gives its roles, and the lengths and the timing every
+  drawing shares
 - `Glyph`, `Sprite`, `Badge`, `Letter`, `Letters`, `LogoBlock`, `Scene`, and
   `Logo`, the marks drawn from the display face's dots and from Pokémon
   Blue's pixels
@@ -24,7 +25,7 @@ from collections             import Counter
 from functools               import reduce
 from importlib.resources     import files
 from importlib.resources.abc import Traversable
-from itertools               import chain
+from itertools               import chain, compress
 from math         import sumprod
 from operator     import or_
 from pydantic     import BaseModel, BeforeValidator, Field, StringConstraints, computed_field, model_validator
@@ -474,6 +475,21 @@ class ProjectMark(Declared):
     Whether the mark opens the name of every workflow.
     """
 
+    @property
+    def places(self) -> tuple[str, ...]:
+        """
+        Names each place the mark opens, the section of a pull request's
+        body first, then every workflow's name or the gate each workflow
+        ends on where the mark opens either.
+        """
+        return (
+            f"The {self.section} section",
+            *compress(
+                ("every workflow’s name", "the name of the gate each workflow ends on"),
+                (self.workflows, self.gate)
+            )
+        )
+
 
 class Ramp(Declared):
     """
@@ -586,6 +602,22 @@ class Sprite(Declared):
     """
 
 
+class Letters(Declared):
+    """
+    How the logo draws each of its two letters holding Blue.
+    """
+
+    L: Letter
+    """
+    The L, whose last dot the Poké Ball is centered on.
+    """
+
+    R: Letter
+    """
+    The R.
+    """
+
+
 class Step(Color):
     """
     One of Denim's lighter and darker steps, beside the share of black or
@@ -642,34 +674,17 @@ class Swatch(Declared):
         return dark if light == dark else f"light-dark({light}, {dark})"
 
 
-class Faces(Declared):
+class Monospace(Face):
     """
-    The faces the site sets its text in, each under the role it sets.
-    """
-
-    body: Face
-    """
-    The face of body text.
+    A face whose every character takes the one width its advance declares.
     """
 
-    code: Face
+    advance: float
     """
-    The face of code.
+    The width each character takes as a share of the face's em, the
+    `advanceWidth` its `hmtx` table records over the `unitsPerEm` its `head`
+    table records.
     """
-
-    display: Face
-    """
-    The face of display text, whose dots the logo is set in.
-    """
-
-    @property
-    def code_size(self) -> float:
-        """
-        The size code sets at in ems of the text around it, the body's
-        x-height over the code face's, so the lowercase letters of either
-        stand at one height.
-        """
-        return self.body.x_height / self.code.x_height
 
 
 class Hue(Declared):
@@ -726,22 +741,6 @@ class Hue(Declared):
         }
 
 
-class Letters(Declared):
-    """
-    How the logo draws each of its two letters holding Blue.
-    """
-
-    L: Letter
-    """
-    The L, whose last dot the Poké Ball is centered on.
-    """
-
-    R: Letter
-    """
-    The R.
-    """
-
-
 class Schemes(Declared):
     """
     The color each role takes on each color scheme.
@@ -756,6 +755,36 @@ class Schemes(Declared):
     """
     The roles on the light ground.
     """
+
+
+class Faces(Declared):
+    """
+    The faces the site sets its text in, each under the role it sets.
+    """
+
+    body: Face
+    """
+    The face of body text.
+    """
+
+    code: Monospace
+    """
+    The face of code.
+    """
+
+    display: Face
+    """
+    The face of display text, whose dots the logo is set in.
+    """
+
+    @property
+    def code_size(self) -> float:
+        """
+        The size code sets at in ems of the text around it, the body's
+        x-height over the code face's, so the lowercase letters of either
+        stand at one height.
+        """
+        return self.body.x_height / self.code.x_height
 
 
 class Logo(Declared):
@@ -939,6 +968,14 @@ class Identity(Declared):
     """
     The one sentence the front page and the site's card set beneath the name.
     """
+
+    @property
+    def gate_mark(self) -> str:
+        """
+        Names the glyph of the project mark opening the name of the gate
+        each workflow ends on.
+        """
+        return next(mark.glyph for mark in self.project_marks if mark.gate)
 
     @property
     def headings(self) -> dict[str, str]:

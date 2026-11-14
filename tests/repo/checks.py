@@ -34,6 +34,7 @@ from textwrap          import dedent
 
 from squirtl.cli              import app
 from squirtl.docs.outputs     import Inventory
+from squirtl.docs.results     import Trained
 from squirtl.emulator.schemas import Record
 from squirtl.repo.checks  import (
     Anchors, Attribution, Audit, Check, Commits, Docstrings, Footnotes, Gates,
@@ -996,6 +997,17 @@ def test_labels_report_a_label_in_no_category_and_a_malformed_row(scan: Scan):
             id = "a-workflow-with-no-name"
         ),
         param(
+            ("name: 🎒 Brief", "name: 🕹️ Brief"),
+            [(
+                ".github/workflows/ci.yml",
+                5,
+                "The gate `brief` is named '🕹️ Brief', which opens on other than "
+                "`🎒`, the mark of every gate"
+            )],
+            id = "a-gate-on-another-mark"
+        ),
+        param(("    name: 🎒 Brief\n", ""), [], id="a-gate-with-no-name"),
+        param(
             ('name        = "🧢 agent"', 'name        = "🎒 agent"'),
             [(
                 ".github/labels.toml", 4,
@@ -1021,11 +1033,13 @@ def test_marks_hold_the_template_workflows_and_labels_to_the_identity(
     """
     Pins that the mark check passes a template whose headings each open on
     the mark the identity places on their section, workflows named on the
-    workflows' mark, and labels on no project mark, and reports a heading
-    on another mark, on none, or on its mark beside other words, a heading
-    on a section the identity places no mark on, a workflow named on another
-    mark or not named, and a label on a project mark with or without its
-    variation selector, leaving out a heading inside an HTML comment.
+    workflows' mark, and labels on no project mark, and reports a heading on
+    another mark, on none, or on its mark beside other words, a heading on a
+    section the identity places no mark on, a workflow named on another mark
+    or not named, a gate named on another mark, and a label on a project
+    mark with or without its variation selector, leaving out a heading
+    inside an HTML comment, a gate setting no name, which `Gates` reports,
+    and a job other than the gate named on no mark.
     """
     shipped = {
         ".github/PULL_REQUEST_TEMPLATE.md": """
@@ -1049,7 +1063,19 @@ def test_marks_hold_the_template_workflows_and_labels_to_the_identity(
             name        = "🧢 agent"
             """,
 
-        ".github/workflows/ci.yml": "on: push\nname: 🕹️ CI\njobs: {}\n"
+        ".github/workflows/ci.yml": """
+            on: push
+            name: 🕹️ CI
+            jobs:
+              brief:
+                name: 🎒 Brief
+                steps:
+                  - run: mise run gha:brief
+              check:
+                name: Check
+                steps:
+                  - run: mise run py:test
+            """
     }
     shipped = {
         path: dedent(text).lstrip("\n").replace(*rewrite)
@@ -1080,25 +1106,30 @@ def test_marks_report_an_identity_that_fails_validation(
         scan(Marks, {})
 
 
-def test_rendered_reports_an_identity_that_fails_validation(
+def test_rendered_reports_a_run_the_results_refuse_on_its_record(
     monkeypatch : MonkeyPatch,
     scan        : Scan
 ):
     """
-    Pins that the rendered check raises `Unreadable` on the identity's
-    declaration where the identity the inventory writes out fails to
-    validate, so the audit reports it as a finding rather than ending.
+    Pins that the rendered check raises `Unreadable` on the `run.json` of
+    each run under `docs/runs/` the Results section refuses, one finding to
+    a run.
     """
-    monkeypatch.setattr(
-        "squirtl.identity.schemas.Identity.read",
-        classmethod(lambda cls: cls.model_validate({}))
-    )
+    def refuse(directory: Path):
+        """
+        Refuses every run, naming its directory.
+        """
+        raise ValueError(f"{directory} holds no evaluation")
 
-    with raises(
-        Unreadable,
-        match = "`src/squirtl/identity/identity.toml` fails validation"
-    ):
-        scan(Rendered, {})
+    monkeypatch.setattr(Trained, "read", refuse)
+
+    with raises(Unreadable) as raised:
+        scan(Rendered, {"docs/runs/a/run.json": "", "docs/runs/b/run.json": ""})
+
+    assert [finding.file for finding in raised.value.args] == [
+        Path("docs/runs/a/run.json"),
+        Path("docs/runs/b/run.json")
+    ]
 
 
 @mark.parametrize(
@@ -1139,6 +1170,78 @@ def test_rendered_reports_a_page_failing_to_read_on_the_page(
 
     assert (finding.file, finding.line) == (Path(path), line)
     assert f"`{path}` {message}" in finding.message
+
+
+@mark.parametrize(
+    ("text", "message"),
+    [
+        param("{", "fails validation at its root with 'Invalid JSON", id="no-json"),
+        param("{}", "fails validation at `digest` with 'Field required'", id="no-run")
+    ]
+)
+def test_rendered_reports_a_run_failing_to_read_on_its_record(
+    message : str,
+    scan    : Scan,
+    text    : str
+):
+    """
+    Pins that the rendered check raises `Unreadable` on the `run.json` of
+    a run under `docs/runs/` whose record fails to validate, rather than on
+    the identity's declaration.
+    """
+    with raises(Unreadable) as raised:
+        scan(Rendered, {"docs/runs/x/run.json": text})
+
+    assert {finding.file for finding in raised.value.args} == {
+        Path("docs/runs/x/run.json")
+    }
+    assert f"`docs/runs/x/run.json` {message}" in str(raised.value)
+
+
+def test_rendered_reports_an_identity_that_fails_validation(
+    monkeypatch : MonkeyPatch,
+    scan        : Scan
+):
+    """
+    Pins that the rendered check raises `Unreadable` on the identity's
+    declaration where the identity the inventory writes out fails to
+    validate, so the audit reports it as a finding rather than ending.
+    """
+    monkeypatch.setattr(
+        "squirtl.identity.schemas.Identity.read",
+        classmethod(lambda cls: cls.model_validate({}))
+    )
+
+    with raises(
+        Unreadable,
+        match = "`src/squirtl/identity/identity.toml` fails validation"
+    ):
+        scan(Rendered, {})
+
+
+def test_rendered_reports_any_other_inventory_failure_on_the_root(
+    monkeypatch : MonkeyPatch,
+    scan        : Scan
+):
+    """
+    Pins that the rendered check raises `Unreadable` on the root of the
+    checkout where a part of the inventory other than the identity, a run,
+    or a page's markers fails to read.
+    """
+    def fail(*_: object):
+        """
+        Fails as a read of the inventory naming no file.
+        """
+        raise ValueError("the runs end at more than one goal")
+
+    monkeypatch.setattr(Inventory, "read", fail)
+
+    with raises(Unreadable) as raised:
+        scan(Rendered, {})
+
+    finding, = raised.value.args
+
+    assert finding.file == Path(".")
 
 
 @mark.parametrize(

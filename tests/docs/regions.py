@@ -278,7 +278,19 @@ def test_each_pair_takes_its_subjects_table_in_place_of_what_it_held():
             f"| Byline | {metadata('squirtl')['Summary']} |",
             id = "tagline"
         ),
-        param("tagline", f"| Tagline | {IDENTITY.tagline} |", id="tagline-tagline")
+        param("tagline", f"| Tagline | {IDENTITY.tagline} |", id="tagline-tagline"),
+        param(
+            "marks",
+            "| 🎒 | The trainer’s backpack | The Key Changes section and the name "
+            "of the gate each workflow ends on |",
+            id = "marks"
+        ),
+        param(
+            "marks",
+            "| 🧵 | The thread tying a pull request to its issues | The Related "
+            "Issues section |",
+            id = "marks-a-section-alone"
+        )
     ]
 )
 def test_each_identity_table_rows_its_part_of_the_identity(field: str, row: str):

@@ -1,7 +1,7 @@
-import { ADVANCE, setCaps, setLine } from '../cards/cards.ts'
-import type { Walks }                from '../front/learning/walks.ts'
-import { IDENTITY, type Scheme }     from '../identity/identity.ts'
-import { count }                     from '../widgets/numbers.ts'
+import { codeWidth, setCaps, setLine } from '../cards/cards.ts'
+import type { Walks }                  from '../front/learning/walks.ts'
+import { IDENTITY, type Scheme }       from '../identity/identity.ts'
+import { count }                       from '../widgets/numbers.ts'
 
 /**
  * How the column beside the town sets each walk's count, its width, the left
@@ -28,7 +28,7 @@ export interface Tally {
  */
 export function tallyOf(at: number, height: number, scheme: Scheme, tally: Tally, walks: Walks): string {
   const { ink, quiet } = IDENTITY.tones[scheme]
-  const room           = count(walks.longest).length * ADVANCE * tally.figure.size
+  const room           = codeWidth(count(walks.longest), tally.figure.size)
   const counts         = walks.moments.map((moment, n) => {
     const done = Math.min(at, moment.presses)
     const hue  = walks.hues[n]!

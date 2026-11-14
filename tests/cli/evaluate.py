@@ -5,10 +5,9 @@ Pins what `squirtl evaluate` does, covering:
   processes, and the report it prints from them
 - The evaluations a run already holds, which it reads in place of playing
 - The runs `--against` names, which it compares the first runs with
-- A directory holding no run, runs ending at different goals, a run
-  missing its checkpoint or its cartridge, and a damaged checkpoint, each
-  exiting 1, and a damaged
-  member of replay memory, which it never reads
+- A directory holding no run, runs ending at different goals, a run missing
+  its checkpoint or its cartridge, and a damaged checkpoint, each exiting 1,
+  and a damaged member of replay memory, which it never reads
 - A run of PQN or PPO, whose network it builds from the agent the run names
 - The runs of a release, fetched under the default selection, and a run
   recording another digest than its cartridge's intro leaves, which exits 1

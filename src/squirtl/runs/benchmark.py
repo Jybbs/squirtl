@@ -11,7 +11,8 @@ from squirtl.emulator.schemas      import Cartridge, Record
 from squirtl.environment.overworld import Overworld
 from squirtl.evaluation.evaluator  import Evaluator
 from squirtl.evaluation.schemas    import Evaluation
-from squirtl.runs.schemas          import Run, Stream
+from squirtl.runs.schemas          import Run
+from squirtl.runs.settings         import Stream
 
 
 class Benchmark(Record):

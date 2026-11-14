@@ -42,7 +42,7 @@ function headingOf(file: string, md: MarkdownRenderer): string {
  * plain text, which the entries sort by.
  */
 function labelOf(md: MarkdownRenderer, heading: string): { html: string, text: string } {
-  const tokens = md.parseInline(heading, {})[0]?.children ?? []
+  const tokens = md.parseInline(heading, {})[0]!.children!
   return {
     html : md.renderer.renderInline(tokens, md.options, {}),
     text : tokens.map(token => token.content).join('')

@@ -20,6 +20,7 @@ from typing import ClassVar, Self
 
 from squirtl.cli              import app
 from squirtl.docs.outputs     import Inventory
+from squirtl.docs.results     import Results, Trained
 from squirtl.docs.schemas     import Bibliography, Manuscripts
 from squirtl.emulator.schemas import Record
 from squirtl.identity.schemas import Identity
@@ -28,6 +29,7 @@ from squirtl.repo.schemas import (
     Project, PullRequestTemplate, ReleaseNotes, Rulesets, Scripts, Severity,
     SiteLockfile, SiteManifest, Tasks, Templates, Tree, Unreadable, Workflows
 )
+from squirtl.runs.schemas import Run
 
 
 class Audit(Record):
@@ -757,9 +759,10 @@ class Layout(Check):
 class Marks(Check):
     """
     Holds the headings of the pull request template, the name of every
-    workflow, and the label registry to the project marks the identity
-    declares, so each section opens on the mark placed on it, every workflow
-    on the workflows' mark, and no label on a project mark.
+    workflow and of the gate it ends on, and the label registry to the
+    project marks the identity declares, so each section opens on the mark
+    placed on it, every workflow on the workflows' mark, every gate on the
+    gates' mark, and no label on a project mark.
     """
 
     identity  : Identity
@@ -779,14 +782,19 @@ class Marks(Check):
 
     def scan(self) -> Iterator[Finding]:
         """
-        Yields a finding on each heading of the template naming no section
-        the identity places a mark on or opening on other than the mark it
-        places on the section the heading ends on, on each workflow whose
-        name opens on anything other than the workflows' mark, and on each
-        label whose glyph is a project mark.
+        Yields a finding on each of these, leaving a gate that sets no name
+        to `Gates`, which reports it:
+
+        - A heading of the template naming no section the identity places a
+          mark on, or opening on other than the mark it places on the
+          section the heading ends on
+        - A workflow whose name opens on other than the workflows' mark
+        - A gate whose name opens on other than the gates' mark
+        - A label whose glyph is a project mark
         """
-        headings = self.identity.headings
-        mark     = self.identity.workflow_mark
+        headings  = self.identity.headings
+        mark      = self.identity.workflow_mark
+        gate_mark = self.identity.gate_mark
 
         # Strips the variation selector U+FE0F, so a label drawing a mark
         # without it still matches.
@@ -825,6 +833,21 @@ class Marks(Check):
                         f"other than `{mark}`, the mark of every workflow"
                     )
                 )
+
+            for job in workflow.jobs:
+                if (
+                    Gates.task in job.tasks
+                    and (named := job.get("name"))
+                    and not str(named).startswith(f"{gate_mark} ")
+                ):
+                    yield Finding(
+                        file    = workflow.path,
+                        line    = job.line,
+                        message = (
+                            f"The gate `{job.key}` is named {named!r}, which opens "
+                            f"on other than `{gate_mark}`, the mark of every gate"
+                        )
+                    )
 
         for label in self.labels.labels:
             if bare(label.glyph) in glyphs:
@@ -929,13 +952,20 @@ class Rendered(Check):
     @classmethod
     def read(cls, documents: Callable[[type], Record]) -> Self:
         """
-        Builds the check from the inventory of the `squirtl` command, the
-        one `squirtl write docs` writes, raising `Unreadable` on a page
-        whose markers fail to read, at the line naming the fault, and on
-        `identity` where any other part of the inventory fails to read, the
-        identity failing to parse or to validate among them.
+        Builds the check from the inventory of the `squirtl` command,
+        the one `squirtl write docs` writes. It raises `Unreadable` on
+        `identity` where the identity fails to parse or to validate, on the
+        record of each run under `docs/runs/` that `trained` refuses, on a
+        page whose markers fail to read, at the line naming the fault, and
+        on the root of the checkout where any other part of the inventory
+        fails to read.
         """
         with Finding.reading(cls.identity):
+            Identity.read()
+
+        Unreadable.gather(Results.directories(), cls.trained)
+
+        with Finding.reading(Path(".")):
             return cls(inventory=Inventory.read(app))
 
     def scan(self) -> Iterator[Finding]:
@@ -951,6 +981,16 @@ class Rendered(Check):
                     "written from, which `mise write` writes it from again"
                 )
             )
+
+    @staticmethod
+    def trained(directory: Path) -> Trained | None:
+        """
+        Reads the run `directory` holds as the Results section reads it,
+        raising `Unreadable` on the run's `run.json` where the run fails to
+        read or the section refuses it.
+        """
+        with Finding.reading(directory / Run.file):
+            return Trained.read(directory)
 
 
 class Rows(Check):

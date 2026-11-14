@@ -28,8 +28,9 @@ from torch.testing import assert_close
 from squirtl.emulator.schemas    import Cartridge
 from squirtl.environment.schemas import Snapshot
 from squirtl.reward.schemas      import Event, Position, ProgressTally
-from squirtl.runs.schemas        import Run, RunSettings
+from squirtl.runs.schemas        import Run
 from squirtl.runs.searcher       import Searcher
+from squirtl.runs.settings       import RunSettings
 from squirtl.search              import workers
 from squirtl.search.checkpoint   import SearchCheckpoint
 from squirtl.search.particles    import Search

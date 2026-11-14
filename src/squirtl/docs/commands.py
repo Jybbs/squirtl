@@ -18,7 +18,7 @@ from typing          import Self
 
 from squirtl.emulator.schemas import Record
 from squirtl.markdown.tables  import tabulate
-from squirtl.runs.schemas     import RunSettings
+from squirtl.runs.settings    import RunSettings
 
 
 class Setting(Record):

@@ -12,8 +12,9 @@ from typing     import Annotated
 from squirtl.cli.logs         import drive, listen, refusing
 from squirtl.cli.runs         import RunDirectory
 from squirtl.emulator.schemas import Cartridge
-from squirtl.runs.schemas     import Run, SearchRunSettings
+from squirtl.runs.schemas     import Run
 from squirtl.runs.searcher    import SearchHandover, Searcher
+from squirtl.runs.settings    import SearchRunSettings
 
 
 def search(
