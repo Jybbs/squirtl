@@ -20,4 +20,10 @@ describe('tallyOf', () => {
 
     expect(wordsOf(tallyOf(at, 304, 'light', PREVIEW.tally, walks))).toStrictEqual(words)
   })
+
+  it('sets the word the width of the longest count in the code face past the count', () => {
+    const walks = new Walks(walksOf({ ...WALKING, moments: [50] }))
+
+    expect(tallyOf(400, 304, 'light', PREVIEW.tally, walks)).toMatch(/<text x="86\.4" [^>]*>presses</u)
+  })
 })
