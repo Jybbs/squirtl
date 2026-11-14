@@ -161,8 +161,8 @@ class Search:
     def reached(self) -> bool:
         """
         Reads whether the winner has set the goal, as it has once a particle
-        sets it and the iteration consolidates, since the goal pays the most
-        of any flag.
+        sets it and the iteration consolidates, unless a particle without it
+        has earned more through its extra new squares than the goal pays.
         """
         return self.goal in self.winner.snapshot.tally.events
 

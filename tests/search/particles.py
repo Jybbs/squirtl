@@ -635,7 +635,7 @@ def test_the_demonstration_plays_back_to_what_the_winner_reached(
 
     played.play(search.demonstration)
 
-    assert played.reward.total(played.progress.earned) == winner.reward
+    assert played.progress.total == winner.reward
     assert played.progress.position == winner.snapshot.tally.position
     assert Event.EVENT_GOT_STARTER in played.progress.events
 

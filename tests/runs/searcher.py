@@ -25,7 +25,7 @@ from common.search   import terminate_at_twenty
 from itertools       import pairwise
 from multiprocessing import get_context
 from pathlib         import Path
-from pytest          import MonkeyPatch, mark, raises
+from pytest          import MonkeyPatch, approx, mark, raises
 from signal          import SIGINT, SIGTERM, Signals, getsignal, raise_signal
 
 from squirtl.emulator.schemas  import Cartridge
@@ -268,7 +268,7 @@ def test_a_search_reaching_its_goal_ends_writing_the_path_as_an_episode(
     Asserts that a search whose presses reach the run's goal ends well short
     of its steps, and writes the path its winner took as the one episode of
     its `episodes`, which reaches the goal from Blue's bedroom and earns the
-    winner's reward beside the novelty of each position it passes.
+    winner's reward, the novelty of each position it passes included.
     """
     built = searcher(steps=100_000)
     run   = finish(built)
@@ -279,7 +279,7 @@ def test_a_search_reaching_its_goal_ends_writing_the_path_as_an_episode(
     assert (
         episode.recording, episode.length,
         run.settings.environment.goal in episode.flags,
-        episode.reward > built.search.winner.reward
+        episode.reward == approx(built.search.winner.reward)
     ) == (
         built.search.demonstration,
         len(built.search.demonstration.presses),

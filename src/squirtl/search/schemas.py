@@ -41,8 +41,8 @@ class Ending(Record):
 
     reward: float
     """
-    The reward the flags set by the rollout's end have earned, the novelty
-    of every position left out.
+    The reward `Progress` pays the steps from Blue's bedroom to the
+    rollout's end, each new square and each flag included.
     """
 
     snapshot: Snapshot
@@ -117,8 +117,9 @@ class SearchRollout(Record):
 
     halting: bool = True
     """
-    Whether the presses stop once they earn reward, where otherwise every
-    one of them plays, as bringing back a node of the tree does.
+    Whether the presses stop once they set a flag the reward pays, where
+    otherwise every one of them plays, as bringing back a node of the tree
+    does.
     """
 
 
@@ -214,7 +215,8 @@ class Particle(Record):
 
     reward: float
     """
-    The reward the flags set on the way to its node have earned.
+    The reward `Progress` pays the steps from Blue's bedroom to its node,
+    each new square and each flag included.
     """
 
     score: float

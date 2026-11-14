@@ -7,8 +7,8 @@ Pins the worker each rollout runs in, covering:
 - A rollout dead where it ends on the `wTileMap` and the position it started
   from, whatever its screen shows, or blacks out outside Oak's lab, at the
   faint in a battle, and surviving where either changes or it earns reward
-- A rollout stopping at the press that earns reward, or playing on where it
-  brings back a node
+- A rollout stopping at the press that sets a flag, playing on past each
+  new square, or playing on where it brings back a node
 - What an ending holds, each newest frame and each press
 - One rollout reaching one ending, whichever rollout ran before it
 - A real pool returning each ending in the order submitted, on every worker
@@ -24,7 +24,7 @@ from multiprocessing             import get_context
 from numpy      import frombuffer, uint8
 from os         import getpgrp, getpid, kill
 from pickle     import dumps
-from pytest     import CaptureFixture, MonkeyPatch, mark, param
+from pytest     import CaptureFixture, MonkeyPatch, approx, mark, param
 from subprocess import PIPE, Popen, check_output
 from sys        import executable
 from time       import monotonic, sleep
@@ -330,26 +330,28 @@ def test_a_rollout_earning_reward_in_place_is_alive(
 
 
 @mark.usefixtures("booted", "game")
-def test_a_rollout_stops_at_the_press_earning_reward(playing: Callable[..., Ending]):
+def test_a_rollout_stops_at_the_press_setting_a_flag(playing: Callable[..., Ending]):
     """
-    Asserts that a rollout of the button moving six squares a press stops
-    on its third press, which reaches square 18 and the first milestone, the
-    reward it reports paying that flag alone.
+    Asserts that a rollout of the button moving six squares a press plays on
+    past the new squares its first two presses reach and stops on its third,
+    which reaches square 18 and the first milestone, the reward it reports
+    paying that flag and the three new squares.
     """
     ended = playing(b"\x06" * 8)
 
-    assert (ended.presses, ended.reward) == (b"\x06" * 3, 0.1)
+    assert (ended.presses, ended.reward) == (b"\x06" * 3, approx(0.1 + 3 * 0.00025))
 
 
 @mark.usefixtures("booted", "game")
 def test_a_rollout_that_does_not_halt_plays_every_press(playing: Callable[..., Ending]):
     """
     Asserts that a rollout bringing back a node plays every press past the
-    one earning reward.
+    one setting a flag, the reward it reports paying the flag and each of
+    the eight new squares.
     """
     ended = playing(b"\x06" * 8, halting=False)
 
-    assert (ended.presses, ended.reward) == (b"\x06" * 8, 0.1)
+    assert (ended.presses, ended.reward) == (b"\x06" * 8, approx(0.1 + 8 * 0.00025))
 
 
 @mark.usefixtures("booted", "game")
