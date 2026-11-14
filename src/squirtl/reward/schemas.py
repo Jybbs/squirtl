@@ -7,12 +7,14 @@ Defines the records the reward reads and writes:
 - `Position`, the square of the map the player stands on
 - `RewardSettings`, what each term pays a step
 - `Score`, the reward one step earns, split by term
+- `ProgressTally`, what an episode's progress holds at one step, from which it
+  resumes there
 """
 
 from collections     import Counter
 from collections.abc import Iterable, Mapping
 from enum            import IntEnum, StrEnum, auto
-from itertools       import takewhile
+from itertools       import batched, chain, takewhile
 from math            import fsum
 from operator        import attrgetter
 from pydantic        import PlainSerializer, model_validator
@@ -166,6 +168,99 @@ class Score(Record):
         `fsum` does.
         """
         return fsum(self.shares.values())
+
+
+class ProgressTally(Record, ser_json_bytes="base64", val_json_bytes="base64"):
+    """
+    What an episode's progress holds once a step has run, from which
+    `Progress` resumes the episode at that step:
+
+    - How often its steps have earned each term
+    - Each `Event` flag set, and the step first setting each flag its own
+      steps set
+    - The position the player stands on, and each position reached
+    - The steps taken
+    """
+
+    earned: dict[Term, int]
+    """
+    How often the episode's steps have earned each term, leaving out a term
+    none has earned.
+    """
+
+    events: frozenset[Flag]
+    """
+    Each flag `Event` names that is set.
+    """
+
+    firsts: dict[Flag, int]
+    """
+    The step first setting each flag the episode's own steps set.
+    """
+
+    position: Position
+    """
+    The position the player stands on.
+    """
+
+    positions: bytes
+    """
+    Each position the episode has reached, the one it started on included,
+    as the three bytes `wCurMap`, `wXCoord`, and `wYCoord` hold for it.
+    """
+
+    steps: int
+    """
+    The steps the episode has taken.
+    """
+
+    @property
+    def reached(self) -> set[Position]:
+        """
+        Unpacks `positions` into the positions they hold.
+        """
+        return {
+            Position.model_construct(map=number, x=x, y=y)
+            for number, x, y in batched(self.positions, 3)
+        }
+
+    @classmethod
+    def of(
+        cls,
+        earned    : Mapping[Term, int],
+        events    : Iterable[Event],
+        firsts    : Mapping[Event, int],
+        position  : Position,
+        positions : Iterable[Position],
+        steps     : int
+    ) -> Self:
+        """
+        Packs the progress `Progress` holds, leaving out each term no step
+        has earned.
+        """
+        return cls(
+            earned    = {term: count for term, count in earned.items() if count},
+            events    = frozenset(events),
+            firsts    = dict(firsts),
+            position  = position,
+            positions = bytes(
+                chain.from_iterable(
+                    (reached.map, reached.x, reached.y) for reached in positions
+                )
+            ),
+            steps = steps
+        )
+
+    @classmethod
+    def read(cls, game_boy: GameBoy) -> Self:
+        """
+        Reads what an episode starts from in the game's memory, meaning the
+        flags already set and the position the player stands on as the one
+        position reached, with no step taken and no term earned.
+        """
+        position = Position.read(game_boy)
+
+        return cls.of({}, Event.read(game_boy), {}, position, [position], 0)
 
 
 class RewardSettings(Record):

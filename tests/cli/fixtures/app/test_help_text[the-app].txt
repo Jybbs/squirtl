@@ -21,10 +21,15 @@ Trains an agent to play Pokémon Blue from the screen, through PyBoy and PyTorch
 │              runs follow, into dist/runs/ as the Zstandard tar a release     │
 │              attaches, beside the manifest.json listing each tar and its     │
 │              SHA-256 digest.                                                 │
-│ stop         Writes the stop file into a training run's directory from any   │
-│              shell, ending the run with a checkpoint and exit status 0, as a │
-│              first interrupt does, at the end of its episode for the deep    │
-│              Q-network and once a rollout's update ends for PQN and PPO.     │
+│ search       Searches for a path from Blue's bedroom to --environment.goal   │
+│              over saved states, across --search.workers processes, ending    │
+│              once a particle sets the goal or the presses reach the run's    │
+│              --steps, logging a line per iteration above a progress bar.     │
+│ stop         Writes the stop file into a run's directory from any shell,     │
+│              ending the run with a checkpoint and exit status 0, as a first  │
+│              interrupt does, at the end of its episode for the deep          │
+│              Q-network, once a rollout's update ends for PQN and PPO, and at │
+│              the end of its iteration for a search.                          │
 │ train        Trains the agent --agent.algorithm names for the run's --steps  │
 │              environment steps, headless unless --emulator.open-window is    │
 │              set, logging a line per episode above a progress bar.           │

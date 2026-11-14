@@ -33,6 +33,12 @@ Pins the records one run reads and writes, covering:
   to the run's goal
 - A run refusing a digest other than the one it recorded, and the listing
   naming it among other runs
+- A search refused where a trained run is read, and the search's stream
+  coming after every other
+- The defaults of `SearchSettings`, each from the column and the appendix of
+  Mhammedi and Cohan's paper its docstring cites, the bound replay memory
+  holds them to, the worker count following the machine, and a range
+  running backward refused
 - A run's check of its episodes, refusing the first line that does not
   parse as an episode by its number and passing a log whose finished lines
   all do
@@ -47,7 +53,7 @@ from functools         import reduce
 from hashlib           import sha256
 from json              import dumps, loads
 from operator          import getitem
-from os                import fstat
+from os                import fstat, process_cpu_count
 from pathlib           import Path
 from pydantic          import ValidationError
 from pytest            import MonkeyPatch, TempPathFactory, mark, param, raises
@@ -63,6 +69,7 @@ from squirtl.evaluation.schemas  import Evaluation
 from squirtl.reward.schemas      import Event, RewardSettings
 from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunListing, RunSettings, Start
 from squirtl.runs.schemas        import Stream
+from squirtl.search.schemas      import SearchSettings
 
 
 def test_a_checkpoint_at_the_runs_last_step_may_land_within_an_episode(
@@ -122,7 +129,7 @@ def test_a_log_holding_fewer_episodes_than_a_count_is_refused(
 
     with raises(
         ValueError,
-        match = "holds 1 episodes, short of the 2 the checkpoint follows"
+        match = "holds 1 lines, short of the 2 the checkpoint follows"
     ):
         run.first(2)
 
@@ -511,6 +518,7 @@ def test_a_run_records_its_settings_revision_and_start(clone: Path):
         "digest"   : "0",
         "resumes"  : None,
         "revision" : Revision.checked_out().model_dump(),
+        "searches" : False,
         "started"  : "2026-10-04T12:30:05.123456Z",
         "settings" : settings.model_dump(mode="json")
     }
@@ -840,6 +848,30 @@ def test_a_runs_episodes_read_back_in_the_order_written(
     assert [next(recorded), next(recorded)] == [episode, later]
 
 
+def test_a_search_is_refused_where_a_trained_run_is_read(halted: Run):
+    """
+    Asserts that a search refuses to be read as a trained run, naming the
+    commands that read one, while a training run reads as one.
+    """
+    with raises(ValueError, match="`squirtl watch` plays"):
+        halted.check_trained()
+
+
+def test_a_search_missing_its_checkpoint_passes_the_file_check(
+    checkout : Callable[[Mapping[str, str]], None],
+    run      : Run
+):
+    """
+    Asserts that checking the files of a search whose directory holds its
+    episodes and no checkpoint raises nothing, since a search packs no
+    checkpoint.
+    """
+    search = run.model_copy(update={"searches": True})
+    checkout({str(search.episodes): ""})
+
+    search.check_files()
+
+
 def test_a_sync_writes_the_file_through_the_drives_cache(
     monkeypatch : MonkeyPatch,
     run         : Run,
@@ -867,17 +899,6 @@ def test_each_stream_seed_fits_in_64_unsigned_bits():
     widest seed `torch.manual_seed` takes.
     """
     assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
-
-
-def test_reading_a_directory_holding_no_run_raises(clone: Path):
-    """
-    Asserts that reading a directory holding no run record raises rather
-    than reading a run from somewhere else.
-    """
-    (clone / "data/runs/empty").mkdir(parents=True)
-
-    with raises(FileNotFoundError):
-        Run.read(clone / "data/runs/empty")
 
 
 @mark.parametrize(
@@ -912,6 +933,27 @@ def test_an_episode_reads_back_the_measures_of_the_agent_that_played_it(
     assert Episode.model_validate_json(written.model_dump_json()) == written
 
 
+def test_reading_a_directory_holding_no_run_raises(clone: Path):
+    """
+    Asserts that reading a directory holding no run record raises rather
+    than reading a run from somewhere else.
+    """
+    (clone / "data/runs/empty").mkdir(parents=True)
+
+    with raises(FileNotFoundError):
+        Run.read(clone / "data/runs/empty")
+
+
+def test_the_default_capacity_holds_replay_memory_under_three_gigabytes():
+    """
+    Asserts that the default capacity, each slot one frame at the
+    environment's default shape, holds fewer than three billion bytes.
+    """
+    height, width = EnvironmentSettings().frame_shape
+
+    assert SearchSettings().capacity * height * width < 3_000_000_000
+
+
 def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
     snapshot: SnapshotAssertion
 ):
@@ -936,22 +978,6 @@ def test_the_default_warmup_ends_inside_an_anneal_outlasting_a_random_walk():
     anneal   = settings.agent.exploration_fraction * settings.steps
 
     assert settings.agent.warmup_steps < anneal and anneal >= 37_000
-
-
-def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
-    snapshot: SnapshotAssertion
-):
-    """
-    Asserts that the run's settings, and each subject's settings they
-    hold, carry the default and the bounds each field declares beside the
-    description written beneath it, which cyclopts renders as the help of
-    that field's flag, so a change to any of them is reviewed as a diff.
-    """
-    assert dumps(
-        RunSettings.model_json_schema(),
-        ensure_ascii = False,
-        indent       = 2
-    ) == snapshot
 
 
 @mark.parametrize(
@@ -1020,8 +1046,8 @@ def test_the_settings_accept_terms_one_step_sums_to_exactly_one_at_the_goal(
 @mark.parametrize(
     ("fields", "message"),
     [
-        param({"back": (0.8, 0.5)}, "least back move", id="back"),
-        param({"forward": (1.5, 1.0)}, "least forward move", id="forward"),
+        param({"back": (0.8, 0.5)}, r"back\n.*passes the most", id="back"),
+        param({"forward": (1.5, 1.0)}, r"forward\n.*passes the most", id="forward"),
         param({"required": 0.96}, "passes the completion share", id="required")
     ]
 )
@@ -1051,24 +1077,13 @@ def test_the_settings_take_a_demonstration_for_pqn_and_ppo(algorithm: Algorithm)
     )
 
 
-def test_the_settings_count_no_flag_past_the_goal_toward_the_ceiling():
+def test_the_searchs_stream_leaves_the_seed_of_every_earlier_one_as_it_was():
     """
-    Asserts that terms summing past 1 over every flag up to the Pokédex are
-    accepted for a run ending at the starter, whose episodes set none of the
-    flags after it.
+    Asserts that the search's stream comes last among the streams, since
+    each stream's seed derives from its place, so every seed an earlier run
+    drew from reads as it did.
     """
-    reward = RewardSettings(milestone=0.15)
-
-    assert RunSettings(reward=reward).reward == reward
-
-
-def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():
-    """
-    Asserts that the settings refuse a demonstration beside the deep
-    Q-network, which starts every episode in the bedroom.
-    """
-    with raises(ValidationError, match="takes no demonstration"):
-        RunSettings(curriculum=CurriculumSettings(demonstration=Path("data/runs/a")))
+    assert [*Stream][-1] is Stream.SEARCH
 
 
 @mark.parametrize(
@@ -1105,6 +1120,53 @@ def test_a_listing_reads_the_settings_naming_its_run(
     )
 
 
+def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
+    snapshot: SnapshotAssertion
+):
+    """
+    Asserts that the run's settings, and each subject's settings they
+    hold, carry the default and the bounds each field declares beside the
+    description written beneath it, which cyclopts renders as the help of
+    that field's flag, so a change to any of them is reviewed as a diff.
+    """
+    assert dumps(
+        RunSettings.model_json_schema(),
+        ensure_ascii = False,
+        indent       = 2
+    ) == snapshot
+
+
+def test_the_settings_count_no_flag_past_the_goal_toward_the_ceiling():
+    """
+    Asserts that terms summing past 1 over every flag up to the Pokédex are
+    accepted for a run ending at the starter, whose episodes set none of the
+    flags after it.
+    """
+    reward = RewardSettings(milestone=0.15)
+
+    assert RunSettings(reward=reward).reward == reward
+
+
+def test_the_settings_default_to_the_papers_montezuma_column():
+    """
+    Asserts that the population, the rollouts, the chance of a random press,
+    and the predictor's settings and replay memory default to the values
+    the Montezuma's Revenge column of Table 5 and Appendices A.2 and A.3 of
+    Mhammedi and Cohan's paper give them.
+    """
+    assert SearchSettings().model_dump(exclude={"update_steps", "workers"}) == {
+        "batch_size"    : 128,
+        "capacity"      : 512_000,
+        "epsilon"       : 0.2,
+        "groups"        : 4,
+        "learning_rate" : 3e-4,
+        "particles"     : 32,
+        "inner_steps"   : (5, 15),
+        "outer_steps"   : (10, 20),
+        "rollback"      : (1, 3)
+    }
+
+
 @mark.parametrize(
     "missing",
     [
@@ -1134,6 +1196,15 @@ def test_a_run_missing_its_checkpoint_or_its_episodes_is_refused_by_name(
         run.check_files()
 
 
+def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():
+    """
+    Asserts that the settings refuse a demonstration beside the deep
+    Q-network, which starts every episode in the bedroom.
+    """
+    with raises(ValidationError, match="takes no demonstration"):
+        RunSettings(curriculum=CurriculumSettings(demonstration=Path("data/runs/a")))
+
+
 def test_the_settings_refuse_a_negative_seed():
     """
     Asserts that a negative seed is refused, since `SeedSequence` takes a
@@ -1141,3 +1212,42 @@ def test_the_settings_refuse_a_negative_seed():
     """
     with raises(ValidationError, match="greater than or equal to 0"):
         RunSettings(seed=-1)
+
+
+def test_the_updates_default_to_the_ratio_of_the_papers_table():
+    """
+    Asserts that the presses between updates of the predictor default to the
+    400 million frames of Mhammedi and Cohan's Table 6, four frames a press,
+    over its 2.28 million updates, rounded.
+    """
+    assert SearchSettings().update_steps == round(400_000_000 / 4 / 2_280_000)
+
+
+@mark.parametrize("field", ["inner_steps", "outer_steps", "rollback"])
+def test_a_range_running_backward_is_refused(field: str):
+    """
+    Asserts that a range whose fewest exceeds its most raises, naming the
+    field.
+    """
+    with raises(ValidationError, match=field):
+        SearchSettings(**{field: (3, 2)})
+
+
+@mark.parametrize("field", ["inner_steps", "outer_steps", "rollback"])
+def test_a_range_of_one_value_is_accepted(field: str):
+    """
+    Asserts that a range whose fewest equals its most is accepted.
+    """
+    assert getattr(SearchSettings(**{field: (3, 3)}), field) == (3, 3)
+
+
+def test_the_workers_default_to_the_cpus_the_process_may_use(monkeypatch: MonkeyPatch):
+    """
+    Asserts that the workers default to the count `process_cpu_count`
+    reports, or to one where it reports none.
+    """
+    assert SearchSettings().workers == process_cpu_count()
+
+    monkeypatch.setattr("squirtl.emulator.schemas.process_cpu_count", lambda: None)
+
+    assert SearchSettings().workers == 1

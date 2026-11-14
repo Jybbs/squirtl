@@ -1,10 +1,12 @@
 """
 Defines the records one run reads and writes:
 
-- `RunSettings`, every setting the run reads, `CurriculumSettings` among them
+- `RunSettings`, every setting the run reads, `CurriculumSettings` among
+  them, beside `TrainingSettings` and `SearchRunSettings`, the parts of it
+  `squirtl train` and `squirtl search` each parse
 - `Revision`, the code the run ran on
 - `Run`, the directory under `data/runs/` recording both, each episode, each
-  evaluation, and the checkpoint
+  evaluation, and the checkpoint, or each iteration of a search
 - `RunListing`, the settings naming a run among others, and `Start`, where
   its training episodes start
 - `Episode`, one episode as a line of the run's `episodes`
@@ -12,7 +14,8 @@ Defines the records one run reads and writes:
 """
 
 from collections     import deque
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
+from cyclopts        import Parameter
 from datetime        import UTC, datetime
 from enum            import StrEnum, auto
 from hashlib         import sha256
@@ -30,10 +33,11 @@ from subprocess      import check_output
 from typing          import Annotated, ClassVar, Self
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm, PolicyUpdate, Update, flush
-from squirtl.emulator.schemas    import EmulatorSettings, Record, UnitInterval
+from squirtl.emulator.schemas    import EmulatorSettings, Range, Record, UnitInterval
 from squirtl.environment.schemas import EnvironmentSettings, Outcome, Recording
 from squirtl.evaluation.schemas  import Evaluation, EvaluationSettings
 from squirtl.reward.schemas      import RewardSettings
+from squirtl.search.schemas      import SearchSettings
 
 type Hexadecimal = Annotated[
     str, StringConstraints(pattern=r"^[0-9a-f]+$", strip_whitespace=True)
@@ -50,7 +54,7 @@ class CurriculumSettings(Record):
     backward algorithm of their Appendix B.
     """
 
-    back: tuple[PositiveFloat, PositiveFloat] = (0.25, 0.75)
+    back: Range[PositiveFloat] = (0.25, 0.75)
     """
     The least and the most a window moves back, each a multiple of `window`,
     between which each move draws uniformly, whose default is the decrease
@@ -78,7 +82,7 @@ class CurriculumSettings(Record):
     goal, or `None` to start every episode in Blue's bedroom.
     """
 
-    forward: tuple[PositiveFloat, PositiveFloat] = (0.5, 1.0)
+    forward: Range[PositiveFloat] = (0.5, 1.0)
     """
     The least and the most a window moves forward, each a multiple of
     `window`, between which each move draws uniformly, whose default is the
@@ -131,19 +135,12 @@ class CurriculumSettings(Record):
     @model_validator(mode="after")
     def verify(self) -> Self:
         """
-        Refuses a `back` or a `forward` whose least move passes its most,
-        and a `required` share above `completion`.
+        Refuses a `required` share above `completion`.
 
         Raises:
-            ValueError: Where either holds, which Pydantic raises as a
+            ValueError: Where it lies above, which Pydantic raises as a
                         `ValidationError`.
         """
-        for name in ("back", "forward"):
-            if (moves := getattr(self, name))[0] > moves[1]:
-                raise ValueError(
-                    f"the least {name} move of {moves[0]} passes the most of {moves[1]}"
-                )
-
         if self.required > self.completion:
             raise ValueError(
                 f"a required share of {self.required} passes the completion share "
@@ -201,6 +198,16 @@ class Revision(Record):
         )
 
 
+class Start(StrEnum):
+    """
+    Where a run's training episodes start, in Blue's bedroom or along the
+    demonstration its curriculum names.
+    """
+
+    BEDROOM    = auto()
+    CURRICULUM = auto()
+
+
 class Stream(StrEnum):
     """
     The streams of random draws a run makes, each starting from a seed of
@@ -211,6 +218,7 @@ class Stream(StrEnum):
     ENVIRONMENT = auto()
     EVALUATION  = auto()
     WINDOW      = auto()
+    SEARCH      = auto()
 
 
 class RunSettings(Record):
@@ -227,12 +235,14 @@ class RunSettings(Record):
 
     machine: ClassVar[dict[str, set[str]]] = {
         "agent"      : {"device"},
-        "evaluation" : {"environments"}
+        "evaluation" : {"environments"},
+        "search"     : {"workers"}
     }
     """
     The fields under each subject whose default follows the machine a run
-    starts on, the agent's device and the environments an evaluation plays
-    across, each left out of the defaults the site's pages state.
+    starts on, the agent's device, the environments an evaluation plays
+    across, and the workers a search plays across, each left out of the
+    defaults the site's pages state.
     """
 
     agent: AgentSettings = Field(default_factory=AgentSettings)
@@ -242,9 +252,10 @@ class RunSettings(Record):
 
     checkpoint_steps: PositiveInt = 250_000
     """
-    The environment steps between checkpoints, each written at the first
-    episode end, or the end of a rollout's update for PQN and PPO, reaching
-    a multiple of them, whose default is the 250,000 steps of each iteration
+    The environment steps between checkpoints. A training run writes each
+    at the first episode end, or the end of a rollout's update for PQN and
+    PPO, reaching a multiple of them, and a search at the first iteration
+    end reaching one. The default is the 250,000 steps of each iteration
     Dopamine's DQN checkpoints after.
     """
 
@@ -280,6 +291,11 @@ class RunSettings(Record):
     reward: RewardSettings = Field(default_factory=RewardSettings)
     """
     The settings the reward reads.
+    """
+
+    search: SearchSettings = Field(default_factory=SearchSettings)
+    """
+    The settings a search reads.
     """
 
     seed: NonNegativeInt = 1
@@ -382,6 +398,11 @@ class Run(Record):
     afresh.
     """
 
+    searches: bool = False
+    """
+    Whether the run is a search over save states rather than a training run.
+    """
+
     @property
     def baseline(self) -> Path:
         """
@@ -467,6 +488,14 @@ class Run(Record):
         return self.directory / "evaluations.jsonl"
 
     @property
+    def iterations(self) -> Path:
+        """
+        Locates the JSON Lines file holding one `Iteration` of a search per
+        line, in the order the search ran them.
+        """
+        return self.directory / "iterations.jsonl"
+
+    @property
     def name(self) -> str:
         """
         Spells `started` in UTC in the basic format of ISO 8601 to the
@@ -493,10 +522,10 @@ class Run(Record):
     @property
     def stop(self) -> Path:
         """
-        Locates the file whose presence stops the run where its training
-        loop next pauses, the end of an episode for the deep Q-network and
-        the end of a rollout's update for PQN and PPO, which `squirtl stop`
-        writes.
+        Locates the file whose presence stops the run where its loop next
+        pauses, the end of an episode for the deep Q-network, the end of a
+        rollout's update for PQN and PPO, and the end of an iteration for a
+        search, which `squirtl stop` writes.
         """
         return self.directory / "stop"
 
@@ -520,6 +549,15 @@ class Run(Record):
             lines.writelines(
                 f"{record.model_dump_json()}\n".encode() for record in records
             )
+
+    def carry(self, lines: Iterable[str], path: Path):
+        """
+        Writes `lines`, each a line the stopped run a resume continues wrote
+        to the file of the same name, into `path`, one of this run's JSON
+        Lines files, as the stopped run wrote them, so a resumed run's file
+        opens on the lines it carries over.
+        """
+        path.write_text("".join(lines), encoding="utf-8")
 
     def check(self, digest: str):
         """
@@ -563,16 +601,33 @@ class Run(Record):
 
     def check_files(self):
         """
-        Refuses a run whose directory holds no `checkpoint` or no
-        `episodes`, the files a run writes as it trains.
+        Refuses a run whose directory holds no `episodes`, or a run that
+        trained an agent whose directory holds no `checkpoint`, the files a
+        run writes as it trains or searches.
 
         Raises:
-            FileNotFoundError: Where either is missing, naming the run's
+            FileNotFoundError: Where one is missing, naming the run's
                                directory and the file it lacks.
         """
-        for path in (self.checkpoint, self.episodes):
+        for path in (self.episodes,) if self.searches else (
+            self.checkpoint, self.episodes
+        ):
             if not path.is_file():
                 raise FileNotFoundError(f"{self.directory} holds no {path.name}")
+
+    def check_trained(self):
+        """
+        Refuses a run that searched rather than trained an agent.
+
+        Raises:
+            ValueError: Where the run is a search, naming the commands that
+                        read one.
+        """
+        if self.searches:
+            raise ValueError(
+                f"{self.directory} holds a search, which `squirtl watch` plays and "
+                f"`squirtl search --resume` continues"
+            )
 
     def ended_by(self, step: int) -> list[str]:
         """
@@ -634,19 +689,21 @@ class Run(Record):
         """
         return takewhile(lambda evaluation: evaluation.step <= step, self.evaluated)
 
-    def first(self, count: int) -> list[str]:
+    def first(self, count: int, path: Path | None = None) -> list[str]:
         """
-        Reads the line of each of the first `count` episodes `episodes`
-        holds, validating no line.
+        Reads the first `count` lines of `path`, one of the run's JSON Lines
+        files, or of `episodes` where it is `None`, validating no line.
 
         Raises:
-            ValueError: Where `episodes` holds fewer, as where a crash lost
+            ValueError: Where the file holds fewer, as where a crash lost
                         the log's last lines.
         """
-        if len(lines := list(islice(self.lines(self.episodes), count))) < count:
+        path = path or self.episodes
+
+        if len(lines := list(islice(self.lines(path), count))) < count:
             raise ValueError(
-                f"{self.episodes} holds {len(lines):,} episodes, short of the "
-                f"{count:,} the checkpoint follows"
+                f"{path} holds {len(lines):,} lines, short of the {count:,} the "
+                f"checkpoint follows"
             )
 
         return lines
@@ -689,7 +746,8 @@ class Run(Record):
         digest   : str,
         settings : RunSettings,
         started  : datetime,
-        resumes  : str | None = None
+        resumes  : str | None = None,
+        searches : bool       = False
     ) -> Self:
         """
         Creates the directory of a run reading `settings` from `started` on
@@ -697,10 +755,11 @@ class Run(Record):
         the revision of the clone in the working directory, and `digest`.
 
         Args:
-            digest  : The SHA-256 digest of the state `GameBoy.start` left
-                      the run's console in.
-            resumes : The name of the run this one continues, or `None` for
-                      a run starting afresh.
+            digest   : The SHA-256 digest of the state `GameBoy.start` left
+                       the run's console in.
+            resumes  : The name of the run this one continues, or `None` for
+                       a run starting afresh.
+            searches : Whether the run is a search over save states.
 
         Raises:
             CalledProcessError : Where the working directory holds no git
@@ -718,6 +777,7 @@ class Run(Record):
             digest   = digest,
             resumes  = resumes,
             revision = Revision.checked_out(),
+            searches = searches,
             settings = settings,
             started  = started
         )
@@ -735,14 +795,49 @@ class Run(Record):
             flush(file.fileno())
 
 
-class Start(StrEnum):
+class SearchRunSettings(RunSettings):
     """
-    Where a run's training episodes start, in Blue's bedroom or along the
-    demonstration its curriculum names.
+    The settings `squirtl search` reads, `RunSettings` with the curriculum,
+    the evaluations, and the steps between them taking no flag, so the
+    command parses and lists none of the settings only training reads and
+    records their defaults.
     """
 
-    BEDROOM    = auto()
-    CURRICULUM = auto()
+    curriculum: Annotated[CurriculumSettings, Parameter(parse=False)] = Field(
+        default_factory = CurriculumSettings
+    )
+    """
+    The settings of the curriculum, at their defaults.
+    """
+
+    evaluation: Annotated[EvaluationSettings, Parameter(parse=False)] = Field(
+        default_factory = EvaluationSettings
+    )
+    """
+    The settings each evaluation reads, at their defaults.
+    """
+
+    evaluation_steps: Annotated[PositiveInt, Parameter(parse=False)] = (
+        RunSettings.model_fields["evaluation_steps"].default
+    )
+    """
+    The environment steps between evaluations, at their default.
+    """
+
+
+class TrainingSettings(RunSettings):
+    """
+    The settings `squirtl train` reads, `RunSettings` with `search` taking
+    no flag, so the command parses and lists none of a search's settings and
+    records their defaults.
+    """
+
+    search: Annotated[SearchSettings, Parameter(parse=False)] = Field(
+        default_factory = SearchSettings
+    )
+    """
+    The settings a search reads, at their defaults.
+    """
 
 
 class RunListing(Record):

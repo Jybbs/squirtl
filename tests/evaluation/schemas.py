@@ -113,7 +113,7 @@ def test_an_evaluation_runs_one_environment_where_the_cpus_are_unknown(
     Asserts that an evaluation runs one environment by default where
     `process_cpu_count` cannot tell how many CPUs the process may use.
     """
-    monkeypatch.setattr("squirtl.evaluation.schemas.process_cpu_count", lambda: None)
+    monkeypatch.setattr("squirtl.emulator.schemas.process_cpu_count", lambda: None)
 
     assert EvaluationSettings().environments == 1
 

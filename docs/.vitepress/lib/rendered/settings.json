@@ -84,6 +84,27 @@
     "milestone": 0.1,
     "novelty": 0.00025
   },
+  "search": {
+    "batch_size": 128,
+    "capacity": 512000,
+    "epsilon": 0.2,
+    "groups": 4,
+    "inner_steps": [
+      5,
+      15
+    ],
+    "learning_rate": 0.0003,
+    "outer_steps": [
+      10,
+      20
+    ],
+    "particles": 32,
+    "rollback": [
+      1,
+      3
+    ],
+    "update_steps": 44
+  },
   "seed": 1,
   "steps": 2500000
 }

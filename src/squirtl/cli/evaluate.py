@@ -59,15 +59,15 @@ def evaluate(
     any, on each run's mean return.
 
     Both directories and `--release`, or neither, a directory holding no
-    run, a release GitHub does not publish or one attaching no manifest, a
-    selection matching none of its runs, a download whose digest differs or
-    whose tar does not unpack, or runs ending their episodes at more than
-    one goal, whose shares reaching it do not compare, exits 1 before any
-    evaluation. A run holding no checkpoint, holding a damaged one, holding
-    an evaluation line that names no `argmax`, reading a cartridge the
-    emulator refuses, or recording another digest than the state its intro
-    leaves on the cartridge exits 1, keeping the evaluations already written
-    for the runs evaluated before it.
+    run or a search, a release GitHub does not publish or one attaching no
+    manifest, a selection matching none of its runs, a download whose digest
+    differs or whose tar does not unpack, or runs ending their episodes at
+    more than one goal, whose shares reaching it do not compare, exits 1
+    before any evaluation. A run holding no checkpoint, holding a damaged
+    one, holding an evaluation line that names no `argmax`, reading a
+    cartridge the emulator refuses, or recording another digest than the
+    state its intro leaves on the cartridge exits 1, keeping the evaluations
+    already written for the runs evaluated before it.
     """
     listen()
 
@@ -78,6 +78,10 @@ def evaluate(
             selector    = selector
         ).every()
         rivals = [Run.read(directory) for directory in against or ()]
+
+        for run in (*runs, *rivals):
+            run.check_trained()
+
         Event.check_shared(
             (run.settings.environment.goal for run in (*runs, *rivals)),
             "the runs named"

@@ -1,4 +1,4 @@
 ╭─ Error ──────────────────────────────────────────────────────────────────────╮
 │ Unknown command "tran". Did you mean "train"? Available commands: cite,      │
-│ evaluate, fetch, pack, stop, train, watch, write.                            │
+│ evaluate, fetch, pack, search, stop, train, watch, ...                       │
 ╰──────────────────────────────────────────────────────────────────────────────╯

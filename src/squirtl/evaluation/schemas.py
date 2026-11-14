@@ -7,12 +7,11 @@ Defines the records an evaluation reads and writes:
 """
 
 from functools  import cached_property
-from os         import process_cpu_count
 from pydantic   import Field, PositiveInt, model_validator
 from statistics import fmean
 from typing     import Annotated, Self
 
-from squirtl.emulator.schemas    import Record, UnitInterval
+from squirtl.emulator.schemas    import Record, UnitInterval, processors
 from squirtl.environment.schemas import Outcome
 from squirtl.reward.schemas      import Flag, Term
 
@@ -132,7 +131,7 @@ class EvaluationSettings(Record):
     in `pyproject.toml`.
     """
 
-    environments: PositiveInt = Field(default_factory=lambda: process_cpu_count() or 1)
+    environments: PositiveInt = Field(default_factory=processors)
     """
     The environments an evaluation plays its episodes across in parallel,
     each in a worker process of its own, which defaults to the CPUs the

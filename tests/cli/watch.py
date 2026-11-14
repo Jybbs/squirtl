@@ -10,6 +10,7 @@ Pins what `squirtl watch` does, covering:
 - An episode of a run of PQN or PPO played back to its unscaled return
 - The recommended run of a release, fetched and played back, and a
   selection naming no one run, which exits 1
+- The path a search found, played back to the return it recorded
 """
 
 from common.cli import Invoker
@@ -229,3 +230,18 @@ def test_a_selection_naming_no_one_run_exits_1_before_the_window_opens(
     invocation = invoke(["watch", *argv])
 
     assert (invocation.code, reason in invocation.log, windows) == (1, True, [])
+
+
+@mark.usefixtures("windows")
+def test_a_search_plays_back_the_path_it_found_to_the_return_it_recorded(
+    found  : Path,
+    invoke : Invoker
+):
+    """
+    Asserts that playing back a search boots the emulator in its window and
+    exits zero on reaching the return its one episode, the path it found,
+    records.
+    """
+    invocation = invoke(["watch", str(found)])
+
+    assert (invocation.code, "the run recorded" in invocation.log) == (0, True)

@@ -9,6 +9,8 @@ Pins the records the reward reads and writes, covering:
   each goal, the reward for the flags a count of terms holds, and the
   settings they refuse
 - The total of a score's shares
+- A tally packing an episode's progress, read back from JSON and read from
+  the game's memory at the start of an episode
 """
 
 from collections.abc import Callable
@@ -19,7 +21,7 @@ from pytest          import approx, mark, param, raises
 
 from squirtl.emulator.console import GameBoy
 from squirtl.emulator.schemas import Symbol
-from squirtl.reward.schemas   import Event, Flag, Position, RewardSettings, Score, Term
+from squirtl.reward.schemas   import Event, Flag, Position, ProgressTally, RewardSettings, Score, Term
 
 
 def test_a_position_reads_the_map_and_coordinates_their_symbols_hold(
@@ -94,13 +96,25 @@ def test_each_event_before_a_goal_earns_a_milestone_and_the_goal_its_own_term(
     ]
 
 
-def test_an_event_refuses_a_name_no_member_holds():
+def test_a_tally_packs_what_a_step_holds_leaving_out_a_term_none_earned():
     """
-    Asserts that a name no member of `Event` holds is refused, as an index
-    no member holds is.
+    Asserts that a tally keeps each term some step has earned, and that the
+    positions it packs at three bytes each read back as the ones packed.
     """
-    with raises(ValueError, match="is not a valid Event"):
-        Event("EVENT_GOT_BICYCLE")
+    positions = {Position(map=1, x=2, y=3), Position(map=4, x=5, y=6)}
+    tally     = ProgressTally.of(
+        {Term.MILESTONE: 0, Term.NOVELTY: 2},
+        {Event.EVENT_GOT_STARTER},
+        {Event.EVENT_GOT_STARTER: 4},
+        Position(map=4, x=5, y=6),
+        positions,
+        4
+    )
+
+    assert (tally.earned, tally.reached, len(tally.positions)) == (
+        {Term.NOVELTY: 2},
+        positions, 6
+    )
 
 
 @mark.parametrize(
@@ -126,38 +140,45 @@ def test_an_event_is_read_by_its_name_and_written_to_json_by_it(name: str):
     ] == [Event.EVENT_GOT_POKEDEX, Event.EVENT_GOT_POKEDEX, b'"EVENT_GOT_POKEDEX"']
 
 
-def test_each_event_holds_its_index_in_pret_pokered_in_the_order_the_opening_sets_them(
+def test_a_tally_reads_back_from_json_as_the_one_written():
+    """
+    Asserts that a tally written to JSON reads back equal, its packed
+    positions and its flags included.
+    """
+    position = Position(map=255, x=0, y=7)
+    written  = ProgressTally.of(
+        {Term.NOVELTY: 1},
+        {Event.EVENT_OAK_ASKED_TO_CHOOSE_MON},
+        {Event.EVENT_OAK_ASKED_TO_CHOOSE_MON: 2},
+        position,
+        {position},
+        2
+    )
+
+    assert ProgressTally.model_validate_json(written.model_dump_json()) == written
+
+
+def test_a_tally_reads_the_start_of_an_episode_from_the_games_memory(
+    flag     : Callable[[Event], None],
+    game_boy : GameBoy,
+    move     : Callable[[Position], None]
 ):
     """
-    Asserts that each event holds the index its constant takes in
-    pret/pokered's `constants/event_constants.asm`, counted from the
-    `const_def` opening the Pallet Town events, and that `Event` declares
-    them in the order the opening sets them, from Oak appearing in Pallet
-    Town to the Pokédex.
+    Asserts that a tally read from the console holds each flag set and the
+    position the player stands on as the one position reached, with no term
+    earned, no flag first set, and no step taken.
     """
-    assert [(event.name, event.value) for event in Event] == [
-        ("EVENT_OAK_APPEARED_IN_PALLET", 0x27),
-        ("EVENT_FOLLOWED_OAK_INTO_LAB", 0x00),
-        ("EVENT_OAK_ASKED_TO_CHOOSE_MON", 0x21),
-        ("EVENT_GOT_STARTER", 0x22),
-        ("EVENT_BATTLED_RIVAL_IN_OAKS_LAB", 0x23),
-        ("EVENT_GOT_OAKS_PARCEL", 0x39),
-        ("EVENT_GOT_POKEDEX", 0x25)
-    ]
+    position = Position(map=2, x=3, y=4)
 
+    move(position)
+    flag(Event.EVENT_FOLLOWED_OAK_INTO_LAB)
 
-def test_each_term_reads_the_setting_named_for_it():
-    """
-    Asserts that each term pays the value of the setting its own value
-    names, so no term reads another's setting.
-    """
-    settings = RewardSettings(goal=0.5, milestone=0.125, novelty=0.0625)
+    tally = ProgressTally.read(game_boy)
 
-    assert {term: settings.pay(term) for term in Term} == {
-        Term.GOAL      : 0.5,
-        Term.MILESTONE : 0.125,
-        Term.NOVELTY   : 0.0625
-    }
+    assert (
+        tally.earned, tally.events, tally.firsts,
+        tally.position, tally.reached, tally.steps
+    ) == ({}, {Event.EVENT_FOLLOWED_OAK_INTO_LAB}, {}, position, {position}, 0)
 
 
 @mark.parametrize("field", RewardSettings.model_fields)
@@ -181,12 +202,13 @@ def test_each_setting_refuses_a_value_outside_zero_to_one(
         RewardSettings(**{field: value})
 
 
-def test_the_settings_accept_a_goal_paying_more_than_every_other_term():
+def test_an_event_refuses_a_name_no_member_holds():
     """
-    Asserts that a goal paying half again the milestone is accepted, so the
-    goal has only to pay more than every other term.
+    Asserts that a name no member of `Event` holds is refused, as an index
+    no member holds is.
     """
-    assert RewardSettings(goal=0.1875, milestone=0.125).goal == 0.1875
+    with raises(ValueError, match="is not a valid Event"):
+        Event("EVENT_GOT_BICYCLE")
 
 
 @mark.parametrize(
@@ -248,6 +270,48 @@ def test_the_settings_refuse_a_goal_that_is_not_the_largest_term(
     """
     with raises(ValidationError, match="where it has to be the largest term"):
         RewardSettings(**settings)
+
+
+def test_each_event_holds_its_index_in_pret_pokered_in_the_order_the_opening_sets_them(
+):
+    """
+    Asserts that each event holds the index its constant takes in
+    pret/pokered's `constants/event_constants.asm`, counted from the
+    `const_def` opening the Pallet Town events, and that `Event` declares
+    them in the order the opening sets them, from Oak appearing in Pallet
+    Town to the Pokédex.
+    """
+    assert [(event.name, event.value) for event in Event] == [
+        ("EVENT_OAK_APPEARED_IN_PALLET", 0x27),
+        ("EVENT_FOLLOWED_OAK_INTO_LAB", 0x00),
+        ("EVENT_OAK_ASKED_TO_CHOOSE_MON", 0x21),
+        ("EVENT_GOT_STARTER", 0x22),
+        ("EVENT_BATTLED_RIVAL_IN_OAKS_LAB", 0x23),
+        ("EVENT_GOT_OAKS_PARCEL", 0x39),
+        ("EVENT_GOT_POKEDEX", 0x25)
+    ]
+
+
+def test_each_term_reads_the_setting_named_for_it():
+    """
+    Asserts that each term pays the value of the setting its own value
+    names, so no term reads another's setting.
+    """
+    settings = RewardSettings(goal=0.5, milestone=0.125, novelty=0.0625)
+
+    assert {term: settings.pay(term) for term in Term} == {
+        Term.GOAL      : 0.5,
+        Term.MILESTONE : 0.125,
+        Term.NOVELTY   : 0.0625
+    }
+
+
+def test_the_settings_accept_a_goal_paying_more_than_every_other_term():
+    """
+    Asserts that a goal paying half again the milestone is accepted, so the
+    goal has only to pay more than every other term.
+    """
+    assert RewardSettings(goal=0.1875, milestone=0.125).goal == 0.1875
 
 
 def test_the_total_sums_every_term_but_the_novelty(settings: RewardSettings):

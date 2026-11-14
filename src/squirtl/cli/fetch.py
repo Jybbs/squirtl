@@ -15,8 +15,8 @@ def fetch(*, release: ReleaseTag = None, selector: Selection = None):
     Downloads the runs a release attaches and unpacks each into
     `data/runs/`, from the release `--release` names or else the latest one.
 
-    `--agent`, `--start`, and `--seed` select among the release's runs, and
-    without them every run and each demonstration they follow is fetched. A
+    `--agent`, `--start`, and `--seed` select among the release's trained
+    runs, and without them every run and each demonstration is fetched. A
     run `data/runs/` already holds downloads nothing. Each download shows a
     progress bar and is checked against the SHA-256 digests GitHub and the
     release's manifest record for it before it is unpacked.

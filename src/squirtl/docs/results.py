@@ -124,9 +124,9 @@ class Trained(RunListing):
         return self.scores[-1]
 
     @classmethod
-    def read(cls, directory: Path) -> Self:
+    def from_run(cls, run: Run) -> Self:
         """
-        Reads the run `directory` holds.
+        Reads what `run` measured.
 
         Raises:
             ValueError: Where the run read a cartridge other than the
@@ -138,34 +138,34 @@ class Trained(RunListing):
                         action do not match its agent, present for the deep
                         Q-network or PQN or missing for PPO.
         """
-        run = Run.read(directory)
-
         if run.settings.emulator.cartridge != EmulatorSettings().cartridge:
             raise ValueError(
-                f"{directory} read the cartridge {run.settings.emulator.cartridge}"
+                f"{run.directory} read the cartridge {run.settings.emulator.cartridge}"
             )
 
         if (
             (demonstration := run.settings.curriculum.demonstration)
             and demonstration.is_absolute()
         ):
-            raise ValueError(f"{directory} followed the demonstration {demonstration}")
+            raise ValueError(
+                f"{run.directory} followed the demonstration {demonstration}"
+            )
 
         if not (scores := tuple(map(Score.of, run.evaluated))):
-            raise ValueError(f"{directory} holds no evaluation")
+            raise ValueError(f"{run.directory} holds no evaluation")
 
         if any(
             (score.argmax is None) is run.settings.agent.algorithm.sampled
             for score in scores
         ):
             raise ValueError(
-                f"{directory} holds an evaluation of "
+                f"{run.directory} holds an evaluation of "
                 f"{run.settings.agent.algorithm.name} whose episodes at the most "
                 "likely action do not match its agent"
             )
 
         if (baseline := run.baselined) is None:
-            raise ValueError(f"{directory} holds no baseline")
+            raise ValueError(f"{run.directory} holds no baseline")
 
         return cls.of(
             run,
@@ -272,8 +272,9 @@ class Comparison(Record):
 
 class Results(Record):
     """
-    Every run committed under `docs/runs/`, beside the comparison of each
-    agent's runs against the random baseline.
+    Every training run committed under `docs/runs/`, leaving out each
+    search, beside the comparison of each agent's runs against the random
+    baseline.
     """
 
     folder: ClassVar[Path] = Path("docs/runs")
@@ -335,15 +336,20 @@ class Results(Record):
     @classmethod
     def read(cls, folder: Path = folder) -> Self:
         """
-        Reads every run directory `folder` holds, none where it is missing.
+        Reads every run directory `folder` holds that trained an agent, none
+        where it is missing.
 
         Raises:
             ValueError: Where the runs end their episodes at more than one
                         goal, whose shares no comparison sets side by side.
         """
         runs = tuple(
-            Trained.read(directory)
-            for directory in sorted(folder.iterdir() if folder.is_dir() else ())
+            Trained.from_run(run)
+            for run in map(
+                Run.read,
+                sorted(folder.iterdir() if folder.is_dir() else ())
+            )
+            if not run.searches
         )
         Event.check_shared((run.goal for run in runs), f"the runs under {folder}")
 

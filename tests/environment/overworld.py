@@ -8,7 +8,7 @@ Pins how `Overworld` keeps Gymnasium's environment contract, covering:
   return playing it back reaches, to the last bit `RecordEpisodeStatistics`
   records
 - The start of an episode taking over from a demonstration, played from
-  the bedroom or loaded from a state, the DIV it writes, and the return of
+  the bedroom or restored from a snapshot, the DIV it writes, and the return of
   its own steps alone that playing it back reaches
 - Each step's reward, termination, and shares, and the truncation and the
   statistics each episode records
@@ -20,6 +20,7 @@ Pins how `Overworld` keeps Gymnasium's environment contract, covering:
 
 from collections.abc  import Callable
 from common.console   import StandIn, set_event, shade, stand
+from compression.zstd import compress
 from gymnasium        import Env, make
 from gymnasium.spaces import Box, Discrete
 from gymnasium.utils.env_checker import check_env
@@ -39,8 +40,8 @@ from squirtl.agent.schemas         import AgentSettings
 from squirtl.emulator              import console
 from squirtl.emulator.schemas      import Button, Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
-from squirtl.environment.schemas   import Entry, EnvironmentSettings, Recording, Takeover
-from squirtl.reward.schemas        import Event, Position, RewardSettings, Term
+from squirtl.environment.schemas   import Entry, EnvironmentSettings, Recording, Snapshot, Takeover
+from squirtl.reward.schemas        import Event, Position, ProgressTally, RewardSettings, Term
 
 
 def test_a_build_plays_the_intro_before_any_reset(overworld: Overworld):
@@ -101,21 +102,30 @@ def test_a_reset_given_a_recording_matches_a_seeded_reset_at_its_timer_div(
     assert resets[0] == resets[1]
 
 
-def test_a_reset_starts_the_progress_afresh(overworld: Overworld):
+def test_a_reset_given_a_snapshot_alone_takes_up_its_progress_and_its_div(
+    overworld: Overworld
+):
     """
-    Asserts that a position an earlier episode reached earns novelty again
-    in the episode after a reset, since each reset starts its own progress.
+    Asserts that a reset given a snapshot and no recording loads its state
+    with no press and no tick, takes up the progress it holds, and records
+    the DIV it holds as the episode's own.
     """
-    memory  = overworld.game_boy.emulator.memory
-    rewards = []
+    calls = overworld.game_boy.emulator.calls
+    tally = ProgressTally.read(overworld.game_boy).model_copy(update={"steps": 3})
+    calls.clear()
+    overworld.reset(
+        options = {
+            "snapshot": Snapshot(
+                frames    = compress(bytes(4)),
+                state     = compress(bytes(0x10000)),
+                tally     = tally,
+                timer_div = 7
+            )
+        }
+    )
 
-    for _ in range(2):
-        stand(memory, Position(map=0, x=0, y=0))
-        overworld.reset(seed=0)
-        stand(memory, Position(map=0, x=1, y=0))
-        rewards.append(overworld.step(0)[1])
-
-    assert rewards == [0.0625, 0.0625]
+    assert calls == [("load_state",), ("screen",)]
+    assert (overworld.progress.tally, overworld.recording.timer_div) == (tally, 7)
 
 
 @mark.parametrize(
@@ -145,14 +155,31 @@ def test_each_action_makes_its_press_then_advances_the_steps_frames(
     assert overworld.game_boy.emulator.calls == [*pressed, ("tick", 20), ("screen",)]
 
 
-def test_a_takeover_given_a_state_loads_it_in_place_of_the_presses(
+def test_a_reset_starts_the_progress_afresh(overworld: Overworld):
+    """
+    Asserts that a position an earlier episode reached earns novelty again
+    in the episode after a reset, since each reset starts its own progress.
+    """
+    memory  = overworld.game_boy.emulator.memory
+    rewards = []
+
+    for _ in range(2):
+        stand(memory, Position(map=0, x=0, y=0))
+        overworld.reset(seed=0)
+        stand(memory, Position(map=0, x=1, y=0))
+        rewards.append(overworld.step(0)[1])
+
+    assert rewards == [0.0625, 0.0625]
+
+
+def test_a_takeover_given_a_snapshot_restores_it_in_place_of_the_presses(
     overworld: Overworld
 ):
     """
-    Asserts that a reset given a state beside a recording that took over
-    loads that state, reads its frame, and writes the takeover's DIV, with
-    no press and no tick, holding the presses before the takeover in its
-    recording.
+    Asserts that a reset given a snapshot beside a recording that took over
+    loads the snapshot's state, reads its frame, and writes the takeover's
+    DIV, with no press and no tick, starting a progress of its own steps
+    alone and holding the presses before the takeover in its recording.
     """
     memory    = overworld.game_boy.emulator.memory
     calls     = overworld.game_boy.emulator.calls
@@ -166,13 +193,24 @@ def test_a_takeover_given_a_state_loads_it_in_place_of_the_presses(
         ),
         timer_div = 7
     )
+    tally = ProgressTally.read(overworld.game_boy).model_copy(update={"steps": 3})
     calls.clear()
     overworld.reset(
-        options = {"recording": recording, "state": bytes(9) + b"\x05" + bytes(0xFFF6)}
+        options = {
+            "recording" : recording,
+            "snapshot"  : Snapshot(
+                frames    = compress(bytes(4)),
+                state     = compress(bytes(9) + b"\x05" + bytes(0xFFF6)),
+                tally     = tally,
+                timer_div = 7
+            )
+        }
     )
 
     assert calls == [("load_state",), ("screen",), ("_set_timer_div", 4)]
-    assert (memory[9], overworld.recording) == (5, recording)
+    assert (memory[9], overworld.recording, overworld.progress.steps) == (
+        5, recording, 0
+    )
 
 
 @mark.parametrize("seed", [param(0, id="seed-0"), param(1, id="seed-1")])

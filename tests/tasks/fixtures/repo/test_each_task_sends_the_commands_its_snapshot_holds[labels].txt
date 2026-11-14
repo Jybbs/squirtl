@@ -7,4 +7,5 @@ gh label create --color a173e6 --description 'PyBoy, the cartridge it boots, its
 gh label create --color 2e9d62 --description 'The Gymnasium environment, its observation and actions, and where an episode starts and ends' --force '🌿 environment'
 gh label create --color f0c040 --description 'Evaluation episodes, the random baseline, and the statistics compared across seeds' --force '🏅 evaluation'
 gh label create --color ff86c2 --description 'The reward terms, the positions and milestones they pay for, and the flag that ends an episode' --force '🍬 reward'
+gh label create --color 4cc3b5 --description 'The search over save states, its tree of particles, and the path it records as a demonstration' --force '🗺️ search'
 Send the commands above to Jybbs/squirtl? [y/N] Sent every command above to Jybbs/squirtl

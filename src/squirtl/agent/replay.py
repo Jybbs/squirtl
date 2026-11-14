@@ -6,7 +6,8 @@ and `Column`, one entry's elements across its slots.
 
 from collections.abc  import Mapping
 from gymnasium.spaces import Box, Dict, MultiBinary
-from numpy            import arange, asarray, flatnonzero, float32, int64, ndarray, packbits, uint8, unpackbits, zeros
+from numpy            import arange, array_equal, asarray, flatnonzero, float32, int64, ndarray, packbits, uint8
+from numpy            import unpackbits, zeros
 from numpy.random     import Generator
 from operator         import itemgetter
 from pydantic         import InstanceOf
@@ -204,6 +205,21 @@ class Replay:
                     for key, stack in observation.items()
                 }
             )
+
+    def ends_on(self, observation: Mapping[str, ndarray]) -> bool:
+        """
+        Reads whether each stack ending at the newest slot equals the one
+        `observation` holds under its entry, as it does where the last
+        observation stored is the one an episode now starts from, so that
+        episode's first step can follow it with no `begin`. Before `depth`
+        elements are stored, no stack ends at the newest slot.
+        """
+        newest = asarray([self.pushed - 1])
+
+        return self.pushed >= self.depth and all(
+            array_equal(column.window(newest)[0, :-1], observation[key])
+            for key, column in self.columns.items()
+        )
 
     def load(self, arrays: Mapping[str, ndarray]):
         """

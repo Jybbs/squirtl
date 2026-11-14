@@ -151,25 +151,12 @@
       "description": "The settings of the curriculum that starts each training episode\nalong a demonstration and moves the start back toward Blue's\nbedroom, each a field of `RunSettings.curriculum` and a key under\n`[tool.squirtl.curriculum]` in `pyproject.toml`. Every default but\n`demonstration` is the one Mhammedi and Cohan's Table 8 sets for the\nbackward algorithm of their Appendix B.",
       "properties": {
         "back": {
+          "$ref": "#/$defs/Range_Annotated_float__Gt__",
           "default": [
             0.25,
             0.75
           ],
-          "description": "The least and the most a window moves back, each a multiple of `window`,\nbetween which each move draws uniformly, whose default is the decrease\nmultipliers of Mhammedi and Cohan's Table 8.",
-          "maxItems": 2,
-          "minItems": 2,
-          "prefixItems": [
-            {
-              "exclusiveMinimum": 0,
-              "type": "number"
-            },
-            {
-              "exclusiveMinimum": 0,
-              "type": "number"
-            }
-          ],
-          "title": "Back",
-          "type": "array"
+          "description": "The least and the most a window moves back, each a multiple of `window`,\nbetween which each move draws uniformly, whose default is the decrease\nmultipliers of Mhammedi and Cohan's Table 8."
         },
         "buffer": {
           "default": 500,
@@ -198,25 +185,12 @@
           "title": "Demonstration"
         },
         "forward": {
+          "$ref": "#/$defs/Range_Annotated_float__Gt__",
           "default": [
             0.5,
             1.0
           ],
-          "description": "The least and the most a window moves forward, each a multiple of\n`window`, between which each move draws uniformly, whose default is the\nincrease multipliers of Mhammedi and Cohan's Table 8.",
-          "maxItems": 2,
-          "minItems": 2,
-          "prefixItems": [
-            {
-              "exclusiveMinimum": 0,
-              "type": "number"
-            },
-            {
-              "exclusiveMinimum": 0,
-              "type": "number"
-            }
-          ],
-          "title": "Forward",
-          "type": "array"
+          "description": "The least and the most a window moves forward, each a multiple of\n`window`, between which each move draws uniformly, whose default is the\nincrease multipliers of Mhammedi and Cohan's Table 8."
         },
         "multiplier": {
           "default": 2.0,
@@ -523,6 +497,36 @@
       "title": "PQNSettings",
       "type": "object"
     },
+    "Range_Annotated_float__Gt__": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "type": "array"
+    },
+    "Range_Annotated_int__Gt__": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        }
+      ],
+      "type": "array"
+    },
     "RewardSettings": {
       "additionalProperties": false,
       "description": "The settings the reward reads, each a field of `RunSettings.reward` and\na key under `[tool.squirtl.reward]` in `pyproject.toml`, holding what\neach member of `Term` pays a step.",
@@ -546,6 +550,91 @@
       "title": "RewardSettings",
       "type": "object"
     },
+    "SearchSettings": {
+      "additionalProperties": false,
+      "description": "The settings a search over save states reads, each a field of\n`RunSettings.search` and a key under `[tool.squirtl.search]` in\n`pyproject.toml`. The population's defaults are the Montezuma's Revenge\ncolumn of Table 5 in Mhammedi and Cohan's \"Decoupling Exploration and\nPolicy Optimization\", the chance of a random press their Appendix A.2's,\nand the predictor's their Appendix A.3's, its updates per press taken\nfrom their Table 6.",
+      "properties": {
+        "batch_size": {
+          "default": 128,
+          "description": "The frame stacks each update of the predictor draws, whose default\nfollows Mhammedi and Cohan's Appendix A.3.",
+          "exclusiveMinimum": 0,
+          "title": "Batch Size",
+          "type": "integer"
+        },
+        "capacity": {
+          "default": 512000,
+          "description": "The frames replay memory holds for the predictor, one per slot, about\n2.95 GB at the default frame shape, whose default is the 512,000 entries\nof Mhammedi and Cohan's Appendix A.3, each an observation there and a\nframe here, so a stored start stack takes four.",
+          "exclusiveMinimum": 0,
+          "title": "Capacity",
+          "type": "integer"
+        },
+        "epsilon": {
+          "$ref": "#/$defs/UnitInterval",
+          "default": 0.2,
+          "description": "The chance a press takes a random action in place of the one its\nrollout holds, whose default follows Mhammedi and Cohan's Appendix A.2."
+        },
+        "groups": {
+          "default": 4,
+          "description": "The groups of particles the search evolves, Mhammedi and Cohan's M.",
+          "exclusiveMinimum": 0,
+          "title": "Groups",
+          "type": "integer"
+        },
+        "inner_steps": {
+          "$ref": "#/$defs/Range_Annotated_int__Gt__",
+          "default": [
+            5,
+            15
+          ],
+          "description": "The fewest and the most presses of one rollout, Mhammedi and Cohan's\nrange of T."
+        },
+        "learning_rate": {
+          "default": 0.0003,
+          "description": "The step size Adam takes on the predictor, whose default follows\nMhammedi and Cohan's Appendix A.3.",
+          "exclusiveMinimum": 0,
+          "title": "Learning Rate",
+          "type": "number"
+        },
+        "outer_steps": {
+          "$ref": "#/$defs/Range_Annotated_int__Gt__",
+          "default": [
+            10,
+            20
+          ],
+          "description": "The fewest and the most rollouts each particle plays in one iteration,\nMhammedi and Cohan's range of K."
+        },
+        "particles": {
+          "default": 32,
+          "description": "The particles each group holds, Mhammedi and Cohan's N.",
+          "exclusiveMinimum": 0,
+          "title": "Particles",
+          "type": "integer"
+        },
+        "rollback": {
+          "$ref": "#/$defs/Range_Annotated_int__Gt__",
+          "default": [
+            1,
+            3
+          ],
+          "description": "The fewest and the most generations a particle moves up the tree once\nevery particle of its group is dead, Mhammedi and Cohan's range of k."
+        },
+        "update_steps": {
+          "default": 44,
+          "description": "The presses between updates of the predictor, whose default is the\nratio of Mhammedi and Cohan's Table 6, 2.28 million updates over 400\nmillion frames at their action repeat of 4.",
+          "exclusiveMinimum": 0,
+          "title": "Update Steps",
+          "type": "integer"
+        },
+        "workers": {
+          "description": "The worker processes the rollouts run across, which defaults to the\nCPUs the process may use.",
+          "exclusiveMinimum": 0,
+          "title": "Workers",
+          "type": "integer"
+        }
+      },
+      "title": "SearchSettings",
+      "type": "object"
+    },
     "UnitInterval": {
       "maximum": 1,
       "minimum": 0,
@@ -561,7 +650,7 @@
     },
     "checkpoint_steps": {
       "default": 250000,
-      "description": "The environment steps between checkpoints, each written at the first\nepisode end, or the end of a rollout's update for PQN and PPO, reaching\na multiple of them, whose default is the 250,000 steps of each iteration\nDopamine's DQN checkpoints after.",
+      "description": "The environment steps between checkpoints. A training run writes each\nat the first episode end, or the end of a rollout's update for PQN and\nPPO, reaching a multiple of them, and a search at the first iteration\nend reaching one. The default is the 250,000 steps of each iteration\nDopamine's DQN checkpoints after.",
       "exclusiveMinimum": 0,
       "title": "Checkpoint Steps",
       "type": "integer"
@@ -592,6 +681,10 @@
     "reward": {
       "$ref": "#/$defs/RewardSettings",
       "description": "The settings the reward reads."
+    },
+    "search": {
+      "$ref": "#/$defs/SearchSettings",
+      "description": "The settings a search reads."
     },
     "seed": {
       "default": 1,
