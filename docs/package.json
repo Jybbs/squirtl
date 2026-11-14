@@ -16,6 +16,7 @@
     "@zag-js/slider": "1.47.0",
     "@zag-js/toggle-group": "1.47.0",
     "@zag-js/vue": "1.47.0",
+    "gifenc": "1.0.3",
     "happy-dom": "21.0.4",
     "knip": "6.44.2",
     "markdown-it-mathjax3": "4.3.2",

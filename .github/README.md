@@ -13,6 +13,27 @@
 
 *SquiRtL* trains an agent to play Pokémon Blue from the screen alone. A deep Q-network, PQN, or PPO reads the frames the PyBoy emulator draws, presses one of the Game Boy's buttons each step, and learns from a reward read out of the game's memory, until Blue walks from his bedroom to Oak's lab and chooses his starter, or reaches a later flag a run names as its goal, as far as the Pokédex. **[Methods](https://squirtl.fyi/methods/)** sets out the environment, the reward, the agents, and how each is evaluated, and **[Commands](https://squirtl.fyi/commands/)** lists every command beside each setting it takes.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../docs/assets/readme/learning-dark.gif">
+    <img alt="Blue walks from his door in Pallet Town to its north edge with the table as it stood after 6, 30, 40, and 50 episodes of training, every walk on one clock, the walk after 50 episodes arriving in 18 presses and the walk after 6 in 204 presses, before a wild encounter’s flash starts the loop again." src="../docs/assets/readme/learning-light.gif" width="100%">
+  </picture>
+</p>
+
+## 📕 Start Here
+
+<div align="center">
+  <a href="https://squirtl.fyi/methods/"><picture><source media="(prefers-color-scheme: dark)" srcset="../docs/assets/readme/understand-dark.svg"><img alt="Understand" src="../docs/assets/readme/understand-light.svg" width="260"></picture></a>
+  <a href="https://squirtl.fyi/results/"><picture><source media="(prefers-color-scheme: dark)" srcset="../docs/assets/readme/check-dark.svg"><img alt="Check" src="../docs/assets/readme/check-light.svg" width="260"></picture></a>
+  <a href="https://squirtl.fyi/commands/"><picture><source media="(prefers-color-scheme: dark)" srcset="../docs/assets/readme/run-dark.svg"><img alt="Run" src="../docs/assets/readme/run-light.svg" width="260"></picture></a>
+</div>
+
+- **[Methods](https://squirtl.fyi/methods/)** sets out how a run joins its parts, with **[Environment](https://squirtl.fyi/methods/environment)** pressing one button a step and advancing the game 17 frames, **[Reward](https://squirtl.fyi/methods/reward)** paying for a square not reached before and for each milestone on the way to the run's goal, **[Agents](https://squirtl.fyi/methods/agents)** choosing each press under the deep Q-network, PQN, or PPO, **[Curriculum](https://squirtl.fyi/methods/curriculum)** starting a training episode partway along a demonstration, and **[Evaluation](https://squirtl.fyi/methods/evaluation)** playing each trained agent beside random presses under the same seeds
+- **[Results](https://squirtl.fyi/results/)** compares each agent against random presses under the same seeds, reporting the share of evaluation episodes reaching the run's goal as an interquartile mean across runs with its 95% percentile bootstrap interval
+- **[Commands](https://squirtl.fyi/commands/)** opens each command on the help it prints, from **[`squirtl train`](https://squirtl.fyi/commands/train)**, which trains a run into a directory under `data/runs/`, to **[`squirtl watch`](https://squirtl.fyi/commands/watch)**, which plays a recorded episode back in the emulator's window
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) follows a change from its issue through its branch, its commits, and its pull request to the release that lists it.
+
 ## 👟 Quickstart
 
 [mise](https://mise.jdx.dev) installs every tool `.mise/config.toml` pins, after [activating it in your shell](https://mise.jdx.dev/installing-mise.html):
@@ -54,7 +75,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise format` | *Rewrites the Python source to the house style* |
 | `mise serve` | *Serves the docs site under `docs/` and reloads a page as it is edited* |
 | `mise write` | *Writes each file the package declares into `docs/`, the identity's JSON and the theme's sheet among them, and each cited source's footnote definition from `docs/references.bib` into every Markdown file git tracks, all of which `mise audit` holds to what it writes* |
-| `mise draw` | *Redraws the logo, the favicon, and the navigation bar's mark from the drawings that set them in the identity* |
+| `mise draw` | *Redraws the logo, the favicon, the navigation bar's mark, and the README's cards from the drawings that set them in the identity, then the README's preview of the front page's walks* |
 | `mise lockfile` | *Verifies `uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` against their manifests, and that every pinned tool installs from `.mise/mise.lock`* |
 | `mise relock` | *Re-resolves every lockfile after a change to `pyproject.toml`, `.mise/config.toml`, `docs/package.json`, or a task script's inline metadata* |
 | `mise run gha:lint` | *Audits the workflows and the composite action under `.github/` through zizmor* |

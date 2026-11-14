@@ -46,6 +46,11 @@ export interface Point {
 }
 
 /**
+ * The advance of one character of the code face, as a share of its size.
+ */
+export const ADVANCE = 0.6
+
+/**
  * The rows of cells a capital of the display face spans, the height a line set
  * in its dots stands above its baseline.
  */
@@ -60,11 +65,9 @@ export const CARD = { height: 630, width: 1200 } as const
 /**
  * How the edition plate is drawn, its height and its padding, its outer frame
  * and its inner one, the version in dots, the rule after it, and the words
- * naming the host, `advance` being the code face's advance as a share of its
- * size.
+ * naming the host.
  */
 const EDITION = {
-  advance : 0.6,
   frames  : { corners: [6, 3], inset: 7, strokes: [2, 1] },
   height  : 92,
   pad     : 24,
@@ -112,13 +115,13 @@ export function cardPath(page: Pick<PageData, 'isNotFound' | 'relativePath'>): s
  * `scheme`.
  */
 export function drawPlate(facts: Edition, scheme: Scheme): string {
-  const { advance, frames, height, pad, rule, version, words } = EDITION
+  const { frames, height, pad, rule, version, words } = EDITION
   const { ink, quiet } = IDENTITY.tones[scheme]
   const [outer, inner] = frames.corners as [number, number]
   const [thick, thin]  = frames.strokes as [number, number]
   const { inset: x }   = MARGIN
   const host           = `Edition · ${facts.host}`
-  const named          = Math.ceil(host.length * words.size * (advance + IDENTITY.lengths.track))
+  const named          = Math.ceil(host.length * words.size * (ADVANCE + IDENTITY.lengths.track))
   const figure         = layout(facts.version).width * version.cell
   const width          = 2 * pad + figure + words.gap + named
   const left           = x + pad + figure

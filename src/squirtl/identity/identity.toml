@@ -1,3 +1,4 @@
+github  = { dark = "#0d1117", light = "#ffffff" }
 name    = "SquiRtL"
 order   = ["denim", "heath", "fern", "amethyst", "seacaller"]
 shares  = [0.88, 0.7, 0.45, 0.2]

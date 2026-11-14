@@ -1,7 +1,7 @@
 import fs   from 'node:fs'
 import path from 'node:path'
 
-import { renderAsync } from '@resvg/resvg-js'
+import { type ResvgRenderOptions, renderAsync } from '@resvg/resvg-js'
 
 import { docsDir }                               from '../config/paths.ts'
 import { SECTIONS, type Section, sectionOf }     from '../config/sections.ts'
@@ -49,6 +49,18 @@ export class Cards {
 }
 
 /**
+ * Reads how the renderer sets a drawing's words, in the faces under `FACES`
+ * alone, the body face wherever a drawing names none.
+ */
+export function facesOf(metaUrl: string): ResvgRenderOptions['font'] {
+  return {
+    defaultFontFamily : IDENTITY.faces.body.family,
+    fontDirs          : [path.join(docsDir(metaUrl), FACES)],
+    loadSystemFonts   : false
+  }
+}
+
+/**
  * Draws the card of every page in `pages` as a PNG under `outDir`, at the path
  * `cardPath` gives it, a page of a section taking its section's card and every
  * other page the site's, which the front page, the page at a missing address,
@@ -72,11 +84,7 @@ export async function renderCards(
   pages    : readonly CardPage[],
   sections : readonly Section[] = SECTIONS
 ): Promise<string[]> {
-  const font = {
-    defaultFontFamily : IDENTITY.faces.body.family,
-    fontDirs          : [path.join(docsDir(metaUrl), FACES)],
-    loadSystemFonts   : false
-  }
+  const font = facesOf(metaUrl)
 
   const cards = new Map(pages.map((page): [string, string] => {
     const section = sectionOf(page, sections)
