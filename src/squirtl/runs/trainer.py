@@ -245,6 +245,42 @@ class Trainer(Driver):
             benchmark.baseline.reward
         )
 
+    @staticmethod
+    def handover(previous: Run) -> Handover:
+        """
+        Reads what `previous` recorded up to its last checkpoint, the
+        checkpoint through the `checkpoint_class` of the trainer `named`
+        reads for its agent and the episodes before it through that
+        trainer's `carried`.
+
+        Raises:
+            FileNotFoundError : Where `previous` holds no checkpoint.
+            ValueError        : Where `previous` is a search, as
+                                `Run.check_trained` raises, the checkpoint
+                                is damaged or already holds the run's
+                                `steps`, or the episodes `previous` recorded
+                                end short of it, as `Run.ended_by` and
+                                `Run.first` raise.
+        """
+        previous.check_trained()
+
+        trainer    = Trainer.named(previous.settings.agent.algorithm)
+        checkpoint = trainer.checkpoint_class.from_path(previous.checkpoint)
+
+        if checkpoint.step >= previous.settings.steps:
+            raise ValueError(
+                f"{previous.checkpoint} already holds the run's "
+                f"{previous.settings.steps:,} steps"
+            )
+
+        return Handover(
+            baseline    = previous.baselined,
+            checkpoint  = checkpoint,
+            episodes    = trainer.carried(checkpoint, previous),
+            evaluations = list(previous.evaluated_by(checkpoint.step)),
+            name        = previous.name
+        )
+
     def inherit(self, handover: Handover):
         """
         Writes into the run what `handover` carries over, through

@@ -11,7 +11,6 @@ from typing     import Annotated
 from squirtl.cli.logs         import drive, listen, refusing
 from squirtl.cli.runs         import RunDirectory
 from squirtl.emulator.schemas import Cartridge
-from squirtl.runs.handover    import Handover
 from squirtl.runs.schemas     import Run
 from squirtl.runs.settings    import TrainingSettings
 from squirtl.runs.trainer     import Trainer
@@ -67,7 +66,7 @@ def train(
 
     with refusing(CalledProcessError, OSError, ValueError):
         previous  = resume and Run.read(resume)
-        handover  = previous and Handover.from_run(previous)
+        handover  = previous and Trainer.handover(previous)
         settings  = previous.settings if previous else settings or TrainingSettings()
         cartridge = Cartridge.read(settings.emulator.cartridge)
         trainer   = Trainer.start(cartridge, settings, datetime.now(UTC), handover)

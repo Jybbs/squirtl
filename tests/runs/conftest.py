@@ -20,7 +20,6 @@ from squirtl.agent.schemas       import AgentSettings, Algorithm
 from squirtl.emulator.schemas    import Cartridge
 from squirtl.environment.schemas import EnvironmentSettings, Recording
 from squirtl.reward.schemas      import Term
-from squirtl.runs.handover       import Handover
 from squirtl.runs.schemas        import Episode, Revision, Run
 from squirtl.runs.searcher       import SearchHandover, Searcher
 from squirtl.runs.settings       import RunSettings
@@ -146,7 +145,7 @@ def trainer(cartridge: Cartridge, short: RunSettings) -> Callable[..., Trainer]:
             cartridge,
             short.model_copy(update=fields),
             datetime(2026, 10, 4, tzinfo=UTC) + timedelta(seconds=next(seconds)),
-            resumes and Handover.from_run(resumes)
+            resumes and Trainer.handover(resumes)
         )
 
     return build

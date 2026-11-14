@@ -14,9 +14,10 @@ from torch.serialization import get_safe_globals
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm, Update
 from squirtl.environment.schemas import Recording
-from squirtl.runs.handover       import Handover, Moments, Slot, Tally, VectorCheckpoint
+from squirtl.runs.handover       import Moments, Slot, Tally, VectorCheckpoint
 from squirtl.runs.schemas        import Run
 from squirtl.runs.settings       import RunSettings
+from squirtl.runs.trainer        import Trainer
 
 
 def test_a_tally_averages_each_environments_updates_until_its_episode_ends():
@@ -83,7 +84,7 @@ def test_a_handover_of_pqn_or_ppo_takes_the_episodes_its_checkpoint_counts(
         update = {"settings": RunSettings(agent=AgentSettings(algorithm=algorithm))}
     )
     vector_checkpoint(1, 16).save(run.checkpoint)
-    handover = Handover.from_run(run)
+    handover = Trainer.handover(run)
 
     assert (
         type(handover.checkpoint),

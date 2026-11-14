@@ -6,6 +6,8 @@ imports, covering:
 - The mode and the filter `start` sets
 - The mode and the filter an interpreter of the virtual environment starts
   under, and the normal mode one started without `site` keeps
+- Every module of the package importing under the normal mode, which a cycle
+  among them breaks while the lazy mode hides it
 """
 
 from importlib  import reload
@@ -24,18 +26,32 @@ The program a started interpreter runs, printing its mode and its filter's
 name.
 """
 
+WALK = (
+    "from importlib import import_module\n"
+    "from pkgutil import walk_packages\n"
+    "from sys import set_lazy_imports\n"
+    "set_lazy_imports('normal')\n"
+    "import squirtl\n"
+    "for module in walk_packages(squirtl.__path__, 'squirtl.'):\n"
+    "    try:\n"
+    "        import_module(module.name)\n"
+    "    except ImportError as error:\n"
+    "        print(module.name, error)"
+)
+"""
+The program a started interpreter runs, turning the lazy mode off before
+importing each module of the package and printing each that fails with its
+error.
+"""
 
-def test_start_sets_the_mode_and_the_filter():
+
+def test_every_module_of_the_package_imports_under_the_normal_mode():
     """
-    Asserts that `start`, run from a reloaded module since `site` loads it
-    before coverage starts, sets the filter and turns on the lazy mode.
+    Asserts that each module under `squirtl` imports in an interpreter whose
+    lazy mode is turned off, so no import cycle among the package's modules
+    loads only because the start file defers it.
     """
-    module = reload(imports)
-
-    module.start()
-
-    assert get_lazy_imports() == "all"
-    assert get_lazy_imports_filter() is module.lazily
+    assert check_output([executable, "-c", WALK], text=True) == ""
 
 
 @mark.parametrize(
@@ -60,6 +76,19 @@ def test_an_interpreter_of_the_virtual_environment_starts_under_the_start_file(
         env  = {},
         text = True
     ).strip() == expected
+
+
+def test_start_sets_the_mode_and_the_filter():
+    """
+    Asserts that `start`, run from a reloaded module since `site` loads it
+    before coverage starts, sets the filter and turns on the lazy mode.
+    """
+    module = reload(imports)
+
+    module.start()
+
+    assert get_lazy_imports() == "all"
+    assert get_lazy_imports_filter() is module.lazily
 
 
 @mark.parametrize(

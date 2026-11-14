@@ -11,7 +11,6 @@ averages, which `Trainer` keeps as it trains.
 
 from numpy    import int64, zeros
 from pydantic import NonNegativeInt
-from typing   import Self
 
 from squirtl.agent.checkpoint    import Checkpoint, RolloutCheckpoint
 from squirtl.agent.schemas       import Measures
@@ -20,7 +19,6 @@ from squirtl.environment.schemas import Recording
 from squirtl.evaluation.schemas  import Evaluation
 from squirtl.runs.curriculum     import Syllabus
 from squirtl.runs.schemas        import Run
-from squirtl.runs.trainer        import Trainer
 
 
 class Handover(Record):
@@ -64,42 +62,6 @@ class Handover(Record):
         is.
         """
         return self.evaluations[-1].step if self.evaluations else 0
-
-    @classmethod
-    def from_run(cls, previous: Run) -> Self:
-        """
-        Reads what `previous` recorded up to its last checkpoint, the
-        checkpoint through the `checkpoint_class` of the trainer `named`
-        reads for its agent and the episodes before it through that
-        trainer's `carried`.
-
-        Raises:
-            FileNotFoundError : Where `previous` holds no checkpoint.
-            ValueError        : Where `previous` is a search, as
-                                `Run.check_trained` raises, the checkpoint
-                                is damaged or already holds the run's
-                                `steps`, or the episodes `previous` recorded
-                                end short of it, as `Run.ended_by` and
-                                `Run.first` raise.
-        """
-        previous.check_trained()
-
-        trainer    = Trainer.named(previous.settings.agent.algorithm)
-        checkpoint = trainer.checkpoint_class.from_path(previous.checkpoint)
-
-        if checkpoint.step >= previous.settings.steps:
-            raise ValueError(
-                f"{previous.checkpoint} already holds the run's "
-                f"{previous.settings.steps:,} steps"
-            )
-
-        return cls(
-            baseline    = previous.baselined,
-            checkpoint  = checkpoint,
-            episodes    = trainer.carried(checkpoint, previous),
-            evaluations = list(previous.evaluated_by(checkpoint.step)),
-            name        = previous.name
-        )
 
     def write(self, run: Run):
         """
