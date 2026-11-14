@@ -46,11 +46,6 @@ export interface Point {
 }
 
 /**
- * The advance of one character of the code face, as a share of its size.
- */
-export const ADVANCE = 0.6
-
-/**
  * The rows of cells a capital of the display face spans, the height a line set
  * in its dots stands above its baseline.
  */
@@ -110,6 +105,14 @@ export function cardPath(page: Pick<PageData, 'isNotFound' | 'relativePath'>): s
 }
 
 /**
+ * Measures the width `text` takes set in the code face at `size`, each
+ * character tracked by `track` of the size.
+ */
+export function codeWidth(text: string, size: number, track = 0): number {
+  return text.length * size * (IDENTITY.faces.code.advance + track)
+}
+
+/**
  * Draws the edition plate at the foot of the card, the project's version in
  * dots beside the host the site serves from, framed twice in the quiet ink of
  * `scheme`.
@@ -121,7 +124,7 @@ export function drawPlate(facts: Edition, scheme: Scheme): string {
   const [thick, thin]  = frames.strokes as [number, number]
   const { inset: x }   = MARGIN
   const host           = `Edition · ${facts.host}`
-  const named          = Math.ceil(host.length * words.size * (ADVANCE + IDENTITY.lengths.track))
+  const named          = Math.ceil(codeWidth(host, words.size, IDENTITY.lengths.track))
   const figure         = layout(facts.version).width * version.cell
   const width          = 2 * pad + figure + words.gap + named
   const left           = x + pad + figure
