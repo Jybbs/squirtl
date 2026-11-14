@@ -6,7 +6,8 @@ since a worker process imports this module:
   `Ending`, what they reach
 - `Particle`, one copy of the game the search plays forward
 - `Frontier`, the particles and counters a checkpoint holds
-- `Iteration`, one iteration as a line of a run's `iterations`
+- `Iteration`, one iteration as a line of a run's `iterations`, and
+  `Demotion`, a group it moved to a winner holding fewer flags
 - `SearchSettings`, the settings a search reads
 """
 
@@ -15,6 +16,28 @@ from typing   import Self
 
 from squirtl.emulator.schemas    import Range, Record, UnitInterval, processors
 from squirtl.environment.schemas import Snapshot
+
+
+class Demotion(Record):
+    """
+    One reset of a group, as an iteration opens, onto a winner holding fewer
+    flags than the group's own winner did.
+    """
+
+    flags: int
+    """
+    The flags the group's winner held.
+    """
+
+    group: int
+    """
+    The group's index among the search's groups.
+    """
+
+    winner: int
+    """
+    The flags the winner the group moved to held.
+    """
 
 
 class Ending(Record):
@@ -48,55 +71,6 @@ class Ending(Record):
     snapshot: Snapshot
     """
     The environment the rollout ended on.
-    """
-
-
-class Iteration(Record):
-    """
-    One iteration of a search as a run records it on a line of its
-    `iterations`.
-    """
-
-    length: int
-    """
-    The presses of the demonstration the iteration leaves.
-    """
-
-    loss: float | None
-    """
-    The mean squared error over the predictor's updates run while the
-    iteration played, those owed for the iterations before it, or `None`
-    where none were.
-    """
-
-    memory: int
-    """
-    The bytes the tree holds, its nodes and the states it keeps.
-    """
-
-    nodes: int
-    """
-    The nodes the tree holds.
-    """
-
-    positions: int
-    """
-    The positions the winner's path reached.
-    """
-
-    presses: int
-    """
-    The presses the search's rollouts have taken by the iteration's end.
-    """
-
-    reward: float
-    """
-    The winner's reward, which the demonstration earns.
-    """
-
-    seconds: float
-    """
-    The wall time of the iteration, in seconds.
     """
 
 
@@ -202,6 +176,61 @@ class SearchSettings(Record):
     """
 
 
+class Iteration(Record):
+    """
+    One iteration of a search as a run records it on a line of its
+    `iterations`.
+    """
+
+    demotions: list[Demotion]
+    """
+    Each reset of a group, as the iteration opened, onto a winner holding
+    fewer flags than the group's own winner did.
+    """
+
+    length: int
+    """
+    The presses of the demonstration the iteration leaves.
+    """
+
+    loss: float | None
+    """
+    The mean squared error over the predictor's updates run while the
+    iteration played, those owed for the iterations before it, or `None`
+    where none were.
+    """
+
+    memory: int
+    """
+    The bytes the tree holds, its nodes and the states it keeps.
+    """
+
+    nodes: int
+    """
+    The nodes the tree holds.
+    """
+
+    positions: int
+    """
+    The positions the winner's path reached.
+    """
+
+    presses: int
+    """
+    The presses the search's rollouts have taken by the iteration's end.
+    """
+
+    reward: float
+    """
+    The winner's reward, which the demonstration earns.
+    """
+
+    seconds: float
+    """
+    The wall time of the iteration, in seconds.
+    """
+
+
 class Particle(Record):
     """
     One copy of the game the search plays forward, which a group ranks by
@@ -228,6 +257,13 @@ class Particle(Record):
     """
     The environment at its node.
     """
+
+    @property
+    def flags(self) -> int:
+        """
+        Counts the flags set at its node.
+        """
+        return len(self.snapshot.tally.events)
 
     @property
     def rank(self) -> tuple[float, float]:

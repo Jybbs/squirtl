@@ -288,6 +288,7 @@ class Searcher(Driver):
         winner    = self.search.winner
         tree      = self.search.tree
         iteration = Iteration(
+            demotions = self.search.demotions,
             length    = len(self.search.demonstration.presses),
             loss      = loss,
             memory    = tree.nbytes,
