@@ -30,6 +30,12 @@ export const TAG = '0.2.0'
 export const DEMONSTRATION = '20261108T172406.446468Z'
 
 /**
+ * The name of the search `docs/runs/` commits, which the release attaches as
+ * a demonstration rather than a trained run.
+ */
+export const SEARCH = '20261113T225532.465776Z'
+
+/**
  * The name of the run the release plays where no selection names one, as
  * `ReleaseSettings` declares it.
  */
@@ -55,8 +61,9 @@ export function megabytes(value: number): string {
 }
 
 /**
- * The release's tars, each committed run in the order of its name and then
- * the demonstration they follow, the sizes and the digests made up.
+ * The release's tars, each trained run `docs/runs/` commits in the order of
+ * its name and then each demonstration, the run they follow and the search,
+ * the sizes and the digests made up.
  */
 const TARS: readonly Tar[] = (() => {
   const random = seeded(38)
@@ -66,19 +73,21 @@ const TARS: readonly Tar[] = (() => {
   return [
     ...COMMITTED.runs.map(({ agent, curriculum, name, seed }) =>
       packed({ agent, curriculum, name, seed }, Math.round(28 + random() * 14) / 10)),
-    packed({ agent: 'ppo', curriculum: false, name: DEMONSTRATION, seed: 6 }, 0.4)
+    packed({ agent: 'ppo', curriculum: false, name: DEMONSTRATION, seed: 6 }, 0.4),
+    packed({ agent: 'dqn', curriculum: false, name: SEARCH, seed: 2 }, 0.1)
   ]
 })()
 
 /**
  * Each trained run the release attaches, in the order of its name.
  */
-export const RUNS = TARS.slice(0, -1)
+export const RUNS = TARS.slice(0, COMMITTED.runs.length)
 
 /**
- * Each demonstration the trained runs follow.
+ * Each demonstration, the run the trained runs follow and the search, in the
+ * order of its name.
  */
-export const DEMONSTRATIONS = TARS.slice(-1)
+export const DEMONSTRATIONS = TARS.slice(COMMITTED.runs.length)
 
 /**
  * The time of day a run's name records, the part of it after the date.

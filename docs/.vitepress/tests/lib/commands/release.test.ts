@@ -9,10 +9,21 @@ import * as release from '../../../lib/commands/release.ts'
  */
 const RUNS = path.resolve(import.meta.dirname, '../../../../runs')
 
+/**
+ * Each run `docs/runs/` commits beside its name, in the order of its name.
+ */
+const COMMITTED = readdirSync(RUNS).toSorted().map(name => ({
+  name,
+  run: JSON.parse(readFileSync(path.join(RUNS, name, 'run.json'), 'utf8')) as {
+    searches : boolean
+    settings : { curriculum: { demonstration: string | null } }
+  }
+}))
+
 describe('DEMONSTRATION', () => {
   it('names the demonstration every committed curriculum run follows', () => {
-    const followed = readdirSync(RUNS)
-      .map(name => JSON.parse(readFileSync(path.join(RUNS, name, 'run.json'), 'utf8')).settings.curriculum.demonstration as string | null)
+    const followed = COMMITTED
+      .map(({ run }) => run.settings.curriculum.demonstration)
       .filter(shown => shown !== null)
       .map(shown => path.basename(shown))
 
@@ -20,9 +31,21 @@ describe('DEMONSTRATION', () => {
   })
 })
 
+describe('SEARCH', () => {
+  it('names the one search docs/runs/ commits', () => {
+    expect(COMMITTED.filter(({ run }) => run.searches).map(({ name }) => name)).toStrictEqual([release.SEARCH])
+  })
+})
+
+describe('DEMONSTRATIONS', () => {
+  it('lists the followed run and the search in the order of its name', () => {
+    expect(release.DEMONSTRATIONS.map(tar => tar.name)).toStrictEqual([release.DEMONSTRATION, release.SEARCH].toSorted())
+  })
+})
+
 describe('RUNS', () => {
-  it('lists every committed run in the order of its name, each tar named for it', () => {
-    const names = readdirSync(RUNS).toSorted()
+  it('lists every committed trained run in the order of its name, each tar named for it', () => {
+    const names = COMMITTED.filter(({ run }) => !run.searches).map(({ name }) => name)
 
     expect([release.RUNS.map(run => run.name), release.RUNS.map(run => run.asset)]).toStrictEqual([
       names, names.map(name => `${name}.tar.zst`)
