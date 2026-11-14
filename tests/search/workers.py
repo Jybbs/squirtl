@@ -6,7 +6,8 @@ Pins the worker each rollout runs in, covering:
   modules it imports, none of them PyTorch
 - A rollout dead where it ends on the `wTileMap` and the position it started
   from, whatever its screen shows, or blacks out outside Oak's lab, at the
-  faint in a battle, and surviving where either changes or it earns reward
+  faint in a battle, and surviving where either changes, it earns reward,
+  or it reaches a new square
 - A rollout stopping at the press that sets a flag, playing on past each
   new square, or playing on where it brings back a node
 - What an ending holds, each newest frame and each press
@@ -239,6 +240,26 @@ def test_a_rollout_changing_the_tile_map_in_place_is_alive(
     pressing_after(draw, monkeypatch)
 
     assert not playing(b"\x00").dead
+
+
+@mark.usefixtures("booted")
+def test_a_rollout_back_on_its_square_past_a_new_one_is_alive(
+    monkeypatch : MonkeyPatch,
+    playing     : Callable[..., Ending]
+):
+    """
+    Asserts that a rollout stepping onto a new square and back onto the one
+    it started on survives, since the new square raised its total.
+    """
+    def step(game_boy: GameBoy):
+        """
+        Moves the player one square across and back on alternate presses.
+        """
+        game_boy.emulator.memory[Symbol.W_X_COORD] ^= 1
+
+    pressing_after(step, monkeypatch)
+
+    assert not playing(b"\x00\x00", halting=False).dead
 
 
 @mark.usefixtures("booted")

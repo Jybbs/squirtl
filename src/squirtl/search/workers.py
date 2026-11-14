@@ -66,7 +66,7 @@ def roll(rollout: SearchRollout) -> Ending:
     game_boy    = overworld.game_boy
     progress    = overworld.progress
     flag_reward = overworld.reward.total(progress.earned)
-    tiles       = game_boy.tiles  # prose: ignore[inlinable-bindings]
+    start       = progress.total, game_boy.tiles  # prose: ignore[inlinable-bindings]
     frames      = [observation[Entry.FRAMES][-1]]
     pressed     = bytearray()
     blackout    = False
@@ -86,7 +86,7 @@ def roll(rollout: SearchRollout) -> Ending:
         dead = blackout or (
             progress.events       == rollout.snapshot.tally.events
             and progress.position == rollout.snapshot.tally.position
-            and game_boy.tiles    == tiles
+            and (progress.total, game_boy.tiles) == start
         ),
         frames   = b"".join(frames[1:]),
         presses  = bytes(pressed),
