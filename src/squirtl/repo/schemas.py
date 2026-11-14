@@ -46,7 +46,7 @@ from yaml                import (
     YAMLError, compose_all, parse, safe_load
 )
 
-from squirtl.emulator.schemas import Record
+from squirtl.emulator.schemas import Record, failures
 from squirtl.repo.github      import Command, Plan
 
 type Lines = Annotated[
@@ -1454,18 +1454,8 @@ class Finding(Record):
         except ValidationError as error:
             raise Unreadable(
                 *(
-                    cls(
-                        file    = file,
-                        message =
-                            f"`{file}` fails validation at "
-                            + (
-                                f"`{'.'.join(map(str, problem['loc']))}`"
-                                if problem["loc"]
-                                else "its root"
-                            )
-                            + f" with {problem['msg']!r}"
-                    )
-                    for problem in error.errors()
+                    cls(file=file, message=f"`{file}` fails validation {failure}")
+                    for failure in failures(error)
                 )
             ) from error
         except (OSError, SubprocessError, SyntaxError, ValueError, YAMLError) as error:

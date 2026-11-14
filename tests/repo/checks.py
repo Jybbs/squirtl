@@ -34,6 +34,7 @@ from textwrap          import dedent
 
 from squirtl.cli              import app
 from squirtl.docs.outputs     import Inventory
+from squirtl.docs.results     import Trained
 from squirtl.emulator.schemas import Record
 from squirtl.repo.checks  import (
     Anchors, Attribution, Audit, Check, Commits, Docstrings, Footnotes, Gates,
@@ -1080,25 +1081,30 @@ def test_marks_report_an_identity_that_fails_validation(
         scan(Marks, {})
 
 
-def test_rendered_reports_an_identity_that_fails_validation(
+def test_rendered_reports_a_run_the_results_refuse_on_its_record(
     monkeypatch : MonkeyPatch,
     scan        : Scan
 ):
     """
-    Pins that the rendered check raises `Unreadable` on the identity's
-    declaration where the identity the inventory writes out fails to
-    validate, so the audit reports it as a finding rather than ending.
+    Pins that the rendered check raises `Unreadable` on the `run.json` of
+    each run under `docs/runs/` the Results section refuses, one finding to
+    a run.
     """
-    monkeypatch.setattr(
-        "squirtl.identity.schemas.Identity.read",
-        classmethod(lambda cls: cls.model_validate({}))
-    )
+    def refuse(directory: Path):
+        """
+        Refuses every run, naming its directory.
+        """
+        raise ValueError(f"{directory} holds no evaluation")
 
-    with raises(
-        Unreadable,
-        match = "`src/squirtl/identity/identity.toml` fails validation"
-    ):
-        scan(Rendered, {})
+    monkeypatch.setattr(Trained, "read", refuse)
+
+    with raises(Unreadable) as raised:
+        scan(Rendered, {"docs/runs/a/run.json": "", "docs/runs/b/run.json": ""})
+
+    assert [finding.file for finding in raised.value.args] == [
+        Path("docs/runs/a/run.json"),
+        Path("docs/runs/b/run.json")
+    ]
 
 
 @mark.parametrize(
@@ -1139,6 +1145,78 @@ def test_rendered_reports_a_page_failing_to_read_on_the_page(
 
     assert (finding.file, finding.line) == (Path(path), line)
     assert f"`{path}` {message}" in finding.message
+
+
+@mark.parametrize(
+    ("text", "message"),
+    [
+        param("{", "fails validation at its root with 'Invalid JSON", id="no-json"),
+        param("{}", "fails validation at `digest` with 'Field required'", id="no-run")
+    ]
+)
+def test_rendered_reports_a_run_failing_to_read_on_its_record(
+    message : str,
+    scan    : Scan,
+    text    : str
+):
+    """
+    Pins that the rendered check raises `Unreadable` on the `run.json` of
+    a run under `docs/runs/` whose record fails to validate, rather than on
+    the identity's declaration.
+    """
+    with raises(Unreadable) as raised:
+        scan(Rendered, {"docs/runs/x/run.json": text})
+
+    assert {finding.file for finding in raised.value.args} == {
+        Path("docs/runs/x/run.json")
+    }
+    assert f"`docs/runs/x/run.json` {message}" in str(raised.value)
+
+
+def test_rendered_reports_an_identity_that_fails_validation(
+    monkeypatch : MonkeyPatch,
+    scan        : Scan
+):
+    """
+    Pins that the rendered check raises `Unreadable` on the identity's
+    declaration where the identity the inventory writes out fails to
+    validate, so the audit reports it as a finding rather than ending.
+    """
+    monkeypatch.setattr(
+        "squirtl.identity.schemas.Identity.read",
+        classmethod(lambda cls: cls.model_validate({}))
+    )
+
+    with raises(
+        Unreadable,
+        match = "`src/squirtl/identity/identity.toml` fails validation"
+    ):
+        scan(Rendered, {})
+
+
+def test_rendered_reports_any_other_inventory_failure_on_the_root(
+    monkeypatch : MonkeyPatch,
+    scan        : Scan
+):
+    """
+    Pins that the rendered check raises `Unreadable` on the root of the
+    checkout where a part of the inventory other than the identity, a run,
+    or a page's markers fails to read.
+    """
+    def fail(*_: object):
+        """
+        Fails as a read of the inventory naming no file.
+        """
+        raise ValueError("the runs end at more than one goal")
+
+    monkeypatch.setattr(Inventory, "read", fail)
+
+    with raises(Unreadable) as raised:
+        scan(Rendered, {})
+
+    finding, = raised.value.args
+
+    assert finding.file == Path(".")
 
 
 @mark.parametrize(

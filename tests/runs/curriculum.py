@@ -21,7 +21,7 @@ from pytest       import approx, mark, param, raises
 
 from squirtl.environment.schemas import Starts, Takeover, Window
 from squirtl.runs.curriculum     import Curriculum, Segment
-from squirtl.runs.schemas        import CurriculumSettings
+from squirtl.runs.settings       import CurriculumSettings
 
 
 def attempt(curriculum: Curriculum, number: int, *outcomes: bool, length: int = 10):

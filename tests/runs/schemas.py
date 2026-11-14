@@ -1,13 +1,8 @@
 """
-Pins the records one run reads and writes, covering:
+Pins the records one run writes, covering:
 
 - Each record refusing a change once built and a key no field declares,
-  from the run down to each subject's settings, and the settings refusing
-  a negative seed
-- The default, the bounds, and the description each field of the settings
-  declares, the run's own and each subject's, and the defaults ending the
-  warm-up inside an anneal outlasting a random walk to the starter
-- The seed each stream derives from the run's one seed
+  from the run down to each subject's settings
 - The revision read from a clone, what marks it dirty, and the output it
   refuses
 - An append cutting an unfinished last line with a warning, and a sync
@@ -27,14 +22,9 @@ Pins the records one run reads and writes, covering:
 - A run holding no evaluations
 - The demonstration a run's episodes give, the shortest reaching the starter
   from the bedroom, and a log holding none, which is refused
-- The curriculum's settings refusing moves whose least passes their most and
-  a required share above the completion share, and a run's settings refusing
-  a demonstration for the deep Q-network and terms summing past 1 on the way
-  to the run's goal
 - A run refusing a digest other than the one it recorded, and the listing
   naming it among other runs
-- A search refused where a trained run is read, and the search's stream
-  coming after every other
+- A search refused where a trained run is read
 - The defaults of `SearchSettings`, each from the column and the appendix of
   Mhammedi and Cohan's paper its docstring cites, the bound replay memory
   holds them to, the worker count following the machine, and a range
@@ -51,7 +41,7 @@ from common.evaluation import played
 from datetime          import UTC, datetime
 from functools         import reduce
 from hashlib           import sha256
-from json              import dumps, loads
+from json              import loads
 from operator          import getitem
 from os                import fstat, process_cpu_count
 from pathlib           import Path
@@ -60,15 +50,14 @@ from pytest            import MonkeyPatch, TempPathFactory, mark, param, raises
 from re                import escape
 from shutil            import copytree
 from subprocess        import CalledProcessError, check_output
-from syrupy.assertion  import SnapshotAssertion
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm, Measures, PolicyUpdate, Update
 from squirtl.emulator.schemas    import Record
 from squirtl.environment.schemas import EnvironmentSettings, Recording, Takeover
 from squirtl.evaluation.schemas  import Evaluation
-from squirtl.reward.schemas      import Event, RewardSettings
-from squirtl.runs.schemas        import CurriculumSettings, Episode, Revision, Run, RunListing, RunSettings, Start
-from squirtl.runs.schemas        import Stream
+from squirtl.reward.schemas      import Event
+from squirtl.runs.schemas        import Episode, Revision, Run, RunListing, Start
+from squirtl.runs.settings       import CurriculumSettings, RunSettings
 from squirtl.search.schemas      import SearchSettings
 
 
@@ -85,23 +74,6 @@ def test_a_checkpoint_at_the_runs_last_step_may_land_within_an_episode(
     last = run.model_copy(update={"settings": RunSettings(steps=6)})
 
     assert last.ended_by(6) == [f"{episode.model_dump_json()}\n"]
-
-
-@mark.parametrize(
-    "seed",
-    [
-        param(1,     id="the-default"),
-        param(0,     id="zero"),
-        param(2**64, id="past-64-bits")
-    ]
-)
-def test_each_stream_starts_from_a_seed_of_its_own(seed: int):
-    """
-    Asserts that no two streams of one run start from the same seed,
-    whatever non-negative integer the run's seed is, since each stream takes
-    a child of its own from the run seed's `SeedSequence`.
-    """
-    assert len(set(RunSettings(seed=seed).seeds.values())) == len(Stream)
 
 
 def test_a_clean_clone_reads_as_its_commit_and_its_lockfile(clone: Path):
@@ -216,24 +188,6 @@ def test_a_run_holding_no_episode_reaching_its_goal_gives_no_demonstration(
 
     with raises(ValueError, match="holds no episode reaching EVENT_GOT_POKEDEX"):
         run.demonstration
-
-
-@mark.parametrize(
-    ("first", "second"),
-    [
-        param(1,  2,     id="adjacent"),
-        param(0,  2**64, id="apart-by-2-to-the-64")
-    ]
-)
-def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
-    """
-    Asserts that runs taking distinct seeds start no stream from the same
-    seed, covering the adjacent pair an offset per stream would collide on
-    and the pair a 64-bit mask on the run seed would.
-    """
-    assert set(RunSettings(seed=first).seeds.values()).isdisjoint(
-        RunSettings(seed=second).seeds.values()
-    )
 
 
 def test_a_run_holding_no_evaluations_reads_none(run: Run):
@@ -538,13 +492,13 @@ def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
     [
         param(
             lambda line: line.replace('"goal"', '"starter"'),
-            "at shares.starter.[key] with \"Input should be 'goal', 'milestone' or "
-            "'novelty'\"",
+            "at `shares.starter.[key]` with \"Input should be 'goal', 'milestone' "
+            "or 'novelty'\"",
             id = "a-share-under-a-name-since-retired"
         ),
         param(
             lambda line: line.replace('"epsilon":1.0,', ""),
-            "at epsilon with 'Field required'",
+            "at `epsilon` with 'Field required'",
             id = "a-field-missing"
         ),
         param(
@@ -552,8 +506,8 @@ def test_a_run_refuses_an_instant_with_no_offset(revision: Revision):
                 '"epsilon":1.0,',
                 ""
             ),
-            "at shares.starter.[key] with \"Input should be 'goal', 'milestone' or "
-            "'novelty'\", at epsilon with 'Field required'",
+            "at `shares.starter.[key]` with \"Input should be 'goal', 'milestone' "
+            "or 'novelty'\", at `epsilon` with 'Field required'",
             id = "two-fields-failing"
         ),
         param(
@@ -893,14 +847,6 @@ def test_a_sync_writes_the_file_through_the_drives_cache(
     assert flushed == [path.stat().st_ino]
 
 
-def test_each_stream_seed_fits_in_64_unsigned_bits():
-    """
-    Asserts that every stream's seed is a 64-bit unsigned integer, the
-    widest seed `torch.manual_seed` takes.
-    """
-    assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
-
-
 @mark.parametrize(
     ("epsilon", "update"),
     [
@@ -954,138 +900,6 @@ def test_the_default_capacity_holds_replay_memory_under_three_gigabytes():
     assert SearchSettings().capacity * height * width < 3_000_000_000
 
 
-def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
-    snapshot: SnapshotAssertion
-):
-    """
-    Asserts that the default run seed derives the stream seeds its fixture
-    file holds, so a change to the derivation, which would change the draws
-    every recorded run's seed reproduces, is reviewed as a diff.
-    """
-    seeds = RunSettings().seeds
-
-    assert "\n".join(f"{stream} {seed}" for stream, seed in seeds.items()) == snapshot
-
-
-def test_the_default_warmup_ends_inside_an_anneal_outlasting_a_random_walk():
-    """
-    Asserts that at the default settings the chance of a random action
-    anneals over at least the 37,000 presses a uniform random walk from the
-    bedroom can take to reach the starter, and that the warm-up ends before
-    that anneal does.
-    """
-    settings = RunSettings()
-    anneal   = settings.agent.exploration_fraction * settings.steps
-
-    assert settings.agent.warmup_steps < anneal and anneal >= 37_000
-
-
-@mark.parametrize(
-    ("goal", "past", "reward"),
-    [
-        param(
-            Event.EVENT_GOT_STARTER,
-            "0.21",
-            RewardSettings(goal=0.31, milestone=0.3),
-            id = "the-starter"
-        ),
-        param(
-            Event.EVENT_GOT_STARTER,
-            "2.22e-16",
-            RewardSettings(goal=0.343, milestone=0.2, novelty=0.057),
-            id = "by-the-rounding-of-a-share"
-        ),
-        param(
-            Event.EVENT_GOT_POKEDEX,
-            "0.25",
-            RewardSettings(milestone=0.15),
-            id = "the-pokedex"
-        )
-    ]
-)
-def test_the_settings_refuse_terms_one_step_could_sum_past_one_on_the_way_to_the_goal(
-    goal   : Event,
-    past   : str,
-    reward : RewardSettings
-):
-    """
-    Asserts that the settings refuse terms where a step reaching a new
-    position and first setting every flag up to the run's goal at once earns
-    past 1, naming the goal and how far past to three significant digits,
-    whether the terms sum past 1 in decimal or sum to 1 in decimal and round
-    past it once the milestone is counted three times.
-    """
-    with raises(
-        ValidationError,
-        match = f"every flag up to {goal.name} at once earns {past} more than the 1"
-    ):
-        RunSettings(environment=EnvironmentSettings(goal=goal), reward=reward)
-
-
-@mark.parametrize(
-    "reward",
-    [
-        param(
-            RewardSettings(goal=0.5, milestone=0.125, novelty=0.125),
-            id = "powers-of-two"
-        ),
-        param(RewardSettings(goal=0.68, milestone=0.07, novelty=0.11), id="decimals")
-    ]
-)
-def test_the_settings_accept_terms_one_step_sums_to_exactly_one_at_the_goal(
-    reward: RewardSettings
-):
-    """
-    Asserts that the settings accept terms where a step reaching a new
-    position and first setting every flag up to the starter at once earns
-    exactly 1, the most the bound Mnih et al. clip each reward to allows.
-    """
-    assert RunSettings(reward=reward).reward == reward
-
-
-@mark.parametrize(
-    ("fields", "message"),
-    [
-        param({"back": (0.8, 0.5)}, r"back\n.*passes the most", id="back"),
-        param({"forward": (1.5, 1.0)}, r"forward\n.*passes the most", id="forward"),
-        param({"required": 0.96}, "passes the completion share", id="required")
-    ]
-)
-def test_the_curriculums_settings_refuse_bounds_out_of_order(
-    fields  : Mapping[str, object],
-    message : str
-):
-    """
-    Asserts that the curriculum's settings refuse a least move passing the
-    most and a required share passing the completion share.
-    """
-    with raises(ValidationError, match=message):
-        CurriculumSettings.model_validate(fields)
-
-
-@mark.parametrize(
-    "algorithm",
-    [param(Algorithm.PPO, id="ppo"), param(Algorithm.PQN, id="pqn")]
-)
-def test_the_settings_take_a_demonstration_for_pqn_and_ppo(algorithm: Algorithm):
-    """
-    Asserts that the settings take a demonstration for PQN and PPO.
-    """
-    RunSettings(
-        agent      = AgentSettings(algorithm=algorithm),
-        curriculum = CurriculumSettings(demonstration=Path("data/runs/a"))
-    )
-
-
-def test_the_searchs_stream_leaves_the_seed_of_every_earlier_one_as_it_was():
-    """
-    Asserts that the search's stream comes last among the streams, since
-    each stream's seed derives from its place, so every seed an earlier run
-    drew from reads as it did.
-    """
-    assert [*Stream][-1] is Stream.SEARCH
-
-
 @mark.parametrize(
     ("demonstration", "start"),
     [
@@ -1118,33 +932,6 @@ def test_a_listing_reads_the_settings_naming_its_run(
     assert (listed.name, listed.agent, listed.seed, listed.start) == (
         run.name, Algorithm.PPO, 4, start
     )
-
-
-def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
-    snapshot: SnapshotAssertion
-):
-    """
-    Asserts that the run's settings, and each subject's settings they
-    hold, carry the default and the bounds each field declares beside the
-    description written beneath it, which cyclopts renders as the help of
-    that field's flag, so a change to any of them is reviewed as a diff.
-    """
-    assert dumps(
-        RunSettings.model_json_schema(),
-        ensure_ascii = False,
-        indent       = 2
-    ) == snapshot
-
-
-def test_the_settings_count_no_flag_past_the_goal_toward_the_ceiling():
-    """
-    Asserts that terms summing past 1 over every flag up to the Pokédex are
-    accepted for a run ending at the starter, whose episodes set none of the
-    flags after it.
-    """
-    reward = RewardSettings(milestone=0.15)
-
-    assert RunSettings(reward=reward).reward == reward
 
 
 def test_the_settings_default_to_the_papers_montezuma_column():
@@ -1194,24 +981,6 @@ def test_a_run_missing_its_checkpoint_or_its_episodes_is_refused_by_name(
 
     with raises(FileNotFoundError, match=escape(f"{run.directory} holds no {missing}")):
         run.check_files()
-
-
-def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():
-    """
-    Asserts that the settings refuse a demonstration beside the deep
-    Q-network, which starts every episode in the bedroom.
-    """
-    with raises(ValidationError, match="takes no demonstration"):
-        RunSettings(curriculum=CurriculumSettings(demonstration=Path("data/runs/a")))
-
-
-def test_the_settings_refuse_a_negative_seed():
-    """
-    Asserts that a negative seed is refused, since `SeedSequence` takes a
-    non-negative integer as its entropy.
-    """
-    with raises(ValidationError, match="greater than or equal to 0"):
-        RunSettings(seed=-1)
 
 
 def test_the_updates_default_to_the_ratio_of_the_papers_table():

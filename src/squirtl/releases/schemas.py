@@ -164,7 +164,7 @@ class PackedRun(RunListing):
         tar = folder / (run.name + cls.suffix)
 
         with TemporaryDirectory() as staging:
-            record = Path(staging, "run.json")
+            record = Path(staging, Run.file)
             record.write_text(
                 run.model_copy(update={"settings": settings}).model_dump_json(indent=2),
                 encoding = "utf-8"
@@ -233,12 +233,12 @@ class ReleaseManifest(ReleaseSettings):
         return next(run for run in self.runs if run.name == self.recommended_run)
 
     @classmethod
-    def pack(cls, settings: ReleaseSettings) -> Self:
+    def pack(cls, settings: ReleaseSettings = ReleaseSettings()) -> Self:
         """
-        Packs each run `Results.folder` lists that trained an agent, then
-        each demonstration, meaning each search it lists and each run the
-        trained runs follow, from its directory under `Run.folder` by its
-        name, into `folder`, and writes the manifest listing them there
+        Packs each run `Results.directories` lists that trained an agent,
+        then each demonstration, meaning each search it lists and each run
+        the trained runs follow, from its directory under `Run.folder` by
+        its name, into `folder`, and writes the manifest listing them there
         as `file`. Before writing any tar, it checks the recommended run
         through `ReleaseSettings.check_recommends`, then each run's files
         through `Run.check_files` and every line of its episodes through
@@ -254,7 +254,7 @@ class ReleaseManifest(ReleaseSettings):
         """
         committed = [
             Run.read(Run.folder / directory.name)
-            for directory in sorted(Results.folder.iterdir())
+            for directory in Results.directories()
         ]
         trained = [run for run in committed if not run.searches]
         settings.check_recommends({run.name for run in trained})

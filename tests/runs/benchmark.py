@@ -17,7 +17,8 @@ from squirtl.environment.schemas   import EnvironmentSettings
 from squirtl.evaluation.schemas    import EvaluationSettings
 from squirtl.reward.schemas        import RewardSettings
 from squirtl.runs.benchmark        import Benchmark
-from squirtl.runs.schemas          import Run, RunSettings, Stream
+from squirtl.runs.schemas          import Run
+from squirtl.runs.settings         import RunSettings, Stream
 
 
 @mark.usefixtures("clone")

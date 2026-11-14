@@ -19,7 +19,7 @@ from squirtl.emulator.schemas    import Record, Symbol
 from squirtl.environment.schemas import EnvironmentSettings
 from squirtl.identity.schemas    import Identity
 from squirtl.reward.schemas      import Event
-from squirtl.runs.schemas        import RunSettings
+from squirtl.runs.settings       import RunSettings
 
 
 class Output(Record):
