@@ -1039,7 +1039,7 @@ def test_marks_hold_the_template_workflows_and_labels_to_the_identity(
     or not named, a gate named on another mark, and a label on a project
     mark with or without its variation selector, leaving out a heading
     inside an HTML comment, a gate setting no name, which `Gates` reports,
-    and a job other than the gate named on the gates' mark.
+    and a job other than the gate named on no mark.
     """
     shipped = {
         ".github/PULL_REQUEST_TEMPLATE.md": """
@@ -1072,7 +1072,7 @@ def test_marks_hold_the_template_workflows_and_labels_to_the_identity(
                 steps:
                   - run: mise run gha:brief
               check:
-                name: 🎒 Check
+                name: Check
                 steps:
                   - run: mise run py:test
             """

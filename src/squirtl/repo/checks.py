@@ -782,13 +782,15 @@ class Marks(Check):
 
     def scan(self) -> Iterator[Finding]:
         """
-        Yields a finding on each heading of the template naming no section
-        the identity places a mark on or opening on other than the mark it
-        places on the section the heading ends on, on each workflow whose
-        name opens on anything other than the workflows' mark, on each gate
-        whose name opens on anything other than the gates' mark, and on each
-        label whose glyph is a project mark. A gate setting no name is left
-        to `Gates`, which reports it.
+        Yields a finding on each of these, leaving a gate that sets no name
+        to `Gates`, which reports it:
+
+        - A heading of the template naming no section the identity places a
+          mark on, or opening on other than the mark it places on the
+          section the heading ends on
+        - A workflow whose name opens on other than the workflows' mark
+        - A gate whose name opens on other than the gates' mark
+        - A label whose glyph is a project mark
         """
         headings  = self.identity.headings
         mark      = self.identity.workflow_mark

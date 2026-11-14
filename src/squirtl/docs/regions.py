@@ -231,8 +231,8 @@ def contrast(color: Color, ground: Color) -> str:
 
 def identity_table(field: str, identity: Identity) -> str:
     """
-    Lays out the Markdown table of the part of `identity` that its field
-    `field` declares:
+    Lays out the Markdown table of the part of `identity` that
+    `field` names:
 
     - For `colors` and `neutrals`, each color's token, name, hex, and
       purpose
@@ -250,8 +250,8 @@ def identity_table(field: str, identity: Identity) -> str:
       then the color each Game Boy shade of a sprite takes
     - For `tagline`, the tagline beside the byline, the summary the
       package's metadata reads from `pyproject.toml`
-    - For `marks`, each project mark's glyph beside what it depicts and
-      each place it opens
+    - For `marks`, each of the identity's `project_marks`, its glyph
+      beside what it depicts and each place it opens
 
     Raises:
         ValueError: Where `field` names no part of the identity a table
@@ -415,8 +415,8 @@ def table(name: str, train: Command) -> str:
 
     - For `settings:<subject>`, each setting under `--<subject>.` that
       `train` takes
-    - For `identity:<field>`, the part of the identity the field of
-      `Identity` of that name declares, as `identity_table` lays it out
+    - For `identity:<field>`, the part of the identity `identity_table`
+      lays out under that name
     - For `symbols`, each address `Symbol` declares beside its label, in
       the order of the address
     - For `events`, each flag `Event` declares beside its index, in the

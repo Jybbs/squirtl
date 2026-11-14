@@ -1,6 +1,6 @@
 # Identity
 
-Every page of the site, its charts, and the logo are drawn in one identity, which `src/squirtl/identity/identity.toml` declares once and `mise write` writes into the theme and into each drawing. Each part below draws one piece of it above the table that lists it, and every table is written from that declaration, so a hex, a face, or a hue read here is the one the site draws in.
+Every page of the site, its charts, and the logo are drawn in one identity, which `src/squirtl/identity/identity.toml` declares once and `mise write` writes into the theme and into each drawing. Each part below lists one piece of it in a table, most beneath a drawing of that piece, and every table is written from that declaration, so a hex, a face, or a hue read here is the one the site draws in.
 
 ## The Palette
 
@@ -249,7 +249,7 @@ The table below is written from `tagline` in `identity.toml` and the `descriptio
 
 ## The Marks
 
-A project mark is an emoji from the world of Pokémon Blue opening one section of a pull request's body, and the joystick also opens every workflow's name, as the backpack opens the name of the gate each workflow ends on. `repo:audit` holds the pull request template, the workflows, and the labels to these marks, and reports a label that takes one as its glyph.
+A project mark is an emoji opening one section of a pull request's body, and the joystick also opens every workflow's name, as the backpack opens the name of the gate each workflow ends on. `repo:audit` holds the pull request template, the workflows, and the labels to these marks, and reports a label that takes one as its glyph.
 
 <details>
 <summary>The marks and the places each opens</summary>
