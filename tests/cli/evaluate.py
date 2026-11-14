@@ -12,6 +12,8 @@ Pins what `squirtl evaluate` does, covering:
 - A run of PQN or PPO, whose network it builds from the agent the run names
 - The runs of a release, fetched under the default selection, and a run
   recording another digest than its cartridge's intro leaves, which exits 1
+- A search, which trains no agent and exits 1 naming the commands reading
+  one
 """
 
 from collections.abc   import Callable
@@ -200,6 +202,26 @@ def test_an_evaluation_reports_the_agent_apart_from_its_baseline(
         "The agent beats its baseline with a probability of 0 over 1 and 1 runs"
         in invoke(["evaluate", str(trained)]).output
     )
+
+
+def test_a_search_exits_1_naming_the_commands_reading_one(
+    invoke   : Invoker,
+    searched : Path
+):
+    """
+    Asserts that evaluating a search, which trains no agent, exits 1 naming
+    `squirtl watch` and `squirtl search --resume`, and writes no evaluation
+    and no baseline into the search's directory.
+    """
+    invocation = invoke(["evaluate", str(searched)])
+    run        = Run.read(searched)
+
+    assert (
+        invocation.code,
+        "squirtl watch" in invocation.log,
+        "squirtl search --resume" in invocation.log,
+        run.evaluations.exists() or run.baseline.exists()
+    ) == (1, True, True, False)
 
 
 def test_a_second_evaluation_reads_what_the_first_wrote(

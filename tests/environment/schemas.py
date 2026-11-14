@@ -13,6 +13,8 @@ Pins the records the environment reads and writes, covering:
   takeover read back as one starting in the bedroom
 - An outcome's flags written in JSON by name and read back, and a line
   holding none read back as empty
+- A snapshot written in JSON and read back, its compressed bytes and its
+  tally among it
 """
 
 from base64              import urlsafe_b64decode
@@ -25,8 +27,8 @@ from pydantic            import ValidationError
 from pytest              import mark, param, raises
 from re import escape
 
-from squirtl.environment.schemas import EnvironmentSettings, Outcome, Recording, Takeover
-from squirtl.reward.schemas      import Event
+from squirtl.environment.schemas import EnvironmentSettings, Outcome, Recording, Snapshot, Takeover
+from squirtl.reward.schemas      import Event, Position, ProgressTally, Term
 
 
 @mark.parametrize(
@@ -168,6 +170,29 @@ def test_a_recording_splits_its_presses_at_its_takeover(
     recording = Recording(presses=b"\x01\x02\x03", takeover=takeover, timer_div=0)
 
     assert (recording.demonstrated, recording.played) == (demonstrated, played)
+
+
+def test_a_snapshot_reads_back_from_json_as_the_one_written():
+    """
+    Asserts that a snapshot written to JSON, its compressed bytes and its
+    tally included, reads back equal, as a search's checkpoint keeps it.
+    """
+    position = Position(map=1, x=2, y=3)
+    written  = Snapshot(
+        frames = bytes(range(256)),
+        state  = bytes(reversed(range(256))),
+        tally  = ProgressTally.of(
+            {Term.NOVELTY: 2},
+            {Event.EVENT_GOT_STARTER},
+            {Event.EVENT_GOT_STARTER: 5},
+            position,
+            {position},
+            5
+        ),
+        timer_div = 255
+    )
+
+    assert Snapshot.model_validate_json(written.model_dump_json()) == written
 
 
 def test_an_outcome_writes_its_flags_by_name_and_reads_a_line_holding_none_as_empty():

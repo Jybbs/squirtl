@@ -4,8 +4,9 @@ from the bedroom of Blue, the player character, to the run's goal, which
 `Overworld.specification` specifies with its wrappers.
 """
 
-from functools import reduce
-from gymnasium import Env
+from compression.zstd import decompress
+from functools        import reduce
+from gymnasium        import Env
 from gymnasium.envs.registration import EnvSpec
 from gymnasium.spaces            import Box, Discrete
 from gymnasium.wrappers          import FrameStackObservation, RecordEpisodeStatistics
@@ -118,16 +119,21 @@ class Overworld(Env):
     ) -> tuple[ndarray, dict[str, Any]]:
         """
         Starts an episode from the `Recording` that `options` holds under
-        `recording`, or otherwise from Blue's bedroom at a DIV drawn from
-        the environment's generator, which `seed` reseeds, and starts the
-        episode's progress and its record:
+        `recording`, or otherwise at the DIV of the `Snapshot` it holds
+        under `snapshot` or from Blue's bedroom at a DIV drawn from the
+        environment's generator, which `seed` reseeds, and starts the
+        episode's record:
 
-        - Loads the state `options` holds under `state`, saved where the
-          demonstration reached the recording's `takeover`
+        - Loads the emulator's state that `snapshot` holds, where `options`
+          holds one, with no frame advanced, and takes up the progress it
+          holds, unless the recording took over from a demonstration, whose
+          episode counts its own steps alone, as its playback from the
+          bedroom does
         - Otherwise loads Blue's bedroom with the recording's DIV, advances
           one frame with no press, since the state `GameBoy.start` saves
-          holds no rendered screen, and plays the presses the demonstration
-          made before the takeover
+          holds no rendered screen, plays the presses the demonstration
+          made before the recording's `takeover`, and starts the episode's
+          progress
         - Writes the takeover's DIV, where the recording holds one
 
         Returns:
@@ -135,16 +141,20 @@ class Overworld(Env):
         """
         super().reset(seed=seed)
 
-        options = options or {}
+        options  = options or {}
+        snapshot = options.get("snapshot")
 
         # DIV holds 8 bits, so its 256 values are every start a reset gives.
         recording = options.get("recording") or Recording(
             presses   = b"",
-            timer_div = int(self.np_random.integers(256))
+            timer_div =
+                snapshot.timer_div if snapshot else int(
+                    self.np_random.integers(256)
+                )
         )
 
-        if state := options.get("state"):
-            self.game_boy.load(state)
+        if snapshot:
+            self.game_boy.load(decompress(snapshot.state))
             frame = self.game_boy.grayscale
         else:
             self.game_boy.reset(recording.timer_div)
@@ -159,8 +169,13 @@ class Overworld(Env):
         if takeover := recording.takeover:
             self.game_boy.set_div(takeover.timer_div)
 
-        self.actions   = bytearray(recording.demonstrated)
-        self.progress  = Progress(self.game_boy, self.settings.goal, self.reward)
+        self.actions  = bytearray(recording.demonstrated)
+        self.progress = Progress(
+            self.game_boy,
+            self.settings.goal,
+            self.reward,
+            None if takeover or not snapshot else snapshot.tally
+        )
         self.takeover  = takeover
         self.timer_div = recording.timer_div
 

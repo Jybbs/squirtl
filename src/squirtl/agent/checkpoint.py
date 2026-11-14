@@ -7,9 +7,13 @@ Defines the file the agents write at each checkpoint and read back:
 - `Weights`, the weights of the network an agent acts through and their
   step, which an evaluation reads from a checkpoint alone and a release
   carries as a checkpoint of its own
+- `archiving` and `reading`, which write such a file whole or not at all
+  and read it back
 """
 
+from collections.abc  import Iterator, Mapping
 from compression.zstd import ZstdError
+from contextlib       import contextmanager
 from io               import BytesIO
 from numpy            import load as load_npz, ndarray, save as save_npy
 from numpy.lib.npyio  import NpzFile
@@ -91,15 +95,8 @@ class Weights(Record, extra="ignore"):
                               damaged, in its zip directory, a zip header, a
                               zstd frame, or a member, naming `path`.
         """
-        try:
-            # `numpy.load` leaves a file it opened itself open where `ZipFile` refuses
-            # it, so the file is opened here and closed by this block.
-            with path.open("rb") as file, load_npz(file) as archive:
-                return cls.model_validate(cls.members(archive))
-        except (
-            BadZipFile, EOFError, KeyError, NotImplementedError, ZstdError
-        ) as error:
-            raise ValueError(f"{path} holds no whole checkpoint: {error}") from error
+        with reading(path) as archive:
+            return cls.model_validate(cls.members(archive))
 
     @classmethod
     def members(cls, archive: NpzFile) -> dict[str, object]:
@@ -116,47 +113,13 @@ class Weights(Record, extra="ignore"):
 
     def save(self, path: Path):
         """
-        Writes the checkpoint to `path` as an `.npz` whose members `zipfile`
-        compresses with zstd, an `agent.pt` member that `torch.save` writes
-        from `contents` beside an `.npy` member for each of `arrays`, each
-        dated 1980-01-01 as `ZipFile.open` dates a member it writes, so the
-        same fields always write the same bytes.
-
-        The archive is written to the `.partial` file beside `path` and
-        flushed through the drive's own cache, then takes the name `path`,
-        whose directory is flushed in turn. An interrupt therefore leaves
-        the checkpoint at `path` as it was, and the `.partial` file goes
-        whether or not the write raised.
+        Writes the checkpoint to `path` through `archiving`, an `agent.pt`
+        member that `torch.save` writes from `contents` beside an `.npy`
+        member for each of `arrays`.
         """
-        partial = path.with_name(f"{path.name}.partial")
-
-        try:
-            with partial.open("wb") as file:
-                with ZipFile(file, "w", ZIP_ZSTANDARD) as archive:
-                    with archive.open("agent.pt", "w") as written:
-                        save(self.contents, written)
-
-                    for name, array in self.arrays.items():
-                        # ZIP64 lets the frames of a large replay memory pass 2 GiB.
-                        with archive.open(
-                            f"{name}.npy",
-                            "w",
-                            force_zip64 = True
-                        ) as written:
-                            save_npy(written, array)
-
-                flush(file.fileno())
-
-            partial.replace(path)
-        finally:
-            partial.unlink(missing_ok=True)
-
-        directory = os_open(path.parent, O_RDONLY)
-
-        try:
-            fsync(directory)
-        finally:
-            close(directory)
+        with archiving(self.arrays, path) as archive:
+            with archive.open("agent.pt", "w") as written:
+                save(self.contents, written)
 
 
 class Checkpoint(Weights, extra="forbid"):
@@ -236,3 +199,63 @@ class RolloutCheckpoint(Checkpoint):
     """
     The state of the generator every random draw of the agent comes from.
     """
+
+
+@contextmanager
+def archiving(arrays: Mapping[str, ndarray], path: Path) -> Iterator[ZipFile]:
+    """
+    Opens an `.npz` to write to `path`, whose members `zipfile` compresses
+    with zstd, adding an `.npy` member for each of `arrays` once the block
+    ends, each member dated 1980-01-01 as `ZipFile.open` dates a member it
+    writes, so the same members always write the same bytes.
+
+    The archive is written to the `.partial` file beside `path` and flushed
+    through the drive's own cache, then takes the name `path`, whose
+    directory is flushed in turn. An interrupt therefore leaves the file at
+    `path` as it was, and the `.partial` file goes whether or not the block
+    raised.
+    """
+    partial = path.with_name(f"{path.name}.partial")
+
+    try:
+        with partial.open("wb") as file:
+            with ZipFile(file, "w", ZIP_ZSTANDARD) as archive:
+                yield archive
+
+                for name, array in arrays.items():
+                    # ZIP64 lets the frames of a large replay memory pass 2 GiB.
+                    with archive.open(f"{name}.npy", "w", force_zip64=True) as written:
+                        save_npy(written, array)
+
+            flush(file.fileno())
+
+        partial.replace(path)
+    finally:
+        partial.unlink(missing_ok=True)
+
+    directory = os_open(path.parent, O_RDONLY)
+
+    try:
+        fsync(directory)
+    finally:
+        close(directory)
+
+
+@contextmanager
+def reading(path: Path) -> Iterator[NpzFile]:
+    """
+    Opens the `.npz` that `archiving` wrote at `path`.
+
+    Raises:
+        ValueError: Where the file at `path` is cut short or damaged, in its
+                    zip directory, a zip header, a zstd frame, or a member,
+                    naming `path`.
+    """
+    try:
+        # `numpy.load` leaves a file it opened itself open where `ZipFile` refuses
+        # it, so the file is opened here and closed by this block.
+        with path.open("rb") as file, load_npz(file) as archive:
+            yield archive
+    except (BadZipFile, EOFError, KeyError, NotImplementedError, ZstdError) as error:
+        raise ValueError(f"{path} holds no whole checkpoint: {error}") from error
+

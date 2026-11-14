@@ -9,21 +9,26 @@ the environment, so none needs the user's own ROM, `clone` serves every
 test starting a run, which reads the clone it runs in, `git` every test
 committing to one, `outside` every test reading a working directory no clone
 holds, `evaluators` every test of a run's evaluation that starts no worker
-process, and `github` every test reading a release.
+process, `github` every test reading a release, and `pools` and `game` every
+test of a search that starts none.
 """
 
 from collections.abc   import Callable, Iterable, Iterator, Mapping
+from common.console    import set_event
 from common.evaluation import EvaluatorStandIn
 from common.releases   import GitHub
+from common.search     import PoolStandIn
 from io                import StringIO
+from numpy             import ndarray
 from os                import devnull
 from pathlib           import Path
 from pytest            import FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, mark
 from pytest_subprocess import FakeProcess
 from subprocess        import check_call
 
-from squirtl.emulator.schemas import Cartridge, EmulatorSettings
-from squirtl.reward.schemas   import RewardSettings
+from squirtl.emulator.console import GameBoy
+from squirtl.emulator.schemas import Button, Cartridge, EmulatorSettings, Symbol
+from squirtl.reward.schemas   import Event, RewardSettings
 
 CLEARED = (
     "COLORTERM", "FORCE_COLOR", "GITHUB_ACTIONS", "GITHUB_OUTPUT",
@@ -234,6 +239,65 @@ def settings() -> RewardSettings:
     from one another, so every sum a step earns is exact.
     """
     return RewardSettings(goal=0.5, milestone=0.125, novelty=0.0625)
+
+
+@fixture
+def game(monkeypatch: MonkeyPatch):
+    """
+    Makes every press on the cartridge `rom` writes, which holds no game,
+    play one: a button moves the player right by one square more than the
+    index `Button` gives it, wrapping past the last, no press stays put,
+    square 16 sets `EVENT_OAK_APPEARED_IN_PALLET`, and square 64 sets
+    `EVENT_GOT_STARTER`. Each press is then decided by the memory of the
+    console and the button alone, so a saved state replays to the same one.
+    """
+    press = GameBoy.press
+
+    def play(game_boy: GameBoy, button: Button | None, frames: int) -> ndarray:  # prose: ignore[unsorted-positionals]
+        """
+        Moves the player as `button` does, sets each flag the square reached
+        earns, then presses as `GameBoy.press` does.
+        """
+        memory = game_boy.emulator.memory
+
+        if button:
+            memory[Symbol.W_X_COORD] = (
+                memory[Symbol.W_X_COORD] + [*Button].index(button) + 1
+            ) % 256
+
+        if memory[Symbol.W_X_COORD] >= 16:
+            set_event(Event.EVENT_OAK_APPEARED_IN_PALLET, memory)
+
+        if memory[Symbol.W_X_COORD] >= 64:
+            set_event(Event.EVENT_GOT_STARTER, memory)
+
+        return press(game_boy, button, frames)
+
+    monkeypatch.setattr(GameBoy, "press", play)
+
+
+@fixture
+def pools(monkeypatch: MonkeyPatch) -> list[PoolStandIn]:
+    """
+    Makes each search a run plays go through a `PoolStandIn` rather than
+    worker processes on PyBoy.
+
+    Returns:
+        Each stand-in, in the order the runs built them.
+    """
+    built = []
+
+    def build(**arguments: object) -> PoolStandIn:
+        """
+        Builds a stand-in for the pool `arguments` describe and records it.
+        """
+        built.append(stand_in := PoolStandIn(**arguments))
+
+        return stand_in
+
+    monkeypatch.setattr("squirtl.runs.searcher.ProcessPoolExecutor", build)
+
+    return built
 
 
 @fixture

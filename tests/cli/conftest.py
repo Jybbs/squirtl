@@ -8,6 +8,10 @@ Defines the fixtures the tests of `squirtl.cli` request:
   `stopped`, one it stops at the end of an episode short of its steps
 - `rolling`, a factory of the flags of a short run of PQN or PPO, and `rolled`,
   a run of either that `squirtl train` takes through under them
+- `brief`, the flags of a short search on the CPU, `searched`, a search
+  `squirtl search` takes through under them, `found`, one it takes on to
+  its goal, and `halted`, one it stops at the end of an iteration short of
+  its steps
 - `windows`, under which PyBoy draws no window whichever one a boot names,
   recording the one each boot named
 - `released`, the run `trained` holds as a release `github` publishes
@@ -17,6 +21,7 @@ Defines the fixtures the tests of `squirtl.cli` request:
 from collections.abc import Callable
 from common.cli      import Invocation, Invoker
 from common.releases import GitHub
+from common.search   import PoolStandIn
 from pathlib         import Path
 from pyboy           import PyBoy
 from pytest          import CaptureFixture, FixtureRequest, MonkeyPatch, fixture, raises
@@ -26,6 +31,7 @@ from squirtl.docs.results     import ReleaseSettings
 from squirtl.emulator         import console
 from squirtl.emulator.schemas import Cartridge
 from squirtl.releases.schemas import ReleaseManifest
+from squirtl.runs.searcher    import Searcher
 from squirtl.runs.trainer     import Trainer
 
 
@@ -207,3 +213,89 @@ def released(github: GitHub, trained: Path) -> Path:
     trained.rename(Path("data/packed"))
 
     return trained
+
+
+@fixture
+def brief() -> list[str]:
+    """
+    Builds the flags of a 40-press search on the CPU of two groups of two
+    particles, each rollout 2 to 4 presses, each group 1 to 2 outer steps
+    an iteration, a checkpoint every 20 presses, an update every 8 presses
+    drawing 4 stacks from 64 slots, and one worker.
+    """
+    return [
+        "--agent.device", "cpu", "--checkpoint-steps", "20", "--search.batch-size", "4",
+        "--search.capacity", "64", "--search.groups", "2", "--search.inner-steps", "2",
+        "4", "--search.outer-steps", "1", "2", "--search.particles", "2",
+        "--search.update-steps", "8", "--search.workers", "1", "--steps", "40"
+    ]
+
+
+@fixture
+def searched(
+    accepted : None,
+    brief    : list[str],
+    clone    : Path,
+    game     : None,
+    invoke   : Invoker,
+    pools    : list[PoolStandIn],
+    rom      : Path
+) -> Path:
+    """
+    Takes a search of `brief` through `squirtl search` in `clone` on the
+    fake game of `game`, in the process running the test.
+
+    Returns:
+        The run's directory, which the command prints.
+    """
+    return Path(invoke(["search", *brief]).output.strip())
+
+
+@fixture
+def found(
+    accepted : None,
+    brief    : list[str],
+    clone    : Path,
+    game     : None,
+    invoke   : Invoker,
+    pools    : list[PoolStandIn],
+    rom      : Path
+) -> Path:
+    """
+    Takes a search of `brief` through `squirtl search` in `clone` on the
+    fake game of `game` until it reaches `EVENT_GOT_STARTER`, its steps
+    raised to 100,000.
+
+    Returns:
+        The run's directory, which the command prints.
+    """
+    return Path(invoke(["search", *brief[:-2], "--steps", "100000"]).output.strip())
+
+
+@fixture
+def halted(
+    accepted    : None,
+    brief       : list[str],
+    clone       : Path,
+    game        : None,
+    invoke      : Invoker,
+    monkeypatch : MonkeyPatch,
+    pools       : list[PoolStandIn],
+    rom         : Path
+) -> Path:
+    """
+    Takes a search of `brief` through `squirtl search` in `clone`, stopping
+    it at the end of the first iteration reaching 20 presses, as `squirtl
+    stop` would.
+
+    Returns:
+        The run's directory, which the command prints.
+    """
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            Searcher,
+            "stopping",
+            property(lambda searcher: searcher.step >= 20)
+        )
+
+        return Path(invoke(["search", *brief]).output.strip())

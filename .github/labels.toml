@@ -42,3 +42,8 @@ name        = "🏅 evaluation"
 color       = "ff86c2"
 description = "The reward terms, the positions and milestones they pay for, and the flag that ends an episode"
 name        = "🍬 reward"
+
+[[labels]]
+color       = "4cc3b5"
+description = "The search over save states, its tree of particles, and the path it records as a demonstration"
+name        = "🗺️ search"

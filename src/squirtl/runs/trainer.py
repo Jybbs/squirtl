@@ -10,9 +10,8 @@ resumed run reads:
   where the run trains PQN or PPO, its `Curriculum` included
 """
 
-from abc             import ABC, abstractmethod
+from abc             import abstractmethod
 from collections.abc import Iterator, Mapping
-from contextlib      import AbstractContextManager
 from datetime        import datetime
 from functools       import cached_property
 from gymnasium       import Env, make_vec
@@ -23,9 +22,8 @@ from gymnasium.wrappers.vector   import NormalizeReward
 from loguru       import logger
 from numpy        import flatnonzero, float32, float64, int64, ndarray, uint64, zeros
 from numpy.random import Generator, SeedSequence, default_rng
+from pathlib      import Path
 from pydantic     import NonNegativeInt
-from signal       import SIGINT, SIGTERM, signal
-from types        import FrameType
 from typing       import ClassVar, Self
 
 from squirtl.agent.checkpoint      import Checkpoint, ReplayCheckpoint, RolloutCheckpoint
@@ -38,6 +36,7 @@ from squirtl.environment.workers   import ignore_interrupts
 from squirtl.evaluation.schemas    import Evaluation
 from squirtl.runs.benchmark        import Benchmark
 from squirtl.runs.curriculum       import Curriculum, Syllabus
+from squirtl.runs.driver           import Driver
 from squirtl.runs.schemas          import Episode, Run, RunSettings, Stream
 
 
@@ -93,11 +92,15 @@ class Handover(Record):
 
         Raises:
             FileNotFoundError : Where `previous` holds no checkpoint.
-            ValueError        : Where the checkpoint is damaged or already
-                                holds the run's `steps`, or the episodes
-                                `previous` recorded end short of it, as
-                                `Run.ended_by` and `Run.first` raise.
+            ValueError        : Where `previous` is a search, as
+                                `Run.check_trained` raises, the checkpoint
+                                is damaged or already holds the run's
+                                `steps`, or the episodes `previous` recorded
+                                end short of it, as `Run.ended_by` and
+                                `Run.first` raise.
         """
+        previous.check_trained()
+
         trainer    = Trainer.named(previous.settings.agent.algorithm)
         checkpoint = trainer.checkpoint_class.from_path(previous.checkpoint)
 
@@ -121,9 +124,7 @@ class Handover(Record):
         line as the stopped run wrote it, each evaluation, and the random
         baseline's where it played one.
         """
-        with run.episodes.open("a", encoding="utf-8") as lines:
-            lines.writelines(self.episodes)
-
+        run.carry(self.episodes, run.episodes)
         run.append(run.evaluations, *self.evaluations)
 
         if self.baseline is not None:
@@ -224,7 +225,7 @@ class Tally:
         return self.measures.averaged(count, totals) if count else None
 
 
-class Trainer(AbstractContextManager, ABC):
+class Trainer(Driver):
     """
     The training loop of one run, which plays `Overworld` through the agent
     from outside the environment and appends each episode to the run's
@@ -240,30 +241,12 @@ class Trainer(AbstractContextManager, ABC):
     The checkpoint the trainer writes and a resumed run reads back.
     """
 
-    pause: ClassVar[str]
-    """
-    Where a stopped run ends, naming the point at which `play` returns.
-    """
-
-    def __enter__(self) -> Self:
-        """
-        Takes over the interrupt and termination signals for `interrupt`,
-        keeping the handlers they had for `__exit__` to put back.
-        """
-        self.handlers = {
-            number: signal(number, self.interrupt) for number in (SIGINT, SIGTERM)
-        }
-
-        return self
-
     def __exit__(self, *raised: object):
         """
-        Puts back the handlers each signal had before `__enter__` and closes
-        the environment, whether or not the `with` block raised.
+        Puts back the signal handlers as `Driver` does and closes the
+        environment, whether or not the `with` block raised.
         """
-        for number, handler in self.handlers.items():
-            signal(number, handler)
-
+        super().__exit__(*raised)
         self.env.close()
 
     def __init__(
@@ -297,16 +280,12 @@ class Trainer(AbstractContextManager, ABC):
         if handover:
             self.restore(handover.checkpoint)
 
-        self.evaluated   = 0
-        self.finished    = 0
-        self.interrupted = False
-        self.run         = Run.start(
-            self.digest,
-            settings,
-            started,
-            handover and handover.name
+        self.evaluated = 0
+        self.finished  = 0
+
+        super().__init__(
+            Run.start(self.digest, settings, started, handover and handover.name)
         )
-        self.saved = 0
 
         if handover:
             self.inherit(handover)
@@ -338,16 +317,7 @@ class Trainer(AbstractContextManager, ABC):
 
             yield from self.play()
 
-        if self.run.stop.exists():
-            logger.warning(
-                "Stopping at step {:,} after {:,} episodes on finding {}",
-                self.agent.step,
-                self.finished,
-                self.run.stop
-            )
-
-        if self.saved < self.agent.step or not self.run.checkpoint.exists():
-            self.checkpoint()
+        self.conclude(f"{self.finished:,} episodes")
 
     @property
     def checkpointed(self) -> Checkpoint:
@@ -396,6 +366,13 @@ class Trainer(AbstractContextManager, ABC):
         """
 
     @property
+    def logs(self) -> tuple[Path, ...]:
+        """
+        Lists the run's `episodes`, which a checkpoint follows.
+        """
+        return (self.run.episodes,)
+
+    @property
     def specification(self) -> EnvSpec:
         """
         Reads the specification of the environment the run plays, along
@@ -413,12 +390,11 @@ class Trainer(AbstractContextManager, ABC):
         )
 
     @property
-    def stopping(self) -> bool:
+    def step(self) -> int:
         """
-        Reads whether the run stops where `play` next returns, which a
-        signal `interrupt` caught or the run's `stop` file sets.
+        Reads the environment steps the agent has taken.
         """
-        return self.interrupted or self.run.stop.exists()
+        return self.agent.step
 
     @abstractmethod
     def build(self) -> Learner:
@@ -434,27 +410,6 @@ class Trainer(AbstractContextManager, ABC):
         Reads the line of each episode `previous` wrote before `checkpoint`,
         its last checkpoint, which a resumed run carries over.
         """
-
-    def checkpoint(self):
-        """
-        Writes the run's `episodes` through to disk, then the checkpoint
-        to the run's `checkpoint`, and records the step it landed at, so no
-        checkpoint runs ahead of the episodes recorded before it.
-        """
-        self.run.sync(self.run.episodes)
-        self.checkpointed.save(self.run.checkpoint)
-        self.saved = self.agent.step
-
-        logger.info("Wrote the checkpoint at step {:,}", self.saved)
-
-    def due(self, interval: int, last: int) -> bool:
-        """
-        Reads whether the agent's step has reached the first multiple of
-        `interval` after `last`, the step a checkpoint or an evaluation
-        last landed at, the one a resumed run continues from included, or 0
-        before the first.
-        """
-        return self.agent.step >= (last // interval + 1) * interval
 
     def evaluate(self):
         """
@@ -498,28 +453,6 @@ class Trainer(AbstractContextManager, ABC):
             handover.name,
             self.saved,
             self.finished
-        )
-
-    def interrupt(self, number: int, frame: FrameType | None):  # prose: ignore[unsorted-positionals]
-        """
-        Stops the run where `play` next returns on the first interrupt or
-        termination signal, and raises `KeyboardInterrupt` on the next,
-        which ends the run at once on its last checkpoint.
-
-        Raises:
-            KeyboardInterrupt: On any signal after the first.
-        """
-        if self.interrupted:
-            logger.warning("Ending at once on the last checkpoint")
-
-            raise KeyboardInterrupt
-
-        self.interrupted = True
-
-        logger.warning(
-            "Stopping at the end of the {}, where another interrupt ends the run at "
-            "once on its last checkpoint",
-            self.pause
         )
 
     @abstractmethod

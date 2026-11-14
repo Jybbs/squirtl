@@ -8,7 +8,7 @@ from collections import Counter
 from numpy       import array, int8, ndarray, zeros
 
 from squirtl.emulator.console import GameBoy
-from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Term
+from squirtl.reward.schemas   import Event, Position, ProgressTally, RewardSettings, Score, Term
 
 
 class Progress:
@@ -19,21 +19,45 @@ class Progress:
     steps have earned each term, against which `score` pays each step.
     """
 
-    def __init__(self, game_boy: GameBoy, goal: Event, settings: RewardSettings):
+    def __init__(
+        self,
+        game_boy : GameBoy,
+        goal     : Event,
+        settings : RewardSettings,
+        tally    : ProgressTally | None = None
+    ):
         """
-        Records the position the player starts the episode on and each flag
-        already set, neither of which a step earns, and the term each flag
-        up to `goal` pays.
+        Takes up the episode where `tally` leaves it, or otherwise records
+        the position the player starts the episode on and each flag already
+        set, neither of which a step earns, and the term each flag up to
+        `goal` pays.
         """
-        self.earned    = Counter()
-        self.events    = Event.read(game_boy)
-        self.firsts    = {}
+        tally = tally or ProgressTally.read(game_boy)
+
+        self.earned    = Counter(tally.earned)
+        self.events    = set(tally.events)
+        self.firsts    = dict(tally.firsts)
         self.game_boy  = game_boy
-        self.position  = Position.read(game_boy)
-        self.positions = {self.position}
+        self.position  = tally.position
+        self.positions = tally.reached
         self.settings  = settings
-        self.steps     = 0
+        self.steps     = tally.steps
         self.terms     = goal.terms
+
+    @property
+    def blacked_out(self) -> bool:
+        """
+        Reads whether the player's party has fainted, per `GameBoy.fainted`,
+        on the position the last step reached, unless that position is in
+        Oak's lab before `EVENT_BATTLED_RIVAL_IN_OAKS_LAB` is set, since
+        losing the rival's battle there blacks nobody out and pret/pokered's
+        `OaksLab.asm` heals the party before setting the flag.
+        """
+        # `OAKS_LAB` is map $28.
+        return self.game_boy.fainted and (
+            self.position.map != 0x28
+            or Event.EVENT_BATTLED_RIVAL_IN_OAKS_LAB in self.events
+        )
 
     @property
     def flags(self) -> ndarray:
@@ -50,6 +74,21 @@ class Progress:
         earned, as `RewardSettings.shares` pays the count of each.
         """
         return self.settings.shares(self.earned)
+
+    @property
+    def tally(self) -> ProgressTally:
+        """
+        Packs the progress so far into the `ProgressTally` that `Progress`
+        resumes from.
+        """
+        return ProgressTally.of(
+            self.earned,
+            self.events,
+            self.firsts,
+            self.position,
+            self.positions,
+            self.steps
+        )
 
     def grid(self, size: int) -> ndarray:
         """

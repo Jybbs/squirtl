@@ -3,7 +3,7 @@ changelog:
     - title  : 🐛 Fixes
       labels : [🐛 bug]
     - title  : 🧢 Learning
-      labels : [🧢 agent, 🏅 evaluation]
+      labels : [🧢 agent, 🏅 evaluation, 🗺️ search]
     - title  : 🎮 Game
       labels : [🎮 emulator, 🌿 environment, 🍬 reward]
     - title  : ⌨️ Command Line

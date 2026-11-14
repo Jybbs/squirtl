@@ -119,7 +119,8 @@ def test_the_inventory_lists_the_rendered_files_and_the_pages_it_writes():
     assert [path for path in pages if path.startswith("docs/pages/commands/")] == [
         f"docs/pages/commands/{name}.md"
         for name in (
-            "cite", "evaluate", "fetch", "pack", "stop", "train", "watch", "write-docs"
+            "cite", "evaluate", "fetch", "pack", "search",
+            "stop", "train", "watch", "write-docs"
         )
     ]
     assert "docs/pages/methods/reward.md" in pages
@@ -135,19 +136,21 @@ def test_the_inventory_lists_the_rendered_files_and_the_pages_it_writes():
 def test_the_settings_leave_out_what_the_machine_chooses(written: dict[str, str]):
     """
     Asserts that the settings the site models carry every subject's defaults
-    but the agent's device and the environments an evaluation plays across,
-    both of which follow the machine a run starts on, so the file reads the
-    same wherever it is written.
+    but the agent's device, the environments an evaluation plays across, and
+    the workers a search runs across, each of which follows the machine a
+    run starts on, so the file reads the same wherever it is written.
     """
     settings = loads(written["settings.json"])
 
     assert (
         "device" in settings["agent"],
         "environments" in settings["evaluation"],
+        "workers" in settings["search"],
         settings["evaluation"]["episodes"],
         settings["reward"]["goal"],
-        settings["environment"]["goal"]
-    ) == (False, False, 30, 0.35, "EVENT_GOT_STARTER")
+        settings["environment"]["goal"],
+        settings["search"]["particles"]
+    ) == (False, False, False, 30, 0.35, "EVENT_GOT_STARTER", 32)
 
 
 def test_the_symbols_reach_the_site_at_their_addresses(written: dict[str, str]):

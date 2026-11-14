@@ -3,9 +3,10 @@ Defines the networks the agents train, `QNetwork`, which values each
 action for the deep Q-network and PQN, and `ActorCritic`, which PPO trains,
 beside `Encoder`, which both read each observation through, `ChannelNorm`,
 `acting_network` and `seeded_network`, which build the one an agent acts
-through, `weighted`, which reads the layers PQN and PPO set the weights of,
-`truncated_normal`, which sets PQN's, and `tensors`, which moves a batch of
-observations onto a device.
+through, `configure`, which sets the process up for any of them, `weighted`,
+which reads the layers PQN and PPO set the weights of, `truncated_normal`,
+which sets PQN's, and `tensors`, which moves a batch of observations onto
+a device.
 """
 
 from collections.abc  import Iterator, Mapping
@@ -256,6 +257,19 @@ def acting_network(actions: int, algorithm: Algorithm, space: Dict) -> Module:
         case Algorithm.PQN : return QNetwork.pqn(actions, space)
 
 
+def configure(settings: AgentSettings):
+    """
+    Turns NNPACK off for the whole process, which runs these networks'
+    convolutions on the CPU slower than PyTorch's own, and sets the
+    process's thread count to the `threads` that `settings` name, where they
+    name one.
+    """
+    nnpack.set_flags(False)
+
+    if settings.threads:
+        set_num_threads(settings.threads)
+
+
 def seeded_network(
     actions  : int,
     seed     : int,
@@ -264,15 +278,10 @@ def seeded_network(
 ) -> Module:
     """
     Builds the network `settings` names on its device, under a fork of
-    PyTorch's global generator seeded from `seed`. It first turns NNPACK off
-    for the whole process, which runs these networks' convolutions on the
-    CPU slower than PyTorch's own, and sets the process's thread count to
-    `threads`, where the settings name one.
+    PyTorch's global generator seeded from `seed`, once `configure` has set
+    the process up.
     """
-    nnpack.set_flags(False)
-
-    if settings.threads:
-        set_num_threads(settings.threads)
+    configure(settings)
 
     with fork_rng(devices=[]):
         default_generator.manual_seed(seed)

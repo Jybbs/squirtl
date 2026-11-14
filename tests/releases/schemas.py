@@ -9,6 +9,7 @@ Pins the records a release carries its trained runs through, covering:
   recommended run naming no trained run
 - The manifest beside the tars, holding the demonstration apart from the
   trained runs and refusing a recommended run it does not list
+- A committed search, which packs as a demonstration with no checkpoint
 - The release read from GitHub's REST API, its manifest, and the runs it
   fetches, checked against both digests and unpacked whole or not at all
 - The runs a selector matches, and the runs `RunSelection` reads from a
@@ -99,16 +100,37 @@ def test_a_manifest_recommending_a_run_it_does_not_list_is_refused(
         )
 
 
+def test_a_release_attaching_no_manifest_is_refused_by_its_tag():
+    """
+    Asserts that reading the manifest of a release attaching none raises
+    `ValueError` naming the release's tag and the manifest's file.
+    """
+    release = GithubRelease(published_at="2026-11-10T00:00:00Z", tag_name="0.1.0")
+
+    with raises(ValueError, match="The release 0.1.0 attaches no manifest.json"):
+        _ = release.manifest
+
+
+@mark.parametrize(
+    "search",
+    [param(False, id="the-demonstration"), param(True, id="a-search")]
+)
 def test_a_recommended_run_naming_no_trained_run_is_refused_before_any_tar(
-    committed: list[Run]
+    committed : list[Run],
+    recorded  : Recorder,
+    search    : bool
 ):
     """
     Asserts that packing under a `recommended_run` naming the demonstration
-    rather than a trained run raises `ValueError` naming it, leaving no tar
-    of any run written.
+    or a committed search rather than a trained run raises `ValueError`
+    naming it, leaving no tar of any run written.
     """
-    with raises(ValueError, match=f"{committed[3].name} is no trained run"):
-        ReleaseManifest.pack(ReleaseSettings(recommended_run=committed[3].name))
+    name = recorded(5, searches=True).name if search else committed[3].name
+
+    with raises(ValueError, match=f"{name} is no trained run"):
+        ReleaseManifest.pack(ReleaseSettings(recommended_run=name))
+
+    assert not ReleaseManifest.folder.exists()
 
     assert not ReleaseManifest.folder.exists()
 
@@ -166,15 +188,15 @@ def test_a_run_with_a_line_holding_no_episode_is_refused_before_any_tar(
     assert not ReleaseManifest.folder.exists()
 
 
-def test_a_release_attaching_no_manifest_is_refused_by_its_tag():
+def test_a_release_with_no_selector_matches_every_packed_run(
+    packed    : ReleaseManifest,
+    published : GitHub
+):
     """
-    Asserts that reading the manifest of a release attaching none raises
-    `ValueError` naming the release's tag and the manifest's file.
+    Asserts that a release matches every run a tar holds, the trained runs
+    and then the demonstration, where no selector names any.
     """
-    release = GithubRelease(published_at="2026-11-10T00:00:00Z", tag_name="0.1.0")
-
-    with raises(ValueError, match="The release 0.1.0 attaches no manifest.json"):
-        _ = release.manifest
+    assert GithubRelease.read().matched(None) == packed.packed
 
 
 @mark.parametrize(
@@ -221,15 +243,32 @@ def test_a_release_github_does_not_publish_is_refused(
         GithubRelease.read(tag)
 
 
-def test_a_release_with_no_selector_matches_every_packed_run(
-    packed    : ReleaseManifest,
-    published : GitHub
+def test_a_search_packs_as_a_demonstration_holding_no_checkpoint(
+    committed : list[Run],
+    recorded  : Recorder
 ):
     """
-    Asserts that a release matches every run a tar holds, the trained runs
-    and then the demonstration, where no selector names any.
+    Asserts that a search `docs/runs/` lists packs among the demonstrations
+    rather than the trained runs, its tar holding its record and its
+    episodes as written and no checkpoint.
     """
-    assert GithubRelease.read().matched(None) == packed.packed
+    search   = recorded(5, searches=True)
+    manifest = ReleaseManifest.pack(ReleaseSettings(recommended_run=committed[0].name))
+    packed   = next(run for run in manifest.demonstrations if run.name == search.name)
+
+    with open_tar(ReleaseManifest.folder / packed.asset, "r:zst") as archive:
+        members = {
+            Path(name).name: archive.extractfile(name).read()
+            for name in archive.getnames()
+        }
+
+    assert [run.name for run in manifest.runs] == [run.name for run in committed[:3]]
+    assert [run.name for run in manifest.demonstrations] == sorted(
+        (search.name, committed[3].name)
+    )
+    assert sorted(members) == ["episodes.jsonl", "run.json"]
+    assert loads(members["run.json"])["searches"] is True
+    assert members["episodes.jsonl"] == search.episodes.read_bytes()
 
 
 def test_a_second_pack_writes_the_same_bytes(packed: ReleaseManifest):

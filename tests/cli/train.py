@@ -5,8 +5,9 @@ Pins what `squirtl train` does, covering:
 - The cartridge, the `--resume` directory, and the working directory outside
   a clone it refuses before making any directory, among them a run holding
   no checkpoint or one already holding its steps, a damaged checkpoint, a
-  log short of its checkpoint, replay memory of another shape, and a
-  demonstration directory holding no run
+  log short of its checkpoint, replay memory of another shape, a
+  demonstration directory holding no run, and a search
+- A search's setting, which it takes no flag for
 - A resume into a new directory under the settings the stopped run recorded
 - The line each episode logs and the line each step logs under `--verbose`
 - The emulator's window `--emulator.open-window` opens
@@ -239,19 +240,39 @@ def test_each_episode_logs_a_line_and_each_step_one_under_verbose(
     )
 
 
-def test_a_run_of_pqn_or_ppo_writes_its_lines_and_its_checkpoint(rolled: Path):
+@mark.usefixtures("clone")
+def test_a_search_setting_exits_2_before_making_any_directory(invoke: Invoker):
     """
-    Asserts that either agent's run across two environments exits
-    zero having written, in the directory it prints, a line for each
-    environment's two 3-step episodes and its checkpoint at its sixteenth
-    and last step.
+    Asserts that `squirtl train` refuses `--search.particles` as an option
+    it does not know, exiting 2 as cyclopts does on a token it cannot parse,
+    before any directory is made.
     """
-    run = Run.read(rolled)
+    invocation = invoke(["train", "--search.particles", "3"])
 
     assert (
-        len(list(run.recorded)),
-        VectorCheckpoint.from_path(run.checkpoint).step
-    ) == (4, 16)
+        invocation.code,
+        "Unknown option: --search.particles" in invocation.log,
+        Path("data/runs").exists()
+    ) == (2, True, False)
+
+
+def test_a_resume_of_a_search_exits_1_naming_the_commands_reading_one(
+    invoke   : Invoker,
+    searched : Path
+):
+    """
+    Asserts that resuming a search through `squirtl train` exits 1 naming
+    `squirtl watch` and `squirtl search --resume`, and makes no directory
+    beside the search's.
+    """
+    invocation = invoke(["train", "--resume", str(searched)])
+
+    assert (
+        invocation.code,
+        "squirtl watch" in invocation.log,
+        "squirtl search --resume" in invocation.log,
+        list(Path("data/runs").iterdir())
+    ) == (1, True, True, [searched])
 
 
 @mark.parametrize(
@@ -276,6 +297,21 @@ def test_the_window_flag_boots_the_emulator_in_its_sdl2_window(
     invoke(["train", *quick, *flags])
 
     assert windows == [window]
+
+
+def test_a_run_of_pqn_or_ppo_writes_its_lines_and_its_checkpoint(rolled: Path):
+    """
+    Asserts that either agent's run across two environments exits
+    zero having written, in the directory it prints, a line for each
+    environment's two 3-step episodes and its checkpoint at its sixteenth
+    and last step.
+    """
+    run = Run.read(rolled)
+
+    assert (
+        len(list(run.recorded)),
+        VectorCheckpoint.from_path(run.checkpoint).step
+    ) == (4, 16)
 
 
 def test_a_run_writes_its_record_lines_and_checkpoint_and_prints_its_directory(

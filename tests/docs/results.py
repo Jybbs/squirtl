@@ -6,12 +6,12 @@ Pins what `Results` reads from the run directories under
   action beside the sampled one, the comparison of each agent and
   curriculum across its runs, and random presses' share across every seed
 - The curriculum's runs set against the same agent's runs from the bedroom
-- A missing folder, which holds no run
+- A missing folder, which holds no run, and a search, which no lane holds
 - Every estimate holding whatever order the runs' names list in
 - A run reading another cartridge than the default path, following a
   demonstration at an absolute path, holding no evaluation of the agent or
   of the random baseline, or holding episodes at the most likely action
-  that do not match its agent, which `Trained.read` refuses
+  that do not match its agent, which `Trained.from_run` refuses
 - The goal each run ended its episodes at, and runs ending at more than one,
   which `Results.read` refuses
 - The run `ReleaseSettings` recommends by default, one of the runs
@@ -117,7 +117,7 @@ def test_a_run_following_a_demonstration_at_an_absolute_path_is_refused(
     )
 
     with raises(ValueError, match="/home/demo"):
-        Trained.read(folder)
+        Trained.from_run(Run.read(folder))
 
 
 def test_a_run_holding_no_baseline_is_refused(
@@ -131,7 +131,7 @@ def test_a_run_holding_no_baseline_is_refused(
     (folder / "baseline.json").rename(folder / "moved.json")
 
     with raises(ValueError, match="holds no baseline"):
-        Trained.read(folder)
+        Trained.from_run(Run.read(folder))
 
 
 def test_a_run_holding_no_evaluation_is_refused(
@@ -144,7 +144,7 @@ def test_a_run_holding_no_evaluation_is_refused(
     folder = recorded(checkout, [], 1)
 
     with raises(ValueError, match="holds no evaluation"):
-        Trained.read(folder)
+        Trained.from_run(Run.read(folder))
 
 
 def test_a_run_reading_another_cartridge_is_refused(
@@ -164,7 +164,30 @@ def test_a_run_reading_another_cartridge_is_refused(
     )
 
     with raises(ValueError, match="/home/rom.gb"):
-        Trained.read(folder)
+        Trained.from_run(Run.read(folder))
+
+
+def test_a_search_is_left_out_of_the_results(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Asserts that a search committed beside a training run, holding no
+    evaluation and ending at another goal, is left out of every lane, so the
+    results hold the training run alone.
+    """
+    recorded(checkout, [0.75], 1)
+    search = Run(
+        digest   = "0",
+        revision = Revision(commit="0", dirty=False, lockfile="0"),
+        searches = True,
+        settings = RunSettings(
+            environment = EnvironmentSettings(goal=Event.EVENT_GOT_POKEDEX)
+        ),
+        started = datetime(2026, 10, 4, 0, 0, 2, tzinfo=UTC)
+    )
+    checkout({f"docs/runs/{search.name}/run.json": search.model_dump_json()})
+
+    assert [run.seed for run in Results.read().runs] == [1]
 
 
 def test_comparisons_follow_the_agents_name_and_then_the_curriculum(
@@ -221,7 +244,7 @@ def test_each_score_carries_ppos_share_at_its_most_likely_action(
     ).model_copy(update={"argmax": [outcome(0.75, terminated=True)]})
     (folder / "evaluations.jsonl").write_text(evaluation.model_dump_json() + "\n")
 
-    run = Trained.read(folder)
+    run = Trained.from_run(Run.read(folder))
 
     assert [(score.argmax, score.reached) for score in (*run.scores, run.baseline)] == [
         (1.0, 0.0),
@@ -259,7 +282,7 @@ def test_an_evaluation_whose_argmax_episodes_do_not_match_its_agent_is_refused(
     (folder / "evaluations.jsonl").write_text(evaluation.model_dump_json() + "\n")
 
     with raises(ValueError, match=rf"of {algorithm.name} whose episodes"):
-        Trained.read(folder)
+        Trained.from_run(Run.read(folder))
 
 
 def test_estimates_hold_whatever_order_the_runs_names_list_in(

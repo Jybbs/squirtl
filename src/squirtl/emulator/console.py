@@ -4,12 +4,13 @@ the protocols naming the PyBoy members it calls: `Emulator`, `GameWrapper`,
 `Memory`, and `Screen`.
 """
 
-from contextlib import AbstractContextManager
-from hashlib    import sha256
-from io         import BytesIO
-from numpy      import ndarray
-from pyboy      import PyBoy
-from typing     import BinaryIO, Protocol, Self
+from collections.abc import Sequence
+from contextlib      import AbstractContextManager
+from hashlib         import sha256
+from io              import BytesIO
+from numpy           import ndarray
+from pyboy           import PyBoy
+from typing          import BinaryIO, Protocol, Self
 
 from squirtl.emulator.schemas import Button, Cartridge, EmulatorSettings, Symbol
 
@@ -43,9 +44,9 @@ class Memory(Protocol):
     The view of the game's memory that `PyBoy.memory` holds.
     """
 
-    def __getitem__(self, address: int, /) -> int:
+    def __getitem__(self, address: int | slice, /) -> int | Sequence[int]:
         """
-        Reads the byte at `address`.
+        Reads the byte at `address`, or each byte of a `slice` of addresses.
         """
 
 
@@ -133,6 +134,32 @@ class GameBoy(AbstractContextManager):
         return sha256(self.state).hexdigest()
 
     @property
+    def fainted(self) -> bool:
+        """
+        Reads whether the player holds a party whose every Pokémon has no
+        HP left, as pret/pokered's `AnyPartyAlive` finds before a blackout.
+        In a battle, the Pokémon `wPlayerMonNumber` names reads its HP from
+        `wBattleMon`, since the party's copy holds the HP of the turn before
+        until `RemoveFaintedPlayerMon`, so a knockout reads at the faint
+        itself. That holds once `LoadBattleMonFromParty` has written the
+        species, since `InitBattleVariables` zeroes it at a battle's start
+        while the HP still holds the last battle's.
+        """
+        fighting = self.read(Symbol.W_IS_IN_BATTLE) and self.read(Symbol.W_BATTLE_MON)
+        party    = range(self.read(Symbol.W_PARTY_COUNT))
+        sent_out = self.read(Symbol.W_PLAYER_MON_NUMBER) if fighting else None
+
+        # Each party struct is pret/pokered's `PARTYMON_STRUCT_LENGTH` of $2C bytes,
+        # its two bytes of HP following the species byte as the battle struct's do.
+        return bool(party) and not any(
+            self.read(Symbol.W_BATTLE_MON, byte)
+            if mon == sent_out
+            else self.read(Symbol.W_PARTY_MONS, 0x2C * mon + byte)
+            for mon in party
+            for byte in (1, 2)
+        )
+
+    @property
     def grayscale(self) -> ndarray:
         """
         Copies the red channel of the frame the emulator last rendered,
@@ -168,6 +195,16 @@ class GameBoy(AbstractContextManager):
             self.emulator.save_state(saved)
 
             return saved.getvalue()
+
+    @property
+    def tiles(self) -> bytes:
+        """
+        Copies the 20 by 18 tiles `wTileMap` holds, the background and the
+        window the game last drew without the sprites above them.
+        """
+        return bytes(
+            self.emulator.memory[Symbol.W_TILE_MAP : Symbol.W_TILE_MAP + 20 * 18]
+        )
 
     @classmethod
     def boot(cls, cartridge: Cartridge, settings: EmulatorSettings) -> Self:

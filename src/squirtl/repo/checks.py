@@ -425,7 +425,8 @@ class Imports(Check):
         "releases"    : ("agent", "docs", "runs"),
         "repo"        : ("cli", "docs", "emulator", "releases"),
         "reward"      : ("emulator",),
-        "runs"        : ("evaluation",)
+        "runs"        : ("evaluation", "search"),
+        "search"      : ("agent", "environment")
     }
 
     manifest : Manifest

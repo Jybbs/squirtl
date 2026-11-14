@@ -192,6 +192,6 @@ def test_every_command_the_package_registers_takes_a_page():
     flags.
     """
     assert [command.path.name for command in Command.every(app)] == [
-        "cite.md", "evaluate.md", "fetch.md", "pack.md",
+        "cite.md", "evaluate.md", "fetch.md", "pack.md", "search.md",
         "stop.md", "train.md", "watch.md", "write-docs.md"
     ]

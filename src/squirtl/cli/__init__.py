@@ -3,12 +3,13 @@ Exposes the `squirtl` command, whose help prints the summary the package
 metadata carries beneath its usage line and whose `--version` flag prints
 the version that metadata names. Each command's module loads only where the
 command line names that command, and `squirtl --help` reads each summary
-from the module's source. `squirtl train` takes each setting from the flag
-passed for it, then from the `[tool.squirtl]` table of the `pyproject.toml`
-in the working directory, and otherwise from the default its field declares,
-whereas a command reading a run takes the settings that run recorded, and
-no other command reads that table. Passed after any command or group beneath
-`squirtl`, the `--version` flag prints that same version.
+from the module's source. `squirtl train` and `squirtl search` take each
+setting from the flag passed for it, then from the `[tool.squirtl]` table
+of the `pyproject.toml` in the working directory, and otherwise from the
+default its field declares, whereas a command reading a run takes the
+settings that run recorded, and no other command reads that table. Passed
+after any command or group beneath `squirtl`, the `--version` flag prints
+that same version.
 """
 
 from ast                import FunctionDef, get_docstring, parse
@@ -62,6 +63,12 @@ def report(error: CycloptsError) -> Panel:
     return CycloptsPanel(error)
 
 
+configuration = Toml(
+    "pyproject.toml",
+    root_keys            = ("tool", "squirtl"),
+    use_commands_as_keys = False
+)
+
 app = App(
     default_parameter = Parameter(negative=()),
     error_formatter   = report,
@@ -74,16 +81,9 @@ register(app, "squirtl.cli.cite:cite")
 register(app, "squirtl.cli.evaluate:evaluate")
 register(app, "squirtl.cli.fetch:fetch")
 register(app, "squirtl.cli.pack:pack")
+register(app, "squirtl.cli.search:search", config=configuration)
 register(app, "squirtl.cli.stop:stop")
-register(
-    group  = app,
-    target = "squirtl.cli.train:train",
-    config = Toml(
-        "pyproject.toml",
-        root_keys            = ("tool", "squirtl"),
-        use_commands_as_keys = False
-    )
-)
+register(app, "squirtl.cli.train:train", config=configuration)
 register(app, "squirtl.cli.watch:watch")
 app.command(
     App(help="Writes files the package declares into the checkout.", name="write")

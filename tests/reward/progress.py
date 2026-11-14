@@ -8,10 +8,14 @@ Pins how `Progress` scores each step of an episode, covering:
 - A flag past the goal, or already set when the episode starts, which earns
   nothing
 - The step of the episode first setting each flag
+- The blackout of a party that faints, which Oak's lab spares until the
+  rival's battle there has ended
 - The share every term reports on every step, the most one step earns, and
   each term's total across the episode's steps
 - The grid of reached positions centered on the player, the squares it
   leaves out, and the vector of flags in the order `Event` declares
+- The tally holding the progress as it stands, and a progress taken up from
+  one going on as the progress it came from would have
 """
 
 from collections.abc import Callable
@@ -21,6 +25,7 @@ from operator        import attrgetter
 from pytest          import mark, param
 
 from squirtl.emulator.console import GameBoy
+from squirtl.emulator.schemas import Symbol
 from squirtl.reward.progress  import Progress
 from squirtl.reward.schemas   import Event, Position, RewardSettings, Score, Term
 
@@ -130,6 +135,46 @@ def test_a_flag_set_when_the_episode_starts_earns_nothing(
     assert (progress.score(), progress.firsts) == (earning(), {})
 
 
+@mark.parametrize(
+    ("hp", "place", "battled", "blacked_out"),
+    [
+        param(0, 0x00, False, True, id="fainted"),
+        param(1, 0x00, False, False, id="standing"),
+        param(0, 0x28, False, False, id="fainted-in-oaks-lab"),
+        param(0, 0x28, True, True, id="fainted-in-oaks-lab-after-the-rival"),
+        param(1, 0x28, True, False, id="standing-in-oaks-lab-after-the-rival")
+    ]
+)
+def test_a_fainted_party_blacks_out_unless_oaks_lab_holds_the_rivals_battle(
+    battled     : bool,
+    blacked_out : bool,
+    flag        : Callable[[Event], None],
+    game_boy    : GameBoy,
+    hp          : int,
+    move        : Callable[[Position], None],
+    place       : int,
+    progress    : Progress
+):
+    """
+    Asserts that a party of one Pokémon holding `hp` blacks out once it
+    faints on the position a step reached, unless that position is in Oak's
+    lab, map $28, before `EVENT_BATTLED_RIVAL_IN_OAKS_LAB` is set, which
+    `battled` sets.
+    """
+    memory = game_boy.emulator.memory
+
+    memory[Symbol.W_PARTY_COUNT]    = 1
+    memory[Symbol.W_PARTY_MONS + 2] = hp
+
+    if battled:
+        flag(Event.EVENT_BATTLED_RIVAL_IN_OAKS_LAB)
+
+    move(Position(map=place, x=0, y=0))
+    progress.score()
+
+    assert progress.blacked_out is blacked_out
+
+
 def test_a_new_episode_earns_novelty_again_for_a_position_an_earlier_one_reached(
     game_boy : GameBoy,
     goal     : Event,
@@ -154,24 +199,35 @@ def test_a_new_episode_earns_novelty_again_for_a_position_an_earlier_one_reached
     ] == [earning(novelty=settings.novelty), earning()]
 
 
-def test_a_step_reaching_a_new_position_and_a_milestone_earns_both(
-    flag     : Callable[[Event], None],
+def test_a_progress_taken_up_from_a_tally_goes_on_as_the_one_it_came_from(
+    game_boy : GameBoy,
+    goal     : Event,
     move     : Callable[[Position], None],
     progress : Progress,
     settings : RewardSettings
 ):
     """
-    Asserts that a step reaching a new position on the same step it first
-    sets a milestone's flag earns both terms, the way stepping onto row 1 of
-    Pallet Town, beside its north exit, sets `EVENT_OAK_APPEARED_IN_PALLET`.
+    Asserts that a progress taken up from another's tally holds its terms,
+    its flags, its firsts, its positions, and its steps, so each step scores
+    as the other's next step does, earning nothing for a position already
+    reached and the novelty for a new one.
     """
-    move(Position(map=0, x=0, y=1))
-    flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
+    move(Position(map=0, x=1, y=0))
+    progress.score()
+    progress.score()
 
-    assert progress.score() == earning(
-        milestone = settings.milestone,
-        novelty   = settings.novelty
-    )
+    resumed = Progress(game_boy, goal, settings, progress.tally)
+
+    assert resumed.tally == progress.tally
+
+    move(Position(map=0, x=0, y=0))
+
+    assert resumed.score() == earning()
+
+    move(Position(map=0, x=2, y=0))
+
+    assert resumed.score() == earning(novelty=settings.novelty)
+    assert progress.positions != resumed.positions
 
 
 @mark.parametrize("goal", Event, ids=attrgetter("name"))
@@ -208,28 +264,24 @@ def test_the_most_one_step_earns_is_the_ceiling_the_settings_hold_for_its_goal(
     assert (score.total, score.terminated) == (settings.ceiling(goal), True)
 
 
-def test_the_progress_records_the_step_first_setting_each_flag(
+def test_a_step_reaching_a_new_position_and_a_milestone_earns_both(
     flag     : Callable[[Event], None],
-    progress : Progress
+    move     : Callable[[Position], None],
+    progress : Progress,
+    settings : RewardSettings
 ):
     """
-    Asserts that the progress holds, for each flag its steps set, the step
-    of the episode first setting it, counting from 1, the flags one step
-    sets sharing that step and a flag past the goal included.
+    Asserts that a step reaching a new position on the same step it first
+    sets a milestone's flag earns both terms, the way stepping onto row 1 of
+    Pallet Town, beside its north exit, sets `EVENT_OAK_APPEARED_IN_PALLET`.
     """
-    progress.score()
+    move(Position(map=0, x=0, y=1))
     flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
-    progress.score()
-    flag(Event.EVENT_FOLLOWED_OAK_INTO_LAB)
-    flag(Event.EVENT_GOT_POKEDEX)
-    progress.score()
-    progress.score()
 
-    assert progress.firsts == {
-        Event.EVENT_FOLLOWED_OAK_INTO_LAB  : 3,
-        Event.EVENT_GOT_POKEDEX            : 3,
-        Event.EVENT_OAK_APPEARED_IN_PALLET : 2
-    }
+    assert progress.score() == earning(
+        milestone = settings.milestone,
+        novelty   = settings.novelty
+    )
 
 
 @mark.parametrize(
@@ -377,6 +429,59 @@ def test_a_flag_past_the_goal_earns_nothing_and_ends_nothing(
     flag(event)
 
     assert progress.score() == earning()
+
+
+def test_a_tally_holds_the_progress_as_it_stands(
+    flag     : Callable[[Event], None],
+    move     : Callable[[Position], None],
+    progress : Progress
+):
+    """
+    Asserts that a tally holds how often each term was earned, each flag
+    set, the step first setting each, the position the player stands on,
+    each position reached, and the steps taken.
+    """
+    move(Position(map=0, x=1, y=0))
+    flag(Event.EVENT_FOLLOWED_OAK_INTO_LAB)
+    progress.score()
+
+    tally = progress.tally
+
+    assert (
+        tally.earned, tally.events, tally.firsts,
+        tally.position, tally.reached, tally.steps
+    ) == (
+        {Term.MILESTONE: 1, Term.NOVELTY: 1},
+        {Event.EVENT_FOLLOWED_OAK_INTO_LAB},
+        {Event.EVENT_FOLLOWED_OAK_INTO_LAB: 1},
+        Position(map=0, x=1, y=0),
+        {Position(map=0, x=0, y=0), Position(map=0, x=1, y=0)},
+        1
+    )
+
+
+def test_the_progress_records_the_step_first_setting_each_flag(
+    flag     : Callable[[Event], None],
+    progress : Progress
+):
+    """
+    Asserts that the progress holds, for each flag its steps set, the step
+    of the episode first setting it, counting from 1, the flags one step
+    sets sharing that step and a flag past the goal included.
+    """
+    progress.score()
+    flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
+    progress.score()
+    flag(Event.EVENT_FOLLOWED_OAK_INTO_LAB)
+    flag(Event.EVENT_GOT_POKEDEX)
+    progress.score()
+    progress.score()
+
+    assert progress.firsts == {
+        Event.EVENT_FOLLOWED_OAK_INTO_LAB  : 3,
+        Event.EVENT_GOT_POKEDEX            : 3,
+        Event.EVENT_OAK_APPEARED_IN_PALLET : 2
+    }
 
 
 def test_the_shares_total_what_each_term_earned_across_the_episodes_steps(
