@@ -31,21 +31,21 @@ describe('DEMONSTRATION', () => {
   })
 })
 
-describe('SEARCH', () => {
-  it('names the one search docs/runs/ commits, its tar listing the agent, curriculum, and seed its record holds', () => {
-    const tar = release.DEMONSTRATIONS.find(({ name }) => name === release.SEARCH)
+describe('SEARCHES', () => {
+  it('names each search docs/runs/ commits, its tar listing the agent, curriculum, and seed its record holds', () => {
+    const tars = release.SEARCHES.map(name => release.DEMONSTRATIONS.find(tar => tar.name === name))
 
     expect(
       COMMITTED
         .filter(({ run }) => run.searches)
         .map(({ name, run }) => [name, run.settings.agent.algorithm, run.settings.curriculum.demonstration !== null, run.settings.seed])
-    ).toStrictEqual([[tar?.name, tar?.agent, tar?.curriculum, tar?.seed]])
+    ).toStrictEqual(tars.map(tar => [tar?.name, tar?.agent, tar?.curriculum, tar?.seed]))
   })
 })
 
 describe('DEMONSTRATIONS', () => {
-  it('lists the followed run and the search in the order of its name', () => {
-    expect(release.DEMONSTRATIONS.map(tar => tar.name)).toStrictEqual([release.DEMONSTRATION, release.SEARCH].toSorted())
+  it('lists the followed run and each search in the order of its name', () => {
+    expect(release.DEMONSTRATIONS.map(tar => tar.name)).toStrictEqual([release.DEMONSTRATION, ...release.SEARCHES].toSorted())
   })
 })
 
