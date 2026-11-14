@@ -308,6 +308,10 @@
       "stack": "'Bitcount Prop Double', ui-monospace, monospace"
     }
   },
+  "github": {
+    "dark": "#0d1117",
+    "light": "#ffffff"
+  },
   "glyphs": {
     "0": {
       "advance": 6,

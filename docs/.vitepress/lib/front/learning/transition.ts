@@ -215,15 +215,36 @@ export function tileStepAt(t: number, phases: Phases = battlePhases): number {
  * beside the view's tiles by the step of the double circle that blacks each.
  */
 export function townFrom(context: Reader, image: CanvasImageSource, view: TownView = VIEW): Town {
-  const { height, width, x, y } = view
-  const { pad }                 = WORLD.pallet
-  context.drawImage(image, (x + pad) * SQUARE, (y + pad) * SQUARE, width, height, 0, 0, width, height)
-  const base     = context.getImageData(0, 0, width, height)
+  const { height, width } = view
+  const [left, top]       = viewCorner(view)
+  context.drawImage(image, left, top, width, height, 0, 0, width, height)
+  return townOf(context.getImageData(0, 0, width, height), (w, h) => context.createImageData(w, h), view)
+}
+
+/**
+ * Keeps `base`, the town's view of `view`, in every palette the transition
+ * shows, each in a blank view `blank` makes, beside the view's tiles by the
+ * step of the double circle that blacks each.
+ */
+export function townOf(
+  base  : ImageData,
+  blank : (width: number, height: number) => ImageData,
+  view  : TownView
+): Town {
   const shades   = shadesOf(base.data)
   const palettes = new Map(townPalettes.map(palette => {
-    const shaded = context.createImageData(width, height)
+    const shaded = blank(view.width, view.height)
     recolor(palette, shades, base.data, shaded.data)
     return [palette, shaded] as const
   }))
   return { ink: colorOf(shades.at(-1)!), palettes, tiles: circleTilesOf(TRANSITION.circleSteps, view) }
+}
+
+/**
+ * Reads the pixel of Pallet Town's image at the top left of `view`, past the
+ * squares of border the image pads the town with.
+ */
+export function viewCorner(view: TownView): [x: number, y: number] {
+  const { pad } = WORLD.pallet
+  return [(view.x + pad) * SQUARE, (view.y + pad) * SQUARE]
 }

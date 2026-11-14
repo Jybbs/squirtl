@@ -36,7 +36,7 @@ type Reason = 'keys' | 'pointer'
  * How long a run that repeats rests on its end before it starts again, in
  * milliseconds, where its `Ticking` names no rest of its own.
  */
-const REST = 3200
+export const REST = 3200
 
 /**
  * The share of a widget that shows before its autoplay starts.

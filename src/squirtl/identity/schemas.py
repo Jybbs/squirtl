@@ -849,6 +849,12 @@ class Identity(Declared):
     The faces, each under the role it sets.
     """
 
+    github: Swatch
+    """
+    The ground GitHub sets a README on in each color scheme, which a drawing
+    the README carries takes so its band meets the page around it.
+    """
+
     glyphs: dict[str, Glyph]
     """
     The display face's characters as the dots each lights.
