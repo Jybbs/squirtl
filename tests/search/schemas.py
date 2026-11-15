@@ -5,9 +5,10 @@ Pins the records of a search, covering:
 - A frontier reading back from JSON as the one written, the generator's
   128-bit state and each kept state's bytes included
 - The defaults of `SearchSettings`, each from the column and the appendix of
-  Mhammedi and Cohan's paper its docstring cites, the bound replay memory
-  holds them to, the worker count following the machine, a range running
-  backward refused, and a range of one value accepted
+  Mhammedi and Cohan's paper its docstring cites, the bound they hold replay
+  memory to, and the worker count following the machine
+- Each `Range` field of `SearchSettings` refusing a range running backward
+  and accepting a range of one value
 """
 
 from common.search import particle, snapshot
@@ -57,14 +58,14 @@ def test_a_particle_ranks_by_its_reward_and_then_its_uncertainty(
 
 def test_a_range_of_one_value_is_accepted(ranged: str):
     """
-    Asserts that a range whose fewest equals its most is accepted.
+    Asserts that a range whose least equals its most is accepted.
     """
     assert getattr(SearchSettings(**{ranged: (3, 3)}), ranged) == (3, 3)
 
 
 def test_a_range_running_backward_is_refused(ranged: str):
     """
-    Asserts that a range whose fewest exceeds its most raises, naming the
+    Asserts that a range whose least passes its most raises, naming the
     field.
     """
     with raises(ValidationError, match=rf"{ranged}\n.*passes the most"):
