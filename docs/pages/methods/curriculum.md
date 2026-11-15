@@ -6,6 +6,8 @@ A run of PQN or PPO can learn the walk to its goal backward, starting its traini
 
 The demonstration splits into segments, each ending at the step whose press first sets one of the flags the reward pays, so on the way to the starter the walk to Oak, the walk into the lab, the wait for Oak to ask, and the choice of the starter each make a segment. Each segment draws its starts from a window of 25 steps reaching back from its latest start, which opens at the segment's end.
 
+The demonstration plays to its last press whatever `--environment.max-episode-steps` holds, while every training episode still truncates there. A run therefore warns as it starts on each segment ending at or past that step, because the segment's window reaches Blue's bedroom before it counts as solved, and an episode from there gets fewer steps than the demonstration took to reach that end.
+
 ## Moving a Window
 
 An episode from a start succeeds once the reward for the flags it sets reaches what the demonstration earned for them from the same step to its segment's end, which ends the episode. Every 32 episodes from a window, the share that succeeded moves it:

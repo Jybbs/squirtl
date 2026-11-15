@@ -11,7 +11,8 @@ demonstration, covering:
 - A segment solved at the bedroom once its share reaches the completion
   share, leaving the windows of the rest, and no window once every one is
 - An episode drawn before its window's last move left out of the share
-- The line logged at each move, the moving average of successful lengths,
+- The line logged at each move and at each segment ending at or past
+  `max_episode_steps`, the moving average of successful lengths,
   a curriculum restored from its syllabus drawing as the one it was taken
   from, and a syllabus whose segments end elsewhere refused
 """
@@ -175,6 +176,19 @@ def test_a_segment_at_the_bedroom_is_solved_at_the_completion_share(
     assert [window.segment for window in curriculum.starts.windows] == windows
 
 
+def test_a_warning_groups_the_thousands_of_its_steps(logged: list[str]):
+    """
+    Asserts that a segment ending at step 12,345 past a cap of 10,240 is
+    warned on with each figure grouped in thousands.
+    """
+    Curriculum([12_345], 0, CurriculumSettings()).warn(10_240)
+
+    assert logged == [
+        "Segment 0 ends at step 12,345, past the 10,240 steps an episode takes "
+        "before max_episode_steps truncates it"
+    ]
+
+
 def test_a_window_moves_by_a_multiple_of_the_window_between_its_bounds():
     """
     Asserts that each move draws its size uniformly between the bounds the
@@ -258,6 +272,35 @@ def test_each_window_starts_at_its_segments_end_spanning_the_window_steps():
             Window(earliest=65, latest=90, segment=1)
         ]
     )
+
+
+@mark.parametrize(
+    ("cap", "warned"),
+    [
+        param(91, [], id="past-every-end"),
+        param(90, [1], id="at-the-last-end"),
+        param(41, [1], id="between-the-ends"),
+        param(40, [0, 1], id="at-the-first-end")
+    ]
+)
+def test_each_segment_ending_at_or_past_the_cap_is_warned_on(
+    cap    : int,
+    logged : list[str],
+    warned : list[int]
+):
+    """
+    Asserts that of the segments ending at steps 40 and 90, each one whose
+    end sits at step `cap` or later is warned on, naming the segment, its
+    end, and the cap, while one ending at the step before the cap is not.
+    """
+    curriculum = build()
+    curriculum.warn(cap)
+
+    assert logged == [
+        f"Segment {number} ends at step {curriculum.segments[number].end}, past "
+        f"the {cap} steps an episode takes before max_episode_steps truncates it"
+        for number in warned
+    ]
 
 
 def test_the_limit_follows_the_moving_average_of_successful_lengths():

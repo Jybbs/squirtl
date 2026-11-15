@@ -13,8 +13,10 @@ own, covering:
   which leaves the wrappers beneath it where the recording's last step left
   them
 - The segments `FollowDemonstration` splits a demonstration into at each
-  flag and never at a new position alone, the state it keeps at each step
-  compressed through zstd, the demonstration it refuses, the start each
+  flag and never at a new position alone, every press it plays past
+  `max_episode_steps`, which still truncates each episode, the state it keeps
+  at each step compressed through zstd, the demonstration it refuses and
+  the cause it names, the start each
   reset draws from the windows it is given and the frames it observes
   there, the success and the limit that truncate an episode from a start,
   and the takeover a resumed run plays back
@@ -32,10 +34,12 @@ from numpy              import array, ndarray, uint8, unique
 from numpy.random       import default_rng
 from numpy.testing      import assert_array_equal
 from pytest             import fixture, mark, param, raises
+from re                 import escape
 from types              import SimpleNamespace
 
 from squirtl.environment.overworld import Overworld
-from squirtl.environment.schemas   import Entry, Outcome, Recording, Snapshot, Starts, Takeover, Window
+from squirtl.environment.schemas   import Entry, EnvironmentSettings, Outcome, Recording, Snapshot, Starts, Takeover
+from squirtl.environment.schemas   import Window
 from squirtl.environment.wrappers  import FollowDemonstration, RecordOutcome, ShrinkObservation
 from squirtl.reward.schemas        import Event, Position, Term
 
@@ -212,15 +216,18 @@ def test_a_demonstration_keeps_each_state_compressed_through_zstd(
     assert max(map(len, states)) < min(sizes) // 10
 
 
+@mark.parametrize("cap", [1, 12, 13, EnvironmentSettings().max_episode_steps])
 def test_a_demonstration_splits_into_a_segment_at_each_flag_it_sets(
-    following: Callable[..., Env]
+    cap       : int,
+    following : Callable[..., Env]
 ):
     """
     Asserts that the demonstration of 13 presses splits at the presses at
     steps 4, 8, and 12, each setting one more flag of the cartridge's, after
-    keeping a snapshot before each press and one after the last.
+    keeping a snapshot before each press and one after the last, however far
+    short of its length `max_episode_steps` falls.
     """
-    env = following()
+    env = following(max_episode_steps=cap)
 
     assert env.get_wrapper_attr("ends") == [4, 8, 12]
     assert len(env.get_wrapper_attr("snapshots")) == 14
@@ -271,24 +278,48 @@ def test_a_reset_plays_a_recording_back_through_every_wrapper_beneath_it(
 
 
 @mark.parametrize(
-    ("goal", "presses"),
+    ("goal", "presses", "message"),
     [
-        param(Event.EVENT_GOT_STARTER, bytes(12), id="short-of-the-goal"),
-        param(Event.EVENT_GOT_STARTER, bytes(14), id="past-it"),
-        param(Event.EVENT_GOT_POKEDEX, bytes(13), id="short-of-a-later-goal")
+        param(
+            Event.EVENT_GOT_STARTER,
+            bytes(12),
+            "the demonstration's 12 presses never set EVENT_GOT_STARTER",
+            id = "short-of-the-goal"
+        ),
+        param(
+            Event.EVENT_GOT_STARTER,
+            bytes(14),
+            "the demonstration sets EVENT_GOT_STARTER at its press on step 12, "
+            "before the last of its 14 presses",
+            id = "past-it"
+        ),
+        param(
+            Event.EVENT_GOT_POKEDEX,
+            bytes(13),
+            "the demonstration's 13 presses never set EVENT_GOT_POKEDEX",
+            id = "short-of-a-later-goal"
+        ),
+        param(
+            Event.EVENT_GOT_STARTER,
+            b"",
+            "the demonstration's 0 presses never set EVENT_GOT_STARTER",
+            id = "no-press"
+        )
     ]
 )
 def test_a_demonstration_not_reaching_the_goal_at_its_last_press_is_refused(
     following : Callable[..., Env],
     goal      : Event,
+    message   : str,
     presses   : bytes
 ):
     """
-    Asserts that a demonstration stopping short of the run's goal, or
-    holding presses past the one reaching it, is refused as the wrapper
-    plays it, naming the goal, the Pokédex as much as the starter.
+    Asserts that a demonstration never setting the run's goal is refused as
+    the wrapper plays it, naming its presses and the goal, the Pokédex as
+    much as the starter, and that one setting the goal before its last press
+    is refused naming the step of the press that set it.
     """
-    with raises(ValueError, match=f"no longer reach {goal.name} at the last"):
+    with raises(ValueError, match=f"^{escape(message)}$"):
         following(presses, goal=goal)
 
 
@@ -618,3 +649,37 @@ def test_the_wrapper_sits_where_the_specification_names_it(
     steps alone.
     """
     assert isinstance(following().env.env.env, FollowDemonstration)
+
+
+@mark.parametrize("latest", [None, 0])
+def test_max_episode_steps_truncates_an_episode_along_a_long_demonstration(
+    following : Callable[..., Env],
+    latest    : int | None
+):
+    """
+    Asserts that along the demonstration of 13 presses, `max_episode_steps`
+    of 3 still truncates an episode from Blue's bedroom, or from a start
+    at step 0 of the first segment's window, at its own third step and not
+    before, the start alone reporting whether it succeeded, here that it
+    did not.
+    """
+    env = following(max_episode_steps=3)
+
+    if latest is None:
+        env.reset(seed=0)
+    else:
+        start(
+            earliest = latest,
+            env      = env,
+            latest   = latest,
+            segment  = 0
+        )
+
+    endings = [env.step(0)[2:] for _ in range(3)]
+
+    assert [(terminated, truncated) for terminated, truncated, _ in endings] == [
+        (False, False),
+        (False, False),
+        (False, True)
+    ]
+    assert endings[-1][2].get("succeeded") is (None if latest is None else False)

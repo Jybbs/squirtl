@@ -568,16 +568,23 @@ class RolloutTrainer(Trainer):
         """
         Builds the curriculum along the demonstration from the ends of
         its segments the first environment lists, seeded from the window's
-        stream, or `None` where the run follows no demonstration.
+        stream, and warns on each segment ending past `max_episode_steps`,
+        as `Curriculum.warn` does.
+
+        Returns:
+            The curriculum, or `None` where the run follows no demonstration.
         """
         if self.demonstration is None:
             return None
 
-        return Curriculum(
+        curriculum = Curriculum(
             self.env.unwrapped.get_attr("ends")[0],
             self.settings.seeds[Stream.WINDOW],
             self.settings.curriculum
         )
+        curriculum.warn(self.settings.environment.max_episode_steps)
+
+        return curriculum
 
     @property
     def digest(self) -> str:

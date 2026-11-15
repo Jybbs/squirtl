@@ -26,10 +26,10 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
     Starts each episode at a step of `demonstration` drawn from the `starts`
     the trainer sets, or in Blue's bedroom where it sets none, as Mhammedi
     and Cohan's Appendix B starts each episode after Salimans and Chen. It
-    plays the demonstration once as it wraps the environment, keeping the
-    `Snapshot` of each step that `ProgressObservation.capture` takes, and
-    splits it into segments, each ending at the step that first sets one of
-    the flags `Event` names.
+    plays every press of the demonstration once as it wraps the environment,
+    whatever `max_episode_steps` holds, keeping the `Snapshot` of each step
+    that `ProgressObservation.capture` takes, and splits it into segments,
+    each ending at the step that first sets one of the flags `Event` names.
 
     An episode from a start succeeds once the reward for the flags it sets
     reaches what the demonstration earned for them from the same step to its
@@ -43,8 +43,8 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
         `demonstration` through it.
 
         Raises:
-            ValueError: Where `demonstration` no longer reaches the goal at
-                        its last press.
+            ValueError: Where no press of `demonstration` sets the goal, or
+                        a press before its last sets it.
         """
         RecordConstructorArgs.__init__(
             self,
@@ -93,14 +93,19 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
 
     def follow(self):
         """
-        Plays the demonstration from Blue's bedroom, keeping the `Snapshot`
-        of the environment before each press and after the last.
+        Plays each press of the demonstration from Blue's bedroom, keeping
+        the `Snapshot` of the environment before each press and after the
+        last, and stops at the press that terminates the episode. It reads
+        no truncation, which only the `TimeLimit` beneath it reports, so a
+        demonstration longer than `max_episode_steps` plays to its end.
 
         Raises:
-            ValueError: Where an episode ends before the last press, or the
-                        last press does not reach the goal.
+            ValueError: Where no press sets the goal, naming the presses and
+                        the goal, or a press before the last sets it, naming
+                        the step of that press.
         """
         capture = self.get_wrapper_attr("capture")
+        goal    = self.get_wrapper_attr("settings").goal.name
         presses = self.demonstration.presses
 
         self.env.reset(
@@ -111,22 +116,23 @@ class FollowDemonstration(Wrapper, RecordConstructorArgs):
                 )
             }
         )
-        terminated = truncated = False
 
-        for action in presses:
-            if terminated or truncated:
-                break
-
+        for step, action in enumerate(presses):
             self.snapshots.append(capture())
 
-            _, _, terminated, truncated, _ = self.env.step(action)
+            if self.env.step(action)[2]:
+                break
+        else:
+            raise ValueError(
+                f"the demonstration's {len(presses):,} presses never set {goal}"
+            )
 
         self.snapshots.append(capture())
 
-        if not terminated or len(self.snapshots) <= len(presses):
+        if step < len(presses) - 1:
             raise ValueError(
-                f"the demonstration's {len(presses):,} presses no longer reach "
-                f"{self.get_wrapper_attr('settings').goal.name} at the last of them"
+                f"the demonstration sets {goal} at its press on step {step:,}, "
+                f"before the last of its {len(presses):,} presses"
             )
 
     def reset(
