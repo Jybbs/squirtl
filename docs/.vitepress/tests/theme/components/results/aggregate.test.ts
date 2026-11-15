@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { type VueWrapper, enableAutoUnmount, mount }                        from '@vue/test-utils'
 import { type MockInstance, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick }                                                           from 'vue'
+import { createSSRApp, h, nextTick }                                          from 'vue'
+import { renderToString }                                                     from 'vue/server-renderer'
 
 import * as browser from '../../../common/browser.ts'
 
@@ -100,7 +101,19 @@ describe('ResultsAggregate', () => {
     [688, 0],
     [300, 10]
   ])('sets each column’s interval at %d wide on %d lines of its own', async (width, lines) => {
-    expect((await mounted(width)).wrapper.findAll('svg tspan')).toHaveLength(lines)
+    expect((await mounted(width)).wrapper.findAll('svg tspan[x]')).toHaveLength(lines)
+  })
+
+  it('takes over the markup the server renders, each figure in a node of its own', async () => {
+    const widget   = { render: () => h(ResultsAggregate) }
+    const hydrated = createSSRApp(widget)
+    const root     = document.createElement('div')
+    const warned   = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    root.innerHTML = await renderToString(createSSRApp(widget))
+    document.body.append(root)
+    hydrated.mount(root)
+    hydrated.unmount()
+    expect(warned).not.toHaveBeenCalled()
   })
 
   it('names each column to a screen reader with its figures', async () => {
@@ -159,7 +172,7 @@ describe('ResultsAggregate’s seeds', () => {
 describe('ResultsAggregate’s columns', () => {
   it('opens a column a reader presses, naming its runs, and shuts it on a second press', async () => {
     const { wrapper } = await mounted()
-    const spoken      = () => wrapper.get('p.sr-only').text()
+    const spoken      = () => wrapper.get('p.unseen').text()
     await columnsOf(wrapper)[1]!.trigger('click')
     const opened = spoken()
     await columnsOf(wrapper)[1]!.trigger('click')
@@ -171,7 +184,7 @@ describe('ResultsAggregate’s columns', () => {
     const { wrapper } = await mounted()
     await switchesOf(wrapper)[0]!.trigger('click')
     await columnsOf(wrapper)[4]!.trigger('click')
-    expect(wrapper.get('p.sr-only').text())
+    expect(wrapper.get('p.unseen').text())
       .toBe('PQN along the curriculum, 5 runs: seed 1 0%, left out; '
           + 'seed 2 0%; seed 3 0%; seed 4 0%; seed 5 0%')
   })

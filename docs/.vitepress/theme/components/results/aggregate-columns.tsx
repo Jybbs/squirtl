@@ -95,7 +95,7 @@ const Points = defineComponent({
   props : { share: { required: true, type: Number }, still: { required: true, type: Boolean } },
   setup : props => {
     const shown = aggregateColumns.useEased(() => props.share, () => props.still)
-    return () => aggregateColumns.numerals[shown.value]
+    return () => <tspan>{aggregateColumns.numerals[shown.value]}</tspan>
   }
 })
 

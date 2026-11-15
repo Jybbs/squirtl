@@ -67,7 +67,7 @@ function drawColumns(
       <div aria-label={spoken} class={PARTS.drawing} role="img">
         {drawPlot(drawn, width)}
       </div>
-      <p aria-live="polite" class="sr-only">
+      <p aria-live="polite" class="unseen">
         {picked === null ? '' : aggregateColumns.spokenRunsOf(aggregates[picked]!, drawn.seeds)}
       </p>
     </div>

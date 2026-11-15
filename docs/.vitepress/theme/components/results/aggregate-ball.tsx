@@ -5,7 +5,7 @@ import { IDENTITY } from '../../../lib/identity/identity.ts'
 
 /**
  * The classes inking a Poké Ball whose top is left empty, every shade but its
- * outline in the raised ground.
+ * edge in the raised ground.
  */
 const EMPTY = ['fill-lift', 'fill-lift', 'fill-lift', 'fill-quiet'] as const
 /**
