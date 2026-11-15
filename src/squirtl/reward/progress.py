@@ -5,6 +5,7 @@ positions and flags out for the observation.
 """
 
 from collections import Counter
+from math        import fsum
 from numpy       import array, int8, ndarray, zeros
 
 from squirtl.emulator.console import GameBoy
@@ -89,6 +90,14 @@ class Progress:
             self.positions,
             self.steps
         )
+
+    @property
+    def total(self) -> float:
+        """
+        Sums the shares into the reward the episode's steps have earned,
+        every term included, rounding once at the end as `fsum` does.
+        """
+        return fsum(self.shares.values())
 
     def grid(self, size: int) -> ndarray:
         """
