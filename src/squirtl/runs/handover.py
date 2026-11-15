@@ -1,9 +1,10 @@
 """
-Defines the records a resumed training run continues from:
+Defines the records a resumed run continues from:
 
-- `Handover`, what it takes over from the stopped run it continues
-- `Moments`, `Slot`, and `VectorCheckpoint`, everything it continues from
-  where the run trains PQN or PPO, its `Curriculum` included
+- `Handover`, what a training run takes over from the stopped run it
+  continues, and `SearchHandover`, what a search takes over
+- `Moments`, `Slot`, and `VectorCheckpoint`, everything a training run
+  continues from where it trains PQN or PPO, its `Curriculum` included
 
 It also defines `Tally`, the sums of the measures each environment's episode
 averages, which `Trainer` keeps as it trains.
@@ -11,6 +12,7 @@ averages, which `Trainer` keeps as it trains.
 
 from numpy    import int64, zeros
 from pydantic import NonNegativeInt
+from typing   import Self
 
 from squirtl.agent.checkpoint    import Checkpoint, RolloutCheckpoint
 from squirtl.agent.schemas       import Measures
@@ -19,13 +21,14 @@ from squirtl.environment.schemas import Recording
 from squirtl.evaluation.schemas  import Evaluation
 from squirtl.runs.curriculum     import Syllabus
 from squirtl.runs.schemas        import Run
+from squirtl.search.checkpoint   import SearchCheckpoint
 
 
 class Handover(Record):
     """
-    What a resumed run takes over from the stopped run it continues, read
-    whole before the new run writes anything, so a resume refused for any of
-    it leaves no directory behind.
+    What a resumed training run takes over from the stopped run it
+    continues, read whole before the new run writes anything, so a resume
+    refused for any of it leaves no directory behind.
     """
 
     baseline: Evaluation | None
@@ -96,6 +99,67 @@ class Moments(Record):
     """
     The returns' running variance.
     """
+
+
+class SearchHandover(Record):
+    """
+    What a resumed search takes over from the stopped search it continues,
+    read whole before the new run writes anything, so a resume refused for
+    any of it leaves no directory behind.
+    """
+
+    checkpoint: SearchCheckpoint
+    """
+    The stopped search's last checkpoint, which the search restores.
+    """
+
+    iterations: list[str]
+    """
+    The line of each iteration the checkpoint holds, as the stopped search's
+    `iterations` holds it.
+    """
+
+    name: str
+    """
+    The stopped search's name, which the new run records under `resumes`.
+    """
+
+    @classmethod
+    def from_run(cls, previous: Run) -> Self:
+        """
+        Reads what `previous` recorded up to its last checkpoint.
+
+        Raises:
+            FileNotFoundError : Where `previous` holds no checkpoint.
+            ValueError        : Where `previous` is a training run, its
+                                checkpoint is damaged or already holds the
+                                goal or the run's `steps`, or the iterations
+                                `previous` recorded end short of it, as
+                                `Run.first` raises.
+        """
+        if not previous.searches:
+            raise ValueError(
+                f"{previous.directory} holds a training run, which `squirtl train "
+                f"--resume` continues"
+            )
+
+        checkpoint = SearchCheckpoint.from_path(previous.checkpoint)
+        frontier   = checkpoint.frontier
+
+        if (
+            previous.settings.environment.goal in frontier.winner.snapshot.tally.events
+            or frontier.presses                >= previous.settings.steps
+        ):
+            raise ValueError(
+                f"{previous.checkpoint} already holds the search's end, at press "
+                f"{frontier.presses:,}"
+            )
+
+        return cls(
+            checkpoint = checkpoint,
+            iterations = previous.first(frontier.iterations, previous.iterations),
+            name       = previous.name
+        )
 
 
 class Slot(Record):
