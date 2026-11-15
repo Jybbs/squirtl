@@ -78,17 +78,23 @@ export function usePick<Value extends string>(values: readonly Value[], picked: 
 /**
  * Makes `values` a group of toggles on Zag.js's toggle group machine, any
  * number pressed at once and held in `pressed`, which carries their ARIA
- * attributes and the keys moving focus among them from one tab stop.
+ * attributes and the keys moving focus among them from one tab stop, the
+ * arrow keys along the orientation `orientation` reads, across by default.
  *
  * Returns:
  *   The props of the group, and the props of each toggle by its value.
  */
-export function useSwitches<Value extends string>(values: readonly Value[], pressed: Ref<ReadonlySet<Value>>): Options<Value> {
+export function useSwitches<Value extends string>(
+  values       : readonly Value[],
+  pressed      : Ref<ReadonlySet<Value>>,
+  orientation? : () => toggleGroup.Props['orientation']
+): Options<Value> {
   return optionsOf(() => ({
     multiple      : true,
     onValueChange : ({ value }: toggleGroup.ValueChangeDetails) => {
       pressed.value = new Set(values.filter(each => value.includes(each)))
     },
+    orientation   : orientation?.(),
     value         : [...pressed.value]
   }))
 }
