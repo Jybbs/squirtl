@@ -25,7 +25,7 @@ from collections             import Counter
 from functools               import reduce
 from importlib.resources     import files
 from importlib.resources.abc import Traversable
-from itertools               import chain
+from itertools               import chain, compress
 from math         import sumprod
 from operator     import or_
 from pydantic     import BaseModel, BeforeValidator, Field, StringConstraints, computed_field, model_validator
@@ -474,6 +474,21 @@ class ProjectMark(Declared):
     """
     Whether the mark opens the name of every workflow.
     """
+
+    @property
+    def places(self) -> tuple[str, ...]:
+        """
+        Names each place the mark opens, the section of a pull request's
+        body first, then every workflow's name or the gate each workflow
+        ends on where the mark opens either.
+        """
+        return (
+            f"The {self.section} section",
+            *compress(
+                ("every workflow’s name", "the name of the gate each workflow ends on"),
+                (self.workflows, self.gate)
+            )
+        )
 
 
 class Ramp(Declared):
@@ -953,6 +968,14 @@ class Identity(Declared):
     """
     The one sentence the front page and the site's card set beneath the name.
     """
+
+    @property
+    def gate_mark(self) -> str:
+        """
+        Names the glyph of the project mark opening the name of the gate
+        each workflow ends on.
+        """
+        return next(mark.glyph for mark in self.project_marks if mark.gate)
 
     @property
     def headings(self) -> dict[str, str]:
