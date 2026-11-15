@@ -33,7 +33,7 @@ class ReleaseSettings(Record):
     committed under `Results.folder`.
     """
 
-    recommended_run: str = "20261112T141501.166143Z"
+    recommended_run: str = "20261114T203814.788303Z"
     """
     The name of the run a release plays where no selection names one.
     """

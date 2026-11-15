@@ -56,13 +56,13 @@ class Estimate(Record):
     @property
     def share(self) -> str:
         """
-        Spells the value as a share of evaluation episodes, in whole points
-        beside its interval where the share is neither every episode nor
-        none.
+        Spells the value as a share of evaluation episodes, as every episode
+        or none where its interval, if it has one, holds at that same bound,
+        and otherwise in whole points beside its interval.
         """
-        match self.value:
-            case 1 : return "in every evaluation episode"
-            case 0 : return "in no evaluation episode"
+        match self.value, self.interval:
+            case 1, None | (1, 1) : return "in every evaluation episode"
+            case 0, None | (0, 0) : return "in no evaluation episode"
 
         bounds = "" if self.interval is None else " [{:.0f}, {:.0f}]".format(
             *(100 * bound for bound in self.interval)
