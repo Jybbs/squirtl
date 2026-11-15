@@ -1,12 +1,12 @@
 import { type MaybeElementRef, clamp, refDebounced, unrefElement, useTransition } from '@vueuse/core'
 import { type ComputedRef, type Ref, computed, ref, toRef }                      from 'vue'
 
-import { type Options, usePick } from '../widgets/choice.ts'
-import { BEAT, TRAVEL }          from '../widgets/motion.ts'
-import { fromMouse }             from '../widgets/scrub.ts'
-import * as aggregateSwitches    from './aggregate-switches.ts'
-import * as aggregate            from './aggregate.ts'
-import type { Estimate }         from './results.ts'
+import { type Options, usePick }    from '../widgets/choice.ts'
+import { BEAT, TRAVEL }             from '../widgets/motion.ts'
+import { fromMouse }                from '../widgets/scrub.ts'
+import * as aggregateSwitches       from './aggregate-switches.ts'
+import * as aggregate               from './aggregate.ts'
+import { COMMITTED, type Estimate } from './results.ts'
 
 /**
  * One column the plot draws: its group, the estimate the seeds kept give it,
@@ -66,19 +66,6 @@ const WOBBLE: Keyframe[] = [
   { transform: 'rotate(0deg)' }
 ]
 /**
- * Every share from 0 to 100 points spelled as its numeral, set once so a
- * figure easing from one share to another reads its text from here rather
- * than spelling one on each frame.
- */
-export const numerals: readonly string[] = Array.from({ length: 101 }, (_, n) => `${n}`)
-
-/**
- * Reads `share` in whole points of a percent, held between 0 and 100 so it
- * indexes `numerals`.
- */
-const pointsOf = (share: number) => clamp(Math.round(share * 100), 0, 100)
-
-/**
  * Spells the runs of the group `each` draws as a screen reader reads them
  * once a reader opens its column, each seed's share and whether `seeds`
  * keeps it.
@@ -116,25 +103,24 @@ export function spreadOf(
 
 /**
  * Reads what the plot draws over `aggregates` while `seeds` holds the seeds
- * kept: each column, random presses' estimate, and the line saying where the
- * intervals come from. With every seed kept, each estimate is the one the
- * runs report, and otherwise the page draws it again from the seeds kept.
+ * kept: each column and random presses' estimate. With every seed kept, each
+ * estimate is the one the runs report, and otherwise the page draws it again
+ * from the seeds kept.
  */
 export function useColumns(
   aggregates : readonly aggregate.Aggregate[],
   seeds      : Readonly<Ref<readonly number[]>>
 ): {
   columns : ComputedRef<Column[]>
-  note    : ComputedRef<string>
   random  : ComputedRef<Estimate>
 } {
-  const whole   = computed(() => seeds.value.length === aggregateSwitches.committedSeeds.length)
-  const keptOf  = (each: aggregate.Aggregate) =>
+  const baselines = new Map(COMMITTED.runs.map(run => [run.seed, run.baseline.reached]))
+  const whole     = computed(() => seeds.value.length === aggregateSwitches.committedSeeds.length)
+  const keptOf    = (each: aggregate.Aggregate) =>
     aggregate.pairedOf(each).filter(run => seeds.value.includes(run.seed))
-  const shownOf = (shares: readonly number[], reported: Estimate) =>
+  const shownOf   = (shares: readonly number[], reported: Estimate) =>
     whole.value ? reported : aggregate.estimateOf(shares)
-  const randoms = computed(() => keptOf(aggregates[0]!).map(run => run.random))
-  const random  = computed(() => shownOf(randoms.value, aggregates[0]!.random))
+  const randoms   = computed(() => seeds.value.map(seed => baselines.get(seed)!))
 
   return {
     columns : computed(() => aggregates.map(each => ({
@@ -142,19 +128,7 @@ export function useColumns(
       estimate : shownOf(keptOf(each).map(run => run.share), each.reached),
       runs     : aggregate.pairedOf(each)
     }))),
-    note    : computed(() => {
-      const draws = aggregate.RESAMPLES.toLocaleString('en-US')
-      if (!whole.value) {
-        return `Each interval drawn here from ${draws} draws over the ${seeds.value.length} seeds kept, `
-             + 'near what SciPy would report for them rather than on it.'
-      }
-      const [low, high] = aggregate.middleOf(aggregate.drawnOf(randoms.value))
-      const gap         = aggregate.gapOf([low, high], aggregate.spanOf(random.value))
-      return `Each interval as the runs report it, from SciPy's ${draws} draws over all five seeds. `
-           + `Drawn again here, random presses' runs from ${aggregate.percentOf(low)} `
-           + `to ${aggregate.percentOf(high)}, within ${gap} points of it.`
-    }),
-    random  : random
+    random  : computed(() => shownOf(randoms.value, COMMITTED.random!))
   }
 }
 
@@ -167,7 +141,7 @@ export function useColumns(
  */
 export function useEased(share: () => number, still: () => boolean): ComputedRef<number> {
   const eased = useTransition(share, { disabled: toRef(still), duration: MOVE.glide, easing: TRAVEL })
-  return computed(() => pointsOf(eased.value))
+  return computed(() => aggregate.points(eased.value))
 }
 
 /**

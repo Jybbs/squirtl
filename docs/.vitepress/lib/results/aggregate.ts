@@ -33,7 +33,7 @@ export const RESAMPLES = 9999
 /**
  * Reads `share` in whole points of a percent.
  */
-const points = (share: number) => Math.round(share * 100)
+export const points = (share: number) => Math.round(share * 100)
 
 /**
  * Reads the quantile `q` of `values` as NumPy's `percentile` reads it by

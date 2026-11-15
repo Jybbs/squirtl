@@ -28,18 +28,13 @@ const { ResultsAggregate } = await import('../../../../theme/components/results/
 enableAutoUnmount(afterEach)
 
 /**
- * A widget mounted into the document, the call sizing its plot, and the spy
- * standing in for every animation an element plays.
+ * A widget mounted into the document and the spy standing in for every
+ * animation an element plays.
  */
 interface Mounted {
   played  : MockInstance<Element['animate']>
   wrapper : VueWrapper
 }
-
-/**
- * Reads the buttons over each column.
- */
-const columnsOf = (wrapper: VueWrapper) => wrapper.findAll('ul[aria-label="Runs by group"] button')
 
 /**
  * Mounts the widget with its plot `width` pixels wide, every animation an
@@ -85,16 +80,8 @@ describe('ResultsAggregate', () => {
   })
 
   it('draws each group’s name, start, and share, and random presses’ figures', async () => {
-    const { wrapper } = await mounted()
-    const note        = new RegExp(
-        "^Each interval as the runs report it, from SciPy's 9,999 draws over all five seeds\\. "
-      + "Drawn again here, random presses' runs from \\d+% to \\d+%, within [0-2] points of it\\.$",
-      'u'
-    )
-    expect([textsOf(wrapper).slice(3, 9), wrapper.get('p.text-small').text()]).toStrictEqual([
-      ['Random presses 21% [14, 31]', 'DQN', 'Bedroom', '0%', '[0, 0]', 'PPO'],
-      expect.stringMatching(note)
-    ])
+    expect(textsOf((await mounted()).wrapper).slice(3, 9))
+      .toStrictEqual(['Random presses 21% [14, 31]', 'DQN', 'Bedroom', '0%', '[0, 0]', 'PPO'])
   })
 
   it.each([
@@ -126,21 +113,14 @@ describe('ResultsAggregate', () => {
 })
 
 describe('ResultsAggregate’s seeds', () => {
-  it('draws every figure again from the seeds a reader keeps, and names how', async () => {
+  it('draws every figure again from the seeds a reader keeps', async () => {
     const { wrapper } = await mounted()
     await switchesOf(wrapper)[3]!.trigger('click')
     expect([
       wrapper.get('span').text(),
       textsOf(wrapper)[3],
-      wrapper.get('p.text-small').text(),
       runGroupsOf(wrapper).filter(run => run.find('.fill-quiet').exists()).length
-    ]).toStrictEqual([
-      'Seeds kept, 4 runs each',
-      'Random presses 18% [13, 27]',
-        'Each interval drawn here from 9,999 draws over the 4 seeds kept, '
-      + 'near what SciPy would report for them rather than on it.',
-      5
-    ])
+    ]).toStrictEqual(['Seeds kept, 4 runs each', 'Random presses 18% [13, 27]', 5])
   })
 
   it('keeps the last seed a reader would leave out', async () => {
@@ -166,56 +146,24 @@ describe('ResultsAggregate’s seeds', () => {
       ['true', 'true', 'true', 'true', 'true']
     ])
   })
-
 })
 
-describe('ResultsAggregate’s columns', () => {
-  it('opens a column a reader presses, naming its runs, and shuts it on a second press', async () => {
-    const { wrapper } = await mounted()
-    const spoken      = () => wrapper.get('p.unseen').text()
-    await columnsOf(wrapper)[1]!.trigger('click')
-    const opened = spoken()
-    await columnsOf(wrapper)[1]!.trigger('click')
-    expect([opened, spoken()])
-      .toStrictEqual(['PPO, 5 runs: seed 1 100%; seed 2 100%; seed 3 100%; seed 4 100%; seed 5 100%', ''])
-  })
-
-  it('names a run whose seed is left out as such', async () => {
-    const { wrapper } = await mounted()
-    await switchesOf(wrapper)[0]!.trigger('click')
-    await columnsOf(wrapper)[4]!.trigger('click')
-    expect(wrapper.get('p.unseen').text())
-      .toBe('PQN along the curriculum, 5 runs: seed 1 0%, left out; '
-          + 'seed 2 0%; seed 3 0%; seed 4 0%; seed 5 0%')
-  })
-
+describe('ResultsAggregate’s switch keys', () => {
   it.each([
-    ['a mouse resting on a column', 'mouse', 300, 'pointer-events-auto'],
-    ['a mouse passing across', 'mouse', 100, 'opacity-0'],
-    ['a touch', 'touch', 300, 'opacity-0']
-  ])('opens a column’s runs after %s: %s', async (_, pointerType, rest, shown) => {
-    vi.useFakeTimers()
-    const { wrapper } = await mounted()
-    const plot        = wrapper.get('.h-race-plot')
-    vi.spyOn(plot.element, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 688 } as DOMRect)
-    await plot.trigger('pointermove', { clientX: 200, pointerType })
-    vi.advanceTimersByTime(rest)
-    await nextTick()
-    expect(runGroupsOf(wrapper)[5]!.classes()).toContain(shown)
-  })
-
-  it('shuts the runs a mouse opened once it leaves the plot', async () => {
-    vi.useFakeTimers()
-    const { wrapper } = await mounted()
-    const plot        = wrapper.get('.h-race-plot')
-    vi.spyOn(plot.element, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 688 } as DOMRect)
-    await plot.trigger('pointermove', { clientX: 20, pointerType: 'mouse' })
-    await plot.trigger('pointermove', { clientX: 200, pointerType: 'mouse' })
-    vi.advanceTimersByTime(300)
-    await plot.trigger('pointerleave')
-    vi.advanceTimersByTime(300)
-    await nextTick()
-    expect(runGroupsOf(wrapper)[5]!.classes()).toContain('opacity-0')
+    ['down the side from the container’s small width', 688, 'vertical', 'ArrowDown', 1],
+    ['across beneath the plot below it', 300, 'horizontal', 'ArrowRight', 1],
+    ['nowhere on the cross axis below it', 300, 'horizontal', 'ArrowDown', 0]
+  ])('moves focus through the switches %s', async (_, width, orientation, key, focused) => {
+    const { wrapper } = await mounted(width)
+    const switches    = switchesOf(wrapper)
+    const first       = switches[0]!.element as HTMLElement
+    first.focus()
+    await switches[0]!.trigger('keydown', { key })
+    await new Promise(requestAnimationFrame)
+    expect([
+      wrapper.get('ul[aria-label="Seeds kept"]').attributes('data-orientation'),
+      switches.findIndex(each => each.element === document.activeElement)
+    ]).toStrictEqual([orientation, focused])
   })
 })
 
@@ -233,6 +181,15 @@ describe('ResultsAggregate’s motion', () => {
       ['BUTTON', [expect.anything()]],
       ['g', Array.from({ length: 6 }, () => expect.anything())]
     ]))
+  })
+
+  it('settles random presses’ band two thirds of the way through its glide', async () => {
+    const { played, wrapper } = await mounted()
+    played.mockClear()
+    await switchesOf(wrapper)[3]!.trigger('click')
+    await nextTick()
+    const band = played.mock.contexts.findIndex(each => (each as Element).classList.contains('text-random'))
+    expect(played.mock.calls[band]![1]).toStrictEqual({ delay: 400, duration: 450, easing: 'ease-out' })
   })
 
   it('hops a switch as its seed is kept again, as its run fills', async () => {
@@ -281,5 +238,25 @@ describe('ResultsAggregate’s switch presses', () => {
     await switchesOf(wrapper)[0]!.trigger('pointerdown', { button: 0 })
     await switchesOf(wrapper)[0]!.trigger('click')
     expect(played).not.toHaveBeenCalled()
+  })
+})
+
+describe('ResultsAggregate’s switch releases', () => {
+  beforeEach(() => {
+    browser.preference.value = 'no-preference'
+  })
+
+  it.each([
+    ['Enter let go', 'keydown', { key: 'Enter' }, 'keyup', { key: 'Enter' }],
+    ['Space let go', 'keydown', { key: ' ' }, 'keyup', { key: ' ' }],
+    ['focus moving away', 'keydown', { key: ' ' }, 'blur', {}],
+    ['a pointer leaving', 'pointerdown', { button: 0 }, 'pointerleave', {}],
+    ['a pointer cancelled', 'pointerdown', { button: 0 }, 'pointercancel', {}]
+  ])('springs a sunk switch back under %s', async (_, down, sunk, up, release) => {
+    const { played, wrapper } = await mounted()
+    played.mockClear()
+    await switchesOf(wrapper)[0]!.trigger(down, sunk)
+    await switchesOf(wrapper)[0]!.trigger(up, release)
+    expect(played.mock.calls.map(([keyframes]) => (keyframes as Keyframe[]).length)).toStrictEqual([2, 4])
   })
 })

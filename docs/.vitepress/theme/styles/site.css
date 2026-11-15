@@ -5,15 +5,3 @@
 @source not inline('container');
 
 @utility pixelated { image-rendering: pixelated; }
-
-@utility unseen {
-  border-width : 0;
-  clip-path    : inset(50%);
-  height       : var(--border-width-hairline);
-  margin       : calc(-1 * var(--border-width-hairline));
-  overflow     : hidden;
-  padding      : 0;
-  position     : absolute;
-  white-space  : nowrap;
-  width        : var(--border-width-hairline);
-}

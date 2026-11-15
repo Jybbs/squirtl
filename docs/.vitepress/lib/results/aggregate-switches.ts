@@ -1,3 +1,4 @@
+import type * as toggleGroup                     from '@zag-js/toggle-group'
 import { type ComputedRef, computed, ref, watch } from 'vue'
 
 import { type Options, useSwitches } from '../widgets/choice.ts'
@@ -130,15 +131,16 @@ function usePress(spring: number): Listeners {
 }
 
 /**
- * Holds the seeds kept as a group of switches, never letting the last one go,
- * and switches one seed from anywhere else a reader presses it, each switch
- * sinking as it is pressed and hopping or shaking over `duration`
- * milliseconds as its seed is kept or left out.
+ * Holds the seeds kept as a group of switches laid along the orientation
+ * `orientation` reads, never letting the last one go, and switches one seed
+ * from anywhere else a reader presses it, each switch sinking as it is
+ * pressed and hopping or shaking over `duration` milliseconds as its seed is
+ * kept or left out.
  */
-export function useSeeds(duration: number): Seeds {
+export function useSeeds(duration: number, orientation?: () => toggleGroup.Props['orientation']): Seeds {
   const names    = committedSeeds.map(String)
   const kept     = ref<ReadonlySet<string>>(new Set(names))
-  const switches = useSwitches(names, kept)
+  const switches = useSwitches(names, kept, orientation)
   const seeds    = computed(() => committedSeeds.filter(seed => kept.value.has(`${seed}`)))
   let last       = kept.value
 

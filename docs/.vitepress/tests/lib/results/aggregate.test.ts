@@ -86,8 +86,8 @@ describe('the spelled figures', () => {
       aggregate.percentOf(0.125),
       aggregate.spanOf(aggregates[3]!.reached),
       aggregate.spanOf(aggregates[1]!.reached),
-      aggregate.gapOf([0.1, 0.5], [0.12, 0.46])
-    ]).toStrictEqual(['13%', [0.4, 0.4], [0.9, 1], 4])
+      aggregate.gapOf([0.1, 0.5], [0.16, 0.46])
+    ]).toStrictEqual(['13%', [0.4, 0.4], [0.9, 1], 6])
   })
 
   it.each([

@@ -1,5 +1,6 @@
 import { type Ref, type VNode, defineComponent, ref } from 'vue'
 
+import { IDENTITY }                             from '../../../lib/identity/identity.ts'
 import * as aggregateColumns                    from '../../../lib/results/aggregate-columns.ts'
 import { type Seeds, committedSeeds, useSeeds } from '../../../lib/results/aggregate-switches.ts'
 import * as aggregate                           from '../../../lib/results/aggregate.ts'
@@ -11,8 +12,8 @@ import { type Plot, WIDTH, drawPlot }           from './aggregate-columns.tsx'
 /**
  * The classes of the widget's parts: one column laid over the plot and the
  * list of them, the drawing inside the plot, the plot and the switches
- * beside it, the line saying where the intervals come from, a switch's seed,
- * one switch and the list of them, and the side holding them.
+ * beside it, a switch's seed, one switch and the list of them, and the side
+ * holding them.
  */
 const PARTS = {
   column   : 'focus-ring block size-full cursor-pointer rounded-1 border-0 bg-transparent p-0 '
@@ -21,7 +22,6 @@ const PARTS = {
   drawing  : 'pointer-events-none absolute inset-0',
   layout   : 'grid gap-x-6 gap-y-3 @sm:grid-cols-4',
   plot     : 'relative h-race-plot @sm:col-span-3',
-  says     : 'm-0 font-body text-small leading-normal text-quiet @sm:col-span-4',
   seed     : 'font-code text-label leading-snug font-semibold tracking-caps whitespace-nowrap uppercase',
   side     : 'grid content-start gap-2',
   switch   : 'focus-ring grid w-full justify-items-center rounded-1 border-hairline border-rule bg-lift '
@@ -67,7 +67,7 @@ function drawColumns(
       <div aria-label={spoken} class={PARTS.drawing} role="img">
         {drawPlot(drawn, width)}
       </div>
-      <p aria-live="polite" class="unseen">
+      <p aria-live="polite" class="visually-hidden">
         {picked === null ? '' : aggregateColumns.spokenRunsOf(aggregates[picked]!, drawn.seeds)}
       </p>
     </div>
@@ -75,8 +75,8 @@ function drawColumns(
 }
 
 /**
- * Draws the switch of each seed `kept` holds beneath the count of runs each
- * group keeps.
+ * Draws the switch of every committed seed beneath the count of runs each
+ * group keeps, each switch pressed while its seed is kept.
  */
 function drawSeeds({ flipped, press, seeds, switches }: Seeds): VNode {
   const count = seeds.value.length
@@ -125,9 +125,14 @@ export const ResultsAggregate = defineComponent({
     if (aggregates.length === 0) return () => null
 
     const plot    = ref<HTMLElement>()
+    const whole   = ref<HTMLElement>()
+    const across  = useDrawnWidth(whole, 0)
     const width   = useDrawnWidth(plot, 240)
     const motion  = useMotion()
-    const kept    = useSeeds(aggregateColumns.MOVE.rock)
+    const kept    = useSeeds(
+      aggregateColumns.MOVE.rock,
+      () => across.value >= IDENTITY.lengths.breakpoints.sm ? 'vertical' : 'horizontal'
+    )
     const opening = aggregateColumns.useOpen(plot, aggregates.length, WIDTH.scale)
     const shown   = aggregateColumns.useColumns(aggregates, kept.seeds)
     const means   = () => shown.columns.value.map(({ estimate }) => estimate.value)
@@ -148,11 +153,10 @@ export const ResultsAggregate = defineComponent({
         toggle  : kept.toggle
       }
       return (
-        <div class="@container">
+        <div class="@container" ref={whole}>
           <div class={PARTS.layout}>
             {drawColumns(aggregates, drawn, opening, plot, width.value)}
             {drawSeeds(kept)}
-            <p aria-live="polite" class={PARTS.says}>{shown.note.value}</p>
           </div>
         </div>
       )

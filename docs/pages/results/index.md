@@ -2,6 +2,8 @@
 
 The learning curves and the comparison against random presses each play a trained agent from Blue's bedroom beside random presses under the same seeds, so the two players meet the same draws of the game's randomness, and report each figure's interquartile mean across runs with its 95% percentile bootstrap interval and the count of runs behind it, the aggregate Agarwal et al.[^agarwal2021] recommend over a handful of runs.
 
+The widget below draws that aggregate for each agent beside random presses under the same seeds. Switching a seed off draws each interval again in the page from 9,999 bootstrap draws over the seeds kept, near the interval [SciPy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html) would report for them rather than equal to it.
+
 ## The Comparisons
 
 Each comparison sits on a page of its own, closing on the chart it draws:
