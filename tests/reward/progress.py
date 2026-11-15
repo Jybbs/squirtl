@@ -10,8 +10,9 @@ Pins how `Progress` scores each step of an episode, covering:
 - The step of the episode first setting each flag
 - The blackout of a party that faints, which Oak's lab spares until the
   rival's battle there has ended
-- The share every term reports on every step, the most one step earns, and
-  each term's total across the episode's steps
+- The share every term reports on every step, the most one step earns,
+  each term's total across the episode's steps, and the episode's total,
+  new squares included
 - The grid of reached positions centered on the player, the squares it
   leaves out, and the vector of flags in the order `Event` declares
 - The tally holding the progress as it stands, and a progress taken up from
@@ -22,7 +23,7 @@ from collections.abc import Callable
 from itertools       import takewhile
 from numpy           import argwhere
 from operator        import attrgetter
-from pytest          import mark, param
+from pytest          import approx, mark, param
 
 from squirtl.emulator.console import GameBoy
 from squirtl.emulator.schemas import Symbol
@@ -529,3 +530,25 @@ def test_the_starter_earns_a_milestone_on_the_way_to_the_pokedex(
     flag(Event.EVENT_GOT_STARTER)
 
     assert progress.score() == earning(milestone=settings.milestone)
+
+
+def test_the_total_sums_every_terms_share_new_squares_included(
+    flag     : Callable[[Event], None],
+    move     : Callable[[Position], None],
+    progress : Progress,
+    settings : RewardSettings
+):
+    """
+    Asserts that the episode's total pays the novelty of each new position
+    beside each flag, where `RewardSettings.total` leaves the novelty out.
+    """
+    move(Position(map=0, x=1, y=0))
+    flag(Event.EVENT_OAK_APPEARED_IN_PALLET)
+    progress.score()
+    move(Position(map=0, x=2, y=0))
+    progress.score()
+
+    assert (progress.total, settings.total(progress.earned)) == (
+        approx(settings.milestone + 2 * settings.novelty),
+        settings.milestone
+    )

@@ -6,10 +6,12 @@ Pins the search over particles, Mhammedi and Cohan's Algorithms 1 and
 - One outer step, where each survivor adds a child, each dead particle
   moves to the winner, and every particle rolls back once all are dead
 - A state kept only where a particle moves to another's node
-- One iteration, where a group below the winner on reward moves to it, each
+- One iteration, where a group below the winner on reward moves to it,
+  recorded where the winner holds fewer flags, each
   group consolidates on its winner, and the best of those and the last
   winner, scored afresh, becomes the winner
-- The search ending at its goal, and on no other flag, or at its steps
+- The search ending at its goal, and on no other flag, or at its steps,
+  writing the path of the best particle holding the goal
 - Each rollout's presses, one action held at the chance of a random one
 - The updates an iteration owes, which run while the next one plays and
   finish before it consolidates
@@ -31,7 +33,7 @@ from squirtl.environment.schemas   import Recording, Snapshot
 from squirtl.reward.schemas        import Event
 from squirtl.search.checkpoint     import SearchCheckpoint
 from squirtl.search.particles      import Group, Search
-from squirtl.search.schemas        import Ending, Particle, SearchRollout
+from squirtl.search.schemas        import Demotion, Ending, Particle, SearchRollout
 from squirtl.search.workers        import roll
 
 type Script = Callable[..., Callable[[Iterable[SearchRollout]], Iterable[Ending]]]
@@ -122,6 +124,44 @@ def test_a_group_below_the_winner_on_reward_moves_to_it_as_an_iteration_opens(
     drive(search)
 
     assert played == [7, 7, 8, 8]
+
+
+@mark.parametrize(
+    ("held", "demotions"),
+    [
+        param(1, [Demotion(flags=2, group=0, winner=1)], id="fewer"),
+        param(2, [], id="as-many"),
+        param(3, [], id="more")
+    ]
+)
+def test_a_group_reset_is_recorded_only_onto_a_winner_holding_fewer_flags(
+    demotions : list[Demotion],
+    held      : int,
+    rolled    : Script,
+    searching : Callable[..., Search]
+):
+    """
+    Asserts that a group moving to a winner holding fewer flags than its own
+    winner is recorded beside both counts, whereas one moving to a winner
+    holding as many or more is not, nor is a group holding the winner's
+    reward, which stays whatever flags it holds.
+    """
+    search = searching(
+        rolled([ending(presses=b"\x01", x=n) for n in range(32)]),
+        outer_steps = (1, 1)
+    )
+    flags = [*Event][:3]
+
+    for _ in range(8):
+        search.tree.add(0, b"\x01")
+
+    search.groups[0].reset(particle(5, 0.0, events=flags[:2]))
+    search.groups[1].reset(particle(8, 0.1, events=flags))
+    search.winner = particle(7, 0.1, events=flags[:held])
+
+    drive(search)
+
+    assert search.demotions == demotions
 
 
 def test_a_group_reset_moves_every_particle_to_one():
@@ -301,6 +341,40 @@ def test_consolidating_drops_each_state_no_particle_can_reach(
     drive(search)
 
     assert stray not in search.tree.states and 0 in search.tree.states
+
+
+def test_consolidating_makes_the_best_particle_holding_the_goal_the_winner(
+    monkeypatch : MonkeyPatch,
+    rolled      : Script,
+    searching   : Callable[..., Search]
+):
+    """
+    Asserts that consolidating a search a particle has set the goal in makes
+    the highest-ranked particle holding the goal the winner, so the search
+    reads as reached and finished and demonstrates that particle's path,
+    even where particles without the goal hold more reward through their
+    squares, one of them its own group's winner.
+    """
+    search  = searching(rolled([]))
+    nodes   = [search.tree.add(0, bytes([press])) for press in range(1, 5)]
+    holding = (Event.EVENT_GOT_STARTER,)
+
+    search.groups[0].particles = [
+        particle(nodes[0], 0.5),
+        particle(nodes[1], 0.3, events=holding)
+    ]
+    search.groups[1].particles = [
+        particle(nodes[2], 0.9),
+        particle(nodes[3], 0.2, events=holding)
+    ]
+
+    scored(monkeypatch, search, 0.0)
+    search.consolidate()
+
+    assert (
+        search.reached, search.finished,
+        search.winner.node, search.demonstration.presses
+    ) == (True, True, nodes[1], b"\x02")
 
 
 @mark.parametrize(
@@ -635,7 +709,7 @@ def test_the_demonstration_plays_back_to_what_the_winner_reached(
 
     played.play(search.demonstration)
 
-    assert played.reward.total(played.progress.earned) == winner.reward
+    assert played.progress.total == winner.reward
     assert played.progress.position == winner.snapshot.tally.position
     assert Event.EVENT_GOT_STARTER in played.progress.events
 

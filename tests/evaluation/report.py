@@ -198,6 +198,21 @@ def test_an_estimate_spells_its_value_its_interval_and_its_runs(
             id = "none"
         ),
         param(
+            Estimate(interval=None, runs=(1,), value=1.0),
+            "in every evaluation episode",
+            id = "every-in-a-single-run"
+        ),
+        param(
+            Estimate(interval=(0.978, 1.0), runs=(5,), value=1.0),
+            "in 100% [98, 100]",
+            id = "every-but-an-interval-below"
+        ),
+        param(
+            Estimate(interval=(0.0, 0.022), runs=(5,), value=0.0),
+            "in 0% [0, 2]",
+            id = "none-but-an-interval-above"
+        ),
+        param(
             Estimate(interval=(0.1444, 0.3122), runs=(5,), value=0.2111),
             "in 21% [14, 31]",
             id = "a-share"
@@ -214,8 +229,9 @@ def test_an_estimate_spells_a_share_of_episodes_in_whole_points(
     spelled  : str
 ):
     """
-    Pins that a share of every episode or of none is spelled as such, and
-    any other in whole points beside its interval where it carries one.
+    Pins that a share of every episode or of none is spelled as such where
+    its interval holds at that bound or it has none, and any other in whole
+    points beside its interval where it carries one.
     """
     assert estimate.share == spelled
 

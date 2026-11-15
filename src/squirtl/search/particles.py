@@ -16,7 +16,7 @@ from squirtl.environment.schemas import Recording, Snapshot
 from squirtl.reward.schemas      import Event
 from squirtl.search.checkpoint   import SearchCheckpoint
 from squirtl.search.novelty      import Novelty
-from squirtl.search.schemas      import Ending, Frontier, Particle, SearchRollout, SearchSettings
+from squirtl.search.schemas      import Demotion, Ending, Frontier, Particle, SearchRollout, SearchSettings
 from squirtl.search.tree         import LineageTree
 
 
@@ -101,11 +101,10 @@ class Search:
             snapshot = root
         )
 
-        self.actions = actions
-        self.goal    = goal
-        self.groups  = [
-            Group(start, settings.particles) for _ in range(settings.groups)
-        ]
+        self.actions   = actions
+        self.demotions = list[Demotion]()
+        self.goal      = goal
+        self.groups = [Group(start, settings.particles) for _ in range(settings.groups)]
         self.iterations = 0
         self.novelty    = Novelty(agent, sampling, seed, settings, space)
         self.presses    = 0
@@ -148,10 +147,10 @@ class Search:
     @property
     def finished(self) -> bool:
         """
-        Reads whether a particle has set the goal or the presses have
-        reached `steps`.
+        Reads whether the winner or a particle has set the goal or the
+        presses have reached `steps`.
         """
-        return self.presses >= self.steps or any(
+        return self.presses >= self.steps or self.reached or any(
             self.goal in particle.snapshot.tally.events
             for group in self.groups
             for particle in group.particles
@@ -161,8 +160,9 @@ class Search:
     def reached(self) -> bool:
         """
         Reads whether the winner has set the goal, as it has once a particle
-        sets it and the iteration consolidates, since the goal pays the most
-        of any flag.
+        sets it and the iteration consolidates, since consolidating makes
+        the highest-ranked particle holding the goal the winner, even where
+        one without it has earned more through its extra new squares.
         """
         return self.goal in self.winner.snapshot.tally.events
 
@@ -207,8 +207,16 @@ class Search:
         """
         Moves each group to its winner, keeping that node's state, makes the
         best of the winners and the last winner, scored afresh, the winner,
-        and drops every kept state no particle's lineage holds.
+        or the best particle holding the goal where one does, and drops
+        every kept state no particle's lineage holds.
         """
+        holders = [
+            particle
+            for group in self.groups
+            for particle in group.particles
+            if self.goal in particle.snapshot.tally.events
+        ]
+
         for group in self.groups:
             winner = group.winner
 
@@ -216,7 +224,7 @@ class Search:
             self.tree.states[winner.node] = winner.snapshot
 
         self.winner = highest(
-            particles = (
+            particles = holders or (
                 *(group.winner for group in self.groups),
                 self.winner.model_copy(
                     update = {"score": self.novelty.score([self.winner.snapshot])[0]}
@@ -242,11 +250,13 @@ class Search:
         what earlier iterations observed, which run while the workers play
         the iteration's rollouts, so each score until the iteration's end
         reads the predictor as it stood before them. A group ranking below
-        the winner on reward then moves to it, and each group draws its
-        outer steps. Once each has played them, or the search has finished,
-        the updates are waited for, each group consolidates on its winner,
-        and the best of those and the last winner, scored afresh by the
-        updated predictor, becomes the winner.
+        the winner on reward then moves to it, recorded in `demotions`
+        where the winner holds fewer flags, and each group draws its outer
+        steps. Once each has played them, or the search has finished, the
+        updates are waited for, each group consolidates on its winner, and
+        the best of those and the last winner, scored afresh by the updated
+        predictor, becomes the winner, or the best particle holding the goal
+        where one does.
 
         Returns:
             The mean loss over the predictor's updates, as `Novelty.wait`
@@ -254,8 +264,19 @@ class Search:
         """
         self.novelty.train(self.presses)
 
-        for group in self.groups:
-            if group.winner.reward < self.winner.reward:
+        self.demotions = []
+
+        for index, group in enumerate(self.groups):
+            if (winner := group.winner).reward < self.winner.reward:
+                if winner.flags > self.winner.flags:
+                    self.demotions.append(
+                        Demotion(
+                            flags  = winner.flags,
+                            group  = index,
+                            winner = self.winner.flags
+                        )
+                    )
+
                 group.reset(self.winner)
 
             group.remaining = self.draw(self.settings.outer_steps)

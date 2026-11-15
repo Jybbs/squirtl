@@ -18,7 +18,7 @@ squirtl pack [OPTIONS]
 
 <!-- /help -->
 
-A pack writes the tar of each demonstration and then the tar of each trained run, recording every tar's SHA-256 digest in the `manifest.json` that `squirtl fetch` checks each download against. The widget below packs the runs the [Results](../results/index.md) section draws, the demonstration they follow, and the search `docs/runs/` lists, filling each tar's entry in `manifest.json` with a made-up digest once the tar is written.
+A pack writes the tar of each demonstration and then the tar of each trained run, recording every tar's SHA-256 digest in the `manifest.json` that `squirtl fetch` checks each download against. The widget below packs the runs the [Results](../results/index.md) section draws, the demonstration they follow, and each search `docs/runs/` lists, filling each tar's entry in `manifest.json` with a made-up digest once the tar is written.
 
 <!-- settings -->
 
@@ -26,6 +26,6 @@ A pack writes the tar of each demonstration and then the tar of each trained run
 
 | **Flag** | **Default** | **What It Sets** |
 |---|---|---|
-| `--recommended-run` | `20261112T141501.166143Z` | *The name of the run a release plays where no selection names one.* |
+| `--recommended-run` | `20261114T203814.788303Z` | *The name of the run a release plays where no selection names one.* |
 
 <!-- /settings -->
