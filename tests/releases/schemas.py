@@ -137,8 +137,6 @@ def test_a_recommended_run_naming_no_trained_run_is_refused_before_any_tar(
 
     assert not ReleaseManifest.folder.exists()
 
-    assert not ReleaseManifest.folder.exists()
-
 
 def test_a_release_attaching_no_manifest_is_refused_by_its_tag():
     """

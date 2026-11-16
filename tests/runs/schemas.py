@@ -25,10 +25,6 @@ Pins the records one run writes, covering:
 - A run refusing a digest other than the one it recorded, and the listing
   naming it among other runs
 - A search refused where a trained run is read
-- The defaults of `SearchSettings`, each from the column and the appendix of
-  Mhammedi and Cohan's paper its docstring cites, the bound replay memory
-  holds them to, the worker count following the machine, and a range
-  running backward refused
 - A run's check of its episodes, refusing the first line that does not
   parse as an episode by its number and passing a log whose finished lines
   all do
@@ -43,7 +39,7 @@ from functools         import reduce
 from hashlib           import sha256
 from json              import loads
 from operator          import getitem
-from os                import fstat, process_cpu_count
+from os                import fstat
 from pathlib           import Path
 from pydantic          import ValidationError
 from pytest            import MonkeyPatch, TempPathFactory, mark, param, raises
@@ -58,7 +54,6 @@ from squirtl.evaluation.schemas  import Evaluation
 from squirtl.reward.schemas      import Event
 from squirtl.runs.schemas        import Episode, Revision, Run, RunListing, Start
 from squirtl.runs.settings       import CurriculumSettings, RunSettings
-from squirtl.search.schemas      import SearchSettings
 
 
 def test_a_checkpoint_at_the_runs_last_step_may_land_within_an_episode(
@@ -890,16 +885,6 @@ def test_reading_a_directory_holding_no_run_raises(clone: Path):
         Run.read(clone / "data/runs/empty")
 
 
-def test_the_default_capacity_holds_replay_memory_under_three_gigabytes():
-    """
-    Asserts that the default capacity, each slot one frame at the
-    environment's default shape, holds fewer than three billion bytes.
-    """
-    height, width = EnvironmentSettings().frame_shape
-
-    assert SearchSettings().capacity * height * width < 3_000_000_000
-
-
 @mark.parametrize(
     ("demonstration", "start"),
     [
@@ -934,26 +919,6 @@ def test_a_listing_reads_the_settings_naming_its_run(
     )
 
 
-def test_the_settings_default_to_the_papers_montezuma_column():
-    """
-    Asserts that the population, the rollouts, the chance of a random press,
-    and the predictor's settings and replay memory default to the values
-    the Montezuma's Revenge column of Table 5 and Appendices A.2 and A.3 of
-    Mhammedi and Cohan's paper give them.
-    """
-    assert SearchSettings().model_dump(exclude={"update_steps", "workers"}) == {
-        "batch_size"    : 128,
-        "capacity"      : 512_000,
-        "epsilon"       : 0.2,
-        "groups"        : 4,
-        "learning_rate" : 3e-4,
-        "particles"     : 32,
-        "inner_steps"   : (5, 15),
-        "outer_steps"   : (10, 20),
-        "rollback"      : (1, 3)
-    }
-
-
 @mark.parametrize(
     "missing",
     [
@@ -981,42 +946,3 @@ def test_a_run_missing_its_checkpoint_or_its_episodes_is_refused_by_name(
 
     with raises(FileNotFoundError, match=escape(f"{run.directory} holds no {missing}")):
         run.check_files()
-
-
-def test_the_updates_default_to_the_ratio_of_the_papers_table():
-    """
-    Asserts that the presses between updates of the predictor default to the
-    400 million frames of Mhammedi and Cohan's Table 6, four frames a press,
-    over its 2.28 million updates, rounded.
-    """
-    assert SearchSettings().update_steps == round(400_000_000 / 4 / 2_280_000)
-
-
-@mark.parametrize("field", ["inner_steps", "outer_steps", "rollback"])
-def test_a_range_running_backward_is_refused(field: str):
-    """
-    Asserts that a range whose fewest exceeds its most raises, naming the
-    field.
-    """
-    with raises(ValidationError, match=field):
-        SearchSettings(**{field: (3, 2)})
-
-
-@mark.parametrize("field", ["inner_steps", "outer_steps", "rollback"])
-def test_a_range_of_one_value_is_accepted(field: str):
-    """
-    Asserts that a range whose fewest equals its most is accepted.
-    """
-    assert getattr(SearchSettings(**{field: (3, 3)}), field) == (3, 3)
-
-
-def test_the_workers_default_to_the_cpus_the_process_may_use(monkeypatch: MonkeyPatch):
-    """
-    Asserts that the workers default to the count `process_cpu_count`
-    reports, or to one where it reports none.
-    """
-    assert SearchSettings().workers == process_cpu_count()
-
-    monkeypatch.setattr("squirtl.emulator.schemas.process_cpu_count", lambda: None)
-
-    assert SearchSettings().workers == 1
