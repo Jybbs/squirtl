@@ -346,6 +346,12 @@ class Lift(Record):
     The version the lift moves the pin to.
     """
 
+    checked: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    """
+    The instant the age counts to, the clock's reading as the lift is built
+    unless set.
+    """
+
     clears: tuple[str, ...] = ()
     """
     The advisory ID of each open Dependabot alert the lift clears.
@@ -360,10 +366,11 @@ class Lift(Record):
     @property
     def age(self) -> int | None:
         """
-        Counts the whole days since the newest release was published, or
-        `None` where the tool names no time.
+        Counts the whole days from the newest release's publication to
+        the instant the lift was checked, or `None` where the tool names
+        no time.
         """
-        return (datetime.now(UTC) - self.released).days if self.released else None
+        return (self.checked - self.released).days if self.released else None
 
     @property
     def cells(self) -> tuple[str, ...]:

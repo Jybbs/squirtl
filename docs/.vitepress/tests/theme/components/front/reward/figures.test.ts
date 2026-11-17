@@ -30,8 +30,8 @@ describe('drawFigures', () => {
     const right   = classes.find(each => each.startsWith('@lg:pr-'))!.slice('@lg:pr-'.length)
     const gap     = IDENTITY.lengths.spacing[right as keyof typeof IDENTITY.lengths.spacing]
 
-    expect([split, classes.filter(each => each.startsWith('@')).every(each => each.startsWith('@lg:'))])
-      .toStrictEqual([IDENTITY.lengths.breakpoints.lg, true])
+    expect(split).toBe(IDENTITY.lengths.breakpoints.lg)
+    expect(classes.filter(each => /^@(?!lg:)/u.test(each))).toStrictEqual([])
     expect([classes.filter(each => each.endsWith(':absolute')), gap])
       .toStrictEqual([['@lg:absolute'], CLIMB.tile.gap])
   })

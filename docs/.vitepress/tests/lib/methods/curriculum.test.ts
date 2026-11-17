@@ -10,7 +10,7 @@ describe('the segments', () => {
       ['milestone', 'Oak stops Blue'], ['milestone', 'Blue follows Oak in'], ['milestone', 'Oak asks Blue to choose'],
       ['goal', 'Blue takes a starter']
     ])
-    expect(curriculum.SEGMENTS.every(({ end }) => [...TRACE[end + 1]!.flags].some(flag => !TRACE[end]!.flags.has(flag)))).toBe(true)
+    expect(curriculum.SEGMENTS.filter(({ end }) => [...TRACE[end + 1]!.flags].every(flag => TRACE[end]!.flags.has(flag)))).toStrictEqual([])
   })
 
   it('reads the curriculum the settings declare', () => {
@@ -31,7 +31,7 @@ describe('the run', () => {
   it('opens on the window at each segment’s end and closes once every segment is solved', () => {
     const first = curriculum.RUN[0]!
 
-    expect(first.every((shown, k) => shown.start >= curriculum.SEGMENTS[k]!.end - curriculum.CURRICULUM.window)).toBe(true)
+    expect(first.filter((shown, k) => shown.start < curriculum.SEGMENTS[k]!.end - curriculum.CURRICULUM.window)).toStrictEqual([])
     expect(curriculum.RUN.at(-1)!.map(each => each.start)).toStrictEqual([0, 0, 0, 0])
   })
 
@@ -40,15 +40,15 @@ describe('the run', () => {
     const ends   = curriculum.SEGMENTS.map(each => each.end)
 
     expect(strict.length).toBeGreaterThan(curriculum.BATCHES)
-    expect(strict.flat().every((shown, n) => shown.start <= ends[n % ends.length]!)).toBe(true)
+    expect(strict.flat().filter((shown, n) => shown.start > ends[n % ends.length]!)).toStrictEqual([])
   })
 
   it.for([0, 0.25, 0.5, 0.75, 1])('shows a start in each batch at a required share of %s', required => {
     const ends   = curriculum.SEGMENTS.map(each => each.end)
     const starts = curriculum.runOf({ ...curriculum.CURRICULUM, required }).flat().map(shown => shown.start)
 
-    expect(starts.every(start => Number.isInteger(start))).toBe(true)
-    expect(starts.every((start, n) => start <= ends[n % ends.length]!)).toBe(true)
+    expect(starts.filter(start => !Number.isInteger(start))).toStrictEqual([])
+    expect(starts.filter((start, n) => start > ends[n % ends.length]!)).toStrictEqual([])
   })
 
   it('reads the odds of reaching a goal as falling with the steps left and rising with training, within their bounds', () => {

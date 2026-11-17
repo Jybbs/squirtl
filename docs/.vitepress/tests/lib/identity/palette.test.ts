@@ -72,11 +72,10 @@ describe('blueFills', () => {
       .toStrictEqual([palette.GROUNDS.light.hex, ramp.shades[1], IDENTITY.marks.heath.light, ramp.text])
   })
 
-  it('stands every fill apart from the one beside it', () => {
-    for (const scheme of palette.SCHEMES) {
-      const fills = palette.blueFills('denim', scheme)
-      expect(fills.slice(1).every((fill, n) => contrast(fill, fills[n]!) > 1)).toBe(true)
-    }
+  it.each(palette.SCHEMES)('stands every fill apart from the one beside it in the %s scheme', scheme => {
+    const fills = palette.blueFills('denim', scheme)
+
+    expect(fills.slice(1).filter((fill, n) => contrast(fill, fills[n]!) <= 1)).toStrictEqual([])
   })
 })
 

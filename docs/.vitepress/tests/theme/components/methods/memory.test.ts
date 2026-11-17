@@ -150,6 +150,5 @@ describe('MethodsMemory’s playback', () => {
     await nextTick()
 
     expect([playing > 0, pointer.sliderState(wrapper)[0]]).toStrictEqual([true, String(LAST)])
-    vi.useRealTimers()
   })
 })

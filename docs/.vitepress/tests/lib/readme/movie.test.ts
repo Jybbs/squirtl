@@ -44,7 +44,7 @@ describe('previewMovie', () => {
       first!.subarray(scale * y * played.width, scale * y * played.width + VIEW.width * scale))
 
     expect(new Set(rows.flatMap(row => [...row])).size).toBeGreaterThan(4)
-    expect(rows.every((row, y) => row.every((color, x) =>
-      color === first![(scale * y + scale - 1) * played.width + x - x % scale]))).toBe(true)
+    expect(rows.flatMap((row, y) => [...row].filter((color, x) =>
+      color !== first![(scale * y + scale - 1) * played.width + x - x % scale]))).toStrictEqual([])
   })
 })

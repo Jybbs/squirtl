@@ -32,6 +32,6 @@ describe('the sentences', () => {
   })
 
   it('lays the longest sentence under every one shown', () => {
-    expect(says.SAYS.every(say => says.textOf(says.partsOf(say, false)).length <= says.LONGEST.length)).toBe(true)
+    expect(says.SAYS.filter(say => says.textOf(says.partsOf(say, false)).length > says.LONGEST.length)).toStrictEqual([])
   })
 })

@@ -1,13 +1,14 @@
 """
 Defines the fixtures the tests of `squirtl.runs` request, meaning the
 stand-in records a test reading no clone builds on, the record of one
-episode, a writer of a run's episodes, a run holding a demonstration, the
-settings of a short run beside factories of trainers starting one, a factory
-of searchers on the fake game of `game` beside one on real worker processes,
+episode, a writer of a run's episodes, a run holding a demonstration,
+the settings of a short run beside factories of trainers starting one, a
+reader of each run that never stopped, played once a session, a factory of
+searchers on the fake game of `game` beside one on real worker processes,
 and the messages loguru logs during a test.
 """
 
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Hashable, Iterator, Mapping
 from common.search   import PoolStandIn, finish, stop_at_thirty
 from contextlib      import ExitStack
 from datetime        import UTC, datetime, timedelta
@@ -323,3 +324,25 @@ def logged() -> Iterator[list[str]]:
         )
 
         yield messages
+
+
+@fixture(scope="session")
+def unbroken() -> Callable[[Hashable, Callable[[], Run]], Run]:
+    """
+    Builds a reader of the run each key names, playing it through `play` the
+    first time a case reads it and reading it back from its directory after,
+    so each run that never stopped plays once a session.
+    """
+    runs: dict[Hashable, Run] = {}
+
+    def read(key: Hashable, play: Callable[[], Run]) -> Run:
+        """
+        Reads the run `key` names, played through `play` where no case has
+        read it yet.
+        """
+        if key not in runs:
+            runs[key] = Run.read(play().directory.absolute())
+
+        return runs[key]
+
+    return read

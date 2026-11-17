@@ -76,7 +76,8 @@ describe('Gait.step', () => {
     const walker = new gait.Gait('down')
     const turned = stepped(walker, 0, 'left', true, true)
 
-    expect([walker.facing, turned.every(stance => stance === 'standing')]).toStrictEqual(['left', true])
+    expect(walker.facing).toBe('left')
+    expect(turned.filter(stance => stance !== 'standing')).toStrictEqual([])
   })
 })
 
@@ -87,8 +88,8 @@ describe('Gait.step at rest', () => {
   ] as const)('stands Blue still through a press of %s with no walk under way', (_, held) => {
     const walker = new gait.Gait('up')
 
-    expect([stepped(walker, 0, held).every(stance => stance === 'standing'), walker.facing])
-      .toStrictEqual([true, 'up'])
+    expect(stepped(walker, 0, held).filter(stance => stance !== 'standing')).toStrictEqual([])
+    expect(walker.facing).toBe('up')
   })
 
   it('zeroes the counters once a pass after the walk holds no direction', () => {

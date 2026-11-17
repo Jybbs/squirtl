@@ -96,6 +96,5 @@ describe('MethodsReach’s playback', () => {
     await nextTick()
 
     expect([playing, status(wrapper)]).toStrictEqual(['Pass 1 of 8', 'Pass 8 of 8'])
-    vi.useRealTimers()
   })
 })

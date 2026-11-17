@@ -14,10 +14,6 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] })
 })
 
-afterEach(() => {
-  vi.useRealTimers()
-})
-
 enableAutoUnmount(afterEach)
 
 /**

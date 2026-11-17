@@ -55,7 +55,7 @@ describe('tables.css', () => {
     const tables = document.querySelectorAll('table')
 
     expect(tables.length).toBeGreaterThan(0)
-    expect([...tables].every(table => table.parentElement?.matches('.table-scroll'))).toBe(true)
+    expect([...tables].filter(table => !table.parentElement?.matches('.table-scroll'))).toStrictEqual([])
     expect([...new Set(computed('.table-scroll', 'overflow-x'))]).toStrictEqual(['auto'])
     expect([...new Set(computed('table', 'display'))]).toStrictEqual(['table'])
     expect([...new Set(computed('table', 'width'))]).toStrictEqual(['100%'])

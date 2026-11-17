@@ -59,7 +59,7 @@ describe('RUNS', () => {
   })
 
   it('records a digest of sixty-four hexadecimal digits for every tar', () => {
-    expect([...release.RUNS, ...release.DEMONSTRATIONS].every(run => /^[0-9a-f]{64}$/u.test(run.sha256))).toBe(true)
+    expect([...release.RUNS, ...release.DEMONSTRATIONS].filter(run => !/^[0-9a-f]{64}$/u.test(run.sha256))).toStrictEqual([])
   })
 })
 

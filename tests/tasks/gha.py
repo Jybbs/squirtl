@@ -74,6 +74,26 @@ def job(result: str, outputs: dict[str, str] | None = None) -> dict:
     return {"outputs": outputs or {}, "result": result}
 
 
+def refreshing(fp: FakeProcess, manifest: dict | None):
+    """
+    Answers the three `gh` calls refreshing the draft of `0.2.0`, its
+    generated notes, its edit, and the download of the manifest it attaches,
+    which holds `manifest`.
+    """
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
+        stdout = dumps({"body": GENERATED})
+    )
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/1", fp.any()],
+        stdout = dumps({"html_url": UNTAGGED})
+    )
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/assets/7", fp.any()],
+        stdout = dumps(manifest)
+    )
+
+
 def release(
     tag_name   : str,
     *,
@@ -360,19 +380,9 @@ def test_a_draft_whose_manifest_matches_docs_runs_passes(
     `docs/runs/` commits, in whatever order, finishes with its outputs
     written and no annotation.
     """
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
-        stdout = dumps({"body": GENERATED})
-    )
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/1", fp.any()],
-        stdout = dumps({"html_url": UNTAGGED})
-    )
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/assets/7", fp.any()],
-        stdout = dumps(
-            {"demonstrations": [], "runs": [{"name": "late"}, {"name": "early"}]}
-        )
+    refreshing(
+        fp       = fp,
+        manifest = {"demonstrations": [], "runs": [{"name": "late"}, {"name": "early"}]}
     )
     draft(release("0.2.0", assets=[MANIFEST]), committed={"early", "late"}).maintain()
 
@@ -614,46 +624,6 @@ def test_lint_hands_zizmor_the_format_its_shell_reads(
     assert printed("gha/lint", "--pedantic") == [
         "--format", kind, "--offline", "--strict-collection", "--pedantic", ".github"
     ]
-
-
-def test_a_refreshed_draft_fails_where_its_demonstrations_leave_out_a_search(
-    draft   : Callable[..., object],
-    fp      : FakeProcess,
-    outputs : Path
-):
-    """
-    Pins that a refreshed draft listing every trained run still stops the
-    task where its manifest's demonstrations list the followed run, which no
-    directory of `docs/runs/` holds, but leave out the search `docs/runs/`
-    commits.
-    """
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
-        stdout = dumps({"body": GENERATED})
-    )
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/1", fp.any()],
-        stdout = dumps({"html_url": UNTAGGED})
-    )
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/assets/7", fp.any()],
-        stdout = dumps(
-            {"demonstrations": [{"name": "followed"}], "runs": [{"name": "early"}]}
-        )
-    )
-
-    with raises(SystemExit) as stopped:
-        draft(
-            release("0.2.0", assets=[MANIFEST]),
-            committed = {"early"},
-            searches  = {"searched"}
-        ).maintain()
-
-    assert stopped.value.code == (
-        "::error::docs/runs/ commits searched, which the manifest of the draft "
-        "release for 0.2.0 leaves out, so run `mise attach`"
-    )
-    assert outputs.read_text(encoding="utf-8").startswith("state=refreshed\n")
 
 
 @mark.parametrize(
@@ -988,10 +958,11 @@ def test_the_attached_runs_download_only_the_manifest_by_its_asset_id(
 
 
 @mark.parametrize(
-    ("listed", "annotations"),
+    ("manifest", "searches", "annotations"),
     [
         param(
             None,
+            (),
             [
                 "::error::docs/runs/ commits early, late, which the manifest of the "
                 "draft release for 0.2.0 leaves out, so run `mise attach`"
@@ -999,7 +970,8 @@ def test_the_attached_runs_download_only_the_manifest_by_its_asset_id(
             id = "no-manifest"
         ),
         param(
-            ["early", "stray"],
+            {"demonstrations": [], "runs": [{"name": "early"}, {"name": "stray"}]},
+            (),
             [
                 "::error::docs/runs/ commits late, which the manifest of the draft "
                 "release for 0.2.0 leaves out, so run `mise attach`",
@@ -1009,12 +981,30 @@ def test_the_attached_runs_download_only_the_manifest_by_its_asset_id(
             id = "both-sides"
         ),
         param(
-            ["early", "late", "stray", "unpacked"],
+            {
+                "demonstrations" : [],
+                "runs"           : [
+                    {"name": name} for name in ("early", "late", "stray", "unpacked")
+                ]
+            },
+            (),
             [
                 "::error::The manifest of the draft release for 0.2.0 lists stray, "
                 "unpacked, which docs/runs/ leaves out, so run `mise attach`"
             ],
             id = "manifest-alone"
+        ),
+        param(
+            {
+                "demonstrations" : [{"name": "followed"}],
+                "runs"           : [{"name": "early"}, {"name": "late"}]
+            },
+            ("searched",),
+            [
+                "::error::docs/runs/ commits searched, which the manifest of the "
+                "draft release for 0.2.0 leaves out, so run `mise attach`"
+            ],
+            id = "search-left-out"
         )
     ]
 )
@@ -1022,35 +1012,25 @@ def test_a_refreshed_draft_fails_naming_each_run_one_side_lists_alone(
     annotations : list[str],
     draft       : Callable[..., object],
     fp          : FakeProcess,
-    listed      : list[str] | None,
-    outputs     : Path
+    manifest    : dict | None,
+    outputs     : Path,
+    searches    : tuple[str, ...]
 ):
     """
     Pins that a refreshed draft whose manifest and `docs/runs/` disagree
     stops the task with one error annotation per side, the committed side
     first, each naming that side's runs alone in sorted order. A draft
-    attaching no manifest lists no run, and the outputs are written before
-    the task stops.
+    attaching no manifest lists no run, a demonstration the manifest lists
+    stands in for no search `docs/runs/` commits, and the outputs are
+    written before the task stops.
     """
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
-        stdout = dumps({"body": GENERATED})
-    )
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/1", fp.any()],
-        stdout = dumps({"html_url": UNTAGGED})
-    )
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/assets/7", fp.any()],
-        stdout = dumps(
-            {"demonstrations": [], "runs": [{"name": name} for name in listed or ()]}
-        )
-    )
+    refreshing(fp, manifest)
 
     with raises(SystemExit) as stopped:
         draft(
-            release("0.2.0", assets=[MANIFEST] if listed else []),
-            committed = {"early", "late"}
+            release("0.2.0", assets=[MANIFEST] if manifest else []),
+            committed = {"early", "late"},
+            searches  = searches
         ).maintain()
 
     assert stopped.value.code == "\n".join(annotations)

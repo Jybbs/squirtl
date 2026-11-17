@@ -1,27 +1,10 @@
 // @vitest-environment happy-dom
 import { type VueWrapper, enableAutoUnmount, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it, vi }        from 'vitest'
+import { afterEach, describe, expect, it }            from 'vitest'
 import { nextTick }                                   from 'vue'
 
 import * as pointer from '../../../common/pointer.ts'
-
-/**
- * Whether the stand-in below holds the seven runs the fixture holds or no run
- * at all.
- */
-const held = vi.hoisted(() => ({ runs: false }))
-
-vi.mock('../../../../lib/results/results.ts', async original => {
-  const module  = await original<typeof import('../../../../lib/results/results.ts')>()
-  const fixture = await import('../../../lib/results/fixtures/results.json')
-  const none    = { comparisons: [], random: null, runs: [] }
-  const shown   = () => (held.runs ? fixture.default : none) as unknown as typeof module.COMMITTED
-  return {
-    ...module,
-    get COMMITTED() { return shown() },
-    groupsOf: (results = shown()) => module.groupsOf(results)
-  }
-})
+import { held }     from '../../../common/results.ts'
 
 const { ResultsArgmax } = await import('../../../../theme/components/results/argmax.tsx')
 

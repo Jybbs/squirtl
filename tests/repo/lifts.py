@@ -831,7 +831,12 @@ def test_a_lift_counts_the_whole_days_since_its_newest_release(
     Pins the age a row prints, empty where the manager names no release
     time.
     """
-    lift = lift_of("uv 1.0.0 1.0.1", released=released and datetime.now(UTC) - released)
+    checked = datetime(2026, 10, 4, tzinfo=UTC)
+    lift    = lift_of(
+        checked  = checked,
+        pin      = "uv 1.0.0 1.0.1",
+        released = released and checked - released
+    )
 
     assert lift.age == age
 
@@ -2570,19 +2575,25 @@ def test_the_table_prints_one_markdown_row_per_lift(snapshot: SnapshotAssertion)
     Pins the columns a row gives, an empty cell for a release no manager
     dates, and the shape that pastes into a pull request as it prints.
     """
-    now = datetime.now(UTC)
+    checked = datetime(2026, 10, 4, tzinfo=UTC)
 
     table = lifts_of(
         lift_of(
+            checked  = checked,
             clears   = ("GHSA-xmj3-9gf7-h52w", "GHSA-other"),
             pin      = "setuptools 84.0.0 84.2.1",
-            released = now - timedelta(days=12, hours=1)
+            released = checked - timedelta(days=12, hours=1)
         ),
-        lift_of("python 3.14.6 3.15.1", home=Path(".mise/config.toml")),
         lift_of(
+            checked = checked,
+            pin     = "python 3.14.6 3.15.1",
+            home    = Path(".mise/config.toml")
+        ),
+        lift_of(
+            checked  = checked,
             pin      = f"actions/checkout {PINNED} v5.0.0",
             home     = Path(".github"),
-            released = now - timedelta(hours=1)
+            released = checked - timedelta(hours=1)
         )
     ).table
 
