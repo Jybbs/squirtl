@@ -4,7 +4,7 @@
 
 ## The Parts of a Run
 
-A run joins five parts, each set out on a page of its own:
+A run joins the parts below, each set out on a page of its own:
 
 - The [environment](./environment.md) presses one button a step, advances the game 17 frames, and returns the screens the agent reads
 - The [reward](./reward.md) reads the game's memory after each step and pays for a square not reached before and for each milestone on the way to the run's goal

@@ -219,12 +219,15 @@ function byRank(left: Copy, right: Copy): number {
 }
 
 /**
- * Finds the copy of `iteration` that set the starter's flag, where one did.
+ * Finds the highest-ranked copy of `iteration` that set the starter's flag,
+ * the first of any tied, as the search makes the best particle holding the
+ * goal its winner.
  */
 function foundIn(iteration: Iteration): Search['found'] | undefined {
-  const slots = iteration.groups.map(({ copies }) => copies.findIndex(({ term }) => term === 'goal'))
-  const group = slots.findIndex(slot => slot >= 0)
-  return group < 0 ? undefined : { group, slot: slots[group]! }
+  const holders = iteration.groups.flatMap(({ copies }, group) =>
+    copies.flatMap((copy, slot) => copy.term === 'goal' ? [{ copy, group, slot }] : []))
+  const [best]  = holders.toSorted((left, right) => byRank(left.copy, right.copy))
+  return best && { group: best.group, slot: best.slot }
 }
 
 /**

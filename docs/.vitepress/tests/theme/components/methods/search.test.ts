@@ -114,6 +114,33 @@ describe('MethodsSearch', () => {
   })
 })
 
+describe('MethodsSearch’s copies', () => {
+  it('dims the copy holding the starter’s badge once a reader presses the milestone entry', async () => {
+    drawInto(null)
+    const wrapper         = mount(MethodsSearch, { attachTo: document.body })
+    const { group, slot } = search.SEARCH.found
+    const entry           = KEY.findIndex(({ role }) => role === 'milestone')
+
+    await wrapper.findAll('button[aria-pressed]')[entry]!.trigger('click')
+
+    expect(dimmed(wrapper)[group * search.SIZES.particles + slot]).toBe(true)
+  })
+})
+
+describe('MethodsSearch’s slider', () => {
+  it('moves nothing under a pointer pressing and sweeping across the copies', async () => {
+    drawInto(null)
+    const wrapper = mount(MethodsSearch, { attachTo: document.body })
+    const copies  = pointer.laidOut(wrapper.get('ol'), 600)
+    const before  = pointer.sliderState(wrapper)
+
+    await pointer.press(copies, 60)
+    await pointer.sweep(copies, [120, 300, 540])
+
+    expect(pointer.sliderState(wrapper)).toStrictEqual(before)
+  })
+})
+
 describe('MethodsSearch’s key', () => {
   it.each(KEY.map((entry, n) => ({ n, name: entry.name })))(
     'dims every copy without the mark of $name once a reader presses it',

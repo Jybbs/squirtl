@@ -47,5 +47,5 @@ export const KEY: readonly KeyEntry[] = [
  */
 export function carries(shown: Shown, n: number): boolean {
   const marked = MARKED[n]
-  return marked === 'milestone' ? shown.term !== null : shown.state === marked
+  return marked === 'milestone' ? shown.term === 'milestone' : shown.state === marked
 }

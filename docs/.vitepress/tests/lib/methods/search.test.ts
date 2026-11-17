@@ -29,6 +29,13 @@ const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'e
 const COPIES = SEARCH.iterations.flatMap((iteration, n) => iteration.groups.map(group => ({ group, n })))
   .flatMap(({ group, n }) => group.copies.map(copy => ({ copy, n })))
 /**
+ * Each copy of every iteration beside its iteration and the key of the square
+ * its rollout ends on.
+ */
+const ENDS = COPIES.map(({ copy, n }) => ({
+  copy, n, square: episodeOf([...search.pathOf(SEARCH.nodes, copy.start), ...copy.presses]).key()
+}))
+/**
  * Every iteration beside its place.
  */
 const ITERATIONS = SEARCH.iterations.map((iteration, n) => ({ iteration, n }))
@@ -72,13 +79,12 @@ function episodeOf(presses: readonly Button[]): Episode {
 }
 
 /**
- * Reads the lengths of the rollouts setting no flag and the longest of those
- * setting one.
+ * Plays `copy`'s rollout from its node, reading whether each press set a flag
+ * the reward pays.
  */
-function lengthsOf(copies: readonly search.Copy[]): [number[], number] {
-  const plain   = copies.filter(copy => copy.term === null).map(copy => copy.presses.length)
-  const flagged = copies.filter(copy => copy.term !== null).map(copy => copy.presses.length)
-  return [[...new Set(plain)], Math.max(...flagged)]
+function flagsOf(copy: search.Copy): boolean[] {
+  const episode = episodeOf(search.pathOf(SEARCH.nodes, copy.start))
+  return copy.presses.map(press => episode.press(press).some(each => each.term !== 'novelty'))
 }
 
 /**
@@ -155,12 +161,19 @@ describe('the search', () => {
 })
 
 describe('the search’s rollouts', () => {
-  it('halts a rollout at the press setting a flag and at its length otherwise', () => {
-    const [plain, flagged] = lengthsOf(COPIES.map(each => each.copy))
+  it.each(COPIES.filter(each => each.copy.term !== null))(
+    'halts the rollout of iteration $n at the press setting a flag',
+    ({ copy }) => {
+      expect(flagsOf(copy).indexOf(true)).toBe(copy.presses.length - 1)
+    }
+  )
 
-    expect(plain).toStrictEqual([search.SIZES.presses])
-    expect(flagged).toBeLessThan(search.SIZES.presses)
-  })
+  it.each(COPIES.filter(each => each.copy.term === null))(
+    'plays the rollout of iteration $n setting no flag to its length',
+    ({ copy }) => {
+      expect([flagsOf(copy).includes(true), copy.presses.length]).toStrictEqual([false, search.SIZES.presses])
+    }
+  )
 
   it.each(COPIES.filter(each => each.copy.dead))(
     'counts a rollout of iteration $n dead where it ends where it began, adding no node',
@@ -202,6 +215,17 @@ describe('the search’s groups', () => {
     ({ iteration, n }) => {
       expect([iteration.synced, iteration.groups.map(group => group.next)])
         .toStrictEqual([(n + 1) % search.SIZES.sync === 0, nextOf(iteration)])
+    }
+  )
+
+  it.each(ITERATIONS)(
+    'rates each copy of iteration $n by how rarely the search has stood on its last square',
+    ({ n }) => {
+      const stood = ENDS.filter(each => each.n <= n).map(each => each.square)
+      const ended = ENDS.filter(each => each.n === n)
+
+      expect(ended.map(({ copy }) => copy.uncertainty))
+        .toStrictEqual(ended.map(({ square }) => 1 / Math.sqrt(stood.filter(at => at === square).length)))
     }
   )
 
