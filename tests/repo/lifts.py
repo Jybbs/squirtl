@@ -609,21 +609,21 @@ def test_a_compile_resolves_its_requirements_through_standard_input(fp: FakeProc
     assert named["pyyaml"].version == Version("6.0.3")
 
 
-def test_a_held_package_moving_in_a_script_lockfile_puts_every_lockfile_back(
-    relocked : Callable[..., None],
+def test_a_held_package_a_new_script_pin_moves_puts_back_the_script_and_its_lockfile(
+    fp       : FakeProcess,
     tmp_path : Path
 ):
     """
-    Pins that a held package a script's lockfile moves raises a sentence
-    naming only the lifts of that lockfile depending on it, leaving out a
-    package that depends on it there but lifts only in `uv.lock`, and that
-    the write puts `uv.lock` back as well as the script's lockfile.
+    Pins that the write locks a script's lockfile again after the script's
+    new pin lands, even with no lift homed there, so a held package the
+    new pin moves stops the write, which then puts back the script and its
+    lockfile as they stood.
     """
-    script = ".mise/tasks/repo/tool.py"
+    script = Path(".mise/tasks/repo/tool.py")
     home   = Path(f"{script}.lock")
     before = {
-        "uv.lock" : lock_of("a 1.0.0 c", "c 1.0.0"),
-        str(home) : lock_of("a 1.0.0 c", "b 1.0.0 c", "c 1.0.0")
+        script : 'dependencies = ["b==1.0.0"]\n',
+        home   : lock_of("b 1.0.0 c", "c 1.0.0")
     }
 
     (tmp_path / script).parent.mkdir(parents=True)
@@ -631,22 +631,32 @@ def test_a_held_package_moving_in_a_script_lockfile_puts_every_lockfile_back(
     for file, text in before.items():
         (tmp_path / file).write_text(text, encoding="utf-8")
 
-    relocked(lock_of("a 2.0.0 c", "c 1.0.0"), "a")
-    relocked(lock_of("a 1.0.0 c", "b 2.0.0 c", "c 2.0.0"), "b", script=script)
-
-    with raises(HeldPackageMoved) as caught:
-        PackageLifts(
-            lifts = (
-                lift_of("a 1.0.0 2.0.0"),
-                lift_of("b 1.0.0 2.0.0", home=home),
-                lift_of("c 1.0.0 2.0.0", home=home)
-            )
-        ).holding({"c"}).write(Checkout(root=tmp_path))
-
-    assert str(caught.value) == (
-        "`uv lock` moved c from the 1.0.0 it is held at to 2.0.0, so hold each "
-        "lift depending on it as well: b"
+    fp.register(
+        ["uv", "lock", "--no-locked", "--script", str(script)],
+        callback = lambda process: (Path(process.kwargs["cwd"]) / home).write_text(
+            lock_of("b 2.0.0 c", "c 2.0.0")
+            if '"b==2.0.0"' in (tmp_path / script).read_text(encoding="utf-8")
+            else before[home],
+            encoding = "utf-8"
+        )
     )
+
+    managers = {
+        PackageLifts     : PackageLifts(
+            lifts = (lift_of("c 1.0.0 2.0.0", home=home),)
+        ).holding({"c"}),
+        RequirementLifts : RequirementLifts(
+            lifts = (lift_of("b 1.0.0 2.0.0", home=script),)
+        )
+    }
+
+    with raises(HeldPackageMoved):
+        Lifts(
+            found = tuple(
+                managers[manager] for manager in Lifts.managers if manager in managers
+            )
+        ).write(Checkout(root=tmp_path))
+
     assert {
         file: (tmp_path / file).read_text(encoding="utf-8") for file in before
     } == before
@@ -731,6 +741,49 @@ def test_a_hold_on_a_paired_pin_whose_partner_the_table_does_not_list_passes():
     lifts = lifts_of(lift_of("vitest 5.0.5 6.0.0"))
 
     assert lifts.lift(held=("vitest",), trying=True, writing=True) == 0
+
+
+def test_a_held_package_moving_in_a_script_lockfile_puts_every_lockfile_back(
+    relocked : Callable[..., None],
+    tmp_path : Path
+):
+    """
+    Pins that a held package a script's lockfile moves raises a sentence
+    naming only the lifts of that lockfile depending on it, leaving out a
+    package that depends on it there but lifts only in `uv.lock`, and that
+    the write puts `uv.lock` back as well as the script's lockfile.
+    """
+    script = ".mise/tasks/repo/tool.py"
+    home   = Path(f"{script}.lock")
+    before = {
+        "uv.lock" : lock_of("a 1.0.0 c", "c 1.0.0"),
+        str(home) : lock_of("a 1.0.0 c", "b 1.0.0 c", "c 1.0.0")
+    }
+
+    (tmp_path / script).parent.mkdir(parents=True)
+
+    for file, text in before.items():
+        (tmp_path / file).write_text(text, encoding="utf-8")
+
+    relocked(lock_of("a 2.0.0 c", "c 1.0.0"), "a")
+    relocked(lock_of("a 1.0.0 c", "b 2.0.0 c", "c 2.0.0"), "b", script=script)
+
+    with raises(HeldPackageMoved) as caught:
+        PackageLifts(
+            lifts = (
+                lift_of("a 1.0.0 2.0.0"),
+                lift_of("b 1.0.0 2.0.0", home=home),
+                lift_of("c 1.0.0 2.0.0", home=home)
+            )
+        ).holding({"c"}).write(Checkout(root=tmp_path))
+
+    assert str(caught.value) == (
+        "`uv lock` moved c in .mise/tasks/repo/tool.py.lock from the 1.0.0 it is "
+        "held at to 2.0.0, so hold each lift depending on it as well: b"
+    )
+    assert {
+        file: (tmp_path / file).read_text(encoding="utf-8") for file in before
+    } == before
 
 
 def test_a_held_package_moving_stops_the_write_before_any_other_manager(
@@ -1416,6 +1469,7 @@ def test_a_trial_holding_a_package_another_lift_moves_names_that_lift(
     """
     fp.pass_command(["git", fp.any()], occurrences=8)
     relocked(lock_of("a 2.0.0 b", "b 2.0.0"), "a")
+    relocked(lock_of("a 1.0.0 b", "b 1.0.0"))
 
     for command in (
         ["mise", "lock"],
@@ -1436,8 +1490,8 @@ def test_a_trial_holding_a_package_another_lift_moves_names_that_lift(
     assert (whole.passed, [attempt.passed for attempt in held]) == (False, [True])
     assert (trial.status, trial.verdict) == (1, "The lift breaking the tree is a 2.0.0")
     assert (
-        "`uv lock` moved b from the 1.0.0 it is held at to 2.0.0, so hold each lift "
-        "depending on it as well: a"
+        "`uv lock` moved b in uv.lock from the 1.0.0 it is held at to 2.0.0, so "
+        "hold each lift depending on it as well: a"
     ) in whole.log.read_text(encoding="utf-8")
     assert fp.call_count(["mise", "run", "--continue-on-error", "repo:ci"]) == 1
     assert (clone / "uv.lock").read_text(encoding="utf-8") == "version = 1\n"
@@ -1492,8 +1546,8 @@ def test_a_write_moving_a_held_package_exits_1_with_every_file_as_it_stood(
 
     assert "Leaving b at 1.0.0, because `--hold` names it for this run" in printed.out
     assert printed.err.splitlines() == [
-        "`uv lock` moved b from the 1.0.0 it is held at to 2.0.0, so hold each lift "
-        "depending on it as well: a",
+        "`uv lock` moved b in uv.lock from the 1.0.0 it is held at to 2.0.0, so "
+        "hold each lift depending on it as well: a",
         "The write stops with every file as it stood"
     ]
     assert (tmp_path / "uv.lock").read_text(encoding="utf-8") == before
@@ -2190,31 +2244,34 @@ def test_a_trial_holds_back_each_other_pin_once_no_major_hold_passes(
             {"b"},
             lock_of("a 2.0.0 b", "b 2.0.0", "c 1.0.0 b", "d 2.0.0"),
             [
-                "`uv lock` moved b from the 1.0.0 it is held at to 2.0.0, so hold "
-                "each lift depending on it as well: a"
+                "`uv lock` moved b in uv.lock from the 1.0.0 it is held at to 2.0.0, "
+                "so hold each lift depending on it as well: a"
             ],
             id = "naming-each-lift-depending-on-it-and-no-other-package"
         ),
         param(
             {"b"},
             lock_of("a 2.0.0", "b 2.0.0", "d 2.0.0"),
-            ["`uv lock` moved b from the 1.0.0 it is held at to 2.0.0"],
+            ["`uv lock` moved b in uv.lock from the 1.0.0 it is held at to 2.0.0"],
             id = "with-no-lift-depending-on-it"
         ),
         param(
             {"b"},
             lock_of("a 2.0.0", "d 2.0.0"),
-            ["`uv lock` moved b from the 1.0.0 it is held at to no release"],
+            [
+                "`uv lock` moved b in uv.lock from the 1.0.0 it is held at to no "
+                "release"
+            ],
             id = "leaving-the-lock"
         ),
         param(
             {"a", "b"},
             lock_of("a 3.0.0", "b 2.0.0", "d 2.0.0 a b"),
             [
-                "`uv lock` moved a from the 1.0.0 it is held at to 3.0.0, so hold "
-                "each lift depending on it as well: d",
-                "`uv lock` moved b from the 1.0.0 it is held at to 2.0.0, so hold "
-                "each lift depending on it as well: d"
+                "`uv lock` moved a in uv.lock from the 1.0.0 it is held at to 3.0.0, "
+                "so hold each lift depending on it as well: d",
+                "`uv lock` moved b in uv.lock from the 1.0.0 it is held at to 2.0.0, "
+                "so hold each lift depending on it as well: d"
             ],
             id = "each-on-a-line-of-its-own"
         )
@@ -2352,6 +2409,15 @@ def test_only_the_lift_of_mise_itself_reads_the_running_mise(fp: FakeProcess):
     assert lifts_of(lift_of("uv 0.12.13 9999.0.0")).refused() == {}
 
 
+def test_the_exact_pins_and_then_the_packages_write_before_every_other_manager():
+    """
+    Pins that `RequirementLifts` writes first, so each script's lockfile
+    resolves against its new pins, and `PackageLifts` next, so a held
+    package it finds moved stops the write before any other manager writes.
+    """
+    assert Lifts.managers[:2] == (RequirementLifts, PackageLifts)
+
+
 def test_the_exact_pins_lag_the_resolution_of_each_group(
     checkout : Callable[[Mapping[str, str]], None],
     fp       : FakeProcess,
@@ -2444,6 +2510,27 @@ def test_the_locked_packages_read_each_update_the_dry_run_names(
     assert lifts[0].released == datetime(2026, 10, 1, tzinfo=UTC)
 
 
+@mark.parametrize(
+    ("lockfile", "options"),
+    [
+        param(Path("uv.lock"), (), id="the-project"),
+        param(
+            Path(".mise/tasks/gha/brief.py.lock"),
+            ("--script", ".mise/tasks/gha/brief.py"),
+            id = "a-script"
+        )
+    ]
+)
+def test_a_lock_names_the_script_beside_a_script_lockfile(
+    lockfile : Path,
+    options  : tuple[str, ...]
+):
+    """
+    Pins the options pointing `uv lock` at each kind of lockfile.
+    """
+    assert PackageLifts.locking(lockfile) == options
+
+
 def test_the_locked_packages_read_the_lockfile_beside_each_script_keeping_one(
     checkout : Callable[[Mapping[str, str]], None],
     fp       : FakeProcess,
@@ -2473,35 +2560,6 @@ def test_the_locked_packages_read_the_lockfile_beside_each_script_keeping_one(
     assert [(lift.home, lift.name, lift.current, lift.newest) for lift in lifts] == [
         (Path(".mise/tasks/repo/tool.py.lock"), "pyyaml", "6.0.2", "6.0.3")
     ]
-
-
-@mark.parametrize(
-    ("lockfile", "options"),
-    [
-        param(Path("uv.lock"), (), id="the-project"),
-        param(
-            Path(".mise/tasks/gha/brief.py.lock"),
-            ("--script", ".mise/tasks/gha/brief.py"),
-            id = "a-script"
-        )
-    ]
-)
-def test_a_lock_names_the_script_beside_a_script_lockfile(
-    lockfile : Path,
-    options  : tuple[str, ...]
-):
-    """
-    Pins the options pointing `uv lock` at each kind of lockfile.
-    """
-    assert PackageLifts.locking(lockfile) == options
-
-
-def test_the_packages_write_before_every_other_manager():
-    """
-    Pins that `PackageLifts` writes first, so a held package it finds moved
-    stops the write before any other manager moves a pin.
-    """
-    assert Lifts.managers[0] is PackageLifts
 
 
 @mark.parametrize(

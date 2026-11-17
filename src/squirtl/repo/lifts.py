@@ -996,8 +996,8 @@ class PackageLifts(Manager):
                 )
 
                 moved.append(
-                    f"`uv lock` moved {lift.name} from the {lift.current} it is held "
-                    f"at to {release}"
+                    f"`uv lock` moved {lift.name} in {lift.home} from the "
+                    f"{lift.current} it is held at to {release}"
                     + (
                         f", so hold each lift depending on it as well: {beside}"
                         if beside
@@ -1046,8 +1046,8 @@ class PackageLifts(Manager):
     @classmethod
     def read(cls) -> Self:
         """
-        Reads `uv.lock` and the lockfile beside each task script keeping one
-        at once, since each dry run waits on the index.
+        Reads `uv.lock` and the lockfile beside each task script keeping
+        one, all at once, since each dry run waits on the index.
         """
         return cls(
             lifts = tuple(
@@ -1110,8 +1110,10 @@ class PackageLifts(Manager):
     def write(self, checkout: Checkout):
         """
         Moves each package of `lifts` to its newest release in the lockfile
-        it is homed in. The resolver treats every other locked version as
-        a preference, so a new release requiring a newer held package moves
+        it is homed in, and locks each lockfile a package of `held` is homed
+        in again, so it resolves against the script pins `RequirementLifts`
+        rewrote. The resolver treats every other locked version as a
+        preference, so a new release requiring a newer held package moves
         that package too, and the write then puts each lockfile back as
         it stood.
 
@@ -1119,11 +1121,9 @@ class PackageLifts(Manager):
             HeldPackageMoved: Where a lockfile leaves a package of `held`
                               off its current release.
         """
-        if not self.lifts:
-            return
-
         locked = {
-            lift.home: (checkout.root / lift.home).read_bytes() for lift in self.lifts
+            lift.home: (checkout.root / lift.home).read_bytes()
+            for lift in (*self.lifts, *self.held)
         }
 
         for lockfile in locked:
@@ -1379,12 +1379,14 @@ class Lifts(Record):
     """
 
     managers: ClassVar[tuple[type[Manager], ...]] = (
-        PackageLifts, RequirementLifts, SiteLifts, ActionLifts, ToolLifts
+        RequirementLifts, PackageLifts, SiteLifts, ActionLifts, ToolLifts
     )
     """
     Every manager whose pins the task reads, in the order `write` writes
-    them. `PackageLifts` writes first, so a held package it finds moved stops
-    the write before any other pin moves, and `ToolLifts` writes last, since
+    them. `RequirementLifts` writes first, so each script's lockfile
+    `PackageLifts` locks resolves against the script's new pins, and
+    `PackageLifts` writes next, so a held package it finds moved stops the
+    write before any other manager writes. `ToolLifts` writes last, since
     every `uv` command before it runs under the `required-version` it moves.
     """
 
@@ -1626,10 +1628,29 @@ class Lifts(Record):
         through `lock:sync`, building `.venv` again on the interpreter the
         lift pins where `python` moves, since `uv sync` alone keeps `.venv`
         on the interpreter it was built on while that interpreter satisfies
-        `requires-python`, as a move within the minor leaves it.
+        `requires-python`, as a move within the minor leaves it. Where a
+        held package moves, it puts back each file of the exact pins as it
+        stood beside the lockfiles `PackageLifts` puts back.
+
+        Raises:
+            HeldPackageMoved: Where a lockfile leaves a held package off its
+                              current release.
         """
-        for manager in self.found:
-            manager.write(checkout)
+        pinned = {
+            lift.home: (checkout.root / lift.home).read_bytes()
+            for manager in self.found
+            if isinstance(manager, RequirementLifts)
+            for lift in manager.lifts
+        }
+
+        try:
+            for manager in self.found:
+                manager.write(checkout)
+        except HeldPackageMoved:
+            for home, text in pinned.items():
+                (checkout.root / home).write_bytes(text)
+
+            raise
 
         for command in (
             ("mise", "lock"),

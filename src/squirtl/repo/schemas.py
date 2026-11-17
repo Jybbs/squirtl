@@ -5,9 +5,10 @@ so a misspelled key fails the read before anything is sent, whereas a
 record of what GitHub, mise, or a manifest returns ignores the keys it does
 not read:
 
-- `JsonFile`, `TomlFile`, and `YamlFile`, the bases of a record one file holds,
-  `StepFile`, the base of a YAML file whose steps run scripts, and
-  `Endpoint`, the base of a table sent whole as the body of a `PUT`
+- `DataFile`, the base of a record one file holds, beside the `JsonFile`,
+  `TomlFile`, and `YamlFile` that read it in each format, `StepFile`, the
+  base of a YAML file whose steps run scripts, and `Endpoint`, the base of
+  a table sent whole as the body of a `PUT`
 - The registries under `.github/` and `Project`, each registry deriving the
   `Plan` that brings GitHub in line with it
 - `Finding`, one divergence `repo:audit` reports, and `Unreadable`, raised
@@ -1551,8 +1552,8 @@ class Labels(TomlFile):
 
 class Lockfile(TomlFile, extra="ignore"):
     """
-    The packages a lockfile `uv lock` writes resolves, which is `file` for
-    the project and the lockfile beside a task script for that script.
+    The packages one lockfile of `uv lock` resolves, which is `file` for the
+    project and the lockfile beside a task script for that script.
     """
 
     file: ClassVar[Path] = Path("uv.lock")
