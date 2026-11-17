@@ -76,7 +76,7 @@ jobs:
           accountId       : ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           apiToken        : ${{ secrets.CLOUDFLARE_TOKEN }}
           command         : pages deploy ${{ env.SITE }} --project-name=squirtl --branch=main
-          wranglerVersion : 4.158.0
+          wranglerVersion : 4.164.0
 
   brief:
     name            : 🎒 Brief

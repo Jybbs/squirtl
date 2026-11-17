@@ -240,6 +240,30 @@ class Block(Record):
         return default if value is None else value
 
 
+class DataFile(Record, ABC):
+    """
+    The base of a record one file of the repository holds, which `read`
+    reads from `file` through the `from_path` of the file's format.
+    """
+
+    file: ClassVar[Path]
+
+    @classmethod
+    @abstractmethod
+    def from_path(cls, path: Path) -> Self:
+        """
+        Reads the record the file at `path` holds, raising `Unreadable`
+        where the file fails to parse or to validate.
+        """
+
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Reads the record at `file`.
+        """
+        return cls.from_path(cls.file)
+
+
 class Dependabot(Record):
     """
     The `[dependabot]` table, keyed by the endpoint each setting turns on
@@ -316,13 +340,11 @@ class GithubRuleset(Record, extra="ignore"):
     """
 
 
-class JsonFile(Record):
+class JsonFile(DataFile):
     """
     The base of a record one JSON file holds whole, which `from_path`
     validates into the record.
     """
-
-    file: ClassVar[Path]
 
     @classmethod
     def from_path(cls, path: Path) -> Self:
@@ -333,13 +355,6 @@ class JsonFile(Record):
         """
         with Finding.reading(path), path.open(encoding="utf-8") as file:
             return cls.model_validate(load(file))
-
-    @classmethod
-    def read(cls) -> Self:
-        """
-        Reads the record at `file`.
-        """
-        return cls.from_path(cls.file)
 
 
 class Label(Record):
@@ -829,26 +844,6 @@ class SiteLockfile(JsonFile, extra="ignore"):
         return sorted(paths - {name}) if len(paths) > 1 else []
 
 
-class TomlFile(Record):
-    """
-    The base of a record one TOML file holds whole, which `read` validates
-    into the record.
-    """
-
-    file: ClassVar[Path]
-
-    @classmethod
-    def read(cls, root: Path = Path(".")) -> Self:
-        """
-        Reads the record at `file` under `root`, raising `Unreadable` where
-        the file fails to parse or to validate.
-        """
-        with Finding.reading(cls.file):
-            return cls.model_validate(
-                loads((root / cls.file).read_text(encoding="utf-8"))
-            )
-
-
 class Tree(Record):
     """
     The files of the checkout git lists, tracked or untracked and not
@@ -885,6 +880,30 @@ class Tree(Record):
         Picks each file somewhere under `directory`.
         """
         return [file for file in self.files if file.is_relative_to(directory)]
+
+
+class ActionsPermissions(Endpoint):
+    """
+    The `[actions]` table, the body of the request that sets which actions a
+    workflow may run.
+    """
+
+    path: ClassVar[str] = "actions/permissions"
+
+    allowed_actions: Literal["all", "local_only", "selected"]
+    """
+    The actions a workflow may run, as GitHub names the choice.
+    """
+
+    enabled: bool
+    """
+    Whether GitHub Actions runs on the repository at all.
+    """
+
+    sha_pinning_required: bool
+    """
+    Whether a workflow may run only an action pinned to a full commit SHA.
+    """
 
 
 class Unreadable(Exception):
@@ -924,30 +943,6 @@ class Unreadable(Exception):
             )
 
         return results
-
-
-class ActionsPermissions(Endpoint):
-    """
-    The `[actions]` table, the body of the request that sets which actions a
-    workflow may run.
-    """
-
-    path: ClassVar[str] = "actions/permissions"
-
-    allowed_actions: Literal["all", "local_only", "selected"]
-    """
-    The actions a workflow may run, as GitHub names the choice.
-    """
-
-    enabled: bool
-    """
-    Whether GitHub Actions runs on the repository at all.
-    """
-
-    sha_pinning_required: bool
-    """
-    Whether a workflow may run only an action pinned to a full commit SHA.
-    """
 
 
 class Project(Record, extra="ignore"):
@@ -1113,6 +1108,13 @@ class Script(Record):
         """
         return ({1: self.shebang} if self.shebang else {}) | self.commands
 
+    @property
+    def lockfile(self) -> Path:
+        """
+        Names the lockfile `uv lock --script` writes beside the script.
+        """
+        return Path(f"{self.path}.lock")
+
     @classmethod
     def from_path(cls, path: Path) -> Self:
         """
@@ -1180,83 +1182,20 @@ class TaskIssue(Record, extra="ignore"):
         )
 
 
-class YamlFile(Record):
+class TomlFile(DataFile):
     """
-    The base of a YAML file the audit reads, holding the first document
-    the file carries, which for a Markdown file is the frontmatter above
-    its text.
+    The base of a record one TOML file holds whole, which `from_path`
+    validates into the record.
     """
-
-    directory: ClassVar[Path]
-
-    file: ClassVar[Path]
-
-    path: Path
-    """
-    The file, relative to the root of the checkout.
-    """
-
-    root: Block
-    """
-    The node the first document opens on.
-    """
-
-    text: str
-    """
-    What the file holds.
-    """
-
-    @property
-    def anchors(self) -> list[int]:
-        """
-        Numbers each line of the first document that carries an anchor or
-        an alias.
-        """
-        events = takewhile(
-            lambda event: not isinstance(event, DocumentEndEvent),
-            parse(self.text, Loader=SafeLoader)
-        )
-
-        return [
-            event.start_mark.line + 1
-            for event in events
-            if isinstance(event, NodeEvent) and event.anchor
-        ]
 
     @classmethod
     def from_path(cls, path: Path) -> Self:
         """
-        Reads the first document of the YAML file at `path`, building its
-        value once so a tag `yaml.safe_load` cannot build fails the read,
-        and raising `Unreadable` where the file fails to parse, holds no
-        document, or carries such a tag.
+        Reads the record the TOML file at `path` holds, raising `Unreadable`
+        where the file fails to parse or to validate.
         """
         with Finding.reading(path):
-            text = path.read_text(encoding="utf-8")
-            root = Block(node=next(compose_all(text, Loader=SafeLoader), None))
-
-            root.value
-
-            return cls(path=path, root=root, text=text)
-
-    @classmethod
-    def matching(cls, *patterns: str) -> list[Self]:
-        """
-        Reads every file under `directory` that one of `patterns` matches,
-        in the order of its path, raising `Unreadable` once all are read
-        where any fails to parse.
-        """
-        return Unreadable.gather(
-            sorted(chain.from_iterable(map(cls.directory.glob, patterns))),
-            cls.from_path
-        )
-
-    @classmethod
-    def read(cls) -> Self:
-        """
-        Reads the one file `file` names.
-        """
-        return cls.from_path(cls.file)
+            return cls.model_validate(loads(path.read_text(encoding="utf-8")))
 
 
 class WorkflowStep(Block):
@@ -1330,6 +1269,76 @@ class WorkflowStep(Block):
         """
         return any(
             "GITHUB_STEP_SUMMARY" in word for words in self.commands for word in words
+        )
+
+
+class YamlFile(DataFile):
+    """
+    The base of a YAML file the audit reads, holding the first document
+    the file carries, which for a Markdown file is the frontmatter above
+    its text.
+    """
+
+    directory: ClassVar[Path]
+
+    path: Path
+    """
+    The file, relative to the root of the checkout.
+    """
+
+    root: Block
+    """
+    The node the first document opens on.
+    """
+
+    text: str
+    """
+    What the file holds.
+    """
+
+    @property
+    def anchors(self) -> list[int]:
+        """
+        Numbers each line of the first document that carries an anchor or
+        an alias.
+        """
+        events = takewhile(
+            lambda event: not isinstance(event, DocumentEndEvent),
+            parse(self.text, Loader=SafeLoader)
+        )
+
+        return [
+            event.start_mark.line + 1
+            for event in events
+            if isinstance(event, NodeEvent) and event.anchor
+        ]
+
+    @classmethod
+    def from_path(cls, path: Path) -> Self:
+        """
+        Reads the first document of the YAML file at `path`, building its
+        value once so a tag `yaml.safe_load` cannot build fails the read,
+        and raising `Unreadable` where the file fails to parse, holds no
+        document, or carries such a tag.
+        """
+        with Finding.reading(path):
+            text = path.read_text(encoding="utf-8")
+            root = Block(node=next(compose_all(text, Loader=SafeLoader), None))
+
+            root.value
+
+            return cls(path=path, root=root, text=text)
+
+    @classmethod
+    def matching(cls, *patterns: str) -> list[Self]:
+        """
+        Reads every file under `directory` that one of `patterns` matches,
+        in the order of its path, raising `Unreadable` once all are read
+        where any fails to parse.
+        """
+        return Unreadable.gather(
+            sorted(chain.from_iterable(map(cls.directory.glob, patterns))),
+            cls.from_path
         )
 
 
@@ -1542,7 +1551,8 @@ class Labels(TomlFile):
 
 class Lockfile(TomlFile, extra="ignore"):
     """
-    The packages `file` resolves.
+    The packages a lockfile `uv lock` writes resolves, which is `file` for
+    the project and the lockfile beside a task script for that script.
     """
 
     file: ClassVar[Path] = Path("uv.lock")
@@ -1742,62 +1752,6 @@ class ReleaseNotes(YamlFile):
         return self.root.entries("changelog", "categories")
 
 
-class Rulesets(Record):
-    """
-    The rulesets the files under `directory` declare.
-    """
-
-    directory: ClassVar[Path] = Path(".github/rulesets")
-
-    rulesets: dict[Path, Ruleset]
-    """
-    Every ruleset keyed by its file, in the order of the file's name.
-    """
-
-    @cached_property
-    def live(self) -> dict[str, int]:
-        """
-        Reads the id of each ruleset the repository carries on every page
-        of GitHub's listing, keyed by its name, leaving out a ruleset the
-        repository inherits from an organization.
-        """
-        pages = Command.api(
-            "rulesets?includes_parents=false",
-            "--paginate",
-            "--slurp"
-        ).parsed(list[list[GithubRuleset]])
-
-        return {ruleset.name: ruleset.id for ruleset in chain.from_iterable(pages)}
-
-    @property
-    def plan(self) -> Plan:
-        """
-        Updates each ruleset GitHub carries under the name a file declares
-        and creates every other one, and names each ruleset GitHub carries
-        that no file declares.
-        """
-        rulesets = self.rulesets.values()
-
-        return Plan.leaving(
-            declared = (ruleset.name for ruleset in rulesets),
-            kind     = "ruleset",
-            live     = self.live,
-            writes   = (ruleset.command(self.live) for ruleset in rulesets)
-        )
-
-    @classmethod
-    def read(cls) -> Self:
-        """
-        Reads every ruleset a JSON file under `directory` declares, raising
-        `Unreadable` once all are read where any fails to parse.
-        """
-        paths = sorted(cls.directory.glob("*.json"))
-
-        return cls(
-            rulesets = dict(zip(paths, Unreadable.gather(paths, Ruleset.from_path)))
-        )
-
-
 class TaskValidation(Record, extra="ignore"):
     """
     What `mise tasks validate --json` prints, read for each defect.
@@ -1807,6 +1761,28 @@ class TaskValidation(Record, extra="ignore"):
     """
     Each defect, in the order mise reports them.
     """
+
+
+class Template(YamlFile):
+    """
+    One issue template under `directory`, read for the labels its
+    frontmatter sets.
+    """
+
+    directory: ClassVar[Path] = Path(".github/ISSUE_TEMPLATE")
+
+    @property
+    def labels(self) -> list[str]:
+        """
+        Names each label the template sets, which its frontmatter writes as
+        a list or as one string of names separated by commas.
+        """
+        labels = self.root.get("labels", default=[])
+
+        if isinstance(labels, str):
+            return [label.strip() for label in labels.split(",")]
+
+        return labels
 
 
 class Scripts(Record):
@@ -1969,26 +1945,60 @@ class Tasks(Record):
             )
 
 
-class Template(YamlFile):
+class Rulesets(Record):
     """
-    One issue template under `directory`, read for the labels its
-    frontmatter sets.
+    The rulesets the files under `directory` declare.
     """
 
-    directory: ClassVar[Path] = Path(".github/ISSUE_TEMPLATE")
+    directory: ClassVar[Path] = Path(".github/rulesets")
+
+    rulesets: dict[Path, Ruleset]
+    """
+    Every ruleset keyed by its file, in the order of the file's name.
+    """
+
+    @cached_property
+    def live(self) -> dict[str, int]:
+        """
+        Reads the id of each ruleset the repository carries on every page
+        of GitHub's listing, keyed by its name, leaving out a ruleset the
+        repository inherits from an organization.
+        """
+        pages = Command.api(
+            "rulesets?includes_parents=false",
+            "--paginate",
+            "--slurp"
+        ).parsed(list[list[GithubRuleset]])
+
+        return {ruleset.name: ruleset.id for ruleset in chain.from_iterable(pages)}
 
     @property
-    def labels(self) -> list[str]:
+    def plan(self) -> Plan:
         """
-        Names each label the template sets, which its frontmatter writes as
-        a list or as one string of names separated by commas.
+        Updates each ruleset GitHub carries under the name a file declares
+        and creates every other one, and names each ruleset GitHub carries
+        that no file declares.
         """
-        labels = self.root.get("labels", default=[])
+        rulesets = self.rulesets.values()
 
-        if isinstance(labels, str):
-            return [label.strip() for label in labels.split(",")]
+        return Plan.leaving(
+            declared = (ruleset.name for ruleset in rulesets),
+            kind     = "ruleset",
+            live     = self.live,
+            writes   = (ruleset.command(self.live) for ruleset in rulesets)
+        )
 
-        return labels
+    @classmethod
+    def read(cls) -> Self:
+        """
+        Reads every ruleset a JSON file under `directory` declares, raising
+        `Unreadable` once all are read where any fails to parse.
+        """
+        paths = sorted(cls.directory.glob("*.json"))
+
+        return cls(
+            rulesets = dict(zip(paths, Unreadable.gather(paths, Ruleset.from_path)))
+        )
 
 
 class WorkflowPermissions(Endpoint):
