@@ -4,7 +4,8 @@ settings of a small search, `space`, the frame stacks it reads, `novelty`,
 its predictor on the CPU, `specification`, the environment a worker makes,
 `booted`, that environment made as a worker makes it, `root`, its reset
 state, `playing`, which plays a rollout through it, `rolled` and `rolling`,
-which build the `roll` of a search, and `searching`, a factory of searches.
+which build the `roll` of a search, `searching`, a factory of searches, and
+`ranged`, each field of `SearchSettings` declared as a `Range`.
 """
 
 from collections.abc import Callable, Iterable, Iterator
@@ -15,10 +16,11 @@ from gymnasium.envs.registration import EnvSpec
 from gymnasium.spaces            import Box
 from numpy        import uint8
 from numpy.random import default_rng
-from pytest       import fixture
+from pytest       import FixtureRequest, fixture
+from typing       import get_origin
 
 from squirtl.agent.schemas         import AgentSettings
-from squirtl.emulator.schemas      import Cartridge, EmulatorSettings
+from squirtl.emulator.schemas      import Cartridge, EmulatorSettings, Range
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Snapshot
 from squirtl.reward.schemas        import Event, RewardSettings
@@ -198,3 +200,18 @@ def rolling(booted: Env) -> Callable[[Iterable[SearchRollout]], Iterable[Ending]
     process running the test.
     """
     return partial(map, roll)
+
+
+@fixture(
+    params = [
+        name
+        for name, field in SearchSettings.model_fields.items()
+        if get_origin(field.annotation) is Range
+    ]
+)
+def ranged(request: FixtureRequest) -> str:
+    """
+    Reads the name of each field of `SearchSettings` its declaration types
+    as a `Range`, one case apiece.
+    """
+    return request.param

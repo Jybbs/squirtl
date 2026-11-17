@@ -34,6 +34,7 @@ export const WIDGETS: readonly Placement[] = [
   { heading: 'Eight Copies of the Game', name: 'MethodsSearch', page: 'methods/search.md' },
   { heading: 'A Step', name: 'MethodsStep', page: 'methods/environment.md' },
   { heading: 'The Bytes It Reads', name: 'MethodsMemory', page: 'methods/reward.md' },
+  { heading: 'Results', name: 'ResultsAggregate', page: 'results/index.md' },
   { heading: 'Against Random Presses', name: 'ResultsComparison', page: 'results/comparison.md' },
   { heading: 'Learning Curves', name: 'ResultsCurves', page: 'results/curves.md' },
   { heading: 'The Most Likely Press', name: 'ResultsArgmax', page: 'results/most-likely.md' }

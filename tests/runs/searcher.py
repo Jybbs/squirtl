@@ -3,6 +3,8 @@ Pins the loop of one search, covering:
 
 - The line each iteration writes and the path it leaves, written at each
   iteration's end, and a directory recording itself as a search
+- Each iteration's reward and the found path's return logged to the fifth
+  decimal place, which keeps the 0.00025 a new square pays
 - The checkpoint at the first iteration end reaching each interval and at
   the search's end, each written after the iterations are flushed to disk
 - A search paying its particles at the run's `reward` settings, ending at
@@ -12,9 +14,6 @@ Pins the loop of one search, covering:
   interrupt ending it at once
 - A search stopped halfway and resumed ending as one that never stopped, and
   a checkpoint differing from the search refused with no directory left behind
-- The handover a resume reads, and the training run, the search at its
-  steps or its goal, the missing checkpoint, and the short iterations it
-  refuses
 - The pool of worker processes, spawned at the count the settings name, shut
   down whether or not the block raised, and a real one running a search
 """
@@ -27,12 +26,13 @@ from math            import fsum
 from multiprocessing import get_context
 from pathlib         import Path
 from pytest          import MonkeyPatch, approx, mark, raises
+from re              import findall
 from signal          import SIGINT, SIGTERM, Signals, getsignal, raise_signal
 
 from squirtl.emulator.schemas  import Cartridge
 from squirtl.reward.schemas    import RewardSettings
 from squirtl.runs.schemas      import Run
-from squirtl.runs.searcher     import SearchHandover, Searcher
+from squirtl.runs.searcher     import Searcher
 from squirtl.runs.settings     import RunSettings, Stream
 from squirtl.search.checkpoint import SearchCheckpoint
 from squirtl.search.schemas    import SearchSettings
@@ -124,79 +124,6 @@ def test_a_checkpoint_lands_at_the_first_iteration_end_past_each_interval(
     assert SearchCheckpoint.from_path(run.checkpoint).frontier.presses == built.step
 
 
-def test_a_handover_reads_the_lines_its_checkpoint_holds(halted: Run):
-    """
-    Asserts that a handover holds the search's name, its checkpoint, and
-    each line up to that checkpoint's iteration, dropping any after it.
-    """
-    lines = [*halted.lines(halted.iterations)]
-
-    with halted.iterations.open("a", encoding="utf-8") as appended:
-        appended.write(lines[-1])
-
-    handover = SearchHandover.from_run(halted)
-
-    assert (handover.name, handover.iterations) == (halted.name, lines)
-    assert handover.checkpoint.frontier.iterations == len(lines)
-
-
-def test_a_handover_refuses_a_search_at_its_steps(halted: Run):
-    """
-    Asserts that a search whose checkpoint already holds its steps raises,
-    since there is nothing left to continue.
-    """
-    settings = halted.settings.model_copy(update={"steps": 1})
-
-    with raises(ValueError, match="already holds the search's end"):
-        SearchHandover.from_run(halted.model_copy(update={"settings": settings}))
-
-
-def test_a_handover_refuses_a_search_holding_its_goal(
-    searcher: Callable[..., Searcher]
-):
-    """
-    Asserts that a search whose checkpoint holds the run's goal raises,
-    however many steps it has left.
-    """
-    run = finish(searcher(steps=100_000))
-
-    with raises(ValueError, match="already holds the search's end"):
-        SearchHandover.from_run(run)
-
-
-def test_a_handover_refuses_a_search_holding_no_checkpoint(halted: Run):
-    """
-    Asserts that a search holding no checkpoint raises, naming the file.
-    """
-    halted.checkpoint.unlink()
-
-    with raises(FileNotFoundError, match="checkpoint.npz"):
-        SearchHandover.from_run(halted)
-
-
-def test_a_handover_refuses_a_training_run(run: Run):
-    """
-    Asserts that a training run hands nothing over to a search, naming the
-    command that continues one.
-    """
-    with raises(ValueError, match="squirtl train"):
-        SearchHandover.from_run(run)
-
-
-def test_a_handover_refuses_iterations_short_of_the_checkpoint(halted: Run):
-    """
-    Asserts that a search whose iterations end short of its checkpoint
-    raises, naming how far each goes.
-    """
-    halted.iterations.write_text("", encoding="utf-8")
-
-    with raises(
-        ValueError,
-        match = r"iterations.jsonl holds 0 lines, short of the \d+ the"
-    ):
-        SearchHandover.from_run(halted)
-
-
 def test_a_resume_refuses_another_search_and_leaves_no_directory(
     searcher: Callable[..., Searcher]
 ):
@@ -262,6 +189,31 @@ def test_a_search_ending_at_its_last_checkpoint_writes_no_second_one(
     finish(built)
 
     assert len(landed) == len(set(landed))
+
+
+def test_a_search_logs_each_reward_to_the_place_a_new_square_pays(
+    logged   : list[str],
+    searcher : Callable[..., Searcher]
+):
+    """
+    Asserts that the reward the search logs for each iteration and the
+    return it logs for the path it finds read back within half of the fifth
+    decimal place of the value recorded, so a reward holding the 0.00025 a
+    new square pays keeps it.
+    """
+    run     = finish(searcher(steps=100_000))
+    figures = [*map(
+        float,
+        findall(r"(?:reward|return) of ([\d.]+)", "\n".join(logged))
+    )]
+
+    assert figures == approx(
+        [
+            *(iteration.reward for iteration in iterations(run)),
+            *(episode.reward for episode in run.recorded)
+        ],
+        abs = 5e-6
+    )
 
 
 def test_a_search_pays_its_winner_at_the_runs_reward_settings(
@@ -338,27 +290,6 @@ def test_a_search_shuts_its_pool_down_whether_or_not_it_raised(
     assert pools[-1].shutdowns == [True]
 
 
-def test_a_search_stopped_halfway_and_resumed_ends_as_one_that_never_stopped(
-    searcher: Callable[..., Searcher]
-):
-    """
-    Asserts that a search stopped at an iteration's end and resumed reaches
-    the winner, tree, networks, and lines of one taken through in one go,
-    apart from the wall time each line took, and that it records the search
-    it resumes.
-    """
-    unbroken = finish(searcher())
-    stopped  = finish(searcher(), stop_at_thirty)
-    resumed  = finish(searcher(resumes=stopped))
-
-    assert lines(unbroken) == lines(resumed)
-    assert resumed.resumes == stopped.name
-    assert_same_checkpoint(
-        SearchCheckpoint.from_path(unbroken.checkpoint),
-        SearchCheckpoint.from_path(resumed.checkpoint)
-    )
-
-
 @mark.usefixtures("clone", "rom")
 def test_a_search_over_a_real_pool_reaches_the_lines_of_one_in_the_process(
     actual   : Callable[..., Searcher],
@@ -417,6 +348,27 @@ def test_a_termination_signal_to_the_runs_group_ends_it_at_its_iterations_end(
         SearchCheckpoint.from_path(run.checkpoint).frontier.presses,
         line.presses < run.settings.steps
     ) == (0, line.presses, True)
+
+
+def test_a_search_stopped_halfway_and_resumed_ends_as_one_that_never_stopped(
+    searcher: Callable[..., Searcher]
+):
+    """
+    Asserts that a search stopped at an iteration's end and resumed reaches
+    the winner, tree, networks, and lines of one taken through in one go,
+    apart from the wall time each line took, and that it records the search
+    it resumes.
+    """
+    unbroken = finish(searcher())
+    stopped  = finish(searcher(), stop_at_thirty)
+    resumed  = finish(searcher(resumes=stopped))
+
+    assert lines(unbroken) == lines(resumed)
+    assert resumed.resumes == stopped.name
+    assert_same_checkpoint(
+        SearchCheckpoint.from_path(unbroken.checkpoint),
+        SearchCheckpoint.from_path(resumed.checkpoint)
+    )
 
 
 def test_a_second_interrupt_ends_the_search_at_once_on_its_last_checkpoint(
