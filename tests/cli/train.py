@@ -14,7 +14,8 @@ Pins what `squirtl train` does, covering:
 - PQN's and PPO's run across environments and a resume of one stopped short
 - A run along a demonstration `docs/runs/` commits without its episodes,
   started along them once fetched from the release attaching it, and one no
-  published release attaches, which exits 1 naming it
+  published release attaches, which exits 1 naming it, and a demonstration
+  holding its episodes outside `data/runs/`, followed where it sits
 """
 
 from collections.abc import Callable
@@ -460,3 +461,37 @@ def test_a_committed_demonstration_starts_along_the_episodes_its_release_holds(
         Path("data/runs", committed.name)
     )
     assert any(episode.recording.takeover for episode in run.recorded)
+
+
+@mark.usefixtures("accepted", "timed")
+def test_a_demonstration_holding_its_episodes_is_followed_where_it_sits(
+    committed : Run,
+    github    : GitHub,
+    invoke    : Invoker
+):
+    """
+    Asserts that a run of PPO along a demonstration whose directory
+    outside `data/runs/` holds its episodes records that directory as its
+    demonstration and requests nothing of GitHub.
+    """
+    committed.directory.rename(held := Path("data/held"))
+    invocation = invoke(
+        [
+            "train", "--agent.algorithm", "ppo", "--agent.device",
+            "cpu", "--agent.environments", "2", "--agent.ppo.minibatches",
+            "2", "--agent.ppo.rollout-steps", "4",
+            "--checkpoint-steps", "8", "--curriculum.demonstration",
+            str(held),
+            "--curriculum.recent", "2", "--curriculum.window",
+            "2", "--environment.frames-per-step", "64",
+            "--environment.max-episode-steps", "32", "--evaluation.environments",
+            "2", "--evaluation.episodes", "2",
+            "--steps", "16"
+        ]
+    )
+    run = Run.read(Path(invocation.output.strip()))
+
+    assert (invocation.code, run.settings.curriculum.demonstration, github.agents) == (
+        0, held,
+        []
+    )

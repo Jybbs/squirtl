@@ -469,7 +469,7 @@ class EpisodeTrainer(Trainer):
                 "Step {:,} took action {} for a reward of {}",
                 self.agent.step,
                 action,
-                reward
+                RewardSettings.written(reward)
             )
 
             yield self.agent.step

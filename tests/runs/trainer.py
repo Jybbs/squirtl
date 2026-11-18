@@ -1082,8 +1082,9 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
     """
     Asserts that each line holds the return its steps earned, the positions
     it reached, the chance of a random action at its last step, and the
-    mean loss and value of the updates its steps took, which the line
-    each episode logs repeats as label and value pairs, the first episode
+    mean loss and value of the updates its steps took, which the line each
+    episode logs repeats as label and value pairs, and that the line each
+    step logs writes its reward to the same five places, the first episode
     stepping onto a new square on its second step and reaching the starter
     on its third. The chance falls by 0.05 a step and the novelty pays
     0.0625, leaving each value the line logs clear of a tie at the places it
@@ -1140,6 +1141,9 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
         "return 0.00000, positions 1, epsilon 0.550, loss 6.5, value -6.5",
         "return 0.00000, positions 1, epsilon 0.250, loss 12.5, value -12.5"
     ]
+    assert [
+        message.rpartition(" ")[2] for message in logged if message.startswith("Step ")
+    ] == ["0.00000", "0.06250", "0.35000", *["0.00000"] * 17]
 
 
 def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
