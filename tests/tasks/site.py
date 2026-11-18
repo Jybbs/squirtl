@@ -44,7 +44,7 @@ def test_affected_asks_vitest_for_the_files_changed_since_main(
     """
     assert printed("site/affected", "--reporter=dot") == [
         "run", "--changed", "origin/main",
-        "--config", ".vitepress/vitest.config.ts", "--reporter=dot"
+        "--config", ".vitepress/config/vitest.ts", "--reporter=dot"
     ]
 
 
@@ -68,7 +68,7 @@ def test_lint_asks_oxlint_for_annotations_under_github_actions(
     reads.
     """
     assert printed("site/lint", "--quiet") == [
-        "--config", ".vitepress/.oxlintrc.json", "--format",
+        "--config", ".vitepress/config/.oxlintrc.json", "--format",
         output, "--quiet", ".vitepress"
     ]
 

@@ -1,8 +1,8 @@
 import vueJsx                           from '@vitejs/plugin-vue-jsx'
 import { configDefaults, defineConfig } from 'vitest/config'
 
-import { projectFacts }                 from './lib/config/manifest.ts'
-import { cacheDir }                     from './lib/config/paths.ts'
+import { projectFacts }                 from '../lib/config/manifest.ts'
+import { cacheDir }                     from '../lib/config/paths.ts'
 
 const { gate } = projectFacts(import.meta.url)
 

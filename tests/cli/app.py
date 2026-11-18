@@ -7,7 +7,7 @@ Pins what the `squirtl` command itself defines, covering:
 - The script `[project.scripts]` points at the app
 - The modules `squirtl --help`, `squirtl stop`, and an unknown command
   import, which leave out `torch`, SciPy, `pyboy`, and the packages reading
-  `docs/references.bib`
+  `src/squirtl/docs/references.bib`
 - The error a command line naming no command or no option prints, and the
   status it exits with
 - How a command reads its settings:
