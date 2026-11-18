@@ -2132,8 +2132,11 @@ class Action(StepFile):
 
 class WorkflowJob(Block):
     """
-    One job a workflow declares, under the id the workflow keys it by.
+    One job a workflow declares, under the id the workflow keys it by. A job
+    whose steps start `brief` through `mise run` is its workflow's gate.
     """
+
+    brief: ClassVar[str] = "gha:brief"
 
     key: str
     """
@@ -2168,6 +2171,14 @@ class WorkflowJob(Block):
         return self.get("cache-mode", default=self.inherited)
 
     @property
+    def gate(self) -> bool:
+        """
+        Tells whether the job is its workflow's gate, which runs `brief`
+        among its tasks.
+        """
+        return self.brief in self.tasks
+
+    @property
     def needs(self) -> list[str]:
         """
         Names each job the job waits on, which `needs` writes as one id or a
@@ -2183,7 +2194,7 @@ class WorkflowJob(Block):
         """
         return [WorkflowStep(node=step.node) for step in self.entries("steps")]
 
-    @property
+    @cached_property
     def tasks(self) -> list[str]:
         """
         Names each task the job's steps start through `mise run`, a matrix
