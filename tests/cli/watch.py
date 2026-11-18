@@ -3,7 +3,8 @@ Pins what `squirtl watch` does, covering:
 
 - An episode played back through the emulator's window to the return the
   run recorded, the last by default and any other the flag names, a nonzero
-  return under the reward settings the run recorded among them
+  return under the reward settings the run recorded among them, and the
+  line logging it keeping the reward of one new square
 - The playback reaching another return, a console whose intro leaves
   another state than the run recorded, an episode the run never recorded,
   and a directory holding no run, each exiting 1
@@ -13,11 +14,12 @@ Pins what `squirtl watch` does, covering:
 - The path a search found, played back to the return it recorded
 """
 
-from common.cli import Invoker
-from json       import dumps, loads
-from numpy      import ndarray
-from pathlib    import Path
-from pytest     import MonkeyPatch, mark, param
+from collections.abc import Callable
+from common.cli      import Invoker
+from json            import dumps, loads
+from numpy           import ndarray
+from pathlib         import Path
+from pytest          import MonkeyPatch, mark, param
 
 from squirtl.emulator.console import GameBoy
 from squirtl.emulator.schemas import Symbol
@@ -43,39 +45,56 @@ def test_an_episode_plays_back_in_the_window_to_the_return_the_run_recorded(
     invocation = invoke(["watch", str(trained), *flags])
 
     assert (invocation.code, windows) == (0, ["SDL2"])
-    assert "reached the return of 0.0000 the run recorded" in invocation.log
+    assert "reached the return of 0.00000 the run recorded" in invocation.log
 
 
+@mark.parametrize(
+    ("flags", "moved", "logged"),
+    [
+        param(
+            ["--reward.novelty", "0.0625"],
+            lambda x: x + 1,
+            "0.25000",
+            id = "four-squares-at-a-recorded-novelty"
+        ),
+        param([], lambda x: x ^ 1, "0.00025", id="one-square-at-the-default-novelty")
+    ]
+)
 @mark.usefixtures("accepted", "clone", "rom", "windows")
 def test_a_playback_reaches_a_nonzero_return_under_the_recorded_reward(
+    flags       : list[str],
     invoke      : Invoker,
+    logged      : str,
     monkeypatch : MonkeyPatch,
+    moved       : Callable[[int], int],
     quick       : list[str]
 ):
     """
-    Asserts that an episode whose every step reaches a new square under a
-    novelty of 0.0625 plays back to the return of 0.25 the run recorded for
-    its four steps, under the reward settings the run recorded.
+    Asserts that an episode plays back to the return the run recorded under
+    the reward settings the run recorded, logging it whole, where every
+    step reaches a new square under a novelty of 0.0625 for a return of 0.25
+    over its four steps, and where its steps move back and forth between
+    two squares, reaching one new square under the default novelty, whose
+    0.00025 the line keeps.
     """
     press = GameBoy.press
 
     def walk(game_boy: GameBoy, button: object, frames: int) -> ndarray:  # prose: ignore[unsorted-positionals]
         """
-        Moves the player a square right before each press.
+        Moves the player to the column `moved` gives before each press.
         """
-        game_boy.emulator.memory[Symbol.W_X_COORD] += 1
+        memory = game_boy.emulator.memory
+        memory[Symbol.W_X_COORD] = moved(memory[Symbol.W_X_COORD])
 
         return press(game_boy, button, frames)
 
     monkeypatch.setattr(GameBoy, "press", walk)
-    trained = Path(
-        invoke(["train", *quick, "--reward.novelty", "0.0625"]).output.strip()
-    )
+    trained    = Path(invoke(["train", *quick, *flags]).output.strip())
     invocation = invoke(["watch", str(trained)])
 
     assert (
         invocation.code,
-        "reached the return of 0.2500 the run recorded" in invocation.log
+        f"reached the return of {logged} the run recorded" in invocation.log
     ) == (0, True)
 
 

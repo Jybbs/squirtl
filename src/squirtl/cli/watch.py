@@ -13,6 +13,7 @@ from squirtl.cli.runs              import ReleaseTag, RunDirectory, Selection
 from squirtl.emulator.schemas      import Cartridge
 from squirtl.environment.overworld import Overworld
 from squirtl.releases.schemas      import RunSelection
+from squirtl.reward.schemas        import RewardSettings
 
 
 def watch(
@@ -84,6 +85,9 @@ def watch(
 
         return 1
 
-    logger.info("The playback reached the return of {:.4f} the run recorded", reward)
+    logger.info(
+        "The playback reached the return of {} the run recorded",
+        RewardSettings.written(reward)
+    )
 
     return None

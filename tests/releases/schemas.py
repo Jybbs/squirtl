@@ -11,13 +11,15 @@ Pins the records a release carries its trained runs through, covering:
   trained runs and refusing a recommended run it does not list
 - A committed search, which packs as a demonstration with no checkpoint
 - The release read from GitHub's REST API, its manifest, and the runs it
-  fetches, checked against both digests and unpacked whole or not at all
+  fetches, checked against both digests and unpacked whole or not at all,
+  the releases listed page by page, and a run retrieved from the release
+  attaching it or refused where none does
 - The runs a selector matches, and the runs `RunSelection` reads from a
   directory or a release, with the default selection of each command
 """
 
 from collections.abc   import Callable, Mapping
-from common.releases   import ADDRESS, GitHub
+from common.releases   import ADDRESS, GitHub, LISTED
 from email.message     import Message
 from hashlib           import sha256
 from io                import BytesIO
@@ -257,6 +259,48 @@ def test_a_release_github_does_not_publish_is_refused(
         GithubRelease.read(tag)
 
 
+def test_a_retrieval_fetches_the_run_from_the_release_attaching_it(
+    committed : list[Run],
+    published : GitHub,
+    tmp_path  : Path
+):
+    """
+    Asserts that retrieving the demonstration `docs/runs/` leaves out
+    fetches it from the release whose tar holds it, its episodes as packed,
+    and that a second retrieval reads the folder alone, requesting nothing.
+    """
+    demonstration = committed[3]
+    run           = GithubRelease.retrieve(demonstration.name, tmp_path / "runs")
+
+    assert run.directory == tmp_path / "runs" / demonstration.name
+    assert run.episodes.read_bytes() == demonstration.episodes.read_bytes()
+
+    published.served.clear()
+
+    assert GithubRelease.retrieve(demonstration.name, tmp_path / "runs") == run
+
+
+def test_a_retrieval_passes_over_a_release_attaching_no_tar_of_the_run(
+    committed : list[Run],
+    published : GitHub,
+    tmp_path  : Path
+):
+    """
+    Asserts that a retrieval passes over a release listed first that
+    attaches neither a tar of the run nor a manifest, without reading that
+    release's manifest, and fetches the run from the next release.
+    """
+    published.releases.insert(
+        0,
+        {"published_at": "2026-10-02T00:00:00Z", "tag_name": "0.1.0", "assets": []}
+    )
+    published.served[LISTED] = dumps(published.releases).encode()
+
+    assert GithubRelease.retrieve(committed[3].name, tmp_path / "runs").name == (
+        committed[3].name
+    )
+
+
 def test_a_search_packs_as_a_demonstration_holding_no_checkpoint(
     committed : list[Run],
     recorded  : Recorder
@@ -283,26 +327,6 @@ def test_a_search_packs_as_a_demonstration_holding_no_checkpoint(
     assert sorted(members) == ["episodes.jsonl", "run.json"]
     assert loads(members["run.json"])["searches"] is True
     assert members["episodes.jsonl"] == search.episodes.read_bytes()
-
-
-def test_a_second_pack_writes_the_same_bytes(packed: ReleaseManifest):
-    """
-    Asserts that packing the same runs again writes each tar and the
-    manifest byte for byte as the first pack did.
-    """
-    first = {path: path.read_bytes() for path in packed.files}
-    ReleaseManifest.pack(ReleaseSettings(recommended_run=packed.recommended_run))
-
-    assert {path: path.read_bytes() for path in packed.files} == first
-
-
-def test_a_selection_matching_no_run_is_refused_by_the_tag(published: GitHub):
-    """
-    Asserts that a selector matching none of a release's runs raises
-    `ValueError` naming the release's tag.
-    """
-    with raises(ValueError, match="No run of the release 0.2.0 matches"):
-        RunSelection(release="0.2.0", selector=Selector(seed=5)).every()
 
 
 @mark.parametrize(
@@ -344,51 +368,15 @@ def test_a_tar_differing_from_either_digest_is_refused_leaving_no_run(
     assert list((tmp_path / "runs").iterdir()) == []
 
 
-def test_a_tar_holds_the_record_the_episodes_and_the_weights_alone(
-    committed : list[Run],
-    packed    : ReleaseManifest
-):
+def test_a_second_pack_writes_the_same_bytes(packed: ReleaseManifest):
     """
-    Asserts that the tar of a run following a demonstration holds its
-    folder's record, naming the default cartridge and the demonstration
-    under `data/runs/`, its episodes as written, and a checkpoint holding
-    `agent.pt` alone, whose weights read back as the run's, each member
-    under a header naming no owner, dated at the epoch, and set to mode
-    `0o644` whatever mode its file held.
+    Asserts that packing the same runs again writes each tar and the
+    manifest byte for byte as the first pack did.
     """
-    run = committed[1]
-    run.episodes.chmod(0o600)
+    first = {path: path.read_bytes() for path in packed.files}
     ReleaseManifest.pack(ReleaseSettings(recommended_run=packed.recommended_run))
 
-    with open_tar(ReleaseManifest.folder / packed.runs[1].asset, "r:zst") as archive:
-        members = {
-            Path(name).name: archive.extractfile(name).read()
-            for name in archive.getnames()
-            if name.startswith(f"{run.name}/")
-        }
-        headers = {
-            (entry.gid, entry.gname, entry.mode, entry.mtime, entry.uid, entry.uname)
-            for entry in archive.getmembers()
-        }
-
-    record = loads(members["run.json"])["settings"]
-    (ReleaseManifest.folder / "checkpoint.npz").write_bytes(members["checkpoint.npz"])
-
-    assert sorted(members) == ["checkpoint.npz", "episodes.jsonl", "run.json"]
-    assert headers == {(0, "", 0o644, 0, 0, "")}
-    assert (record["emulator"]["cartridge"], record["curriculum"]["demonstration"]) == (
-        "data/rom.gb",
-        f"data/runs/{committed[3].name}"
-    )
-    assert members["episodes.jsonl"] == run.episodes.read_bytes()
-    assert ZipFile(ReleaseManifest.folder / "checkpoint.npz").namelist() == ["agent.pt"]
-    assert [
-        (weights.online["weight"].tolist(), weights.step)
-        for weights in map(
-            Weights.from_path,
-            (ReleaseManifest.folder / "checkpoint.npz", run.checkpoint)
-        )
-    ] == [([1.0, 2.0], 8)] * 2
+    assert {path: path.read_bytes() for path in packed.files} == first
 
 
 @mark.parametrize(
@@ -478,6 +466,62 @@ def test_a_release_selection_reads_the_runs_each_command_plays(
         assert selection.one().name == trained[one].name
 
 
+def test_a_selection_matching_no_run_is_refused_by_the_tag(published: GitHub):
+    """
+    Asserts that a selector matching none of a release's runs raises
+    `ValueError` naming the release's tag.
+    """
+    with raises(ValueError, match="No run of the release 0.2.0 matches"):
+        RunSelection(release="0.2.0", selector=Selector(seed=5)).every()
+
+
+def test_a_tar_holds_the_record_the_episodes_and_the_weights_alone(
+    committed : list[Run],
+    packed    : ReleaseManifest
+):
+    """
+    Asserts that the tar of a run following a demonstration holds its
+    folder's record, naming the default cartridge and the demonstration
+    under `data/runs/`, its episodes as written, and a checkpoint holding
+    `agent.pt` alone, whose weights read back as the run's, each member
+    under a header naming no owner, dated at the epoch, and set to mode
+    `0o644` whatever mode its file held.
+    """
+    run = committed[1]
+    run.episodes.chmod(0o600)
+    ReleaseManifest.pack(ReleaseSettings(recommended_run=packed.recommended_run))
+
+    with open_tar(ReleaseManifest.folder / packed.runs[1].asset, "r:zst") as archive:
+        members = {
+            Path(name).name: archive.extractfile(name).read()
+            for name in archive.getnames()
+            if name.startswith(f"{run.name}/")
+        }
+        headers = {
+            (entry.gid, entry.gname, entry.mode, entry.mtime, entry.uid, entry.uname)
+            for entry in archive.getmembers()
+        }
+
+    record = loads(members["run.json"])["settings"]
+    (ReleaseManifest.folder / "checkpoint.npz").write_bytes(members["checkpoint.npz"])
+
+    assert sorted(members) == ["checkpoint.npz", "episodes.jsonl", "run.json"]
+    assert headers == {(0, "", 0o644, 0, 0, "")}
+    assert (record["emulator"]["cartridge"], record["curriculum"]["demonstration"]) == (
+        "data/rom.gb",
+        f"data/runs/{committed[3].name}"
+    )
+    assert members["episodes.jsonl"] == run.episodes.read_bytes()
+    assert ZipFile(ReleaseManifest.folder / "checkpoint.npz").namelist() == ["agent.pt"]
+    assert [
+        (weights.online["weight"].tolist(), weights.step)
+        for weights in map(
+            Weights.from_path,
+            (ReleaseManifest.folder / "checkpoint.npz", run.checkpoint)
+        )
+    ] == [([1.0, 2.0], 8)] * 2
+
+
 def test_a_tar_reaching_outside_its_folder_is_refused(
     published : GitHub,
     tmp_path  : Path
@@ -534,6 +578,31 @@ def test_a_tar_whose_asset_carries_no_digest_is_checked_against_the_manifest(
     assert bare.fetch(listing, tmp_path / "runs").name == listing.name
 
 
+def test_an_error_listing_the_releases_is_raised_as_it_came(github: GitHub):
+    """
+    Asserts that an error GitHub answers the listing of releases with is
+    raised as the `HTTPError` it came as, rather than read as no release.
+    """
+    github.served.clear()
+
+    with raises(HTTPError, match="404"):
+        list(GithubRelease.listed())
+
+
+@mark.usefixtures("published")
+def test_a_retrieval_no_published_release_attaches_is_refused_naming_the_run(
+    tmp_path: Path
+):
+    """
+    Asserts that retrieving a run no release's assets hold is refused,
+    naming the run, and leaves no folder behind.
+    """
+    with raises(ValueError, match="No published release attaches the run 20261108T"):
+        GithubRelease.retrieve("20261108T000042.000000Z", tmp_path / "runs")
+
+    assert not (tmp_path / "runs").exists()
+
+
 def test_another_error_from_github_is_raised_as_it_came(monkeypatch: MonkeyPatch):
     """
     Asserts that an error GitHub answers with other than 404 reaches the
@@ -576,3 +645,19 @@ def test_the_manifest_lists_the_demonstration_apart_with_each_digest(
     assert ReleaseManifest.model_validate_json(
         (ReleaseManifest.folder / ReleaseManifest.file).read_bytes()
     ) == packed
+
+
+def test_the_releases_listed_run_on_to_the_next_page_after_a_full_one(github: GitHub):
+    """
+    Asserts that the releases read past a full first page of 100 to the
+    second page, and stop at that page, which comes back short.
+    """
+    release = {
+        "published_at" : "2026-11-10T00:00:00Z",
+        "tag_name"     : "0.1.0",
+        "assets"       : []
+    }
+    github.served[LISTED] = dumps([release] * 100).encode()
+    github.served[f"{ADDRESS}?per_page=100&page=2"] = dumps([release]).encode()
+
+    assert len(list(GithubRelease.listed())) == 101

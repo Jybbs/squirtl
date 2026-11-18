@@ -12,15 +12,22 @@ Pins what `squirtl train` does, covering:
 - The line each episode logs and the line each step logs under `--verbose`
 - The emulator's window `--emulator.open-window` opens
 - PQN's and PPO's run across environments and a resume of one stopped short
+- A run along a demonstration `docs/runs/` commits without its episodes,
+  started along them once fetched from the release attaching it, and one no
+  published release attaches, which exits 1 naming it
 """
 
 from collections.abc import Callable
 from common.cli      import Invoker
+from common.releases import GitHub
 from os              import truncate
 from pathlib         import Path
 from pytest          import MonkeyPatch, mark, param
 
 from squirtl.agent.checkpoint import ReplayCheckpoint
+from squirtl.docs.results     import ReleaseSettings
+from squirtl.emulator.schemas import Cartridge
+from squirtl.releases.schemas import ReleaseManifest
 from squirtl.runs.handover    import VectorCheckpoint
 from squirtl.runs.schemas     import Run
 from squirtl.runs.trainer     import Trainer
@@ -383,3 +390,73 @@ def test_a_demonstration_directory_holding_no_run_exits_1_before_making_any_dire
 
     assert (invocation.code, "data/runs/none/run.json" in invocation.log) == (1, True)
     assert not Path("data/runs").exists()
+
+
+@mark.usefixtures("accepted", "rom")
+def test_a_committed_demonstration_no_release_attaches_exits_1_naming_it(
+    committed : Run,
+    github    : GitHub,
+    invoke    : Invoker,
+    rolling   : Callable[[str], list[str]]
+):
+    """
+    Asserts that a run of PPO along a run `docs/runs/` commits without its
+    episodes, which no published release attaches, exits 1 naming that run,
+    and makes no directory under `data/runs/`.
+    """
+    committed.directory.rename(Path("data/held"))
+    invocation = invoke(
+        [
+            "train",
+            *rolling("ppo"),
+            "--curriculum.demonstration",
+            f"docs/runs/{committed.name}"
+        ]
+    )
+
+    assert (
+        invocation.code,
+        f"No published release attaches the run {committed.name}" in invocation.log
+    ) == (1, True)
+    assert not any(Path("data/runs").iterdir())
+
+
+@mark.usefixtures("accepted")
+def test_a_committed_demonstration_starts_along_the_episodes_its_release_holds(
+    committed : Run,
+    github    : GitHub,
+    invoke    : Invoker,
+    timed     : Cartridge,
+    trained   : Path
+):
+    """
+    Asserts that a run of PPO along a run `docs/runs/` commits without
+    its episodes fetches them from the release attaching that run into
+    `data/runs/`, records that copy as its demonstration, and starts
+    episodes along it on the cartridge `timed` writes.
+    """
+    Path("docs/runs", trained.name).mkdir()
+    github.publish(ReleaseManifest.pack(ReleaseSettings(recommended_run=trained.name)))
+    committed.directory.rename(Path("data/held"))
+
+    invocation = invoke(
+        [
+            "train", "--agent.algorithm", "ppo", "--agent.device",
+            "cpu", "--agent.environments", "2", "--agent.ppo.minibatches",
+            "2", "--agent.ppo.rollout-steps", "4",
+            "--checkpoint-steps", "8", "--curriculum.demonstration",
+            f"docs/runs/{committed.name}",
+            "--curriculum.recent", "2", "--curriculum.window",
+            "2", "--environment.frames-per-step", "64",
+            "--environment.max-episode-steps", "32", "--evaluation.environments",
+            "2", "--evaluation.episodes", "2",
+            "--steps", "16"
+        ]
+    )
+    run = Run.read(Path(invocation.output.strip()))
+
+    assert (invocation.code, run.settings.curriculum.demonstration) == (
+        0,
+        Path("data/runs", committed.name)
+    )
+    assert any(episode.recording.takeover for episode in run.recorded)

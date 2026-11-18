@@ -8,10 +8,12 @@ A setting on by default turns off as `--agent.double-q=false` does.
 
 The run writes its record, a line per episode, and a checkpoint into a directory of its own under `data/runs/`, which the command prints once the run ends. An interrupt, a termination signal, or `squirtl stop` ends the run with a checkpoint and exits 0, at the end of its episode for the deep Q-network and once a rollout's update ends for PQN and PPO, and a second interrupt ends it at once on the last checkpoint and exits 130.
 
+A `--curriculum.demonstration` directory whose run holds no episodes, as `docs/runs/` commits each run, has that run fetched into `data/runs/` from the release attaching it, unless `data/runs/` already holds it, and the run follows that copy.
+
 Each of these exits 1 before any directory is made:
 
 - A `--resume` directory holding no run, a search, no checkpoint, or an evaluation line that names no `argmax`
-- A `--curriculum.demonstration` directory holding no run, a run whose episodes end at another `--environment.goal` than this run's, no episode reaching that goal from Blue's bedroom, or one whose presses on replay never set it or set it before the last of them
+- A `--curriculum.demonstration` directory holding no run, a run holding no episodes that no published release attaches, a run whose episodes end at another `--environment.goal` than this run's, no episode reaching that goal from Blue's bedroom, or one whose presses on replay never set it or set it before the last of them
 - A checkpoint damaged, already holding the run's steps, or differing from the agent the run's settings build
 - A checkpoint whose segments end at other steps than the segments of its demonstration now do
 - An episode log ending short of that checkpoint

@@ -9,6 +9,7 @@ which build the `roll` of a search, `searching`, a factory of searches, and
 """
 
 from collections.abc import Callable, Iterable, Iterator
+from common.records  import ranges
 from common.search   import boot_in_place, snapshot
 from functools       import partial
 from gymnasium       import Env
@@ -17,10 +18,9 @@ from gymnasium.spaces            import Box
 from numpy        import uint8
 from numpy.random import default_rng
 from pytest       import FixtureRequest, fixture
-from typing       import get_origin
 
 from squirtl.agent.schemas         import AgentSettings
-from squirtl.emulator.schemas      import Cartridge, EmulatorSettings, Range
+from squirtl.emulator.schemas      import Cartridge, EmulatorSettings
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import EnvironmentSettings, Snapshot
 from squirtl.reward.schemas        import Event, RewardSettings
@@ -202,13 +202,7 @@ def rolling(booted: Env) -> Callable[[Iterable[SearchRollout]], Iterable[Ending]
     return partial(map, roll)
 
 
-@fixture(
-    params = [
-        name
-        for name, field in SearchSettings.model_fields.items()
-        if get_origin(field.annotation) is Range
-    ]
-)
+@fixture(params=ranges(SearchSettings))
 def ranged(request: FixtureRequest) -> str:
     """
     Reads the name of each field of `SearchSettings` its declaration types

@@ -1,11 +1,12 @@
 """
-Defines the records a release of SquiRtL carries its trained runs through:
+Defines the records a release of *SquiRtL* carries its trained runs through:
 
 - `PackedRun`, one run `squirtl pack` writes as a Zstandard tar, and
   `ReleaseManifest`, the listing of every such tar under the
   `ReleaseSettings` the pack read
 - `GithubRelease` and `GithubAsset`, a release GitHub publishes and each
-  file attached to it, from which `squirtl fetch` unpacks the runs
+  file attached to it, from which `squirtl fetch` unpacks the runs and
+  `squirtl train` the demonstration a run `docs/runs/` commits
 - `Selector` and `RunSelection`, the runs `squirtl watch` and `squirtl
   evaluate` read from a run directory or from a release
 
@@ -13,20 +14,22 @@ It also defines `requested`, which builds a request GitHub's REST API
 accepts.
 """
 
-from functools      import cached_property
-from hashlib        import file_digest
-from http           import HTTPStatus
-from pathlib        import Path
-from pydantic       import AwareDatetime, Field, NonNegativeInt, model_validator
-from rich.console   import Console
-from rich.progress  import wrap_file
-from shutil         import copyfileobj
-from tarfile        import TarError, TarInfo, open as open_tar
-from tempfile       import TemporaryDirectory
-from typing         import ClassVar, Self
-from urllib.error   import HTTPError
-from urllib.parse   import urlparse
-from urllib.request import Request, urlopen
+from collections.abc import Iterator
+from functools       import cached_property
+from hashlib         import file_digest
+from http            import HTTPStatus
+from itertools       import count
+from pathlib         import Path
+from pydantic        import AwareDatetime, Field, NonNegativeInt, TypeAdapter, model_validator
+from rich.console    import Console
+from rich.progress   import wrap_file
+from shutil          import copyfileobj
+from tarfile         import TarError, TarInfo, open as open_tar
+from tempfile        import TemporaryDirectory
+from typing          import ClassVar, Self
+from urllib.error    import HTTPError
+from urllib.parse    import urlparse
+from urllib.request  import Request, urlopen
 
 from squirtl.agent.checkpoint import Weights
 from squirtl.agent.schemas    import Algorithm
@@ -146,17 +149,12 @@ class PackedRun(RunListing):
         Each member's header is `normalized`, so a run whose files are
         unchanged writes the same bytes.
         """
-        curriculum, emulator = run.settings.curriculum, run.settings.emulator
-        demonstration        = curriculum.demonstration
-        settings             = run.settings.model_copy(
+        demonstration = run.settings.curriculum.demonstration
+        settings      = run.settings.following(
+            demonstration and Run.folder / demonstration.name
+        ).model_copy(
             update = {
-                "curriculum" : curriculum.model_copy(
-                    update = {
-                        "demonstration":
-                            demonstration and Run.folder / demonstration.name
-                    }
-                ),
-                "emulator"   : emulator.model_copy(
+                "emulator": run.settings.emulator.model_copy(
                     update = {"cartridge": EmulatorSettings().cartridge}
                 )
             }
@@ -394,6 +392,34 @@ class GithubRelease(Record, extra="ignore"):
 
         return Run.read(directory)
 
+    @classmethod
+    def listed(cls) -> Iterator[Self]:
+        """
+        Reads each release of *SquiRtL*'s repository GitHub publishes, in
+        the order its REST API lists them, a page of 100 at a time, the most
+        a page holds, until a page comes back short.
+
+        Raises:
+            HTTPError: Where GitHub answers with an error, its response
+                       closed.
+        """
+        size, pages = 100, TypeAdapter(list[cls])
+
+        for page in count(1):
+            try:
+                with urlopen(
+                    requested(f"{cls.releases()}?per_page={size}&page={page}")
+                ) as response:
+                    releases = pages.validate_json(response.read())
+            except HTTPError as error:
+                error.close()
+                raise
+
+            yield from releases
+
+            if len(releases) < size:
+                return
+
     def matched(self, selector: Selector | None) -> tuple[PackedRun, ...]:
         """
         Lists the trained runs the release's manifest lists that `selector`
@@ -413,24 +439,18 @@ class GithubRelease(Record, extra="ignore"):
     @classmethod
     def read(cls, tag: str | None = None) -> Self:
         """
-        Reads the release of SquiRtL's repository that `tag` names, or
-        its latest release where `tag` is `None`, over GitHub's REST API
-        with no login, the repository being the one the package metadata's
-        `Repository` address names.
+        Reads the release of *SquiRtL*'s repository that `tag` names, or its
+        latest release where `tag` is `None`, over GitHub's REST API with
+        no login.
 
         Raises:
             HTTPError  : Where GitHub answers with an error other than 404.
             ValueError : Where GitHub publishes no such release.
         """
-        repository = urlparse(addresses()["Repository"]).path
-        release    = f"tags/{tag}" if tag else "latest"
+        release = f"tags/{tag}" if tag else "latest"
 
         try:
-            with urlopen(
-                requested(
-                    url = f"https://api.github.com/repos{repository}/releases/{release}"
-                )
-            ) as response:
+            with urlopen(requested(f"{cls.releases()}/{release}")) as response:
                 return cls.model_validate_json(response.read())
         except HTTPError as error:
             error.close()
@@ -439,8 +459,48 @@ class GithubRelease(Record, extra="ignore"):
                 raise
 
             raise ValueError(
-                f"{repository.strip('/')} publishes no release {tag or ''}".rstrip()
+                f"{cls.repository()} publishes no release {tag or ''}".rstrip()
             ) from error
+
+    @classmethod
+    def releases(cls) -> str:
+        """
+        Spells the address of the releases of *SquiRtL*'s repository under
+        GitHub's REST API.
+        """
+        return f"https://api.github.com/repos/{cls.repository()}/releases"
+
+    @staticmethod
+    def repository() -> str:
+        """
+        Reads the owner and the name of *SquiRtL*'s repository, as
+        `owner/name`, from the package metadata's `Repository` address.
+        """
+        return urlparse(addresses()["Repository"]).path.strip("/")
+
+    @classmethod
+    def retrieve(cls, name: str, folder: Path = Run.folder) -> Run:
+        """
+        Fetches the run `name` names into `folder` through `fetch`, from
+        the first release `listed` reads whose assets hold its tar and whose
+        manifest lists it. A run `folder` already holds reads no release.
+
+        Raises:
+            HTTPError  : Where GitHub answers with an error, as `listed`
+                         raises.
+            ValueError : Where no published release attaches the run, naming
+                         it, beside each error `fetch` raises.
+        """
+        if (directory := folder / name).exists():
+            return Run.read(directory)
+
+        for release in cls.listed():
+            if name + PackedRun.suffix in {asset.name for asset in release.assets}:
+                for run in release.manifest.packed:
+                    if run.name == name:
+                        return release.fetch(run, folder)
+
+        raise ValueError(f"No published release attaches the run {name}")
 
 
 class Selector(Record):
