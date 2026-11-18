@@ -4,12 +4,13 @@
 
 ## The Parts of a Run
 
-A run joins four parts, each set out on a page of its own:
+A run joins the parts below, each set out on a page of its own:
 
 - The [environment](./environment.md) presses one button a step, advances the game 17 frames, and returns the screens the agent reads
 - The [reward](./reward.md) reads the game's memory after each step and pays for a square not reached before and for each milestone on the way to the run's goal
 - The [agents](./agents.md) choose each press and learn from what it paid, whether the deep Q-network, PQN, or PPO
 - The [curriculum](./curriculum.md) starts a training episode partway along a demonstration and moves its start back toward the bedroom as the agent succeeds
+- The [search](./search.md) finds a demonstration without training, playing copies of the game forward from saved states and keeping the copies that reach the most
 
 The [evaluation](./evaluation.md) then plays each trained agent from the bedroom beside random presses under the same seeds.
 

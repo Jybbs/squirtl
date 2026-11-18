@@ -954,45 +954,57 @@ class SiteLifts(Manager):
 
 class PackageLifts(Manager):
     """
-    The packages `uv.lock` resolves, read through `uv lock --upgrade
-    --dry-run`, which names each package an upgrade would move, and each
-    newest release dated through the lockfile `uv pip compile` writes
-    for it. Each `uv lock` runs under `--no-locked`, which overrides the
-    `UV_LOCKED` the `[env]` block of `.mise/config.toml` sets.
+    The packages `uv.lock` and each task script's lockfile resolve, read
+    through `uv lock --upgrade --dry-run`, which names each package an
+    upgrade would move, and each newest release dated through the lockfile
+    `uv pip compile` writes for it. Each lift is homed in the lockfile
+    resolving it, and each `uv lock` runs under `--no-locked`, which
+    overrides the `UV_LOCKED` the `[env]` block of `.mise/config.toml` sets.
     """
 
     ecosystem: ClassVar[str | None] = "pip"
 
     held: tuple[Lift, ...] = ()
     """
-    Each lift `holding` left out, whose package `write` checks `uv.lock` still
-    resolves at its current release.
+    Each lift `holding` left out, whose package `write` checks its lockfile
+    still resolves at its current release.
     """
 
-    def check(self, lockfile: Lockfile):
+    def check(self, root: Path):
         """
-        Compares each package of `held` with `lockfile`, reading its highest
-        public version as `highest` does.
+        Compares each package of `held` with the lockfile under `root` it is
+        homed in, reading its highest public version as `highest` does.
 
         Raises:
-            HeldPackageMoved: Where `lockfile` leaves any of them off its
+            HeldPackageMoved: Where a lockfile leaves any of them off its
                               current release, with a sentence on each that
-                              names each lift depending on the package,
-                              since only a lift can be held beside it.
+                              names each lift of that lockfile depending
+                              on the package, since only a lift can be held
+                              beside it.
         """
-        lifted = {lift.name for lift in self.lifts}
-        moved  = []
+        lifted    = {(lift.home, lift.name) for lift in self.lifts}
+        lockfiles = {
+            lift.home: Lockfile.from_path(root / lift.home) for lift in self.held
+        }
+        moved = []
 
         for lift in self.held:
+            lockfile = lockfiles[lift.home]
             resolved = lockfile.resolved(lift.name)
             release  = resolved[-1].public if resolved else "no release"
 
             if release != lift.current:
-                beside = ", ".join(sorted(lockfile.dependents(lift.name) & lifted))
+                beside = ", ".join(
+                    sorted(
+                        name
+                        for name in lockfile.dependents(lift.name)
+                        if (lift.home, name) in lifted
+                    )
+                )
 
                 moved.append(
-                    f"`uv lock` moved {lift.name} from the {lift.current} it is held "
-                    f"at to {release}"
+                    f"`uv lock` moved {lift.name} in {lift.home} from the "
+                    f"{lift.current} it is held at to {release}"
                     + (
                         f", so hold each lift depending on it as well: {beside}"
                         if beside
@@ -1026,11 +1038,48 @@ class PackageLifts(Manager):
             }
         )
 
+    @staticmethod
+    def locking(lockfile: Path) -> tuple[str, ...]:
+        """
+        Names the options pointing `uv lock` at `lockfile`, none for
+        `uv.lock` and `--script` beside the script for a script's lockfile.
+        """
+        return (
+            ()
+            if lockfile == Lockfile.file
+            else ("--script", str(lockfile.with_suffix("")))
+        )
+
     @classmethod
     def read(cls) -> Self:
         """
-        Reads each `Update` line of the dry run, leaving out each package an
-        upgrade only adds or drops, then dates each newest release.
+        Reads `uv.lock` and the lockfile beside each task script keeping
+        one, all at once, since each dry run waits on the index.
+        """
+        return cls(
+            lifts = tuple(
+                chain.from_iterable(
+                    concurrently(
+                        items = [
+                            Lockfile.file,
+                            *(
+                                script.lockfile
+                                for script in Scripts.read().scripts
+                                if script.lockfile.exists()
+                            )
+                        ],
+                        work = cls.updated
+                    )
+                )
+            )
+        )
+
+    @classmethod
+    def updated(cls, lockfile: Path) -> list[Lift]:
+        """
+        Reads each `Update` line of the dry run upgrading `lockfile`,
+        leaving out each package an upgrade only adds or drops, then dates
+        each newest release.
         """
         moved = [
             (line["name"], cls.highest(line["current"]), cls.highest(line["newest"]))
@@ -1040,7 +1089,8 @@ class PackageLifts(Manager):
                 run(
                     [
                         "uv", "lock", "--color", "never",
-                        "--dry-run", "--no-locked", "--upgrade"
+                        "--dry-run", "--no-locked", "--upgrade",
+                        *cls.locking(lockfile)
                     ],
                     capture_output = True,
                     check          = True,
@@ -1053,48 +1103,56 @@ class PackageLifts(Manager):
             "--no-deps"
         ).named if moved else {}
 
-        return cls(
-            lifts = tuple(
-                Lift(
-                    current  = current,
-                    home     = Lockfile.file,
-                    name     = name,
-                    newest   = newest,
-                    released = released[canonicalize_name(name)].released
-                )
-                for name, current, newest in moved
+        return [
+            Lift(
+                current  = current,
+                home     = lockfile,
+                name     = name,
+                newest   = newest,
+                released = released[canonicalize_name(name)].released
             )
-        )
+            for name, current, newest in moved
+        ]
 
     def write(self, checkout: Checkout):
         """
-        Moves each package of `lifts` in `uv.lock` to its newest release.
-        The resolver treats every other locked version as a preference, so
-        a new release requiring a newer held package moves that package too,
-        and the write then puts `uv.lock` back as it stood.
+        Moves each package of `lifts` to its newest release in the lockfile
+        it is homed in, and locks each lockfile a package of `held` is homed
+        in again, so it resolves against the script pins `RequirementLifts`
+        rewrote. The resolver treats every other locked version as a
+        preference, so a new release requiring a newer held package moves
+        that package too, and the write then puts each lockfile back as
+        it stood.
 
         Raises:
-            HeldPackageMoved: Where `uv.lock` leaves a package of `held` off
-                              its current release.
+            HeldPackageMoved: Where a lockfile leaves a package of `held`
+                              off its current release.
         """
-        if self.lifts:
-            file   = checkout.root / Lockfile.file
-            locked = file.read_bytes()
+        locked = {
+            lift.home: (checkout.root / lift.home).read_bytes()
+            for lift in (*self.lifts, *self.held)
+        }
 
+        for lockfile in locked:
             checkout.run(
                 "uv",
                 "lock",
                 "--no-locked",
+                *self.locking(lockfile),
                 *chain.from_iterable(
-                    ("--upgrade-package", lift.name) for lift in self.lifts
+                    ("--upgrade-package", lift.name)
+                    for lift in self.lifts
+                    if lift.home == lockfile
                 )
             )
 
-            try:
-                self.check(Lockfile.read(checkout.root))
-            except HeldPackageMoved:
-                file.write_bytes(locked)
-                raise
+        try:
+            self.check(checkout.root)
+        except HeldPackageMoved:
+            for lockfile, text in locked.items():
+                (checkout.root / lockfile).write_bytes(text)
+
+            raise
 
 
 def table_text(table: Table) -> str:
@@ -1328,12 +1386,14 @@ class Lifts(Record):
     """
 
     managers: ClassVar[tuple[type[Manager], ...]] = (
-        PackageLifts, RequirementLifts, SiteLifts, ActionLifts, ToolLifts
+        RequirementLifts, PackageLifts, SiteLifts, ActionLifts, ToolLifts
     )
     """
     Every manager whose pins the task reads, in the order `write` writes
-    them. `PackageLifts` writes first, so a held package it finds moved stops
-    the write before any other pin moves, and `ToolLifts` writes last, since
+    them. `RequirementLifts` writes first, so each script's lockfile
+    `PackageLifts` locks resolves against the script's new pins, and
+    `PackageLifts` writes next, so a held package it finds moved stops the
+    write before any other manager writes. `ToolLifts` writes last, since
     every `uv` command before it runs under the `required-version` it moves.
     """
 
@@ -1575,10 +1635,29 @@ class Lifts(Record):
         through `lock:sync`, building `.venv` again on the interpreter the
         lift pins where `python` moves, since `uv sync` alone keeps `.venv`
         on the interpreter it was built on while that interpreter satisfies
-        `requires-python`, as a move within the minor leaves it.
+        `requires-python`, as a move within the minor leaves it. Where a
+        held package moves, it puts back each file of the exact pins as it
+        stood beside the lockfiles `PackageLifts` puts back.
+
+        Raises:
+            HeldPackageMoved: Where a lockfile leaves a held package off its
+                              current release.
         """
-        for manager in self.found:
-            manager.write(checkout)
+        pinned = {
+            lift.home: (checkout.root / lift.home).read_bytes()
+            for manager in self.found
+            if isinstance(manager, RequirementLifts)
+            for lift in manager.lifts
+        }
+
+        try:
+            for manager in self.found:
+                manager.write(checkout)
+        except HeldPackageMoved:
+            for home, text in pinned.items():
+                (checkout.root / home).write_bytes(text)
+
+            raise
 
         for command in (
             ("mise", "lock"),

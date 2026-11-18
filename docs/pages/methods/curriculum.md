@@ -1,10 +1,12 @@
 # Curriculum
 
-A run of PQN or PPO can learn the walk to its goal backward, starting its training episodes partway along a demonstration, the shortest episode of an earlier run that reached the same goal, and moving each start back toward Blue's bedroom as the agent succeeds from it. Salimans and Chen[^salimans2018] learn Montezuma's Revenge from a single demonstration this way, and the windows each start is drawn from move as Appendix B of Mhammedi and Cohan[^mhammedi2026] moves them. Every training episode starts in Blue's bedroom unless `--curriculum.demonstration` names a run, and every evaluation episode starts there whatever the training did.
+A run of PQN or PPO can learn the walk to its goal backward, starting its training episodes partway along a demonstration, the shortest episode of an earlier run that reached the same goal, such as the one a [search](./search.md) finds, and moving each start back toward Blue's bedroom as the agent succeeds from it. Salimans and Chen[^salimans2018] learn Montezuma's Revenge from a single demonstration this way, and the windows each start is drawn from move as Appendix B of Mhammedi and Cohan[^mhammedi2026] moves them. Every training episode starts in Blue's bedroom unless `--curriculum.demonstration` names a run, and every evaluation episode starts there whatever the training did.
 
 ## The Segments
 
 The demonstration splits into segments, each ending at the step whose press first sets one of the flags the reward pays, so on the way to the starter the walk to Oak, the walk into the lab, the wait for Oak to ask, and the choice of the starter each make a segment. Each segment draws its starts from a window of 25 steps reaching back from its latest start, which opens at the segment's end.
+
+The demonstration plays to its last press whatever `--environment.max-episode-steps` holds, while every training episode still truncates after that many steps. A run therefore warns as it starts on each segment whose end the demonstration reaches only after more presses than that, because the segment's window reaches Blue's bedroom before it counts as solved, and an episode from there gets fewer steps than the demonstration took to reach that end.
 
 ## Moving a Window
 
