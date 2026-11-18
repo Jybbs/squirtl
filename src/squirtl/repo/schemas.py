@@ -796,17 +796,24 @@ class SiteManifest(JsonFile, extra="ignore"):
     under the package's name.
     """
 
+    requirements: dict[str, str] = Field(default={}, validation_alias="dependencies")
+    """
+    The version or range each package the built site loads at run time is
+    pinned to, under the package's name.
+    """
+
     @property
     def ranges(self) -> dict[str, str]:
         """
-        Reads each pin of `pins` that names a range rather than one exact
-        version, meaning anything but a whole `MAJOR.MINOR.PATCH` with an
-        optional prerelease and build, as the grammar of
-        [Semantic Versioning](https://semver.org/) writes a version.
+        Reads each pin of `pins` and `requirements` that names a range
+        rather than one exact version, meaning anything but a whole
+        `MAJOR.MINOR.PATCH` with an optional prerelease and build, as
+        the grammar of [Semantic Versioning](https://semver.org/) writes
+        a version.
         """
         return {
             name: pin
-            for name, pin in self.pins.items()
+            for name, pin in (self.pins | self.requirements).items()
             if not fullmatch(
                 r"(0|[1-9]\d*)(\.(0|[1-9]\d*)){2}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?",
                 pin

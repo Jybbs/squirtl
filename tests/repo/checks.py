@@ -688,7 +688,7 @@ def test_footnotes_reports_a_file_that_fails_to_decode_on_that_file(
             Footnotes,
             {
                 "src/squirtl/docs/references.bib": "@misc{smith2020, author = {Smith, A.}, title = {T}, "
-                                       "year = {2020}, eprint = {1}}"
+                                                   "year = {2020}, eprint = {1}}"
             }
         )
 
@@ -2068,6 +2068,35 @@ def test_site_pins_are_unreadable_where_the_node_types_pin_a_range(
         )
 
 
+def test_site_pins_report_a_run_time_dependency_pinned_to_a_range(
+    mise_config : str,
+    scan        : Scan
+):
+    """
+    Pins that the site's pins check reads the `dependencies` of
+    `docs/package.json` beside its `devDependencies`, reporting a package
+    pinned there to a range on the line declaring it.
+    """
+    package = dumps(
+        {
+            "dependencies"    : {"vue": "^3.5.45"},
+            "devDependencies" : {"@types/node": "26.6.5"}
+        },
+        indent = 2
+    )
+    findings = scan(
+        SitePins,
+        {".mise/config.toml": mise_config, "docs/package.json": package}
+    )
+
+    assert findings == [
+        (
+            "docs/package.json", 3,
+            "`vue` pins the range `^3.5.45` rather than an exact version"
+        )
+    ]
+
+
 def test_subsets_report_each_subset_one_side_lacks(
     provision : str,
     scan      : Scan,
@@ -2115,51 +2144,6 @@ def test_subsets_report_each_subset_one_side_lacks(
         (
             ".github/workflows/warm.yml", 11,
             "`kit` saves the tool subset `node`, which no job restores"
-        )
-    ]
-
-
-def test_summaries_report_each_writer_besides_the_gate(scan: Scan, workflow: str):
-    """
-    Pins that the summary check reports a step writing the summary in a
-    job that runs no `gha:brief` and a step of a composite action writing
-    it, and leaves alone a gate writing it beside running `gha:brief` and a
-    composite step writing no summary.
-    """
-    text = (
-        dedent(workflow).replace(
-            'run  : mise run "$TASK"',
-            'run  : echo done >> "$GITHUB_STEP_SUMMARY"'
-        )
-                        .replace(
-                            "mise run gha:brief",
-                            'echo x >> "$GITHUB_STEP_SUMMARY" && mise run gha:brief'
-                        )
-    )
-
-    findings = scan(
-        Summaries,
-        {
-            ".github/actions/provision/action.yml" : """
-                runs:
-                  steps:
-                    - run: echo done >> "$GITHUB_STEP_SUMMARY"
-                    - run: echo done
-                """,
-            ".github/workflows/ci.yml"             : text
-        }
-    )
-
-    assert findings == [
-        (
-            ".github/workflows/ci.yml", 28,
-            "`check` writes the workflow run's summary, which only the gate writes"
-        ),
-        (
-            ".github/actions/provision/action.yml",
-            4,
-            "A step of `.github/actions/provision/action.yml` writes the workflow "
-            "run's summary, which only a workflow's gate writes"
         )
     ]
 
@@ -2229,45 +2213,47 @@ def test_installs_hold_each_bun_install_to_the_lockfile(
     assert findings == [(".mise/tasks/site/install", 4, message) for message in found]
 
 
-def test_task_check_reports_each_defect_mise_finds_at_its_weight(scan: Scan):
+def test_summaries_report_each_writer_besides_the_gate(scan: Scan, workflow: str):
     """
-    Pins that the task check reports each defect `mise tasks validate`
-    finds on the file declaring the task, an error as an error and a
-    warning as a warning, and a defect in a task mise did not list on
-    `.mise/config.toml`.
+    Pins that the summary check reports a step writing the summary in a
+    job that runs no `gha:brief` and a step of a composite action writing
+    it, and leaves alone a gate writing it beside running `gha:brief` and a
+    composite step writing no summary.
     """
-    tasks = Tasks(
-        issues = [
-            TaskIssue(
-                details  = "Referenced in 'depends'",
-                message  = "Dependency 'x' not found",
-                severity = Severity.ERROR,
-                task     = "py:test"
-            ),
-            TaskIssue(message="Empty script", severity=Severity.WARNING, task="py:gone")
-        ],
-        tasks = [Task(
-            depends = ["x"],
-            name    = "py:test",
-            source  = Path(".mise/tasks/py/test").absolute()
-        )]
+    text = (
+        dedent(workflow).replace(
+            'run  : mise run "$TASK"',
+            'run  : echo done >> "$GITHUB_STEP_SUMMARY"'
+        )
+                        .replace(
+                            "mise run gha:brief",
+                            'echo x >> "$GITHUB_STEP_SUMMARY" && mise run gha:brief'
+                        )
     )
 
-    assert [
-        (str(finding.file), finding.severity, finding.message)
-        for finding in TaskCheck.read(lambda field: tasks).scan()
-    ] == [
+    findings = scan(
+        Summaries,
+        {
+            ".github/actions/provision/action.yml" : """
+                runs:
+                  steps:
+                    - run: echo done >> "$GITHUB_STEP_SUMMARY"
+                    - run: echo done
+                """,
+            ".github/workflows/ci.yml"             : text
+        }
+    )
+
+    assert findings == [
         (
-            ".mise/tasks/py/test",
-            Severity.ERROR,
-            (
-                "`py:test` fails `mise tasks validate` with \"Dependency 'x' not "
-                "found\" (Referenced in 'depends')"
-            )
+            ".github/workflows/ci.yml", 28,
+            "`check` writes the workflow run's summary, which only the gate writes"
         ),
         (
-            ".mise/config.toml", Severity.WARNING,
-            "`py:gone` fails `mise tasks validate` with 'Empty script'"
+            ".github/actions/provision/action.yml",
+            4,
+            "A step of `.github/actions/provision/action.yml` writes the workflow "
+            "run's summary, which only a workflow's gate writes"
         )
     ]
 
@@ -2338,45 +2324,47 @@ def test_site_copies_report_each_shared_package_the_lockfile_resolves_twice(
     assert findings == [("docs/package.json", line, message) for line, message in found]
 
 
-def test_the_audit_reports_each_unreadable_file_once(
-    capsys   : CaptureFixture[str],
-    checkout : Callable[[Mapping[str, str]], None],
-    fp       : FakeProcess
-):
+def test_task_check_reports_each_defect_mise_finds_at_its_weight(scan: Scan):
     """
-    Pins that the audit runs every check over a checkout holding two modules
-    alone, reports each file a check cannot read once however many checks
-    read it, the files a check reads after one it cannot read among them,
-    keeps the docstring finding beside the module that fails to parse,
-    prints each as an annotation, and exits 1.
+    Pins that the task check reports each defect `mise tasks validate`
+    finds on the file declaring the task, an error as an error and a
+    warning as a warning, and a defect in a task mise did not list on
+    `.mise/config.toml`.
     """
-    checkout({"a.py": "x = 1\n", "b.py": "def (\n"})
-    fp.register(["git", "ls-files", fp.any()], stdout="a.py\0b.py\0")
-    fp.register(["mise", "tasks", "ls", fp.any()], stdout="[]")
-    fp.register(["mise", "tasks", "validate", fp.any()], stdout='{"issues": []}')
-
-    audit = Audit.read()
-
-    assert {str(finding.file) for finding in audit.findings} == {
-        ".github/PULL_REQUEST_TEMPLATE.md",
-        ".github/labels.toml",
-        ".github/release.yml",
-        ".mise/config.toml",
-        "CITATION.cff",
-        "a.py",
-        "b.py",
-        "docs/bun.lock",
-        "docs/package.json",
-        "pyproject.toml",
-        "src/squirtl/docs/references.bib",
-        "uv.lock",
-        *(str(output.path) for output in Inventory.read(app).outputs)
-    }
-    assert len(audit.findings) == len(set(audit.findings))
-    assert audit.report() == 1
-    assert capsys.readouterr().out.splitlines()[0].startswith(
-        "::error file=CITATION.cff::"
+    tasks = Tasks(
+        issues = [
+            TaskIssue(
+                details  = "Referenced in 'depends'",
+                message  = "Dependency 'x' not found",
+                severity = Severity.ERROR,
+                task     = "py:test"
+            ),
+            TaskIssue(message="Empty script", severity=Severity.WARNING, task="py:gone")
+        ],
+        tasks = [Task(
+            depends = ["x"],
+            name    = "py:test",
+            source  = Path(".mise/tasks/py/test").absolute()
+        )]
     )
+
+    assert [
+        (str(finding.file), finding.severity, finding.message)
+        for finding in TaskCheck.read(lambda field: tasks).scan()
+    ] == [
+        (
+            ".mise/tasks/py/test",
+            Severity.ERROR,
+            (
+                "`py:test` fails `mise tasks validate` with \"Dependency 'x' not "
+                "found\" (Referenced in 'depends')"
+            )
+        ),
+        (
+            ".mise/config.toml", Severity.WARNING,
+            "`py:gone` fails `mise tasks validate` with 'Empty script'"
+        )
+    ]
 
 
 @mark.parametrize(
@@ -2485,6 +2473,9 @@ def test_site_pins_hold_the_pins_that_move_together(
         param(">=6.45.1", False, id="a-floor"),
         param("6.45", False, id="a-minor"),
         param("6.x", False, id="a-wildcard"),
+        param("6.45.x", False, id="a-patch-wildcard"),
+        param("6.45.1 - 7.0.0", False, id="a-hyphen-range"),
+        param("6.45.1-rc.1 || 7.0.0", False, id="a-union"),
         param("06.45.1", False, id="a-leading-zero"),
         param("latest", False, id="a-tag")
     ]
@@ -2516,6 +2507,47 @@ def test_site_pins_report_each_pin_to_a_range(
     ]
 
     assert findings == ([] if exact else found)
+
+
+def test_the_audit_reports_each_unreadable_file_once(
+    capsys   : CaptureFixture[str],
+    checkout : Callable[[Mapping[str, str]], None],
+    fp       : FakeProcess
+):
+    """
+    Pins that the audit runs every check over a checkout holding two modules
+    alone, reports each file a check cannot read once however many checks
+    read it, the files a check reads after one it cannot read among them,
+    keeps the docstring finding beside the module that fails to parse,
+    prints each as an annotation, and exits 1.
+    """
+    checkout({"a.py": "x = 1\n", "b.py": "def (\n"})
+    fp.register(["git", "ls-files", fp.any()], stdout="a.py\0b.py\0")
+    fp.register(["mise", "tasks", "ls", fp.any()], stdout="[]")
+    fp.register(["mise", "tasks", "validate", fp.any()], stdout='{"issues": []}')
+
+    audit = Audit.read()
+
+    assert {str(finding.file) for finding in audit.findings} == {
+        ".github/PULL_REQUEST_TEMPLATE.md",
+        ".github/labels.toml",
+        ".github/release.yml",
+        ".mise/config.toml",
+        "CITATION.cff",
+        "a.py",
+        "b.py",
+        "docs/bun.lock",
+        "docs/package.json",
+        "pyproject.toml",
+        "src/squirtl/docs/references.bib",
+        "uv.lock",
+        *(str(output.path) for output in Inventory.read(app).outputs)
+    }
+    assert len(audit.findings) == len(set(audit.findings))
+    assert audit.report() == 1
+    assert capsys.readouterr().out.splitlines()[0].startswith(
+        "::error file=CITATION.cff::"
+    )
 
 
 @mark.parametrize(
