@@ -6,8 +6,8 @@ import * as playthrough from '../../../lib/front/sees/playthrough.ts'
 import { SCREEN }       from '../../../lib/game/screen.ts'
 import type { Canvas }  from '../../../lib/widgets/frames.ts'
 import { stepText }     from '../../../lib/widgets/numbers.ts'
-import type { Scrub }   from '../../../lib/widgets/scrub.ts'
 import { Chip }         from '../kit/chip.tsx'
+import * as slider      from '../kit/slider.tsx'
 import * as widget      from '../kit/widget.ts'
 
 /**
@@ -15,6 +15,16 @@ import * as widget      from '../kit/widget.ts'
  * and ring it in the rule with its pixels drawn square.
  */
 const ART = 'sees-art pixelated block h-auto w-full rounded-1'
+
+/**
+ * The classes laying the slider over the gray frames, in the cell of the grid
+ * they fill, the thumb's ring following their corners.
+ */
+const FRAMES: slider.Parts = {
+  control : 'absolute inset-0',
+  root    : 'relative col-start-1 row-start-1',
+  thumb   : 'absolute inset-0 rounded-1'
+}
 
 /**
  * The classes of each grid of the flags' chips, one column on a narrow frame,
@@ -91,24 +101,19 @@ function drawingOf(
  * Draws the gray frames as one block of the screen's shape, the oldest first,
  * which serves as the slider over the episode's steps.
  */
-function frameStripOf(frames: readonly Canvas[], scrub: Scrub): VNode {
+function frameStripOf(frames: readonly Canvas[], scrub: playthrough.Staging['scrub']): VNode {
   const { height, width } = sees.OBSERVING.frame
   return (
-    <div {...scrub.root.value} class="sees-frames">
-      <div {...scrub.control.value} class={[widget.SCRUB_PARTS.control, 'grid']}>
-        <div class="col-start-1 row-start-1 grid grid-cols-2 gap-sees-seam">
-          {names.map((name, i) => (
-            <div class="grid" key={name.back}>
-              {drawingOf(frames[i]!, name.label, 'col-start-1 row-start-1', width, height)}
-              <span aria-hidden="true" class={TAG}>{name.tag}</span>
-            </div>
-          ))}
-        </div>
-        <span
-          {...scrub.thumb.value}
-          class={[widget.SCRUB_PARTS.thumb, 'col-start-1 row-start-1 rounded-1']}
-        />
+    <div class="sees-frames grid">
+      <div class="col-start-1 row-start-1 grid grid-cols-2 gap-sees-seam">
+        {names.map((name, i) => (
+          <div class="grid" key={name.back}>
+            {drawingOf(frames[i]!, name.label, 'col-start-1 row-start-1', width, height)}
+            <span aria-hidden="true" class={TAG}>{name.tag}</span>
+          </div>
+        ))}
       </div>
+      <slider.Slider parts={FRAMES} scrub={scrub} />
     </div>
   )
 }
@@ -119,7 +124,7 @@ function frameStripOf(frames: readonly Canvas[], scrub: Scrub): VNode {
  * flags past the default goal after a rule as quiet chips the episode never
  * sets.
  */
-function viewOf(root: Ref<HTMLElement | undefined>, scrub: Scrub, stage: playthrough.Playthrough): VNode {
+function viewOf(root: Ref<HTMLElement | undefined>, { scrub, stage }: playthrough.Staging): VNode {
   const flagged = stage.flagged.value
   const player  = 'The game screen as a player sees it'
   const reached = 'The squares Blue has reached on this map, Blue at the center'
@@ -168,9 +173,9 @@ function viewOf(root: Ref<HTMLElement | undefined>, scrub: Scrub, stage: playthr
 export const StorySees = defineComponent({
   name  : 'StorySees',
   setup : () => {
-    const root             = ref<HTMLElement>()
-    const { scrub, stage } = playthrough.usePlaythrough(root)
+    const root    = ref<HTMLElement>()
+    const staging = playthrough.usePlaythrough(root)
 
-    return () => viewOf(root, scrub, stage)
+    return () => viewOf(root, staging)
   }
 })

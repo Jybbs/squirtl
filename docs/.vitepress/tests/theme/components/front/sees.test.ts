@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { type VueWrapper, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, test, vi }        from 'vitest'
+import { afterEach, describe, expect, vi }                          from 'vitest'
 
 import * as sees              from '../../../../lib/front/sees.ts'
 import { SEES_TEMPO }         from '../../../../lib/front/sees/playthrough.ts'
-import { SCREEN }             from '../../../../lib/game/screen.ts'
 import { hexOf, rgbOf }       from '../../../../lib/identity/identity.ts'
 import { count, stepText }    from '../../../../lib/widgets/numbers.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
+import { stopped }            from '../../../common/clock.ts'
 import * as pointer           from '../../../common/pointer.ts'
 
 const { StorySees } = await import('../../../../theme/components/front/sees.tsx')
@@ -25,21 +25,16 @@ const white = rgbOf(hexOf('ground'))
 
 /**
  * A stand-in for a canvas's 2D context that records what the widget draws and
- * each view it puts, and reads every screen back in the game's white.
+ * each view it puts, and reads every view back in the game's white.
  */
 class Pixels extends Recorder {
-  readonly screen = new Uint8ClampedArray(SCREEN.width * SCREEN.height * 4)
-
-  constructor() {
-    super()
-    for (let i = 0; i < this.screen.length; i += 4) this.screen.set([...white, 255], i)
-  }
-
   /**
-   * Reads the screen back in the game's white.
+   * Reads a view of `width` by `height` pixels back in the game's white.
    */
-  getImageData(): ImageData {
-    return { data: this.screen } as ImageData
+  getImageData(left: number, top: number, width: number, height: number): ImageData {
+    const image = super.getImageData(left, top, width, height)
+    for (let i = 0; i < image.data.length; i += 4) image.data.set([...white, 255], i)
+    return image
   }
 }
 
@@ -79,16 +74,10 @@ async function mounted(): Promise<{ pixels: Pixels, sight: browser.Sight, wrappe
   return { pixels, sight, wrapper }
 }
 
-beforeEach(() => {
-  vi.useFakeTimers({
-    toFake: ['setTimeout', 'clearTimeout', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame']
-  })
-})
-
 enableAutoUnmount(afterEach)
 
 describe('StorySees at rest', () => {
-  test('draws the first step once the rooms load, each gray frame and the grid put as pixels', async () => {
+  stopped('draws the first step once the rooms load, each gray frame and the grid put as pixels', async () => {
     const { pixels, wrapper } = await mounted()
 
     expect(shownStep(wrapper)).toBe(stepAt(0))
@@ -97,14 +86,14 @@ describe('StorySees at rest', () => {
     expect(flagValues(wrapper)).toStrictEqual(['0', '0', '0', '0', '0', '0', '0'])
   })
 
-  test('leaves every canvas blank where a room’s image fails to decode', async () => {
+  stopped('leaves every canvas blank where a room’s image fails to decode', async () => {
     vi.spyOn(HTMLImageElement.prototype, 'decode').mockRejectedValue(new Error('undecodable'))
     const { pixels, wrapper } = await mounted()
 
     expect([pixels.images, pixels.views, shownStep(wrapper)]).toStrictEqual([[], [], stepAt(0)])
   })
 
-  test('tags the frames newest last and captions each drawing with its shape and bytes', async () => {
+  stopped('tags the frames newest last and captions each drawing with its shape and bytes', async () => {
     const { wrapper }            = await mounted()
     const bytes                  = sees.bytesOf()
     const { frame, grid, stack } = sees.OBSERVING
@@ -122,7 +111,7 @@ describe('StorySees at rest', () => {
     expect(wrapper.text()).toBePublishedProse()
   })
 
-  test('shows the end at once, every flag set, where the reader asks for reduced motion', async () => {
+  stopped('shows the end at once, every flag set, where the reader asks for reduced motion', async () => {
     browser.preference.value = 'reduce'
     const { sight, wrapper } = await mounted()
 
@@ -136,7 +125,7 @@ describe('StorySees at rest', () => {
 })
 
 describe('StorySees past the goal', () => {
-  test('sets the flags past the goal after a rule naming them, as quiet chips the episode never sets', async () => {
+  stopped('sets the flags past the goal after a rule naming them, as quiet chips the episode never sets', async () => {
     const { wrapper } = await mounted()
     const past        = wrapper.findAll('.sees-flags .py-chip-quiet-block')
 
@@ -148,7 +137,7 @@ describe('StorySees past the goal', () => {
 })
 
 describe('StorySees playing', () => {
-  test('plays a press a beat once it shows, each gray frame dropping in by the next beat', async () => {
+  stopped('plays a press a beat once it shows, each gray frame dropping in by the next beat', async () => {
     const { sight, wrapper } = await mounted()
     const seek               = vi.spyOn(sees.Observation.prototype, 'seek')
 
@@ -160,7 +149,7 @@ describe('StorySees playing', () => {
     expect([first, shownStep(wrapper), seek.mock.calls]).toStrictEqual([stepAt(0), stepAt(1), []])
   })
 
-  test('rests on the starter, then plays again from the bedroom', async () => {
+  stopped('rests on the starter, then plays again from the bedroom', async () => {
     const { sight, wrapper } = await mounted()
     const thumb              = wrapper.get('[role="slider"]')
 
@@ -180,7 +169,7 @@ describe('StorySees playing', () => {
 })
 
 describe('StorySees held by a reader', () => {
-  test('drops the frames in while a resting mouse holds the step, and plays on once it leaves', async () => {
+  stopped('drops the frames in while a resting mouse holds the step, and plays on once it leaves', async () => {
     const { sight, wrapper } = await mounted()
     const control            = pointer.controlOf(wrapper, last)
 
@@ -196,7 +185,7 @@ describe('StorySees held by a reader', () => {
     expect([held, shownStep(wrapper)]).toStrictEqual([stepAt(1), stepAt(3)])
   })
 
-  test('seeks the step a press on the frames lands on', async () => {
+  stopped('seeks the step a press on the frames lands on', async () => {
     const { wrapper } = await mounted()
     const control     = pointer.controlOf(wrapper, last)
 
@@ -205,7 +194,7 @@ describe('StorySees held by a reader', () => {
     expect(pointer.sliderState(wrapper)[0]).toBe('100')
   })
 
-  test('steps the observation with the arrow keys once the frames have focus', async () => {
+  stopped('steps the observation with the arrow keys once the frames have focus', async () => {
     const { wrapper } = await mounted()
     const thumb       = wrapper.get('[role="slider"]')
 
@@ -217,7 +206,7 @@ describe('StorySees held by a reader', () => {
 })
 
 describe('StorySees unmounted', () => {
-  test('ends its timers and its frame loop, pressing and drawing nothing after', async () => {
+  stopped('ends its timers and its frame loop, pressing and drawing nothing after', async () => {
     const { pixels, sight, wrapper } = await mounted()
     const next                       = vi.spyOn(sees.Observation.prototype, 'next')
     vi.clearAllTimers()

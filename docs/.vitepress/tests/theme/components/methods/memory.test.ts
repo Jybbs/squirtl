@@ -7,6 +7,7 @@ import { LAST, TRACE }        from '../../../../lib/methods/memory.ts'
 import { fitOf }              from '../../../../lib/methods/memory/marks.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
+import { stopped }            from '../../../common/clock.ts'
 import * as pointer           from '../../../common/pointer.ts'
 
 const { MethodsMemory } = await import('../../../../theme/components/methods/memory.tsx')
@@ -135,8 +136,7 @@ describe('MethodsMemory’s playback', () => {
     expect([wrapper.findAll('.memory-pulse').length, bytes(wrapper)[0], says(wrapper).endsWith('which ends the episode.')]).toStrictEqual([3, 'wCurMap28', true])
   })
 
-  it('plays frame by frame once it shows, and stands on the starter under reduced motion', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] })
+  stopped('plays frame by frame once it shows, and stands on the starter under reduced motion', async () => {
     drawInto(null)
     const sight   = browser.stubSight()
     const wrapper = mount(MethodsMemory, { attachTo: document.body })

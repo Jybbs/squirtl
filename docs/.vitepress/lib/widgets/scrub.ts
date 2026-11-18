@@ -21,11 +21,12 @@ type Props = ReturnType<slider.Api<PropTypes>['getRootProps']>
 
 /**
  * The props a drawing spreads onto itself and onto the focusable thumb laid
- * over it.
+ * over it, beside the share of the slider's length a position stands at.
  */
 export interface Scrub {
   control : ComputedRef<Props>
   root    : ComputedRef<Props>
+  shareOf : (at: number) => number
   thumb   : ComputedRef<Props>
 }
 
@@ -77,6 +78,7 @@ export function useScrub(target: MaybeElementRef, ticking: Ticking, scrubbing: S
 
   return {
     root    : computed(() => ({ ...api.value.getRootProps(), style: undefined })),
+    shareOf : n => api.value.getValuePercent(n),
     thumb   : computed(() => ({ ...api.value.getThumbProps({ index: 0 }), style: undefined })),
     control : computed(() => ({
       ...api.value.getControlProps(),

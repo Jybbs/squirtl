@@ -1,18 +1,15 @@
 // @vitest-environment happy-dom
 import { type VueWrapper, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, it, vi }          from 'vitest'
+import { afterEach, describe, expect, vi }                          from 'vitest'
 import { nextTick }                                                 from 'vue'
 
 import * as watching          from '../../../../lib/commands/watch.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
+import { stopped }            from '../../../common/clock.ts'
 import * as pointer           from '../../../common/pointer.ts'
 
 const { CommandsWatch } = await import('../../../../theme/components/commands/watch.tsx')
-
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] })
-})
 
 enableAutoUnmount(afterEach)
 
@@ -33,7 +30,7 @@ async function mounted(recorder: Recorder | null = new Recorder()) {
 }
 
 describe('CommandsWatch', () => {
-  it('waits with the window closed until it shows', async () => {
+  stopped('waits with the window closed until it shows', async () => {
     const { wrapper } = await mounted()
 
     expect([checks(wrapper), pointer.sliderState(wrapper)]).toStrictEqual([
@@ -42,7 +39,7 @@ describe('CommandsWatch', () => {
     expect(wrapper.text()).toBePublishedProse()
   })
 
-  it('checks the digest, plays every press, and checks the return once it shows', async () => {
+  stopped('checks the digest, plays every press, and checks the return once it shows', async () => {
     const recorder          = new Recorder()
     const { sight, wrapper } = await mounted(recorder)
 
@@ -61,7 +58,7 @@ describe('CommandsWatch', () => {
 })
 
 describe('CommandsWatch at a hold', () => {
-  it('stands at the hold under reduced motion, and leaves the screen blank without a context', async () => {
+  stopped('stands at the hold under reduced motion, and leaves the screen blank without a context', async () => {
     browser.preference.value = 'reduce'
     const { sight, wrapper } = await mounted(null)
 
@@ -71,7 +68,7 @@ describe('CommandsWatch at a hold', () => {
     expect(checks(wrapper)).toStrictEqual(['Digestmatches', 'Returnmatches'])
   })
 
-  it('holds the playback on the byte a press lands on', async () => {
+  stopped('holds the playback on the byte a press lands on', async () => {
     const { wrapper } = await mounted()
     const control     = wrapper.get("[data-part='control']")
     vi.spyOn(control.element, 'getBoundingClientRect').mockReturnValue({ height: 50, left: 0, top: 0, width: 130 } as DOMRect)
@@ -87,7 +84,7 @@ describe('CommandsWatch at a hold', () => {
 })
 
 describe('CommandsWatch’s slider', () => {
-  it('holds on the first press at Home, the reset before it never shown', async () => {
+  stopped('holds on the first press at Home, the reset before it never shown', async () => {
     const { wrapper } = await mounted()
     const thumb       = wrapper.get('[role="slider"]')
 
@@ -99,7 +96,7 @@ describe('CommandsWatch’s slider', () => {
     expect(pointer.sliderState(wrapper)).toStrictEqual(['1', 'Press 1 of 181, Right'])
   })
 
-  it('replays from the reset when the slider moves back once the window shows', async () => {
+  stopped('replays from the reset when the slider moves back once the window shows', async () => {
     const recorder           = new Recorder()
     const { sight, wrapper } = await mounted(recorder)
     const thumb              = wrapper.get('[role="slider"]')

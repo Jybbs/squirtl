@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi }     from 'vitest'
-import { nextTick }                                from 'vue'
 
 import * as search            from '../../../../lib/methods/search.ts'
 import { REST }               from '../../../../lib/widgets/autoplay.ts'
@@ -9,6 +8,7 @@ import { KEY, carries }       from '../../../../lib/methods/search/key.ts'
 import * as moments           from '../../../../lib/methods/search/moments.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
+import { stopped }            from '../../../common/clock.ts'
 import * as pointer           from '../../../common/pointer.ts'
 
 const { MethodsSearch } = await import('../../../../theme/components/methods/search.tsx')
@@ -18,18 +18,11 @@ enableAutoUnmount(afterEach)
 type Wrapper = ReturnType<typeof mount>
 
 /**
- * The clocks a stopped clock stands in for.
- */
-const FAKED = [
-  'setTimeout', 'clearTimeout', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'
-] as const
-
-/**
  * Moves the stopped clock `ms` milliseconds on and reads each copy's state.
  */
 async function after(wrapper: Wrapper, ms: number): Promise<string[]> {
   vi.advanceTimersByTime(ms)
-  await nextTick()
+  await wrapper.vm.$nextTick()
   return states(wrapper)
 }
 
@@ -48,11 +41,10 @@ function figures(wrapper: Wrapper): string[] {
 }
 
 /**
- * Mounts the widget on a stopped clock and shows it on screen, so its
- * playback starts.
+ * Mounts the widget and shows it on screen, so its playback starts on the
+ * case's stopped clock.
  */
 function playing(): Promise<Wrapper> {
-  vi.useFakeTimers({ toFake: [...FAKED] })
   drawInto(null)
   return browser.shown(MethodsSearch)
 }
@@ -71,7 +63,7 @@ async function step(wrapper: Wrapper, key: string): Promise<void> {
   const thumb = wrapper.get('[role="slider"]')
   await thumb.trigger('focusin')
   await thumb.trigger('keydown', { key })
-  await nextTick()
+  await wrapper.vm.$nextTick()
 }
 
 describe('MethodsSearch', () => {
@@ -185,7 +177,7 @@ describe('MethodsSearch’s key', () => {
 })
 
 describe('MethodsSearch’s playback', () => {
-  it('plays the first iteration press by press once shown, then moves copies to their winners', async () => {
+  stopped('plays the first iteration press by press once shown, then moves copies to their winners', async () => {
     const wrapper = await playing()
 
     const pressing = await after(wrapper, moments.TIMING.press * 2)
@@ -196,7 +188,7 @@ describe('MethodsSearch’s playback', () => {
     ])
   })
 
-  it('goes on to the next iteration, every copy pressing on from its winner’s node', async () => {
+  stopped('goes on to the next iteration, every copy pressing on from its winner’s node', async () => {
     const wrapper = await playing()
     const moved   = moments.ROLLING + moments.TIMING.move
 
@@ -206,7 +198,7 @@ describe('MethodsSearch’s playback', () => {
     expect([pointer.sliderState(wrapper)[0], pressing]).toStrictEqual(['1', pressing.map(() => '')])
   })
 
-  it('rests on the demonstration after the last iteration, then starts again from the first', async () => {
+  stopped('rests on the demonstration after the last iteration, then starts again from the first', async () => {
     const wrapper = await playing()
 
     await after(wrapper, search.LAST * moments.ITERATION)
@@ -216,12 +208,12 @@ describe('MethodsSearch’s playback', () => {
     expect([resting, pointer.sliderState(wrapper)[0]]).toStrictEqual([String(search.LAST), '0'])
   })
 
-  it('stands on the demonstration under reduced motion', async () => {
+  stopped('stands on the demonstration under reduced motion', async () => {
     const wrapper = await playing()
 
     await after(wrapper, moments.TIMING.press)
     browser.preference.value = 'reduce'
-    await nextTick()
+    await wrapper.vm.$nextTick()
 
     expect(pointer.sliderState(wrapper)[0]).toBe(String(search.LAST))
   })

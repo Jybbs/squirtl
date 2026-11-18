@@ -7,6 +7,7 @@ import * as curriculum        from '../../../../lib/methods/curriculum.ts'
 import { placeOf }            from '../../../../lib/methods/curriculum/lanes.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
+import { stopped }            from '../../../common/clock.ts'
 import * as pointer           from '../../../common/pointer.ts'
 
 vi.mock('../../../../lib/widgets/still.ts', async original => {
@@ -36,8 +37,6 @@ const screens = (wrapper: ReturnType<typeof mount>): string[] =>
  * screen and the far figure as wide as happy-dom measures them.
  */
 const at = (start: number, end: number) => placeOf({ far: 0, screen: 0, track: 600 }, start, end, 'right')
-
-const FAKED = ['setTimeout', 'clearTimeout', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] as const
 
 describe('MethodsCurriculum', () => {
   it('opens on the last batch, every lane’s agent in the bedroom, over the places of the recording', () => {
@@ -99,8 +98,7 @@ describe('MethodsCurriculum’s lanes', () => {
 })
 
 describe('MethodsCurriculum’s playback', () => {
-  it('replays the recording in gray to every start once it shows, then hands each screen to the agent', async () => {
-    vi.useFakeTimers({ toFake: [...FAKED] })
+  stopped('replays the recording in gray to every start once it shows, then hands each screen to the agent', async () => {
     drawInto(null)
     const sight   = browser.stubSight()
     const wrapper = mount(MethodsCurriculum, { attachTo: document.body })
@@ -118,8 +116,7 @@ describe('MethodsCurriculum’s playback', () => {
       .toStrictEqual(['0', curriculum.SEGMENTS.map(() => 'recording'), curriculum.SEGMENTS.map(() => 'agent')])
   })
 
-  it('stands on the last batch under reduced motion', async () => {
-    vi.useFakeTimers({ toFake: [...FAKED] })
+  stopped('stands on the last batch under reduced motion', async () => {
     drawInto(null)
     const sight   = browser.stubSight()
     const wrapper = mount(MethodsCurriculum, { attachTo: document.body })
