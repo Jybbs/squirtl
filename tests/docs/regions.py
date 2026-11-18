@@ -35,13 +35,15 @@ The page of `squirtl train`, whose settings each table lists.
 """
 
 
-def test_a_name_the_identity_tables_no_part_of_fails():
+@mark.parametrize("field", ["palette", "marks"])
+def test_a_name_the_identity_tables_no_part_of_fails(field: str):
     """
-    Pins that a marker naming no part of the identity fails the write by
-    name, rather than writing another part's table in its place.
+    Pins that a marker naming no part of the identity a table lays out, the
+    project marks among them, fails the write by name, rather than writing
+    another part's table in its place.
     """
-    with raises(ValueError, match="no identity table is named palette"):
-        identity_table("palette", IDENTITY)
+    with raises(ValueError, match=f"no identity table is named {field}"):
+        identity_table(field, IDENTITY)
 
 
 @mark.parametrize(
@@ -278,19 +280,7 @@ def test_each_pair_takes_its_subjects_table_in_place_of_what_it_held():
             f"| Byline | {metadata('squirtl')['Summary']} |",
             id = "tagline"
         ),
-        param("tagline", f"| Tagline | {IDENTITY.tagline} |", id="tagline-tagline"),
-        param(
-            "marks",
-            "| 🎒 | The trainer’s backpack | The Key Changes section and the name "
-            "of the gate each workflow ends on |",
-            id = "marks"
-        ),
-        param(
-            "marks",
-            "| 🧵 | The thread tying a pull request to its issues | The Related "
-            "Issues section |",
-            id = "marks-a-section-alone"
-        )
+        param("tagline", f"| Tagline | {IDENTITY.tagline} |", id="tagline-tagline")
     ]
 )
 def test_each_identity_table_rows_its_part_of_the_identity(field: str, row: str):
