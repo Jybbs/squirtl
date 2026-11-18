@@ -31,8 +31,10 @@ export const WIDGETS: readonly Placement[] = [
   { heading: 'Replay Memory and Rollouts', name: 'MethodsExperience', page: 'methods/agents.md' },
   { heading: 'The Reach of an Update', name: 'MethodsReach', page: 'methods/agents.md' },
   { heading: 'Moving a Window', name: 'MethodsCurriculum', page: 'methods/curriculum.md' },
+  { heading: 'Eight Copies of the Game', name: 'MethodsSearch', page: 'methods/search.md' },
   { heading: 'A Step', name: 'MethodsStep', page: 'methods/environment.md' },
   { heading: 'The Bytes It Reads', name: 'MethodsMemory', page: 'methods/reward.md' },
+  { heading: 'Results', name: 'ResultsAggregate', page: 'results/index.md' },
   { heading: 'Against Random Presses', name: 'ResultsComparison', page: 'results/comparison.md' },
   { heading: 'Learning Curves', name: 'ResultsCurves', page: 'results/curves.md' },
   { heading: 'The Most Likely Press', name: 'ResultsArgmax', page: 'results/most-likely.md' }

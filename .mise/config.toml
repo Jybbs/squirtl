@@ -1,4 +1,4 @@
-min_version = "2026.9.18"
+min_version = "2026.11.9"
 
 [doctor.checks.cartridge]
 description = "A file sits at `data/rom.gb`, the place a run reads the user's own ROM of Pokémon Blue from"
@@ -39,7 +39,7 @@ locked = true
 [tools]
 bun    = "1.4.4"
 lychee = "0.24.2"
-node   = "26.13.0"
+node   = "26.13.1"
 python = "3.15.2"
-uv     = "0.13.7"
+uv     = "0.13.8"
 zizmor = "1.32.0"

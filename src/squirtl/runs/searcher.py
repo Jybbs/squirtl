@@ -1,7 +1,6 @@
 """
 Defines `Searcher`, the loop of one search over save states, which `squirtl
-search` drives through each outer step of the run, beside `SearchHandover`,
-what a resumed search takes over from the stopped search it continues.
+search` drives through each outer step of the run.
 """
 
 from collections.abc    import Iterator
@@ -13,79 +12,18 @@ from loguru             import logger
 from multiprocessing    import get_context
 from pathlib            import Path
 from time               import perf_counter
-from typing             import Self
 
-from squirtl.emulator.schemas      import Cartridge, Record
+from squirtl.emulator.schemas      import Cartridge
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import Entry
 from squirtl.runs.driver           import Driver
+from squirtl.runs.handover         import SearchHandover
 from squirtl.runs.schemas          import Episode, Run
 from squirtl.runs.settings         import RunSettings, Stream
 from squirtl.search.checkpoint     import SearchCheckpoint
 from squirtl.search.particles      import Search
 from squirtl.search.schemas        import Iteration
 from squirtl.search.workers        import boot, roll
-
-
-class SearchHandover(Record):
-    """
-    What a resumed search takes over from the stopped search it continues,
-    read whole before the new run writes anything, so a resume refused for
-    any of it leaves no directory behind.
-    """
-
-    checkpoint: SearchCheckpoint
-    """
-    The stopped search's last checkpoint, which the search restores.
-    """
-
-    iterations: list[str]
-    """
-    The line of each iteration the checkpoint holds, as the stopped search's
-    `iterations` holds it.
-    """
-
-    name: str
-    """
-    The stopped search's name, which the new run records under `resumes`.
-    """
-
-    @classmethod
-    def from_run(cls, previous: Run) -> Self:
-        """
-        Reads what `previous` recorded up to its last checkpoint.
-
-        Raises:
-            FileNotFoundError : Where `previous` holds no checkpoint.
-            ValueError        : Where `previous` is a training run, its
-                                checkpoint is damaged or already holds the
-                                goal or the run's `steps`, or the iterations
-                                `previous` recorded end short of it, as
-                                `Run.first` raises.
-        """
-        if not previous.searches:
-            raise ValueError(
-                f"{previous.directory} holds a training run, which `squirtl train "
-                f"--resume` continues"
-            )
-
-        checkpoint = SearchCheckpoint.from_path(previous.checkpoint)
-        frontier   = checkpoint.frontier
-
-        if (
-            previous.settings.environment.goal in frontier.winner.snapshot.tally.events
-            or frontier.presses                >= previous.settings.steps
-        ):
-            raise ValueError(
-                f"{previous.checkpoint} already holds the search's end, at press "
-                f"{frontier.presses:,}"
-            )
-
-        return cls(
-            checkpoint = checkpoint,
-            iterations = previous.first(frontier.iterations, previous.iterations),
-            name       = previous.name
-        )
 
 
 class Searcher(Driver):
@@ -254,7 +192,7 @@ class Searcher(Driver):
         self.run.append(self.run.episodes, episode)
 
         logger.info(
-            "Found a path of {:,} presses to {} for a return of {:.4f}",
+            "Found a path of {:,} presses to {} for a return of {:.5f}",
             episode.length,
             self.run.settings.environment.goal.name,
             episode.reward
