@@ -10,6 +10,7 @@ export default defineConfig({
   cacheDir : cacheDir(import.meta.url, 'vitest'),
   plugins  : [vueJsx()],
   test     : {
+    css                 : { include: [/\?raw$/u] },
     expect              : { requireAssertions: true },
     include             : ['.vitepress/tests/**/*.test.ts'],
     pool                : 'threads',
@@ -29,9 +30,8 @@ export default defineConfig({
     },
 
     forceRerunTriggers: [
-      ...configDefaults.forceRerunTriggers, '**/.vitepress/lib/config/**',
-      '**/.vitepress/{lib/rendered,theme}/**/*.css', '**/docs/bun.lock', '**/docs/pages/**',
-      '**/pyproject.toml'
+      ...configDefaults.forceRerunTriggers, '**/.vitepress/lib/rendered/theme.css', '**/docs/bun.lock',
+      '**/docs/pages/**', '**/pyproject.toml'
     ],
 
     reporters: process.env.GITHUB_ACTIONS

@@ -7,6 +7,7 @@ import { describe, expect, it }   from 'vitest'
 
 import { pagesDir }      from '../../../lib/config/paths.ts'
 import { markdownRules } from '../../../lib/markdown/rules.ts'
+import tablesSheet       from '../../../theme/styles/tables.css?raw'
 
 /**
  * The folder holding the site's pages.
@@ -17,11 +18,6 @@ const PAGES = pagesDir(import.meta.url)
  * The HTML each page renders to, kept as each case first renders it.
  */
 const RENDERED = new Map<string, Promise<string>>()
-
-/**
- * The sheet the theme styles a page's tables with.
- */
-const SHEET = fs.readFileSync(path.join(import.meta.dirname, '../../../theme/styles/tables.css'), 'utf8')
 
 /**
  * Reads the page at `name`, a path under the site's pages.
@@ -51,7 +47,7 @@ async function styled(name: string): Promise<string> {
   const md   = await createMarkdownRenderer(process.cwd(), { config: markdownRules, math: true })
   const body = await md.renderAsync(page(name), { relativePath: name })
 
-  return `<style>${SHEET}</style><div class="vp-doc">${body}</div>`
+  return `<style>${tablesSheet}</style><div class="vp-doc">${body}</div>`
 }
 
 describe('tables.css', () => {
