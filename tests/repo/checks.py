@@ -14,8 +14,9 @@ Pins what each check `repo:audit` runs reports, covering:
   labels against the project marks the identity declares
 - The layout of the package and the docstrings of its Python
 - The files `squirtl write docs` writes against their declarations, the
-  footnotes of each Markdown file against `docs/references.bib`, the
-  docs site's pins that move together, and the flags of each `bun install`
+  footnotes of each Markdown file against `src/squirtl/docs/references.bib`, the
+  docs site's pins to one exact version and the pins that move together, and
+  the flags of each `bun install`
 - How `Audit` reads every check and reports what they find
 
 Each case writes the files it reads under `tmp_path` through the `checkout`
@@ -652,21 +653,21 @@ def test_docstrings_report_each_definition_carrying_none(
 def test_footnotes_reports_a_bibliography_that_fails_to_read_at_its_line(scan: Scan):
     """
     Pins that the footnotes check raises `Unreadable` on
-    `docs/references.bib` at the line of an entry that fails validation, so
-    the audit reports it as a finding rather than ending.
+    `src/squirtl/docs/references.bib` at the line of an entry that fails
+    validation, so the audit reports it as a finding rather than ending.
     """
     with raises(Unreadable) as raised:
         scan(
             Footnotes,
             {
-                "docs/references.bib":
+                "src/squirtl/docs/references.bib":
                     "\n@misc{smith2020, author = {Smith, A.}, year = {2020}}"
             }
         )
 
     finding, = raised.value.args
 
-    assert (str(finding.file), finding.line) == ("docs/references.bib", 2)
+    assert (str(finding.file), finding.line) == ("src/squirtl/docs/references.bib", 2)
 
 
 def test_footnotes_reports_a_file_that_fails_to_decode_on_that_file(
@@ -675,8 +676,9 @@ def test_footnotes_reports_a_file_that_fails_to_decode_on_that_file(
     tmp_path : Path
 ):
     """
-    Pins that the footnotes check raises `Unreadable` on a Markdown file
-    that fails to decode as UTF-8 rather than on `docs/references.bib`.
+    Pins that the footnotes check raises `Unreadable` on a
+    Markdown file that fails to decode as UTF-8 rather than on
+    `src/squirtl/docs/references.bib`.
     """
     (tmp_path / "bad.md").write_bytes(b"\xff")
     fp.register(["git", "ls-files", fp.any()], occurrences=1, stdout="bad.md\0")
@@ -685,7 +687,7 @@ def test_footnotes_reports_a_file_that_fails_to_decode_on_that_file(
         scan(
             Footnotes,
             {
-                "docs/references.bib": "@misc{smith2020, author = {Smith, A.}, title = {T}, "
+                "src/squirtl/docs/references.bib": "@misc{smith2020, author = {Smith, A.}, title = {T}, "
                                        "year = {2020}, eprint = {1}}"
             }
         )
@@ -715,10 +717,10 @@ def test_footnotes_reports_each_fault_at_its_file_and_line(
     found = scan(
         Footnotes,
         {
-            "a.md"                : f"One.[^smith2020]\n\n{definition}\n",
-            "b.md"                : "One.[^smith2020]\n\n[^smith2020]: By hand.\n",
-            "c.md"                : "One.[^jones2020]\n",
-            "docs/references.bib" : bib
+            "a.md" : f"One.[^smith2020]\n\n{definition}\n",
+            "b.md" : "One.[^smith2020]\n\n[^smith2020]: By hand.\n",
+            "c.md" : "One.[^jones2020]\n",
+            "src/squirtl/docs/references.bib": bib
         }
     )
 
@@ -726,8 +728,8 @@ def test_footnotes_reports_each_fault_at_its_file_and_line(
         (
             "b.md",
             3,
-            "`[^smith2020]` differs from what `docs/references.bib` writes, which "
-            "`mise write` writes in its place"
+            "`[^smith2020]` differs from what `src/squirtl/docs/references.bib` "
+            "writes, which `mise write` writes in its place"
         )
     ]
 
@@ -2047,6 +2049,25 @@ def test_site_pins_are_unreadable_where_a_pin_is_missing(mise_config: str, scan:
         )
 
 
+def test_site_pins_are_unreadable_where_the_node_types_pin_a_range(
+    mise_config : str,
+    scan        : Scan
+):
+    """
+    Pins that a `docs/package.json` pinning the Node.js types to a range
+    fails the read on that file at their key, ahead of the finding the
+    site's pins check yields on a range.
+    """
+    with raises(Unreadable, match="at `devDependencies.@types/node`"):
+        scan(
+            SitePins,
+            {
+                ".mise/config.toml" : mise_config,
+                "docs/package.json" : '{"devDependencies": {"@types/node": "^26.6.5"}}'
+            }
+        )
+
+
 def test_subsets_report_each_subset_one_side_lacks(
     provision : str,
     scan      : Scan,
@@ -2346,8 +2367,8 @@ def test_the_audit_reports_each_unreadable_file_once(
         "b.py",
         "docs/bun.lock",
         "docs/package.json",
-        "docs/references.bib",
         "pyproject.toml",
+        "src/squirtl/docs/references.bib",
         "uv.lock",
         *(str(output.path) for output in Inventory.read(app).outputs)
     }
@@ -2451,6 +2472,50 @@ def test_site_pins_hold_the_pins_that_move_together(
     )
 
     assert findings == [("docs/package.json", line, message) for line, message in found]
+
+
+@mark.parametrize(
+    ("pin", "exact"),
+    [
+        param("6.45.1", True, id="a-release"),
+        param("2.0.0-alpha.21", True, id="a-prerelease"),
+        param("1.0.3+build.7", True, id="a-build"),
+        param("^6.45.1", False, id="a-caret"),
+        param("~6.45.1", False, id="a-tilde"),
+        param(">=6.45.1", False, id="a-floor"),
+        param("6.45", False, id="a-minor"),
+        param("6.x", False, id="a-wildcard"),
+        param("06.45.1", False, id="a-leading-zero"),
+        param("latest", False, id="a-tag")
+    ]
+)
+def test_site_pins_report_each_pin_to_a_range(
+    exact       : bool,
+    mise_config : str,
+    pin         : str,
+    scan        : Scan
+):
+    """
+    Pins that the site's pins check passes a package pinned to one exact
+    version, a prerelease or build included, and reports a package pinned to
+    any range, naming the package and its pin on the line declaring it.
+    """
+    package = dumps(
+        {"devDependencies": {"@types/node": "26.6.5", "knip": pin}},
+        indent = 2
+    )
+    findings = scan(
+        SitePins,
+        {".mise/config.toml": mise_config, "docs/package.json": package}
+    )
+    found = [
+        (
+            "docs/package.json", 4,
+            f"`knip` pins the range `{pin}` rather than an exact version"
+        )
+    ]
+
+    assert findings == ([] if exact else found)
 
 
 @mark.parametrize(

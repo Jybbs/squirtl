@@ -1,8 +1,9 @@
 """
 Defines the records `squirtl cite` and `squirtl write docs` read:
 
-- `Bibliography`, every source `docs/references.bib` declares, each an `Article`,
-  a `Proceedings`, or a `Preprint` writing its own footnote definition
+- `Bibliography`, every source `src/squirtl/docs/references.bib` declares,
+  each an `Article`, a `Proceedings`, or a `Preprint` writing its own
+  footnote definition
 - `Manuscripts`, every Markdown file git tracks, each a `Manuscript` holding
   its footnotes and the text it holds once its definitions are written
 """
@@ -36,10 +37,11 @@ type Address = Annotated[str, StringConstraints(pattern=r"^[^\s\\]+$")]
 
 class Source(Record, ABC):
     """
-    One entry of `docs/references.bib`, whose kind sets how its definition
-    names its venue and links its address, a blank field failing as a
-    missing one does and an address failing on any whitespace or backslash
-    it holds, since the definition writes an address as the entry holds it.
+    One entry of `src/squirtl/docs/references.bib`, whose kind sets how its
+    definition names its venue and links its address, a blank field failing
+    as a missing one does and an address failing on any whitespace or
+    backslash it holds, since the definition writes an address as the entry
+    holds it.
     """
 
     model_config = ConfigDict(str_min_length=1, str_strip_whitespace=True)
@@ -281,10 +283,10 @@ class Fault(Record):
 
 class Bibliography(Record):
     """
-    Every source `docs/references.bib` declares.
+    Every source `src/squirtl/docs/references.bib` declares.
     """
 
-    path: ClassVar[Path] = Path("docs/references.bib")
+    path: ClassVar[Path] = Path("src/squirtl/docs/references.bib")
 
     sources: dict[
         str, Annotated[Article | Proceedings | Preprint, Field(discriminator="kind")]

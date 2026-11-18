@@ -39,8 +39,8 @@ def test_writing_docs_over_an_unpaired_marker_exits_1_and_writes_nothing_else(
     """
     checkout(
         {
-            "docs/pages/page.md"  : "<!-- settings:reward -->\n",
-            "docs/references.bib" : ENTRY
+            "docs/pages/page.md"              : "<!-- settings:reward -->\n",
+            "src/squirtl/docs/references.bib" : ENTRY
         }
     )
 
@@ -57,18 +57,22 @@ def test_writing_docs_over_an_unpaired_marker_exits_1_and_writes_nothing_else(
     "files",
     [
         param(
-            {"a.md": "One.[^nobody1999]\n", "docs/references.bib": ENTRY},
+            {"a.md": "One.[^nobody1999]\n", "src/squirtl/docs/references.bib": ENTRY},
             id = "unknown-key"
         ),
         param(
-            {"a.md": "One.[^smith2020]\n\n```\nx\n", "docs/references.bib": ENTRY},
+            {
+                "a.md": "One.[^smith2020]\n\n```\nx\n",
+                "src/squirtl/docs/references.bib": ENTRY
+            },
             id = "open-fence"
         ),
         param({"a.md": "One.\n"}, id="missing-bibliography"),
         param(
             {
-                "a.md"                : "One.\n",
-                "docs/references.bib" : "@misc{smith2020, author = {Smith, A.}}"
+                "a.md": "One.\n",
+                "src/squirtl/docs/references.bib":
+                    "@misc{smith2020, author = {Smith, A.}}"
             },
             id = "broken-bibliography"
         )
@@ -82,9 +86,10 @@ def test_writing_docs_it_cannot_write_exits_1_and_writes_nothing(
     invoke   : Invoker
 ):
     """
-    Asserts that an unknown key, a file ending inside an open code fence, a
-    missing `docs/references.bib`, and an entry failing validation each exit
-    1 and leave the Markdown file and the inventory's files unwritten.
+    Asserts that an unknown key, a file ending inside an open code fence,
+    a missing `src/squirtl/docs/references.bib`, and an entry failing
+    validation each exit 1 and leave the Markdown file and the inventory's
+    files unwritten.
     """
     checkout(files)
     git("add", "a.md")
@@ -105,7 +110,7 @@ def test_writing_docs_where_git_fails_exits_1_and_writes_nothing(
     Asserts that a `git ls-files` exiting nonzero exits 1 and leaves the
     inventory's files unwritten.
     """
-    checkout({"docs/references.bib": ENTRY})
+    checkout({"src/squirtl/docs/references.bib": ENTRY})
     fp.register(["git", "ls-files", "-z", "--", "*.md"], returncode=128)
 
     invocation = invoke(["write", "docs"])
@@ -126,7 +131,7 @@ def test_writing_docs_writes_each_file_once_and_prints_its_path(
     holding none of them, printing each path, and that a second run finds
     nothing drifted and prints nothing.
     """
-    checkout({"a.md": "One.[^smith2020]\n", "docs/references.bib": ENTRY})
+    checkout({"a.md": "One.[^smith2020]\n", "src/squirtl/docs/references.bib": ENTRY})
     git("add", "a.md")
 
     paths  = ["a.md", *(str(output.path) for output in Inventory.read(app).outputs)]

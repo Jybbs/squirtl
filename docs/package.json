@@ -28,5 +28,11 @@
     "vitepress": "2.0.0-alpha.21",
     "vitest": "5.1.0",
     "vue": "3.5.45"
+  },
+  "knip": {
+    "ignoreDependencies": ["oxlint"],
+    "oxlint": { "config": [".vitepress/config/.oxlintrc.json"] },
+    "typescript": { "config": [".vitepress/tsconfig.json"] },
+    "vitest": { "config": [".vitepress/config/vitest.ts"] }
   }
 }

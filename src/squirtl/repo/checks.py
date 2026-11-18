@@ -306,9 +306,9 @@ class Docstrings(Check):
 class Footnotes(Check):
     """
     Holds each footnote labeled by a key in every Markdown file git tracks
-    to what `docs/references.bib` writes, so an unknown key, a hand-typed
-    or stale definition, a misplaced one, and an uncited one each fail the
-    audit.
+    to what `src/squirtl/docs/references.bib` writes, so an unknown key, a
+    hand-typed or stale definition, a misplaced one, and an uncited one each
+    fail the audit.
     """
 
     bibliography: Bibliography
@@ -319,8 +319,9 @@ class Footnotes(Check):
     def read(cls, documents: Callable[[type], Record]) -> Self:
         """
         Builds the check as `Check.read` does, raising `Unreadable` on
-        `docs/references.bib` where it fails to read or git cannot list the
-        Markdown files, and on a Markdown file that fails to decode.
+        `src/squirtl/docs/references.bib` where it fails to read or git
+        cannot list the Markdown files, and on a Markdown file that fails
+        to decode.
         """
         with Finding.reading(Bibliography.path):
             return super().read(documents)
@@ -1202,9 +1203,10 @@ class SiteCopies(Check):
 
 class SitePins(Check):
     """
-    Holds the docs site's pins that move together, each package `paired`
-    lists beside the package it is paired with and the Node.js types beside
-    the Node.js release mise installs.
+    Holds each of the docs site's pins to one exact version, and the pins
+    that move together, each package `paired` lists beside the package it
+    is paired with and the Node.js types beside the Node.js release mise
+    installs.
     """
 
     # Each partner's own manifest pins the package it is paired with, or a
@@ -1234,13 +1236,24 @@ class SitePins(Check):
     def scan(self) -> Iterator[Finding]:
         """
         Yields a finding on the line of `docs/package.json` pinning each
-        package `paired` lists where its version differs from the version
-        of the package it is paired with, a pair the manifest leaves out
-        passing, and on the line pinning `@types/node` where its major
+        package to a range rather than an exact version, on the line pinning
+        each package `paired` lists where its version differs from the
+        version of the package it is paired with, a pair the manifest leaves
+        out passing, and on the line pinning `@types/node` where its major
         differs from the major of the `node` mise pins.
         """
         node = self.mise.node
         pins = self.site.pins
+
+        for name, pin in self.site.ranges.items():
+            yield Finding.locate(
+                SiteManifest.file,
+                f'"{name}"',
+                message = (
+                    f"`{name}` pins the range `{pin}` rather than an exact "
+                    "version"
+                )
+            )
 
         for lead, partners in self.paired.items():
             for name in partners:

@@ -792,9 +792,26 @@ class SiteManifest(JsonFile, extra="ignore"):
 
     pins: dict[str, str] = Field(validation_alias="devDependencies")
     """
-    The exact version each package the site depends on is pinned to, under
-    the package's name.
+    The version or range each package the site depends on is pinned to,
+    under the package's name.
     """
+
+    @property
+    def ranges(self) -> dict[str, str]:
+        """
+        Reads each pin of `pins` that names a range rather than one exact
+        version, meaning anything but a whole `MAJOR.MINOR.PATCH` with an
+        optional prerelease and build, as the grammar of
+        [Semantic Versioning](https://semver.org/) writes a version.
+        """
+        return {
+            name: pin
+            for name, pin in self.pins.items()
+            if not fullmatch(
+                r"(0|[1-9]\d*)(\.(0|[1-9]\d*)){2}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?",
+                pin
+            )
+        }
 
 
 class SiteLockfile(JsonFile, extra="ignore"):

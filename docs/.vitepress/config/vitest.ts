@@ -1,8 +1,8 @@
 import vueJsx                           from '@vitejs/plugin-vue-jsx'
 import { configDefaults, defineConfig } from 'vitest/config'
 
-import { projectFacts }                 from './lib/config/manifest.ts'
-import { cacheDir }                     from './lib/config/paths.ts'
+import { projectFacts }                 from '../lib/config/manifest.ts'
+import { cacheDir }                     from '../lib/config/paths.ts'
 
 const { gate } = projectFacts(import.meta.url)
 
@@ -29,9 +29,9 @@ export default defineConfig({
     },
 
     forceRerunTriggers: [
-      ...configDefaults.forceRerunTriggers, '**/.vitepress/lib/config/**',
-      '**/.vitepress/{lib/rendered,theme}/**/*.css', '**/docs/bun.lock', '**/docs/pages/**',
-      '**/pyproject.toml'
+      ...configDefaults.forceRerunTriggers, '**/.vitepress/config/vitest.ts',
+      '**/.vitepress/lib/config/**', '**/.vitepress/{lib/rendered,theme}/**/*.css',
+      '**/docs/bun.lock', '**/docs/pages/**', '**/pyproject.toml'
     ],
 
     reporters: process.env.GITHUB_ACTIONS

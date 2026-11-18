@@ -1,13 +1,13 @@
 import { defineConfigWithTheme } from 'vitepress'
 
-import { siteHead }      from './lib/config/head.ts'
-import { pageHooks }     from './lib/config/hooks.ts'
-import { projectFacts }  from './lib/config/manifest.ts'
-import * as navigation   from './lib/config/navigation.ts'
-import * as paths        from './lib/config/paths.ts'
-import { viteConfig }    from './lib/config/vite.ts'
-import { IDENTITY }      from './lib/identity/identity.ts'
-import { markdownRules } from './lib/markdown/rules.ts'
+import { siteHead }      from '../lib/config/head.ts'
+import { pageHooks }     from '../lib/config/hooks.ts'
+import { projectFacts }  from '../lib/config/manifest.ts'
+import * as navigation   from '../lib/config/navigation.ts'
+import * as paths        from '../lib/config/paths.ts'
+import { viteConfig }    from '../lib/config/vite.ts'
+import { IDENTITY }      from '../lib/identity/identity.ts'
+import { markdownRules } from '../lib/markdown/rules.ts'
 
 const facts = projectFacts(import.meta.url)
 const pages = paths.pagesDir(import.meta.url)
