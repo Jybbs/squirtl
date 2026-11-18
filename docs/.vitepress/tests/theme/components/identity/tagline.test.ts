@@ -25,7 +25,6 @@ enableAutoUnmount(afterEach)
 beforeEach(() => {
   dark.value = false
   vi.useFakeTimers()
-  return () => vi.useRealTimers()
 })
 
 /**

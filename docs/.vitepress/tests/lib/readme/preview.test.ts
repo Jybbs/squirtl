@@ -27,10 +27,11 @@ const lengthOf = (gif: Decoded): number => gif.delays.reduce((sum, delay) => sum
 const MOMENTS = walksOf({ ...WALKING, moments: [50] })
 
 /**
- * The README's preview at a frame each second with no rest, so a case decodes a
- * handful of frames rather than the hundreds the README carries.
+ * The README's preview at a frame each second with no rest and the town at its
+ * own pixels, so a case encodes and decodes a handful of small frames rather
+ * than the hundreds the README carries.
  */
-const QUICK: movie.Preview = { ...movie.PREVIEW, frame: 1000, rest: 0 }
+const QUICK: movie.Preview = { ...movie.PREVIEW, frame: 1000, rest: 0, scale: 1 }
 
 describe('previewAlt', () => {
   test('describes the walks the preview plays in the sentence the README carries', () => {

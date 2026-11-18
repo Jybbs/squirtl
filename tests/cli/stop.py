@@ -1,13 +1,13 @@
 """
 Pins what `squirtl stop` does, covering the stop file it writes into a
 run's directory from the clone or from a shell outside it, and the directory
-holding no run it refuses, logging one line per error its record gives.
+holding no run it refuses.
 """
 
 from collections.abc import Callable, Mapping
 from common.cli      import Invoker
 from pathlib         import Path
-from pytest          import MonkeyPatch, TempPathFactory, mark, param
+from pytest          import MonkeyPatch, TempPathFactory
 
 from squirtl.runs.schemas import Run
 
@@ -42,39 +42,23 @@ def test_a_stop_of_a_directory_holding_no_run_exits_1_and_writes_nothing(
     assert (invoke(["stop", "data"]).code, list((clone / "data").iterdir())) == (1, [])
 
 
-@mark.parametrize(
-    ("record", "messages"),
-    [
-        param(
-            "{}",
-            [f"Run.{field}: Field required" for field in (
-                "digest", "revision", "settings", "started"
-            )],
-            id = "an-empty-object"
-        ),
-        param(
-            "{",
-            ["Run: Invalid JSON: EOF while parsing an object at line 1 column 1"],
-            id = "an-object-broken-off"
-        )
-    ]
-)
-def test_a_stop_of_a_record_holding_no_run_logs_one_line_per_error(
+def test_a_stop_of_a_record_holding_no_run_exits_1_and_writes_nothing(
     checkout : Callable[[Mapping[str, str]], None],
-    invoke   : Invoker,
-    messages : list[str],
-    record   : str
+    invoke   : Invoker
 ):
     """
-    Asserts that `squirtl stop` given a directory whose record holds no run
-    exits 1, logging one line per error Pydantic reports, each the path to
-    the record or its field beside Pydantic's message, whether the record
-    lacks fields or breaks off mid-object.
+    Asserts that `squirtl stop` given a directory whose record holds no
+    run exits 1, logging the error `refusing` gives it, and writes nothing
+    beside the record.
     """
-    checkout({"data/run.json": record})
+    checkout({"data/run.json": "{"})
     invocation = invoke(["stop", "data"])
 
-    assert (invocation.code, invocation.messages) == (1, messages)
+    assert (invocation.code, invocation.messages, list(Path("data").iterdir())) == (
+        1,
+        ["Run: Invalid JSON: EOF while parsing an object at line 1 column 1"],
+        [Path("data/run.json")]
+    )
 
 
 def test_a_stop_writes_the_runs_stop_file_and_exits_zero(

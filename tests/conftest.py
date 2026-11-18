@@ -7,13 +7,14 @@ only when it carries the `network` mark. The `rom`, `cartridge`, `timed`,
 and `settings` fixtures serve the tests of the emulator, the reward, and
 the environment, so none needs the user's own ROM, `clone` serves every
 test starting a run, which reads the clone it runs in, `git` every test
-committing to one, `outside` every test reading a working directory no clone
-holds, `evaluators` every test of a run's evaluation that starts no worker
-process, `github` every test reading a release, and `pools` and `game` every
-test of a search that starts none.
+committing to one, `outside` every test reading a working directory no
+clone holds, `evaluators` every test of a run's evaluation that starts no
+worker process, `github` every test reading a release, `pools` and `game`
+every test of a search that starts none, and `played` every test reading or
+changing a run it need not play again.
 """
 
-from collections.abc   import Callable, Iterable, Iterator, Mapping
+from collections.abc   import Callable, Hashable, Iterable, Iterator, Mapping
 from common.console    import set_event
 from common.evaluation import EvaluatorStandIn
 from common.releases   import GitHub
@@ -24,6 +25,7 @@ from os                import devnull
 from pathlib           import Path
 from pytest            import FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, mark
 from pytest_subprocess import FakeProcess
+from shutil            import copytree
 from subprocess        import check_call
 
 from squirtl.emulator.console import GameBoy
@@ -334,6 +336,41 @@ def github(monkeypatch: MonkeyPatch) -> GitHub:
     monkeypatch.setattr("squirtl.releases.schemas.urlopen", github := GitHub())
 
     return github
+
+
+@fixture(scope="session")
+def played(tmp_path_factory: TempPathFactory) -> Callable[[
+    Hashable,
+    Callable[[], Path]
+], Path]:
+    """
+    Builds a reader of the run directory each key names, playing it through
+    `play` the first time a case reads it and keeping a copy, then copying
+    that copy to the same path under each later case's working directory, so
+    each run plays once a session and each case changes only its own.
+    """
+    kept: dict[Hashable, tuple[Path, Path]] = {}
+
+    def read(key: Hashable, play: Callable[[], Path]) -> Path:
+        """
+        Reads the directory of the run `key` names, played through `play`
+        where no case has read it yet, at the path relative to the working
+        directory that `play` returns.
+        """
+        if key not in kept:
+            directory = play()
+            kept[key] = directory, copytree(
+                directory,
+                tmp_path_factory.mktemp("played") / directory.name
+            )
+
+            return directory
+
+        directory, copy = kept[key]
+
+        return copytree(copy, directory)
+
+    return read
 
 
 @fixture

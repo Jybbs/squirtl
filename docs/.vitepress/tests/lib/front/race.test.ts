@@ -27,8 +27,11 @@ describe('raceOf', () => {
   })
 
   it('plays the same race again from the same seeds, and another from others', () => {
-    expect(race.raceOf()).toStrictEqual(RACE)
-    expect(race.raceOf({ ...race.EVALUATING, first: 2000 })).not.toStrictEqual(RACE)
+    const again = { ...race.EVALUATING, episodes: 4 }
+    const first = { agent: RACE.agent.slice(0, 4), random: RACE.random.slice(0, 4) }
+
+    expect(race.raceOf(again)).toStrictEqual(first)
+    expect(race.raceOf({ ...again, first: 2000 })).not.toStrictEqual(first)
   })
 
   it('has the agent’s stand-in reach the starter less surely pressing at random at every step', () => {

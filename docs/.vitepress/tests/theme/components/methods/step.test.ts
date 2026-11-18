@@ -88,7 +88,6 @@ describe('MethodsStep’s playback', () => {
 
     expect([first, held, status(wrapper)])
       .toStrictEqual(['Step 1 of 10 · frame 1 of 17', 'Step 1 of 10 · frame 1 of 17', 'Step 1 of 10 · frame 2 of 17'])
-    vi.useRealTimers()
   })
 
   it('rests on the frame PyBoy draws before the next step, and stands on the last frame under reduced motion', async () => {
@@ -106,6 +105,5 @@ describe('MethodsStep’s playback', () => {
     await nextTick()
 
     expect([rested, status(wrapper)]).toStrictEqual(['Step 1 of 10 · frame 17 of 17', 'Step 10 of 10 · frame 17 of 17'])
-    vi.useRealTimers()
   })
 })

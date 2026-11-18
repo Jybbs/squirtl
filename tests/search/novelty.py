@@ -27,7 +27,7 @@ from gymnasium.spaces import Box
 from gymnasium.wrappers.utils import RunningMeanStd
 from numpy         import array_equal, full, identity, uint8
 from numpy.random  import default_rng
-from pytest        import MonkeyPatch, approx, raises
+from pytest        import MonkeyPatch, Subtests, approx, mark, param, raises
 from threading     import Event
 from torch         import Tensor, as_tensor, channels_last, get_rng_state, manual_seed, ones, zeros
 from torch.nn      import Conv2d, Linear
@@ -353,7 +353,8 @@ def test_the_arrays_and_networks_load_back_as_a_search_continues_from_them(
 
 
 def test_the_convolutions_and_their_inputs_take_the_channels_last_format(
-    novelty: Novelty
+    novelty  : Novelty,
+    subtests : Subtests
 ):
     """
     Asserts that every convolution of both networks holds its weights
@@ -364,12 +365,12 @@ def test_the_convolutions_and_their_inputs_take_the_channels_last_format(
     stack  = as_tensor(default_rng(3).integers(0, 256, (2, 4, 72, 80), uint8))
     inputs = (stack.float() - as_tensor(novelty.normalizer.mean).float()).clamp(-5, 5)
 
-    assert all(
-        module.weight.is_contiguous(memory_format=channels_last)
-        for network in (novelty.predictor, novelty.target)
-        for module in network.modules()
-        if isinstance(module, Conv2d)
-    )
+    for role in ("predictor", "target"):
+        for name, module in getattr(novelty, role).named_modules():
+            if isinstance(module, Conv2d):
+                with subtests.test(layer=name, role=role):
+                    assert module.weight.is_contiguous(memory_format=channels_last)
+
     assert_close(
         errors(stack, novelty),
         (novelty.predictor(inputs) - novelty.target(inputs)).square().mean(1),
@@ -435,13 +436,26 @@ def test_the_score_of_a_stack_falls_as_the_predictor_trains_on_it(novelty: Novel
     assert trained(novelty, 0) > trained(novelty, 32)
 
 
-def test_the_target_requires_no_gradient(novelty: Novelty):
+@mark.parametrize(
+    ("role", "graded"),
+    [
+        param("predictor", True, id="the-predictor"),
+        param("target", False, id="the-target")
+    ]
+)
+def test_the_predictor_alone_requires_gradients(
+    graded   : bool,
+    novelty  : Novelty,
+    role     : str,
+    subtests : Subtests
+):
     """
     Asserts that no parameter of the target takes a gradient, whereas every
     one of the predictor's does.
     """
-    assert not any(parameter.requires_grad for parameter in novelty.target.parameters())
-    assert all(parameter.requires_grad for parameter in novelty.predictor.parameters())
+    for name, parameter in getattr(novelty, role).named_parameters():
+        with subtests.test(name):
+            assert parameter.requires_grad is graded
 
 
 def test_training_takes_the_updates_the_presses_owe(novelty: Novelty):

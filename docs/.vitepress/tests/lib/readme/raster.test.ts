@@ -13,7 +13,7 @@ describe('Raster', () => {
     const { view } = new Raster(3, 2)
 
     expect([view.width, view.height, view.data.length]).toStrictEqual([3, 2, 24])
-    expect(view.data.every(byte => byte === 0)).toBe(true)
+    expect([...view.data].filter(byte => byte !== 0)).toStrictEqual([])
   })
 
   it('fills only the part of a rectangle inside the grid', () => {

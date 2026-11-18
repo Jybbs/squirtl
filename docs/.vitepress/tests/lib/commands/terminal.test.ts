@@ -15,7 +15,8 @@ describe('ENDINGS', () => {
   it('runs each episode to the step limit until a third of the run has passed, then mostly reaches the starter', () => {
     const early = terminal.ENDINGS.filter(each => each.end <= terminal.RUN.steps / 3)
 
-    expect([early.every(each => !each.reached), terminal.ENDINGS.some(each => each.reached)]).toStrictEqual([true, true])
+    expect(early.filter(each => each.reached)).toStrictEqual([])
+    expect(terminal.ENDINGS.some(each => each.reached)).toBe(true)
   })
 
   it('ends its last episode at the run’s last step', () => {

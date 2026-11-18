@@ -22,13 +22,13 @@ from concurrent.futures import ProcessPoolExecutor
 from gymnasium          import Env
 from gymnasium.envs.registration import EnvSpec
 from multiprocessing             import get_context
+from multiprocessing.connection  import Listener, wait
 from numpy      import frombuffer, uint8
-from os         import getpgrp, getpid, kill
+from os         import getpgrp, getpid
 from pickle     import dumps
-from pytest     import CaptureFixture, MonkeyPatch, approx, mark, param
+from pytest     import CaptureFixture, MonkeyPatch, approx, mark, param, raises
 from subprocess import PIPE, Popen, check_output
 from sys        import executable
-from time       import monotonic, sleep
 from types      import SimpleNamespace
 
 from squirtl.emulator.console    import GameBoy
@@ -38,19 +38,6 @@ from squirtl.reward.schemas      import Event
 from squirtl.search              import workers
 from squirtl.search.schemas      import Ending, SearchRollout
 from squirtl.search.workers      import boot, roll
-
-
-def alive(pid: int) -> bool:
-    """
-    Reads whether a process with `pid` still exists, through the null
-    signal, which checks the process without signaling it.
-    """
-    try:
-        kill(pid, 0)
-    except ProcessLookupError:
-        return False
-
-    return True
 
 
 def pressing_after(effect: Callable[[GameBoy], object], monkeypatch: MonkeyPatch):
@@ -101,34 +88,37 @@ def test_a_spawned_worker_ends_once_its_parent_is_killed(specification: EnvSpec)
     """
     Asserts that a spawned worker, which no signal to its parent's process
     group reaches, ends within seconds of a `SIGKILL` to the process whose
-    pool started it.
+    pool started it, read from the connection the worker holds open until
+    it exits.
     """
     script = "\n".join(
         [
             "import pickle, sys, time",
             "from concurrent.futures import ProcessPoolExecutor",
             "from multiprocessing import get_context",
-            "from os import getpid",
             "from squirtl.search.workers import boot",
-            "spec = pickle.load(sys.stdin.buffer)",
+            "spec, address = pickle.load(sys.stdin.buffer)",
             "pool = ProcessPoolExecutor(1, get_context('spawn'), boot, (spec,))",
-            "print(pool.submit(getpid).result(), flush=True)",
+            "held = 'import builtins, multiprocessing.connection as c; '",
+            "pool.submit(exec, f'{held}builtins.held = c.Client({address!r})')",
             "time.sleep(60)"
         ]
     )
 
-    with Popen([executable, "-c", script], stdin=PIPE, stdout=PIPE) as parent:
-        parent.stdin.write(dumps(specification))
+    with (
+        Listener() as listener,
+        Popen([executable, "-c", script], stdin=PIPE) as parent
+    ):
+        parent.stdin.write(dumps((specification, listener.address)))
         parent.stdin.close()
-        worker = int(parent.stdout.readline())
-        parent.kill()
 
-    deadline = monotonic() + 10
+        with listener.accept() as worker:
+            parent.kill()
 
-    while alive(worker) and monotonic() < deadline:
-        sleep(0.1)
+            assert wait([worker], timeout=10) == [worker]
 
-    assert not alive(worker)
+            with raises(EOFError):
+                worker.recv()
 
 
 def test_a_spawned_worker_exits_printing_nothing(

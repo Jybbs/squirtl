@@ -55,7 +55,6 @@ describe('IdentityOrder’s pen', () => {
     expect([second, wrapper.findAll('.identity-nib').length]).toStrictEqual([1, 1])
     expect(first).toBeGreaterThan(0)
     expect(first).toBeLessThan(1)
-    vi.useRealTimers()
   })
 
   it('rewinds every line drawn before it draws them again', async () => {
@@ -70,6 +69,5 @@ describe('IdentityOrder’s pen', () => {
     await nextTick()
 
     expect(offsets(wrapper).map(Number).at(-1)).toBeGreaterThan(0)
-    vi.useRealTimers()
   })
 })

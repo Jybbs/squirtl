@@ -665,11 +665,10 @@ def test_a_manuscript_reports_each_fault_at_its_line(
     """
     found = list(manuscript(text).faults(bibliography))
 
-    assert [fault.line for fault in found] == [line for line, _ in faults]
-    assert all(
-        fault.message.startswith(message)
+    assert [
+        (fault.line, fault.message[: len(message)])
         for fault, (_, message) in zip(found, faults, strict=True)
-    )
+    ] == faults
 
 
 @mark.parametrize(

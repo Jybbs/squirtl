@@ -13,7 +13,6 @@ enableAutoUnmount(afterEach)
 
 beforeEach(() => {
   vi.useFakeTimers()
-  return () => vi.useRealTimers()
 })
 
 /**
