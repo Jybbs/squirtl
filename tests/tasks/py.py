@@ -16,22 +16,32 @@ from pathlib         import Path
 from pytest          import fixture, mark, param
 
 BASE = {
-    ".mise/bin/pytest"            : "",
-    ".mise/tasks/py/test"         : "",
-    "pyproject.toml"              : "",
-    "src/squirtl/agent/memory.py" : "",
-    "src/squirtl/cli/__init__.py" : "",
+    ".mise/bin/pytest"    : "",
+    ".mise/tasks/py/test" : "",
+    "pyproject.toml": '"--snapshot-default-extension=common.snapshots.PlainFile"\n',
+    "src/squirtl/agent/memory.py"       : "",
+    "src/squirtl/cli/__init__.py"       : "",
     "src/squirtl/docs/references.bib"   : "@misc{sutton2018}\n",
     "tests/agent/conftest.py"           : "",
     "tests/agent/fixtures/memory/a.txt" : "",
+    "tests/agent/learner.py"            : "from common.agents import each_agent\n",
     "tests/agent/memory.py"             : "",
-    "tests/cli/app.py"     : "",
-    "tests/common/cli.py"  : '"src/squirtl/docs/references.bib"\n',
-    "tests/conftest.py"    : "",
-    "tests/repo/checks.py" :
+    "tests/agent/networks.py"           : "import common.records as records\n",
+    "tests/cli/app.py"          : "",
+    "tests/cli/conftest.py"     : "from common.cli import Invoker\n",
+    "tests/common/agents.py"    : "",
+    "tests/common/cli.py"       :
+        'from common.records import idled\n"src/squirtl/docs/references.bib"\n',
+    "tests/common/console.py"   : "",
+    "tests/common/records.py"   : "",
+    "tests/common/snapshots.py" : "",
+    "tests/conftest.py"         : "from common.console import set_event\n",
+    "tests/repo/checks.py"      :
         '"src/squirtl/docs/references.bib"\n"src/squirtl/agent/layout.toml"\n',
-    "tests/tasks/bin.py"   : "",
-    "tests/tasks/py.py"    : ""
+    "tests/runs/trainer.py"     : "    from common.agents   import each_agent\n",
+    "tests/search/tree.py"      : "from common.agents_pool import each_pool\n",
+    "tests/tasks/bin.py"        : "",
+    "tests/tasks/py.py"         : ""
 }
 
 
@@ -151,7 +161,19 @@ def test_each_task_hands_its_program_its_flags_and_arguments(
             id = "snapshot"
         ),
         param("tests/agent/memory.py", ["tests/agent/memory.py"], id="test"),
-        param("tests/common/cli.py", ["tests"], id="helper"),
+        param(
+            "tests/common/agents.py",
+            ["tests/agent/learner.py", "tests/runs/trainer.py"],
+            id = "helper"
+        ),
+        param("tests/common/cli.py", ["tests/cli"], id="conftest-helper"),
+        param("tests/common/console.py", ["tests"], id="root-conftest-helper"),
+        param(
+            "tests/common/records.py",
+            ["tests/agent/networks.py", "tests/cli"],
+            id = "helper-helper"
+        ),
+        param("tests/common/snapshots.py", ["tests"], id="manifest-helper"),
         param("tests/conftest.py", ["tests"], id="root-conftest")
     ]
 )
@@ -223,7 +245,11 @@ def test_affected_reads_no_file_main_changed_past_the_merge_base(
 
 @mark.parametrize(
     "path",
-    [param(None, id="unchanged"), param("src/squirtl/agent/replay.py", id="unmirrored")]
+    [
+        param(None, id="unchanged"),
+        param("src/squirtl/agent/replay.py", id="unmirrored"),
+        param("tests/common/search.py", id="unimported-helper")
+    ]
 )
 def test_affected_starts_no_pytest_where_no_test_module_is_reached(
     branch  : Callable[[bool, str], None],
@@ -233,7 +259,8 @@ def test_affected_starts_no_pytest_where_no_test_module_is_reached(
     """
     Pins that `py:affected` starts no pytest on a branch changing no file,
     and on one whose one changed file is a module with no mirrored test
-    module, since pytest given no path runs the whole suite.
+    module or a helper no module imports, since pytest given no path runs
+    the whole suite.
     """
     if path:
         branch(False, path)

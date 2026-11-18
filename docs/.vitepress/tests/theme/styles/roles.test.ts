@@ -1,18 +1,13 @@
-import fs from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
 import { type Scheme, contrast } from '../../../lib/identity/identity.ts'
+import themeSheet                from '../../../lib/rendered/theme.css?raw'
+import rolesSheet                from '../../../theme/styles/roles.css?raw'
 
 /**
  * The 4.5:1 WCAG 2.2 sets for body text against the ground it sits on.
  */
 const TEXT = 4.5
-
-/**
- * Reads the stylesheet at `relative`, a path from this file.
- */
-const sheet = (relative: string): string => fs.readFileSync(new URL(relative, import.meta.url), 'utf8')
 
 /**
  * Lists each custom property `css` declares beside its value.
@@ -24,8 +19,8 @@ const declared = (css: string): [string, string][] =>
  * The variables the theme maps the default theme's own onto, and every theme
  * variable the identity sets, each beside its value.
  */
-const roles  = declared(sheet('../../../theme/styles/roles.css'))
-const tokens = new Map([...declared(sheet('../../../lib/rendered/theme.css')), ...roles])
+const roles  = declared(rolesSheet)
+const tokens = new Map([...declared(themeSheet), ...roles])
 
 /**
  * Lists the variables `roles.css` declares whose names match `pattern`.

@@ -2,6 +2,19 @@
 #MISE alias       = "affected"
 #MISE description = "Run the test modules the files changed since the merge base with `main` reach, uncommitted and untracked files included, passing any further arguments to pytest"
 
+importing() {
+  local module=${1%.py}
+  module=${module#tests/}
+  module=${module//\//.}
+  grep \
+    --include '*.py' \
+    -lEr \
+    -- "^[[:space:]]*(from|import) ${module//./\\.}( |$)" \
+    tests \
+    || true
+  grep -lFw -- "$module" pyproject.toml || true
+}
+
 naming() {
   grep \
     --exclude-dir common \
@@ -29,8 +42,8 @@ reach() {
         echo "${path%%/fixtures/*}/${rest%%/*}.py" ;;
       tests/conftest.py | tests/*/conftest.py)
         echo "${path%/*}" ;;
-      tests/common/*)
-        echo tests ;;
+      tests/common/*.py)
+        importing "$path" | reach ;;
       tests/*.py)
         echo "$path" ;;
       .mise/tasks/*/*)

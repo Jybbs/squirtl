@@ -2,13 +2,27 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { prove, siteSheets } from '../../../lib/proof/sheets.ts'
 
+/**
+ * Each sheet under `theme/styles/` but `site.css`, the entry Tailwind builds
+ * from, keyed by its path under `.vitepress/` beside its text and `true`.
+ */
+const handwrittenSheets = Object.fromEntries(
+  Object.entries(import.meta.glob<string>('../../../theme/styles/**/*.css', {
+    eager  : true,
+    import : 'default',
+    query  : '?raw'
+  }))
+    .filter(([file]) => !file.endsWith('/site.css'))
+    .map(([file, css]) => [file.replace('../../../', ''), [css, true]])
+)
+
 describe('siteSheets', () => {
   it('reads the utilities the components carry beside every other sheet of the theme', async () => {
     const sheets = await siteSheets(import.meta.url)
 
     expect([sheets[0]!.name, sheets[0]!.handwritten]).toStrictEqual(['the utilities', false])
-    expect(sheets.slice(1).map(sheet => [sheet.name, sheet.handwritten]))
-      .toContainEqual(['theme/styles/roles.css', true])
+    expect(Object.fromEntries(sheets.slice(1).map(sheet => [sheet.name, [sheet.css, sheet.handwritten]])))
+      .toStrictEqual(handwrittenSheets)
     expect(sheets[0]!.css).toContain('--color-ground')
   })
 })
