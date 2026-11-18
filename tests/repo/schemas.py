@@ -992,24 +992,38 @@ def test_a_step_names_the_task_each_mise_run_starts(
 
 
 @mark.parametrize(
-    ("run", "gate"),
+    ("step", "gate"),
     [
-        param("mise run gha:brief", True, id="the-brief"),
-        param("'mise run py:lint ::: gha:brief'", True, id="the-brief-in-a-chain"),
-        param("mise run py:lint", False, id="another-task"),
-        param("echo gha:brief", False, id="no-mise-run")
+        param("run: mise run gha:brief", True, id="the-brief"),
+        param("run: 'mise run py:lint ::: gha:brief'", True, id="the-brief-in-a-chain"),
+        param(
+            '{ env: { TASK: "${{ matrix.task }}" }, run: mise run "$TASK" }',
+            True,
+            id = "the-brief-from-the-matrix"
+        ),
+        param("run: mise run py:lint", False, id="another-task"),
+        param("run: mise run gha:briefs", False, id="a-longer-name"),
+        param("run: echo gha:brief", False, id="no-mise-run")
     ]
 )
 def test_a_job_is_its_workflow_s_gate_where_a_step_runs_the_brief(
     checkout : Callable[[Mapping[str, str]], None],
     gate     : bool,
-    run      : str
+    step     : str
 ):
     """
     Pins that a job is its workflow's gate exactly where one of its steps
-    starts `WorkflowJob.brief` through `mise run`, alone or in a chain.
+    starts `WorkflowJob.brief` through `mise run`, alone, in a chain, or as
+    a value of the job's matrix.
     """
-    checkout({"ci.yml": f"jobs:\n  a:\n    steps:\n      - run: {run}\n"})
+    checkout(
+        {
+            "ci.yml": (
+                "jobs:\n  a:\n    strategy: { matrix: { task: ['gha:brief'] } }\n"
+                f"    steps:\n      - {step}\n"
+            )
+        }
+    )
     [job] = Workflow.from_path(Path("ci.yml")).jobs
 
     assert job.gate is gate
