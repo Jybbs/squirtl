@@ -331,7 +331,8 @@ def evaluators(monkeypatch: MonkeyPatch) -> list[EvaluatorStandIn]:
 def github(monkeypatch: MonkeyPatch) -> GitHub:
     """
     Makes `urlopen` in `squirtl.releases.schemas` answer through a `GitHub`
-    serving nothing until a case publishes a release.
+    serving an empty first page of releases and nothing else until a case
+    publishes a release.
     """
     monkeypatch.setattr("squirtl.releases.schemas.urlopen", github := GitHub())
 

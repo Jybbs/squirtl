@@ -9,6 +9,7 @@ and the messages loguru logs during a test.
 """
 
 from collections.abc import Callable, Hashable, Iterator, Mapping
+from common.records  import idled
 from common.search   import PoolStandIn, finish, stop_at_thirty
 from contextlib      import ExitStack
 from datetime        import UTC, datetime, timedelta
@@ -64,20 +65,7 @@ def demonstrated(clone: Path) -> Path:
         The run's directory.
     """
     run = Run.start("0", RunSettings(), datetime(2026, 10, 3, tzinfo=UTC))
-    run.append(
-        run.episodes,
-        Episode(
-            epsilon    = None,
-            length     = 13,
-            positions  = 1,
-            recording  = Recording(presses=bytes(13), timer_div=0),
-            reward     = 0.8,
-            seconds    = 1.0,
-            shares     = {Term.GOAL: 0.6, Term.MILESTONE: 0.2, Term.NOVELTY: 0.0},
-            terminated = True,
-            update     = None
-        )
-    )
+    run.append(run.episodes, idled())
 
     return run.directory
 

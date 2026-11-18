@@ -16,22 +16,29 @@ Defines the fixtures the tests of `squirtl.cli` request:
   recording the one each boot named
 - `released`, the run `trained` holds as a release `github` publishes
   attaches it
+- `committed`, a search reaching the starter of the cartridge `timed`
+  writes, whose record alone `docs/runs/` commits
 """
 
 from collections.abc import Callable, Hashable
 from common.cli      import Invocation, Invoker
+from common.records  import idled
 from common.releases import GitHub
 from common.search   import PoolStandIn
+from datetime        import UTC, datetime
 from pathlib         import Path
 from pyboy           import PyBoy
 from pytest          import CaptureFixture, FixtureRequest, MonkeyPatch, fixture, raises
+from shutil          import copy2
 
 from squirtl.cli              import app
 from squirtl.docs.results     import ReleaseSettings
 from squirtl.emulator         import console
 from squirtl.emulator.schemas import Cartridge
 from squirtl.releases.schemas import ReleaseManifest
+from squirtl.runs.schemas     import Run
 from squirtl.runs.searcher    import Searcher
+from squirtl.runs.settings    import RunSettings
 from squirtl.runs.trainer     import Trainer
 
 
@@ -227,6 +234,31 @@ def released(github: GitHub, trained: Path) -> Path:
     trained.rename(Path("data/packed"))
 
     return trained
+
+
+@fixture
+def committed(clone: Path) -> Run:
+    """
+    Starts a search in `clone` on 3 October 2026, whose one episode reaches
+    the starter of the cartridge `timed` writes after 13 idle presses at a
+    `timer_div` of 0, each advancing 64 frames, and writes its record alone
+    under `docs/runs/`, as the repository commits a run.
+
+    Returns:
+        The search, read from its directory under `data/runs/`.
+    """
+    run = Run.start(
+        "0",
+        RunSettings(),
+        datetime(2026, 10, 3, tzinfo=UTC),
+        searches = True
+    )
+    run.append(run.episodes, idled())
+    folder = Path("docs/runs", run.name)
+    folder.mkdir(parents=True)
+    copy2(run.record, folder)
+
+    return run
 
 
 @fixture

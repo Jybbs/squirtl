@@ -335,3 +335,12 @@ class RewardSettings(Record):
             )
 
         return self
+
+    @staticmethod
+    def written(value: float) -> str:
+        """
+        Writes a return or a reward to the fifth decimal place, at which the
+        0.00025 the default `novelty` pays one new square reads back whole,
+        as every line logging one writes it.
+        """
+        return f"{value:.5f}"

@@ -16,6 +16,7 @@ from time               import perf_counter
 from squirtl.emulator.schemas      import Cartridge
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import Entry
+from squirtl.reward.schemas        import RewardSettings
 from squirtl.runs.driver           import Driver
 from squirtl.runs.handover         import SearchHandover
 from squirtl.runs.schemas          import Episode, Run
@@ -192,10 +193,10 @@ class Searcher(Driver):
         self.run.append(self.run.episodes, episode)
 
         logger.info(
-            "Found a path of {:,} presses to {} for a return of {:.5f}",
+            "Found a path of {:,} presses to {} for a return of {}",
             episode.length,
             self.run.settings.environment.goal.name,
-            episode.reward
+            RewardSettings.written(episode.reward)
         )
 
     def inherit(self, handover: SearchHandover):
@@ -240,11 +241,11 @@ class Searcher(Driver):
         self.run.append(self.run.iterations, iteration)
 
         logger.info(
-            "Iteration {:,} reached a reward of {:.5f} and {:,} positions at press "
+            "Iteration {:,} reached a reward of {} and {:,} positions at press "
             "{:,} in {:.1f} s: path {:,} presses, tree {:,} nodes and {:,} bytes, "
             "loss {}",
             self.search.iterations,
-            iteration.reward,
+            RewardSettings.written(iteration.reward),
             iteration.positions,
             iteration.presses,
             iteration.seconds,

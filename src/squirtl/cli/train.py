@@ -11,6 +11,7 @@ from typing     import Annotated
 from squirtl.cli.logs         import drive, listen, refusing
 from squirtl.cli.runs         import RunDirectory
 from squirtl.emulator.schemas import Cartridge
+from squirtl.releases.schemas import GithubRelease
 from squirtl.runs.schemas     import Run
 from squirtl.runs.settings    import TrainingSettings
 from squirtl.runs.trainer     import Trainer
@@ -46,11 +47,17 @@ def train(
     deep Q-network and once a rollout's update ends for PQN and PPO, and a
     second interrupt ends it at once on the last checkpoint and exits 130.
 
+    A `--curriculum.demonstration` directory whose run holds no episodes,
+    as `docs/runs/` commits each run, has that run fetched into `data/runs/`
+    from the release attaching it, unless `data/runs/` already holds it, and
+    the run follows that copy.
+
     Each of these exits 1 before any directory is made:
 
     - A `--resume` directory holding no run, a search, no checkpoint, or an
       evaluation line that names no `argmax`
-    - A `--curriculum.demonstration` directory holding no run, a run whose
+    - A `--curriculum.demonstration` directory holding no run, a run
+      holding no episodes that no published release attaches, a run whose
       episodes end at another `--environment.goal` than this run's, no
       episode reaching that goal from Blue's bedroom, or one whose presses
       on replay never set it or set it before the last of them
@@ -65,9 +72,18 @@ def train(
     console = listen(verbose)
 
     with refusing(CalledProcessError, OSError, ValueError):
-        previous  = resume and Run.read(resume)
-        handover  = previous and Trainer.handover(previous)
-        settings  = previous.settings if previous else settings or TrainingSettings()
+        previous = resume and Run.read(resume)
+        handover = previous and Trainer.handover(previous)
+        settings = previous.settings if previous else settings or TrainingSettings()
+
+        if (
+            (demonstration := settings.curriculum.demonstration)
+            and not Run.read(demonstration).episodes.is_file()
+        ):
+            settings = settings.following(
+                GithubRelease.retrieve(demonstration.name).directory
+            )
+
         cartridge = Cartridge.read(settings.emulator.cartridge)
         trainer   = Trainer.start(cartridge, settings, datetime.now(UTC), handover)
 

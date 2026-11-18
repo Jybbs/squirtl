@@ -249,6 +249,19 @@ class RunSettings(Record):
             for stream, child in zip(Stream, SeedSequence(self.seed).spawn(len(Stream)))
         }
 
+    def following(self, directory: Path) -> Self:
+        """
+        Copies the settings with the curriculum following the run
+        `directory` holds.
+        """
+        return self.model_copy(
+            update = {
+                "curriculum": self.curriculum.model_copy(
+                    update = {"demonstration": directory}
+                )
+            }
+        )
+
     @model_validator(mode="after")
     def verify(self) -> Self:
         """

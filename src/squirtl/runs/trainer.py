@@ -27,6 +27,7 @@ from squirtl.emulator.schemas      import Cartridge
 from squirtl.environment.overworld import Overworld
 from squirtl.environment.schemas   import Outcome, Recording
 from squirtl.environment.workers   import ignore_interrupts
+from squirtl.reward.schemas        import RewardSettings
 from squirtl.runs.benchmark        import Benchmark
 from squirtl.runs.curriculum       import Curriculum
 from squirtl.runs.driver           import Driver
@@ -235,14 +236,14 @@ class Trainer(Driver):
 
         logger.info(
             "At step {:,}, the agent reached {} in {:.0%} of its evaluation "
-            "episodes for a mean return of {:.4f}, and the random baseline in "
-            "{:.0%} for {:.4f}",
+            "episodes for a mean return of {}, and the random baseline in "
+            "{:.0%} for {}",
             self.evaluated,
             benchmark.agent.goal.name,
             benchmark.agent.reached,
-            benchmark.agent.reward,
+            RewardSettings.written(benchmark.agent.reward),
             benchmark.baseline.reached,
-            benchmark.baseline.reward
+            RewardSettings.written(benchmark.baseline.reward)
         )
 
     @staticmethod
@@ -342,13 +343,13 @@ class Trainer(Driver):
         self.finished += 1
 
         logger.info(
-            "Episode {:,} {} after {:,} steps in {:.1f} s: return {:.4f}, "
+            "Episode {:,} {} after {:,} steps in {:.1f} s: return {}, "
             "positions {:,}, epsilon {}, {}",
             self.finished,
             "terminated" if episode.terminated else "truncated",
             episode.length,
             episode.seconds,
-            episode.reward,
+            RewardSettings.written(episode.reward),
             episode.positions,
             "none" if episode.epsilon is None else f"{episode.epsilon:.3f}",
             episode.update or "no update"
@@ -468,7 +469,7 @@ class EpisodeTrainer(Trainer):
                 "Step {:,} took action {} for a reward of {}",
                 self.agent.step,
                 action,
-                reward
+                RewardSettings.written(reward)
             )
 
             yield self.agent.step

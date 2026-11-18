@@ -7,13 +7,15 @@ Pins the settings one run reads, covering:
   outlasting a random walk to the starter
 - The seed each stream derives from the run's one seed, and the search's
   stream coming after every other
-- The curriculum's settings refusing moves whose least passes their most and
-  a required share above the completion share, and a run's settings refusing
+- The curriculum's settings refusing a least passing the most in each
+  field they type as a `Range` and a required share above the completion
+  share, and a run's settings refusing
   a demonstration for the deep Q-network and terms summing past 1 on the way
   to the run's goal
 """
 
 from collections.abc  import Mapping
+from common.records   import ranges
 from json             import dumps
 from operator         import attrgetter
 from pathlib          import Path
@@ -169,8 +171,10 @@ def test_the_settings_take_terms_paying_one_step_at_most_one_up_to_the_goal(
 @mark.parametrize(
     ("fields", "message"),
     [
-        param({"back": (0.8, 0.5)}, r"back\n.*passes the most", id="back"),
-        param({"forward": (1.5, 1.0)}, r"forward\n.*passes the most", id="forward"),
+        *(
+            param({name: (3, 2)}, rf"{name}\n.*passes the most", id=name)
+            for name in ranges(CurriculumSettings)
+        ),
         param({"required": 0.96}, "passes the completion share", id="required")
     ]
 )
@@ -179,8 +183,9 @@ def test_the_curriculums_settings_refuse_bounds_out_of_order(
     message : str
 ):
     """
-    Asserts that the curriculum's settings refuse a least move passing the
-    most and a required share passing the completion share.
+    Asserts that the curriculum's settings refuse a least passing the most
+    in each field they type as a `Range`, and a required share passing the
+    completion share.
     """
     with raises(ValidationError, match=message):
         CurriculumSettings.model_validate(fields)

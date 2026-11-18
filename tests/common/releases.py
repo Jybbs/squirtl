@@ -14,12 +14,14 @@ from urllib.request import Request
 from squirtl.releases.schemas import ReleaseManifest
 
 ADDRESS = "https://api.github.com/repos/Jybbs/squirtl/releases"
+LISTED  = f"{ADDRESS}?per_page=100&page=1"
 
 
 class GitHub:
     """
     Answers each address from `served`, raising GitHub's 404 for any other,
-    and records the User-Agent of each request in `agents`.
+    and records the User-Agent of each request in `agents`, listing each
+    release it publishes on the first page of releases.
     """
 
     def __call__(self, request: Request) -> BytesIO:
@@ -39,16 +41,17 @@ class GitHub:
 
     def __init__(self):
         """
-        Starts serving nothing.
+        Starts serving an empty first page of releases and nothing else.
         """
-        self.agents = []
-        self.served = {}
+        self.agents   = []
+        self.releases = []
+        self.served   = {LISTED: b"[]"}
 
     def publish(self, manifest: ReleaseManifest, tag: str = "0.2.0"):
         """
-        Publishes the release `tag`, as the latest release and under its
-        tag, attaching every file `manifest` lists, each under the digest
-        GitHub computes for it.
+        Publishes the release `tag`, as the latest release, under its
+        tag, and last on the first page of releases, attaching every file
+        `manifest` lists, each under the digest GitHub computes for it.
         """
         assets = []
 
@@ -64,6 +67,10 @@ class GitHub:
                 }
             )
 
-        self.served[f"{ADDRESS}/latest"] = self.served[f"{ADDRESS}/tags/{tag}"] = dumps(
+        self.releases.append(
             {"assets": assets, "published_at": "2026-11-10T00:00:00Z", "tag_name": tag}
+        )
+        self.served[LISTED] = dumps(self.releases).encode()
+        self.served[f"{ADDRESS}/latest"] = self.served[f"{ADDRESS}/tags/{tag}"] = dumps(
+            self.releases[-1]
         ).encode()

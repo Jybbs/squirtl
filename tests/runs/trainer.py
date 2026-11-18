@@ -4,7 +4,8 @@ Pins the training loop of one run on the CPU, covering:
 - The line each finished episode writes, a terminated one's included, the
   episode the run's end cuts short and leaves out, and the return, the
   positions, the chance of a random action, and the update means each line
-  holds
+  holds, the episode's and the evaluation's lines keeping the reward of one
+  new square
 - The checkpoint at the first episode end reaching each interval and at
   the run's end, each written after the episodes are flushed to disk, and
   a resumed run counting the interval on from its checkpoint
@@ -554,8 +555,8 @@ def test_an_evaluation_logs_how_often_each_policy_reached_the_goal(
 
     assert {
         "At step 12, the agent reached EVENT_GOT_POKEDEX in 100% of its evaluation "
-        "episodes for a mean return of 0.0120, and the random baseline in 0% for "
-        "0.1250",
+        "episodes for a mean return of 0.01200, and the random baseline in 0% for "
+        "0.12500",
         "Evaluating the agent at step 12"
     } <= set(logged)
 
@@ -1081,8 +1082,9 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
     """
     Asserts that each line holds the return its steps earned, the positions
     it reached, the chance of a random action at its last step, and the
-    mean loss and value of the updates its steps took, which the line
-    each episode logs repeats as label and value pairs, the first episode
+    mean loss and value of the updates its steps took, which the line each
+    episode logs repeats as label and value pairs, and that the line each
+    step logs writes its reward to the same five places, the first episode
     stepping onto a new square on its second step and reaching the starter
     on its third. The chance falls by 0.05 a step and the novelty pays
     0.0625, leaving each value the line logs clear of a tie at the places it
@@ -1135,10 +1137,13 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
         message.partition(": ")[2]
         for message in logged if message.startswith("Episode ")
     ] == [
-        "return 0.4125, positions 2, epsilon 0.850, loss 2, value -2",
-        "return 0.0000, positions 1, epsilon 0.550, loss 6.5, value -6.5",
-        "return 0.0000, positions 1, epsilon 0.250, loss 12.5, value -12.5"
+        "return 0.41250, positions 2, epsilon 0.850, loss 2, value -2",
+        "return 0.00000, positions 1, epsilon 0.550, loss 6.5, value -6.5",
+        "return 0.00000, positions 1, epsilon 0.250, loss 12.5, value -12.5"
     ]
+    assert [
+        message.rpartition(" ")[2] for message in logged if message.startswith("Step ")
+    ] == ["0.00000", "0.06250", "0.35000", *["0.00000"] * 17]
 
 
 def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
@@ -1484,3 +1489,40 @@ def test_a_demonstration_that_reaches_no_goal_is_refused_before_any_directory(
         )
 
     assert [path.name for path in demonstrated.parent.iterdir()] == [demonstrated.name]
+
+
+@mark.usefixtures("evaluators")
+def test_each_return_a_run_logs_keeps_the_reward_of_one_new_square(
+    logged      : list[str],
+    monkeypatch : MonkeyPatch,
+    trainer     : Callable[..., Trainer]
+):
+    """
+    Asserts that the line each episode logs and the evaluation's line
+    keep the 0.00025 the default novelty pays one new square, the first
+    episode stepping onto one on its first step and the stand-in's baseline
+    returning that much, so a line rounding it away fails.
+    """
+    monkeypatch.setattr(
+        EvaluatorStandIn,
+        "baseline",
+        lambda stand_in: played([RewardSettings().novelty], None, goal=stand_in.goal)
+    )
+    finish(
+        trainer = trainer(evaluation_steps=10),
+        stop    = lambda step, trainer: step == 1
+        and stand(
+            trainer.env.unwrapped.game_boy.emulator.memory,
+            Position(map=1, x=1, y=1)
+        )
+    )
+
+    assert [
+        message.partition(": return ")[2].partition(",")[0]
+        for message in logged if message.startswith("Episode ")
+    ] == ["0.00025", "0.00000", "0.00000"]
+    assert (
+        "At step 12, the agent reached EVENT_GOT_STARTER in 100% of its evaluation "
+        "episodes for a mean return of 0.01200, and the random baseline in 0% for "
+        "0.00025"
+    ) in logged
