@@ -250,8 +250,6 @@ def identity_table(field: str, identity: Identity) -> str:
       then the color each Game Boy shade of a sprite takes
     - For `tagline`, the tagline beside the byline, the summary the
       package's metadata reads from `pyproject.toml`
-    - For `marks`, each of the identity's `project_marks`, its glyph
-      beside what it depicts and each place it opens
 
     Raises:
         ValueError: Where `field` names no part of the identity a table
@@ -396,14 +394,6 @@ def identity_table(field: str, identity: Identity) -> str:
                 rows   = (
                     ("Tagline", identity.tagline),
                     ("Byline", metadata("squirtl")["Summary"])
-                )
-            )
-        case "marks":
-            return tabulate(
-                header = ("Mark", "Depicts", "Opens"),
-                rows   = (
-                    (mark.glyph, mark.depicts, " and ".join(mark.places))
-                    for mark in identity.project_marks
                 )
             )
         case _: raise ValueError(f"no identity table is named {field}")
