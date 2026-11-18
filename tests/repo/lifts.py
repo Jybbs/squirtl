@@ -850,9 +850,10 @@ def test_a_lift_setting_no_instant_counts_its_age_to_the_utc_clock(
     clock's reading in UTC as it is built, as every manager's lift does.
     """
     checked = datetime(2026, 10, 4, tzinfo=UTC)
+    naive   = checked.replace(tzinfo=None)
     monkeypatch.setattr(
         "squirtl.repo.lifts.datetime",
-        SimpleNamespace(now={UTC: checked}.__getitem__)
+        SimpleNamespace(now=lambda tz=None: checked.astimezone(tz) if tz else naive)
     )
 
     assert lift_of("uv 1.0.0 1.0.1", released=checked - timedelta(days=3)).age == 3

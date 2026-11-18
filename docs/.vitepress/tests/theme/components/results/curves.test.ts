@@ -3,6 +3,7 @@ import { type VueWrapper, enableAutoUnmount, flushPromises, mount }   from '@vue
 import { type FakeTimersConfig, afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick }                                                   from 'vue'
 
+import { BEAT }     from '../../../../lib/widgets/motion.ts'
 import * as browser from '../../../common/browser.ts'
 import { held }     from '../../../common/results.ts'
 
@@ -123,7 +124,8 @@ describe('ResultsCurves’s releases', () => {
 
     await vi.advanceTimersByTimeAsync(0)
     sight.show(true)
-    await vi.advanceTimersByTimeAsync(2000)
+    // The opening traces take four beats, the later one a beat behind.
+    await vi.advanceTimersByTimeAsync(5 * BEAT)
     await wrapper.findAll('button')[3]!.trigger('click')
     await wrapper.findAll('button')[0]!.trigger('click')
     await vi.advanceTimersByTimeAsync(700)

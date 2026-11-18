@@ -14,6 +14,11 @@ import { markdownRules } from '../../../lib/markdown/rules.ts'
 const PAGES = pagesDir(import.meta.url)
 
 /**
+ * The HTML each page renders to, kept as each case first renders it.
+ */
+const RENDERED = new Map<string, Promise<string>>()
+
+/**
  * The sheet the theme styles a page's tables with.
  */
 const SHEET = fs.readFileSync(path.join(import.meta.dirname, '../../../theme/styles/tables.css'), 'utf8')
@@ -31,15 +36,22 @@ const computed = (selector: string, property: string): string[] =>
     .map(element => getComputedStyle(element).getPropertyValue(property))
 
 /**
- * Renders the page at `name` through the site's Markdown rules inside the
- * default theme's content column, styled by `tables.css`.
+ * Sets the document to the page at `name` as `styled` reads it, each page
+ * rendered once for every case reading it.
  */
 async function render(name: string) {
-  const md = await createMarkdownRenderer(process.cwd(), { config: markdownRules, math: true })
+  document.body.innerHTML = await RENDERED.getOrInsertComputed(name, styled)
+}
 
-  document.body.innerHTML = `<style>${SHEET}</style><div class="vp-doc">${await md.renderAsync(page(name), {
-    relativePath: name
-  })}</div>`
+/**
+ * Reads the HTML of the page at `name` through the site's Markdown rules,
+ * inside the default theme's content column and styled by `tables.css`.
+ */
+async function styled(name: string): Promise<string> {
+  const md   = await createMarkdownRenderer(process.cwd(), { config: markdownRules, math: true })
+  const body = await md.renderAsync(page(name), { relativePath: name })
+
+  return `<style>${SHEET}</style><div class="vp-doc">${body}</div>`
 }
 
 describe('tables.css', () => {
