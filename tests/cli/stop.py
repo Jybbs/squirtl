@@ -4,9 +4,10 @@ run's directory from the clone or from a shell outside it, and the directory
 holding no run it refuses.
 """
 
-from common.cli import Invoker
-from pathlib    import Path
-from pytest     import MonkeyPatch, TempPathFactory
+from collections.abc import Callable, Mapping
+from common.cli      import Invoker
+from pathlib         import Path
+from pytest          import MonkeyPatch, TempPathFactory
 
 from squirtl.runs.schemas import Run
 
@@ -39,6 +40,25 @@ def test_a_stop_of_a_directory_holding_no_run_exits_1_and_writes_nothing(
     (clone / "data").mkdir()
 
     assert (invoke(["stop", "data"]).code, list((clone / "data").iterdir())) == (1, [])
+
+
+def test_a_stop_of_a_record_holding_no_run_exits_1_and_writes_nothing(
+    checkout : Callable[[Mapping[str, str]], None],
+    invoke   : Invoker
+):
+    """
+    Asserts that `squirtl stop` given a directory whose record holds no
+    run exits 1, logging the error `refusing` gives it, and writes nothing
+    beside the record.
+    """
+    checkout({"data/run.json": "{"})
+    invocation = invoke(["stop", "data"])
+
+    assert (invocation.code, invocation.messages, list(Path("data").iterdir())) == (
+        1,
+        ["Run: Invalid JSON: EOF while parsing an object at line 1 column 1"],
+        [Path("data/run.json")]
+    )
 
 
 def test_a_stop_writes_the_runs_stop_file_and_exits_zero(

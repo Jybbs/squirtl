@@ -217,15 +217,21 @@ def searcher(
 
 
 @fixture
-def halted(searcher: Callable[..., Searcher]) -> Run:
+def halted(
+    played   : Callable[[Hashable, Callable[[], Path]], Path],
+    searcher : Callable[..., Searcher]
+) -> Run:
     """
     Takes a search of `searching` to the end of the first iteration reaching
-    30 presses, as `squirtl stop` would stop it.
+    30 presses, as `squirtl stop` would stop it, once a session through
+    `played`.
 
     Returns:
-        The run it recorded.
+        The run it recorded, read from the copy each case changes alone.
     """
-    return finish(searcher(), stop_at_thirty)
+    return Run.read(
+        played("searcher halted", lambda: finish(searcher(), stop_at_thirty).directory)
+    )
 
 
 @fixture

@@ -32,6 +32,7 @@ from subprocess        import CalledProcessError
 from syrupy.assertion  import SnapshotAssertion
 from sysconfig         import get_path
 from textwrap          import dedent
+from types             import SimpleNamespace
 from typing            import ClassVar, Self
 
 from squirtl.repo.lifts import (
@@ -839,6 +840,22 @@ def test_a_lift_counts_the_whole_days_since_its_newest_release(
     )
 
     assert lift.age == age
+
+
+def test_a_lift_setting_no_instant_counts_its_age_to_the_utc_clock(
+    monkeypatch: MonkeyPatch
+):
+    """
+    Asserts that a lift built with no `checked` counts its age to the
+    clock's reading in UTC as it is built, as every manager's lift does.
+    """
+    checked = datetime(2026, 10, 4, tzinfo=UTC)
+    monkeypatch.setattr(
+        "squirtl.repo.lifts.datetime",
+        SimpleNamespace(now={UTC: checked}.__getitem__)
+    )
+
+    assert lift_of("uv 1.0.0 1.0.1", released=checked - timedelta(days=3)).age == 3
 
 
 def test_a_lock_with_nothing_to_update_compiles_nothing(fp: FakeProcess):
