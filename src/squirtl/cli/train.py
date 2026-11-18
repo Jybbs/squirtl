@@ -53,7 +53,7 @@ def train(
     - A `--curriculum.demonstration` directory holding no run, a run whose
       episodes end at another `--environment.goal` than this run's, no
       episode reaching that goal from Blue's bedroom, or one whose presses
-      no longer reach it on replay
+      on replay never set it or set it before the last of them
     - A checkpoint damaged, already holding the run's steps, or differing
       from the agent the run's settings build
     - A checkpoint whose segments end at other steps than the segments of

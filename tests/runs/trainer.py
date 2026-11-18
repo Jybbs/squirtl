@@ -31,7 +31,9 @@ Pins the training loop of one run on the CPU, covering:
   window its segment gives and recording its takeover, the curriculum
   taking in each episode at its length, its segment, and its success, the
   windows moving back, the steps counting the agent's own presses alone,
-  each line playing back to its return, a resume ending as a run that never
+  each line playing back to its return, a demonstration longer than
+  `max_episode_steps` followed to its end and each segment ending past it
+  warned on, a resume ending as a run that never
   stopped, and a demonstration ending at another goal or reaching none, or
   a resume whose checkpoint's segments end elsewhere, refused before any
   directory is made
@@ -1299,6 +1301,41 @@ def test_a_rollout_run_along_a_demonstration_starts_each_episode_from_a_window(
 
 
 @each_agent
+def test_a_rollout_run_follows_a_demonstration_past_max_episode_steps(
+    algorithm    : Algorithm,
+    demonstrated : Path,
+    logged       : list[str],
+    rolling      : Callable[..., Trainer],
+    timed        : Cartridge
+):
+    """
+    Asserts that a run capping its episodes at 10 steps still splits the
+    demonstration of 13 presses into segments ending at steps 4, 8, and 12,
+    and warns as it starts on segment 2 alone, the one ending past the cap.
+    """
+    run = finish(
+        trainer = rolling(
+            algorithm,
+            cartridge  = timed,
+            curriculum = CurriculumSettings(
+                demonstration = demonstrated,
+                recent        = 2,
+                window        = 2
+            ),
+            environment = EnvironmentSettings(frames_per_step=64, max_episode_steps=10)
+        )
+    )
+    syllabus = VectorCheckpoint.from_path(run.checkpoint).syllabus
+    warned = [line for line in logged if line.startswith("Segment") and "past" in line]
+
+    assert [segment.end for segment in syllabus.segments] == [4, 8, 12]
+    assert warned == [
+        "Segment 2 ends at step 12, past the 10 steps an episode takes before "
+        "max_episode_steps truncates it"
+    ]
+
+
+@each_agent
 def test_a_rollout_run_has_its_curriculum_take_in_each_episode_it_records(
     algorithm    : Algorithm,
     demonstrated : Path,
@@ -1405,7 +1442,12 @@ def test_the_run_puts_each_signals_handler_back_once_it_ends(
             "holds no episode reaching EVENT_GOT_STARTER",
             id = "no-goal"
         ),
-        param(bytes(12), True, "no longer reach EVENT_GOT_STARTER", id="short-of-it")
+        param(
+            bytes(12),
+            True,
+            "the demonstration's 12 presses never set EVENT_GOT_STARTER",
+            id = "short-of-it"
+        )
     ]
 )
 def test_a_demonstration_that_reaches_no_goal_is_refused_before_any_directory(

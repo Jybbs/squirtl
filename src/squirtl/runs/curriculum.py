@@ -219,3 +219,19 @@ class Curriculum:
         self.average = syllabus.average
         self.generator.bit_generator.state = syllabus.generator
         self.segments = list(syllabus.segments)
+
+    def warn(self, cap: int):
+        """
+        Warns on each segment whose end, the step of the press setting its
+        flag, sits at `cap` or later, `cap` being the `max_episode_steps`
+        after which `TimeLimit` truncates an episode.
+        """
+        for number, segment in enumerate(self.segments):
+            if segment.end >= cap:
+                logger.warning(
+                    "Segment {} ends at step {:,}, past the {:,} steps an episode "
+                    "takes before max_episode_steps truncates it",
+                    number,
+                    segment.end,
+                    cap
+                )
