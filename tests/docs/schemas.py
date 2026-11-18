@@ -49,9 +49,9 @@ def read(checkout: Callable[[Mapping[str, str]], None]) -> Reader:
     """
     def run(entries: str) -> Bibliography:
         """
-        Writes `entries` as `docs/references.bib` and reads it.
+        Writes `entries` as `src/squirtl/docs/references.bib` and reads it.
         """
-        checkout({"docs/references.bib": entries})
+        checkout({"src/squirtl/docs/references.bib": entries})
 
         return Bibliography.read()
 
@@ -579,7 +579,9 @@ def test_a_manuscript_ending_in_an_open_block_refuses_a_write_at_its_line(
         param(f"One.[^smith2020]\n\n{SMITH}\n", [], id="clean"),
         param(
             f"One.[^nobody1999] Two.[^smith2020]\n\n[^nobody1999]: X.\n\n{SMITH}\n",
-            [(1, "`[^nobody1999]` names no entry of `docs/references.bib`")],
+            [(
+                1, "`[^nobody1999]` names no entry of `src/squirtl/docs/references.bib`"
+            )],
             id = "unknown-holding-its-place"
         ),
         param("One.\n\n\n", [], id="clean-without-a-footnote"),

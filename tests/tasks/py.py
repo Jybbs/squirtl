@@ -18,17 +18,18 @@ from pytest          import fixture, mark, param
 BASE = {
     ".mise/bin/pytest"            : "",
     ".mise/tasks/py/test"         : "",
-    "docs/references.bib"         : "@misc{sutton2018}\n",
     "pyproject.toml"              : "",
     "src/squirtl/agent/memory.py" : "",
     "src/squirtl/cli/__init__.py" : "",
-    "tests/agent/conftest.py"     : "",
+    "src/squirtl/docs/references.bib"   : "@misc{sutton2018}\n",
+    "tests/agent/conftest.py"           : "",
     "tests/agent/fixtures/memory/a.txt" : "",
     "tests/agent/memory.py"             : "",
     "tests/cli/app.py"     : "",
-    "tests/common/cli.py"  : '"docs/references.bib"\n',
+    "tests/common/cli.py"  : '"src/squirtl/docs/references.bib"\n',
     "tests/conftest.py"    : "",
-    "tests/repo/checks.py" : '"docs/references.bib"\n"src/squirtl/agent/layout.toml"\n',
+    "tests/repo/checks.py" :
+        '"src/squirtl/docs/references.bib"\n"src/squirtl/agent/layout.toml"\n',
     "tests/tasks/bin.py"   : "",
     "tests/tasks/py.py"    : ""
 }
@@ -134,7 +135,7 @@ def test_each_task_hands_its_program_its_flags_and_arguments(
     [
         param(".mise/bin/pytest", ["tests/tasks/bin.py"], id="wrapper"),
         param(".mise/tasks/py/lint", ["tests/tasks/py.py"], id="task"),
-        param("docs/references.bib", ["tests/repo/checks.py"], id="named"),
+        param("src/squirtl/docs/references.bib", ["tests/repo/checks.py"], id="named"),
         param("pyproject.toml", ["tests"], id="manifest"),
         param("src/squirtl/agent/memory.py", ["tests/agent/memory.py"], id="module"),
         param("src/squirtl/cli/__init__.py", ["tests/cli/app.py"], id="app"),
@@ -180,7 +181,7 @@ def test_affected_reaches_the_modules_naming_the_old_path_of_a_renamed_file(
     Pins that `py:affected` reads a committed rename as both of its paths,
     running the test module naming the path the file moved from.
     """
-    git("mv", "docs/references.bib", "docs/sources.bib")
+    git("mv", "src/squirtl/docs/references.bib", "src/squirtl/docs/sources.bib")
     git("commit", "--message", "Rename")
 
     assert printed("py/affected") == ["tests/repo/checks.py"]
@@ -195,7 +196,7 @@ def test_affected_reads_each_changed_file_past_one_no_test_module_names(
     module names, running the module naming the file after it.
     """
     branch(True, "docs/glossary.md")
-    branch(True, "docs/references.bib")
+    branch(True, "src/squirtl/docs/references.bib")
 
     assert printed("py/affected") == ["tests/repo/checks.py"]
 
@@ -211,7 +212,7 @@ def test_affected_reads_no_file_main_changed_past_the_merge_base(
     branch left it reaches no test module.
     """
     git("switch", "--create", "next")
-    branch(True, "docs/references.bib")
+    branch(True, "src/squirtl/docs/references.bib")
     git("update-ref", "refs/remotes/origin/main", "HEAD")
     git("switch", "-")
 

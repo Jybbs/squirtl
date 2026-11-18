@@ -74,7 +74,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise lint` | *Reports every rewrite the formatter would make and every lint finding* |
 | `mise format` | *Rewrites the Python source to the house style* |
 | `mise serve` | *Serves the docs site under `docs/` and reloads a page as it is edited* |
-| `mise write` | *Writes each file the package declares into `docs/`, the identity's JSON and the theme's sheet among them, and each cited source's footnote definition from `docs/references.bib` into every Markdown file git tracks, all of which `mise audit` holds to what it writes* |
+| `mise write` | *Writes each file the package declares into `docs/`, the identity's JSON and the theme's sheet among them, and each cited source's footnote definition from `src/squirtl/docs/references.bib` into every Markdown file git tracks, all of which `mise audit` holds to what it writes* |
 | `mise draw` | *Redraws the logo, the favicon, the navigation bar's mark, and the README's cards from the drawings that set them in the identity, then the README's preview of the front page's walks* |
 | `mise lockfile` | *Verifies `uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` against their manifests, and that every pinned tool installs from `.mise/mise.lock`* |
 | `mise relock` | *Re-resolves every lockfile after a change to `pyproject.toml`, `.mise/config.toml`, `docs/package.json`, or a task script's inline metadata* |

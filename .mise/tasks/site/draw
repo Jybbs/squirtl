@@ -5,7 +5,7 @@
 #MISE dir         = "docs"
 
 node_modules/.bin/vitest run \
-  --config .vitepress/vitest.config.ts \
+  --config .vitepress/config/vitest.ts \
   --update=all \
   .vitepress/tests/lib/config/marks.test.ts
 
