@@ -79,7 +79,7 @@ def test_a_playback_reaches_a_nonzero_return_under_the_recorded_reward(
     """
     press = GameBoy.press
 
-    def walk(game_boy: GameBoy, button: object, frames: int) -> ndarray:  # prose: ignore[unsorted-positionals]
+    def walk(game_boy: GameBoy, button: object, frames: int, /) -> ndarray:
         """
         Moves the player to the column `moved` gives before each press.
         """

@@ -32,7 +32,7 @@ type Compressed = Annotated[
 type TimerDiv = Annotated[int, Field(ge=0, le=255)]
 
 
-def validate_compressed(value: bytes, info: ValidationInfo) -> bytes:  # prose: ignore[unsorted-positionals]
+def validate_compressed(value: bytes, info: ValidationInfo, /) -> bytes:
     """
     Decompresses `value` where the validation reads JSON, whose base64 the
     record's configuration has decoded, and returns it as it is otherwise,

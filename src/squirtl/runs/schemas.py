@@ -67,11 +67,10 @@ class Revision(Record):
         `uv.lock`.
 
         Raises:
-            CalledProcessError : Where the working directory holds no git
-                                 clone.
-            FileNotFoundError  : Where the working directory holds no
-                                 `uv.lock` or no `git` is on the search
-                                 path.
+            CalledProcessError: Where the working directory holds no git
+                                clone.
+            FileNotFoundError: Where the working directory holds no
+                               `uv.lock` or no `git` is on the search path.
         """
         return cls(
             commit = check_output(["git", "rev-parse", "HEAD"], text=True),
@@ -466,8 +465,8 @@ class Run(Record):
         then sits in `directory`, whatever the working directory.
 
         Raises:
-            FileNotFoundError : Where `directory` holds no record.
-            ValidationError   : Where the record holds no run.
+            FileNotFoundError: Where `directory` holds no record.
+            ValidationError: Where the record holds no run.
         """
         run = cls.model_validate_json(
             (directory / cls.file).read_text(encoding="utf-8")
@@ -491,23 +490,22 @@ class Run(Record):
         the revision of the clone in the working directory, and `digest`.
 
         Args:
-            digest   : The SHA-256 digest of the state `GameBoy.start` left
-                       the run's console in.
-            resumes  : The name of the run this one continues, or `None` for
-                       a run starting afresh.
-            searches : Whether the run is a search over save states.
+            digest: The SHA-256 digest of the state `GameBoy.start` left the
+                    run's console in.
+            resumes: The name of the run this one continues, or `None` for a
+                     run starting afresh.
+            searches: Whether the run is a search over save states.
 
         Raises:
-            CalledProcessError : Where the working directory holds no git
-                                 clone.
-            FileExistsError    : Where a run started at the same instant
-                                 already holds the directory, which is left
-                                 as it was.
-            FileNotFoundError  : Where the working directory holds no
-                                 `uv.lock` or no `git` is on the search
-                                 path, before any directory is created.
-            ValidationError    : Where `started` carries no UTC offset,
-                                 before any directory is created.
+            CalledProcessError: Where the working directory holds no git
+                                clone.
+            FileExistsError: Where a run started at the same instant already
+                             holds the directory, which is left as it was.
+            FileNotFoundError: Where the working directory holds no
+                               `uv.lock` or no `git` is on the search path,
+                               before any directory is created.
+            ValidationError: Where `started` carries no UTC offset, before
+                             any directory is created.
         """
         run = cls(
             digest   = digest,

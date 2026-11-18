@@ -79,6 +79,9 @@ target-version = "3.15"
 [tool.prose.imports]
 first-party = ["squirtl"]
 
+[tool.prose.rules.align-colons]
+align-docstring-entries = false
+
 [tool.pytest]
 addopts                  = [
     "--allow-unix-socket",

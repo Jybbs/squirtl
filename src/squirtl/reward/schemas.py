@@ -83,10 +83,17 @@ class Event(IntEnum):
     the flag array.
     """
 
-    EVENT_OAK_APPEARED_IN_PALLET    = 0x27  # prose: skip[alphabetize-siblings]
-    EVENT_FOLLOWED_OAK_INTO_LAB     = 0x00  # prose: skip[alphabetize-siblings]
-    EVENT_OAK_ASKED_TO_CHOOSE_MON   = 0x21  # prose: skip[alphabetize-siblings]
-    EVENT_GOT_STARTER               = 0x22  # prose: skip[alphabetize-siblings]
+    _order_ = [
+        "EVENT_OAK_APPEARED_IN_PALLET", "EVENT_FOLLOWED_OAK_INTO_LAB",
+        "EVENT_OAK_ASKED_TO_CHOOSE_MON", "EVENT_GOT_STARTER",
+        "EVENT_BATTLED_RIVAL_IN_OAKS_LAB", "EVENT_GOT_OAKS_PARCEL",
+        "EVENT_GOT_POKEDEX"
+    ]
+
+    EVENT_OAK_APPEARED_IN_PALLET    = 0x27
+    EVENT_FOLLOWED_OAK_INTO_LAB     = 0x00
+    EVENT_OAK_ASKED_TO_CHOOSE_MON   = 0x21
+    EVENT_GOT_STARTER               = 0x22
     EVENT_BATTLED_RIVAL_IN_OAKS_LAB = 0x23
     EVENT_GOT_OAKS_PARCEL           = 0x39
     EVENT_GOT_POKEDEX               = 0x25

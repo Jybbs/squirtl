@@ -140,7 +140,7 @@ class Driver(AbstractContextManager, ABC):
         """
         return self.step >= (last // interval + 1) * interval
 
-    def interrupt(self, number: int, frame: FrameType | None):  # prose: ignore[unsorted-positionals]
+    def interrupt(self, number: int, frame: FrameType | None, /):
         """
         Stops the run where its loop next pauses on the first interrupt
         or termination signal, and raises `KeyboardInterrupt` on the next,

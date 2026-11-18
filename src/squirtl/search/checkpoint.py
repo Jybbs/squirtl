@@ -46,9 +46,9 @@ class SearchCheckpoint(Record):
         unpickles tensors and plain values alone.
 
         Raises:
-            ValidationError : Where `frontier.json` holds no frontier.
-            ValueError      : Where the file at `path` is cut short or
-                              damaged, as `reading` raises.
+            ValidationError: Where `frontier.json` holds no frontier.
+            ValueError: Where the file at `path` is cut short or damaged, as
+                        `reading` raises.
         """
         members = {"frontier.json", "networks.pt"}
 

@@ -66,10 +66,11 @@ def roll(rollout: SearchRollout) -> Ending:
     game_boy    = overworld.game_boy
     progress    = overworld.progress
     flag_reward = overworld.reward.total(progress.earned)
-    start       = progress.total, game_boy.tiles  # prose: ignore[inlinable-bindings]
     frames      = [observation[Entry.FRAMES][-1]]
     pressed     = bytearray()
     blackout    = False
+    # Prose flags this until https://github.com/Jybbs/prose/issues/733 ships
+    start = progress.total, game_boy.tiles  # prose: ignore[inlinable-bindings]
 
     for action in rollout.presses:
         observation, *_ = environment.step(action)

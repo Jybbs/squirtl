@@ -81,16 +81,15 @@ class Search:
         no reward.
 
         Args:
-            actions : The actions a press chooses from.
-            agent   : The settings naming the device and threads the
-                      predictor runs on.
-            goal    : The flag whose setting ends the search.
-            roll    : Plays each rollout and returns its ending, in the
-                      order they came.
-            seed    : The unsigned 64-bit seed every random draw starts
-                      from.
-            space   : The frame stacks the predictor reads.
-            steps   : The presses after which the search ends.
+            actions: The actions a press chooses from.
+            agent: The settings naming the device and threads the predictor
+                   runs on.
+            goal: The flag whose setting ends the search.
+            roll: Plays each rollout and returns its ending, in the order
+                  they came.
+            seed: The unsigned 64-bit seed every random draw starts from.
+            space: The frame stacks the predictor reads.
+            steps: The presses after which the search ends.
         """
         self.generator, sampling = default_rng(seed).spawn(2)
 
@@ -288,6 +287,7 @@ class Search:
 
             yield self.presses
 
+        # Prose flags this until https://github.com/Jybbs/prose/issues/733 ships
         loss = self.novelty.wait()  # prose: ignore[inlinable-bindings]
 
         self.consolidate()

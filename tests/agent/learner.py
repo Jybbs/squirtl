@@ -618,7 +618,7 @@ def test_an_update_returns_the_loss_it_steps_on_and_the_batchs_mean_value(
     read  = []
     play(agent, 32)
 
-    def spy(values: Tensor, targets: Tensor) -> Tensor:  # prose: ignore[unsorted-positionals]
+    def spy(values: Tensor, targets: Tensor, /) -> Tensor:
         """
         Computes the update's loss, recording it beside the mean value.
         """

@@ -89,6 +89,7 @@ def held(monkeypatch: MonkeyPatch, novelty: Novelty) -> Iterator[Event]:
         """
         Takes one update, then holds until the block ends.
         """
+        # Prose flags this until https://github.com/Jybbs/prose/issues/733 ships
         loss = update(normalizer)  # prose: ignore[inlinable-bindings]
 
         stepped.set()

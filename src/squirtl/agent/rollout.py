@@ -67,8 +67,8 @@ class Rollout:
         observation each environment reached.
 
         Args:
-            decay : The λ weighting each later λ-return.
-            last  : A `(environments,)` array of values.
+            decay: The λ weighting each later λ-return.
+            last: A `(environments,)` array of values.
 
         Returns:
             A `(steps, environments)` array of `float32`.

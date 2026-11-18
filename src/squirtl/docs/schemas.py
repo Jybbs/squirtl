@@ -712,11 +712,11 @@ class Manuscript(Record):
         with no footnote labeled by a key as it stands.
 
         Raises:
-            LookupError : Where a marker names no source, naming the file
-                          and the line.
-            SyntaxError : Where the file ends inside an open block, which
-                          would hold each definition the write appends,
-                          naming the file and the line the block opens on.
+            LookupError: Where a marker names no source, naming the file and
+                         the line.
+            SyntaxError: Where the file ends inside an open block, which
+                         would hold each definition the write appends,
+                         naming the file and the line the block opens on.
         """
         if not self.footnoted:
             return self.text

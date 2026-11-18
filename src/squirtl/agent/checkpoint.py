@@ -33,9 +33,10 @@ type StateDict = Annotated[
 ]
 
 
-def validate_in_place(  # prose: ignore[unsorted-positionals]
+def validate_in_place(
     state   : object,
-    handler : ValidatorFunctionWrapHandler
+    handler : ValidatorFunctionWrapHandler,
+    /
 ) -> object:
     """
     Validates each entry of `state` as a tensor through `handler`, then
@@ -89,11 +90,11 @@ class Weights(Record, extra="ignore"):
         validates each field the record declares.
 
         Raises:
-            ValidationError : Where a field is missing or a network entry is
-                              no tensor.
-            ValueError      : Where the file at `path` is cut short or
-                              damaged, in its zip directory, a zip header, a
-                              zstd frame, or a member, naming `path`.
+            ValidationError: Where a field is missing or a network entry is
+                             no tensor.
+            ValueError: Where the file at `path` is cut short or damaged, in
+                        its zip directory, a zip header, a zstd frame, or a
+                        member, naming `path`.
         """
         with reading(path) as archive:
             return cls.model_validate(cls.members(archive))

@@ -255,7 +255,7 @@ def game(monkeypatch: MonkeyPatch):
     """
     press = GameBoy.press
 
-    def play(game_boy: GameBoy, button: Button | None, frames: int) -> ndarray:  # prose: ignore[unsorted-positionals]
+    def play(game_boy: GameBoy, button: Button | None, frames: int, /) -> ndarray:
         """
         Moves the player as `button` does, sets each flag the square reached
         earns, then presses as `GameBoy.press` does.
