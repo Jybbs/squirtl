@@ -43,7 +43,10 @@ reach() {
       tests/conftest.py | tests/*/conftest.py)
         echo "${path%/*}" ;;
       tests/common/*.py)
-        importing "$path" | reach ;;
+        [[ " ${seen-} " == *" $path "* ]] || {
+          seen="${seen-} $path"
+          importing "$path" | reach
+        } ;;
       tests/*.py)
         echo "$path" ;;
       .mise/tasks/*/*)

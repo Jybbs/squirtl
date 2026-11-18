@@ -18,12 +18,15 @@ from pytest          import fixture, mark, param
 BASE = {
     ".mise/bin/pytest"    : "",
     ".mise/tasks/py/test" : "",
-    "pyproject.toml": '"--snapshot-default-extension=common.snapshots.PlainFile"\n',
+    "pyproject.toml"      : (
+        '"--snapshot-default-extension=common.snapshots.PlainFile"\n'
+        '"-p common.agents_pool"\n'
+    ),
     "src/squirtl/agent/memory.py"       : "",
     "src/squirtl/cli/__init__.py"       : "",
     "src/squirtl/docs/references.bib"   : "@misc{sutton2018}\n",
     "tests/agent/conftest.py"           : "",
-    "tests/agent/fixtures/memory/a.txt" : "",
+    "tests/agent/fixtures/memory/a.txt" : "from common.agents import each_agent\n",
     "tests/agent/learner.py"            : "from common.agents import each_agent\n",
     "tests/agent/memory.py"             : "",
     "tests/agent/networks.py"           : "import common.records as records\n",
@@ -33,7 +36,7 @@ BASE = {
     "tests/common/cli.py"       :
         'from common.records import idled\n"src/squirtl/docs/references.bib"\n',
     "tests/common/console.py"   : "",
-    "tests/common/records.py"   : "",
+    "tests/common/records.py"   : "from common.cli import Invoker\n",
     "tests/common/snapshots.py" : "",
     "tests/conftest.py"         : "from common.console import set_event\n",
     "tests/repo/checks.py"      :
@@ -166,7 +169,11 @@ def test_each_task_hands_its_program_its_flags_and_arguments(
             ["tests/agent/learner.py", "tests/runs/trainer.py"],
             id = "helper"
         ),
-        param("tests/common/cli.py", ["tests/cli"], id="conftest-helper"),
+        param(
+            "tests/common/cli.py",
+            ["tests/agent/networks.py", "tests/cli"],
+            id = "conftest-helper"
+        ),
         param("tests/common/console.py", ["tests"], id="root-conftest-helper"),
         param(
             "tests/common/records.py",
@@ -209,16 +216,25 @@ def test_affected_reaches_the_modules_naming_the_old_path_of_a_renamed_file(
     assert printed("py/affected") == ["tests/repo/checks.py"]
 
 
+@mark.parametrize(
+    "first",
+    [
+        param("docs/glossary.md", id="unnamed"),
+        param("tests/common/search.py", id="unimported-helper")
+    ]
+)
 def test_affected_reads_each_changed_file_past_one_no_test_module_names(
     branch  : Callable[[bool, str], None],
+    first   : str,
     printed : Callable[..., list[str]]
 ):
     """
     Pins that `py:affected` keeps reading the changed files past one no test
-    module names, running the module naming the file after it.
+    module names and past a helper no module imports, running the module the
+    file after it reaches.
     """
-    branch(True, "docs/glossary.md")
-    branch(True, "src/squirtl/docs/references.bib")
+    branch(True, first)
+    branch(True, "tests/repo/checks.py")
 
     assert printed("py/affected") == ["tests/repo/checks.py"]
 

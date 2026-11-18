@@ -4,7 +4,8 @@ import { prove, siteSheets } from '../../../lib/proof/sheets.ts'
 
 /**
  * Each sheet under `theme/styles/` but `site.css`, the entry Tailwind builds
- * from, keyed by its path under `.vitepress/` beside its text and `true`.
+ * from, keyed by its path under `.vitepress/` beside its text and the `true`
+ * its `handwritten` field holds.
  */
 const handwrittenSheets = Object.fromEntries(
   Object.entries(import.meta.glob<string>('../../../theme/styles/**/*.css', {
