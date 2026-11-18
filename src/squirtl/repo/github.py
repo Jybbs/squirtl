@@ -106,8 +106,8 @@ class Command(Record):
             What it printed, as `shape`.
 
         Raises:
-            CalledProcessError : Where `gh` exits nonzero.
-            ValidationError    : Where what it printed does not fit `shape`.
+            CalledProcessError: Where `gh` exits nonzero.
+            ValidationError: Where what it printed does not fit `shape`.
         """
         return TypeAdapter(shape).validate_json(self.output())
 

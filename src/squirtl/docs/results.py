@@ -130,17 +130,16 @@ class Trained(RunListing):
         searched rather than trained an agent.
 
         Raises:
-            FileNotFoundError : Where `directory` holds no record.
-            ValidationError   : Where the record holds no run.
-            ValueError        : Where the run read a cartridge other than
-                                the default path or followed a demonstration
-                                at an absolute path, either of which would
-                                carry a local path into the checkout,
-                                holds no evaluation of the agent or of the
-                                random baseline, or holds an evaluation
-                                whose episodes at the most likely action do
-                                not match its agent, present for the deep
-                                Q-network or PQN or missing for PPO.
+            FileNotFoundError: Where `directory` holds no record.
+            ValidationError: Where the record holds no run.
+            ValueError: Where the run read a cartridge other than the
+                        default path or followed a demonstration at an
+                        absolute path, either of which would carry a
+                        local path into the checkout, holds no evaluation
+                        of the agent or of the random baseline, or holds
+                        an evaluation whose episodes at the most likely
+                        action do not match its agent, present for the deep
+                        Q-network or PQN or missing for PPO.
         """
         if (run := Run.read(directory)).searches:
             return None

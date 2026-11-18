@@ -130,12 +130,11 @@ class SearchHandover(Record):
         Reads what `previous` recorded up to its last checkpoint.
 
         Raises:
-            FileNotFoundError : Where `previous` holds no checkpoint.
-            ValueError        : Where `previous` is a training run, its
-                                checkpoint is damaged or already holds the
-                                goal or the run's `steps`, or the iterations
-                                `previous` recorded end short of it, as
-                                `Run.first` raises.
+            FileNotFoundError: Where `previous` holds no checkpoint.
+            ValueError: Where `previous` is a training run, its checkpoint
+                        is damaged or already holds the goal or the run's
+                        `steps`, or the iterations `previous` recorded end
+                        short of it, as `Run.first` raises.
         """
         if not previous.searches:
             raise ValueError(

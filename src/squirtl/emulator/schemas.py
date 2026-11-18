@@ -141,9 +141,9 @@ class Cartridge(Record):
         Reads the ROM in the file at `path`.
 
         Raises:
-            FileNotFoundError : Where no file sits at `path`.
-            ValidationError   : Where the file's digest names no release
-                                `Edition` lists.
+            FileNotFoundError: Where no file sits at `path`.
+            ValidationError: Where the file's digest names no release
+                             `Edition` lists.
         """
         return cls(data=path.read_bytes(), path=path)
 

@@ -146,10 +146,10 @@ class Trainer(Driver):
         none.
 
         Raises:
-            FileNotFoundError : Where the directory they name holds no run.
-            ValueError        : Where its run ends its episodes at another
-                                goal than this run's, or holds no episode
-                                reaching its goal from Blue's bedroom.
+            FileNotFoundError: Where the directory they name holds no run.
+            ValueError: Where its run ends its episodes at another goal than
+                        this run's, or holds no episode reaching its goal
+                        from Blue's bedroom.
         """
         if (directory := self.settings.curriculum.demonstration) is None:
             return None
@@ -255,13 +255,12 @@ class Trainer(Driver):
         trainer's `carried`.
 
         Raises:
-            FileNotFoundError : Where `previous` holds no checkpoint.
-            ValueError        : Where `previous` is a search, as
-                                `Run.check_trained` raises, the checkpoint
-                                is damaged or already holds the run's
-                                `steps`, or the episodes `previous` recorded
-                                end short of it, as `Run.ended_by` and
-                                `Run.first` raise.
+            FileNotFoundError: Where `previous` holds no checkpoint.
+            ValueError: Where `previous` is a search, as `Run.check_trained`
+                        raises, the checkpoint is damaged or already holds
+                        the run's `steps`, or the episodes `previous`
+                        recorded end short of it, as `Run.ended_by` and
+                        `Run.first` raise.
         """
         previous.check_trained()
 

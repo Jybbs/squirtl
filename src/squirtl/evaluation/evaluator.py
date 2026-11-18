@@ -133,11 +133,9 @@ class Evaluator(AbstractContextManager):
         episode's seed, and reads the goal its environment settings name.
 
         Args:
-            algorithm : The agent whose network each evaluation builds.
-            device    : The device the agent's network evaluates each batch
-                        on.
-            seed      : The unsigned 64-bit seed of the run's evaluation
-                        stream.
+            algorithm: The agent whose network each evaluation builds.
+            device: The device the agent's network evaluates each batch on.
+            seed: The unsigned 64-bit seed of the run's evaluation stream.
         """
         self.algorithm = algorithm
         self.device    = device

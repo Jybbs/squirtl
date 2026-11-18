@@ -243,12 +243,12 @@ class ReleaseManifest(ReleaseSettings):
         `Run.check_episodes`.
 
         Raises:
-            FileNotFoundError : Where a run's directory holds no record or
-                                no episodes, or a trained run's holds no
-                                checkpoint.
-            ValueError        : Where `settings` recommends none of the
-                                trained runs, or a line of a run's episodes
-                                holds no `Episode`.
+            FileNotFoundError: Where a run's directory holds no record or
+                               no episodes, or a trained run's holds no
+                               checkpoint.
+            ValueError: Where `settings` recommends none of the trained
+                        runs, or a line of a run's episodes holds no
+                        `Episode`.
         """
         committed = [
             Run.read(Run.folder / directory.name)
@@ -444,8 +444,8 @@ class GithubRelease(Record, extra="ignore"):
         no login.
 
         Raises:
-            HTTPError  : Where GitHub answers with an error other than 404.
-            ValueError : Where GitHub publishes no such release.
+            HTTPError: Where GitHub answers with an error other than 404.
+            ValueError: Where GitHub publishes no such release.
         """
         release = f"tags/{tag}" if tag else "latest"
 
@@ -486,10 +486,10 @@ class GithubRelease(Record, extra="ignore"):
         manifest lists it. A run `folder` already holds reads no release.
 
         Raises:
-            HTTPError  : Where GitHub answers with an error, as `listed`
-                         raises.
-            ValueError : Where no published release attaches the run, naming
-                         it, beside each error `fetch` raises.
+            HTTPError: Where GitHub answers with an error, as `listed`
+                       raises.
+            ValueError: Where no published release attaches the run, naming
+                        it, beside each error `fetch` raises.
         """
         if (directory := folder / name).exists():
             return Run.read(directory)
