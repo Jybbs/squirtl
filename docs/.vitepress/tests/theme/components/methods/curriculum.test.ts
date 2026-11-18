@@ -116,7 +116,6 @@ describe('MethodsCurriculum’s playback', () => {
 
     expect([pointer.sliderState(wrapper)[0], replaying, lanes(wrapper).map(([phase]) => phase)])
       .toStrictEqual(['0', curriculum.SEGMENTS.map(() => 'recording'), curriculum.SEGMENTS.map(() => 'agent')])
-    vi.useRealTimers()
   })
 
   it('stands on the last batch under reduced motion', async () => {
@@ -134,6 +133,5 @@ describe('MethodsCurriculum’s playback', () => {
 
     expect([pointer.sliderState(wrapper)[0], lanes(wrapper).map(([phase]) => phase)])
       .toStrictEqual([String(curriculum.BATCHES - 1), curriculum.SEGMENTS.map(() => 'agent')])
-    vi.useRealTimers()
   })
 })

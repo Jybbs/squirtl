@@ -88,6 +88,5 @@ describe('MethodsExperience’s playback', () => {
     await nextTick()
 
     expect([first, chips(wrapper)]).toStrictEqual([chipsOf(1), chipsOf(2)])
-    vi.useRealTimers()
   })
 })

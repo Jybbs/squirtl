@@ -126,37 +126,41 @@ def stand_ins(
     return received
 
 
-def test_a_lagging_bun_lockfile_fails_the_task_last(
+@mark.parametrize(
+    ("failing", "reached"),
+    [
+        param("uv lock --check", ["uv lock --check"], id="lagging-uv-lock"),
+        param(
+            "*mise install*",
+            ["uv lock --check", "mise lock", INSTALL],
+            id = "tool-missing-from-the-lockfile"
+        ),
+        param(
+            "bun install*",
+            ["uv lock --check", "mise lock", INSTALL, BUN],
+            id = "lagging-bun-lockfile"
+        )
+    ]
+)
+def test_a_failing_step_fails_the_task_running_no_step_after_it(
     calls       : Callable[[], list[str]],
     checked     : Callable[[], CompletedProcess[str]],
+    failing     : str,
     lockfile    : Path,
-    monkeypatch : MonkeyPatch
+    monkeypatch : MonkeyPatch,
+    reached     : list[str]
 ):
     """
-    Pins that the task exits 1 where Bun's frozen dry-run install, its
-    last step, finds `docs/bun.lock` lagging `docs/package.json`, which it
-    reports by exiting 1, after every other check has passed.
+    Pins that the task exits 1 once a step exits 1, as `uv lock --check`
+    does on a `uv.lock` lagging `pyproject.toml`, the locked dry-run install
+    does on a pinned tool with no entry the running platform installs
+    from, and Bun's frozen dry-run install, the last step, does on a
+    `docs/bun.lock` lagging `docs/package.json`, and runs no step after it.
     """
-    monkeypatch.setenv("FAILING", "bun install*")
+    monkeypatch.setenv("FAILING", failing)
 
     assert checked().returncode == 1
-    assert calls() == ["uv lock --check", "mise lock", INSTALL, BUN]
-
-
-def test_a_lagging_uv_lock_stops_the_task_before_mise_lock(
-    calls       : Callable[[], list[str]],
-    checked     : Callable[[], CompletedProcess[str]],
-    monkeypatch : MonkeyPatch
-):
-    """
-    Pins that the task exits 1 once `uv lock --check` reports `uv.lock`
-    lagging `pyproject.toml`, which it reports by exiting 1, and runs `mise
-    lock` no further.
-    """
-    monkeypatch.setenv("FAILING", "uv lock --check")
-
-    assert checked().returncode == 1
-    assert calls() == ["uv lock --check"]
+    assert calls() == reached
 
 
 @mark.parametrize(
@@ -293,24 +297,6 @@ def test_each_task_script_lockfile_is_checked_before_mise_lock(
         f"uv lock --check --script {scripts}",
         *reached
     ]
-
-
-def test_a_tool_missing_from_the_lockfile_fails_the_task(
-    calls       : Callable[[], list[str]],
-    checked     : Callable[[], CompletedProcess[str]],
-    lockfile    : Path,
-    monkeypatch : MonkeyPatch
-):
-    """
-    Pins that the task exits 1 where the locked dry-run install, the step
-    before Bun's, finds a tool the project pins with no entry the running
-    platform installs from, which it reports by exiting 1, and runs Bun's
-    frozen dry-run install no further.
-    """
-    monkeypatch.setenv("FAILING", "*mise install*")
-
-    assert checked().returncode == 1
-    assert calls()[-1] == INSTALL
 
 
 def test_an_unwritable_scratch_stops_the_task_before_mise_lock(

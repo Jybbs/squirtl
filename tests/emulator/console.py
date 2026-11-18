@@ -45,6 +45,14 @@ def boot(cartridge: Cartridge, monkeypatch: MonkeyPatch) -> Boot:
 
 
 @fixture
+def stand_in(boot: Boot) -> GameBoy:
+    """
+    Boots `cartridge` on `StandIn` under the default settings.
+    """
+    return boot(EmulatorSettings())
+
+
+@fixture
 def game_boy(cartridge: Cartridge) -> Iterator[GameBoy]:
     """
     Boots `cartridge` on PyBoy under the default settings and closes it once
@@ -75,12 +83,15 @@ def test_a_boot_runs_silent_and_headless_unless_a_window_opens(
     }
 
 
-def test_a_boot_hands_pyboy_the_cartridge_as_bytes(boot: Boot, cartridge: Cartridge):
+def test_a_boot_hands_pyboy_the_cartridge_as_bytes(
+    cartridge : Cartridge,
+    stand_in  : GameBoy
+):
     """
     Asserts that a boot hands PyBoy a stream of the cartridge's bytes rather
     than its path, so PyBoy derives no path to a file beside it.
     """
-    assert boot(EmulatorSettings()).emulator.gamerom.getvalue() == cartridge.data
+    assert stand_in.emulator.gamerom.getvalue() == cartridge.data
 
 
 def test_a_boot_reads_no_save_beside_the_cartridge(game_boy: GameBoy):
@@ -194,16 +205,16 @@ def test_a_press_holding_its_button_past_its_frames_is_refused(boot: Boot):
     assert game_boy.emulator.calls == []
 
 
-def test_a_read_past_a_symbol_reads_the_byte_at_its_offset(game_boy: GameBoy):
+def test_a_read_past_a_symbol_reads_the_byte_at_its_offset(stand_in: GameBoy):
     """
     Asserts that reading `offset` bytes past a symbol returns the byte at
     that index of the array the symbol starts, where the symbol's own byte
     holds another value.
     """
-    game_boy.emulator.memory[Symbol.W_EVENT_FLAGS]     = 0x01
-    game_boy.emulator.memory[Symbol.W_EVENT_FLAGS + 4] = 0x5A
+    stand_in.emulator.memory[Symbol.W_EVENT_FLAGS]     = 0x01
+    stand_in.emulator.memory[Symbol.W_EVENT_FLAGS + 4] = 0x5A
 
-    assert game_boy.read(Symbol.W_EVENT_FLAGS, 4) == 0x5A
+    assert stand_in.read(Symbol.W_EVENT_FLAGS, 4) == 0x5A
 
 
 @mark.parametrize(
@@ -217,7 +228,7 @@ def test_a_read_past_a_symbol_reads_the_byte_at_its_offset(game_boy: GameBoy):
 )
 def test_a_party_faints_once_every_pokemon_holds_no_hp(
     fainted  : bool,
-    game_boy : GameBoy,
+    stand_in : GameBoy,
     hp       : list[int]
 ):
     """
@@ -225,7 +236,7 @@ def test_a_party_faints_once_every_pokemon_holds_no_hp(
     two bytes of HP, read $2C bytes apart, are zero, and that a party of
     none stands.
     """
-    memory = game_boy.emulator.memory
+    memory = stand_in.emulator.memory
 
     memory[Symbol.W_PARTY_COUNT] = len(hp)
 
@@ -234,7 +245,7 @@ def test_a_party_faints_once_every_pokemon_holds_no_hp(
 
         memory[address : address + 2] = points.to_bytes(2)
 
-    assert game_boy.fainted is fainted
+    assert stand_in.fainted is fainted
 
 
 @mark.parametrize(
@@ -252,7 +263,7 @@ def test_a_party_faints_once_every_pokemon_holds_no_hp(
 def test_a_party_in_battle_faints_once_the_pokemon_sent_out_faints(
     fainted  : bool,
     fighting : int,
-    game_boy : GameBoy,
+    stand_in : GameBoy,
     hp       : list[int],
     number   : int,
     points   : int,
@@ -267,7 +278,7 @@ def test_a_party_in_battle_faints_once_the_pokemon_sent_out_faints(
     is `wIsInBattle`, and `species` and `points` are the species and the HP
     `wBattleMon` holds.
     """
-    memory = game_boy.emulator.memory
+    memory = stand_in.emulator.memory
 
     memory[Symbol.W_IS_IN_BATTLE]      = fighting
     memory[Symbol.W_BATTLE_MON]        = species
@@ -281,7 +292,7 @@ def test_a_party_in_battle_faints_once_the_pokemon_sent_out_faints(
 
         memory[address : address + 2] = left.to_bytes(2)
 
-    assert game_boy.fainted is fainted
+    assert stand_in.fainted is fainted
 
 
 def test_a_reset_at_one_timer_div_leaves_a_state_of_one_digest(game_boy: GameBoy):
@@ -294,12 +305,16 @@ def test_a_reset_at_one_timer_div_leaves_a_state_of_one_digest(game_boy: GameBoy
     game_boy.reset(42)
     first = game_boy.digest
     game_boy.emulator.memory[Symbol.W_CUR_MAP] = 9
-    written = game_boy.digest
+
+    assert game_boy.digest != first
+
     game_boy.reset(42)
-    again = game_boy.digest
+
+    assert game_boy.digest == first
+
     game_boy.reset(43)
 
-    assert (written != first, again, game_boy.digest != first) == (True, first, True)
+    assert game_boy.digest != first
 
 
 @mark.parametrize("button", Button, ids=attrgetter("name"))
@@ -313,14 +328,14 @@ def test_each_button_names_one_pyboy_presses(button: Button, game_boy: GameBoy):
 
 
 @mark.parametrize("symbol", Symbol, ids=attrgetter("name"))
-def test_each_symbol_reads_the_byte_at_its_address(game_boy: GameBoy, symbol: Symbol):
+def test_each_symbol_reads_the_byte_at_its_address(stand_in: GameBoy, symbol: Symbol):
     """
     Asserts that reading a symbol returns the byte written at the address
     its member holds.
     """
-    game_boy.emulator.memory[symbol] = 0x5A
+    stand_in.emulator.memory[symbol] = 0x5A
 
-    assert game_boy.read(symbol) == 0x5A
+    assert stand_in.read(symbol) == 0x5A
 
 
 def test_a_start_leaves_pythons_global_generator_undrawn(game_boy: GameBoy):
@@ -333,15 +348,14 @@ def test_a_start_leaves_pythons_global_generator_undrawn(game_boy: GameBoy):
     assert after == before
 
 
-def test_a_start_plays_the_intro_through_the_game_wrapper(boot: Boot):
+def test_a_start_plays_the_intro_through_the_game_wrapper(stand_in: GameBoy):
     """
     Asserts that a start hands PyBoy's game wrapper a `timer_div` of 0 in
     place of the `None` that draws one from Python's global generator.
     """
-    game_boy = boot(EmulatorSettings())
-    game_boy.start()
+    stand_in.start()
 
-    assert game_boy.emulator.calls == [("start_game", 0)]
+    assert stand_in.emulator.calls == [("start_game", 0)]
 
 
 def test_a_window_the_setting_opens_is_one_pyboy_runs(
@@ -359,23 +373,22 @@ def test_a_window_the_setting_opens_is_one_pyboy_runs(
         assert game_boy.emulator.tick(1)
 
 
-def test_the_frame_a_press_returns_holds_the_red_channel_alone(boot: Boot):
+def test_the_frame_a_press_returns_holds_the_red_channel_alone(stand_in: GameBoy):
     """
     Asserts that the frame a press returns is a `(144, 160)` array of
     `uint8` holding the red channel of PyBoy's RGBA frame alone, read from a
     stand-in frame of bytes a generator seeded at 0 draws, whose red channel
     no reduction across the channels gives.
     """
-    game_boy                = boot(EmulatorSettings())
-    game_boy.emulator.frame = default_rng(0).integers(
+    stand_in.emulator.frame = default_rng(0).integers(
         256,
         dtype = uint8,
         size  = (144, 160, 4)
     )
 
     assert_array_equal(
-        game_boy.press(None, 1),
-        game_boy.emulator.frame[..., 0],
+        stand_in.press(None, 1),
+        stand_in.emulator.frame[..., 0],
         strict = True
     )
 
@@ -415,12 +428,11 @@ def test_a_reset_returns_to_the_start_with_its_timer_div_in_div(
     game_boy.press(None, 3)
     game_boy.reset(timer_div)
 
-    assert (game_boy.read(Symbol.W_CUR_MAP), game_boy.emulator.memory[0xFF04]) == (
-        0, timer_div
-    )
+    assert game_boy.read(Symbol.W_CUR_MAP) == 0
+    assert game_boy.emulator.memory[0xFF04] == timer_div
 
 
-def test_the_screen_holds_the_rgb_channels_alone(boot: Boot):
+def test_the_screen_holds_the_rgb_channels_alone(stand_in: GameBoy):
     """
     Asserts that the screen is a `(144, 160, 3)` array of `uint8` holding
     the red, green, and blue channels of PyBoy's RGBA frame in that order,
@@ -428,20 +440,21 @@ def test_the_screen_holds_the_rgb_channels_alone(boot: Boot):
     in that channel.
     """
     assert_array_equal(
-        boot(EmulatorSettings()).screen,
+        stand_in.screen,
         tile(arange(3, dtype=uint8), (144, 160, 1)),
         strict = True
     )
 
 
-def test_the_tiles_are_the_screen_of_tiles_wtilemap_holds(game_boy: GameBoy):
+def test_the_tiles_are_the_screen_of_tiles_wtilemap_holds(stand_in: GameBoy):
     """
     Asserts that the tiles hold the 20 by 18 bytes from `wTileMap` on, the
     last of them included and the byte past them left out.
     """
-    memory = game_boy.emulator.memory
+    memory = stand_in.emulator.memory
 
     memory[Symbol.W_TILE_MAP + 359] = 0x5A
     memory[Symbol.W_TILE_MAP + 360] = 0x5B
 
-    assert (len(game_boy.tiles), game_boy.tiles[-1]) == (360, 0x5A)
+    assert len(stand_in.tiles) == 360
+    assert stand_in.tiles[-1] == 0x5A

@@ -6,15 +6,13 @@ describe('agesOf', () => {
   it('reads a batch of ages from replay memory, newest first, the same for one update and another for the next', () => {
     const ages = experience.agesOf(3)
 
-    expect([
-      ages.length,
-      ages.every(age => Number.isInteger(age)),
-      Math.min(...ages) >= 0,
-      Math.max(...ages) < experience.MEMORY.capacity,
-      ages.toSorted((a, b) => a - b),
-      experience.agesOf(3),
-      experience.agesOf(4).join() === ages.join()
-    ]).toStrictEqual([experience.MEMORY.batch, true, true, true, ages, ages, false])
+    expect(ages).toHaveLength(experience.MEMORY.batch)
+    expect(ages.filter(age => !Number.isInteger(age))).toStrictEqual([])
+    expect(Math.min(...ages)).toBeGreaterThanOrEqual(0)
+    expect(Math.max(...ages)).toBeLessThan(experience.MEMORY.capacity)
+    expect(ages.toSorted((a, b) => a - b)).toStrictEqual(ages)
+    expect(experience.agesOf(3)).toStrictEqual(ages)
+    expect(experience.agesOf(4)).not.toStrictEqual(ages)
   })
 })
 
@@ -42,8 +40,9 @@ describe('the line of time', () => {
 
 describe('the windows', () => {
   it('plays one walk to its end for each environment', () => {
-    expect([experience.WALKS.length, experience.WALKS.every(walk => walk.length > 1), experience.WALKS[0]![0]!.place])
-      .toStrictEqual([8, true, 'bedroom'])
+    expect(experience.WALKS).toHaveLength(8)
+    expect(experience.WALKS.filter(walk => walk.length <= 1)).toStrictEqual([])
+    expect(experience.WALKS[0]![0]!.place).toBe('bedroom')
   })
 
   it('shows a step of the walk the read draws from, its age wrapping round the walk', () => {

@@ -116,10 +116,11 @@ def test_a_checkpoint_lands_at_the_first_iteration_end_past_each_interval(
     run    = finish(built)
 
     assert len(landed) >= 2
-    assert all(
-        last // 20 < step // 20 or step == built.step
+    assert [
+        (last, step)
         for last, step in zip([0, *landed], landed, strict=False)
-    )
+        if last // 20 >= step // 20 and step != built.step
+    ] == []
     assert landed[-1] == built.step
     assert SearchCheckpoint.from_path(run.checkpoint).frontier.presses == built.step
 
@@ -154,9 +155,8 @@ def test_a_search_builds_a_pool_of_spawned_workers_booting_its_environment(
 
     arguments = pools[-1].arguments
 
-    assert (arguments["max_workers"], arguments["initializer"]) == (
-        built.run.settings.search.workers, boot
-    )
+    assert arguments["max_workers"] == built.run.settings.search.workers
+    assert arguments["initializer"] is boot
     assert arguments["mp_context"].get_start_method() == "spawn"
     assert arguments["initargs"] == (built.specification,)
 
@@ -231,10 +231,8 @@ def test_a_search_pays_its_winner_at_the_runs_reward_settings(
 
     earned = built.search.winner.snapshot.tally.earned
 
-    assert (bool(earned), built.search.winner.reward) == (
-        True,
-        approx(fsum(reward.shares(earned).values()))
-    )
+    assert earned
+    assert built.search.winner.reward == approx(fsum(reward.shares(earned).values()))
 
 
 def test_a_search_reaching_its_goal_ends_writing_the_path_as_an_episode(
@@ -251,16 +249,12 @@ def test_a_search_reaching_its_goal_ends_writing_the_path_as_an_episode(
 
     [episode] = run.recorded
 
-    assert (built.search.reached, built.step < 100_000) == (True, True)
-    assert (
-        episode.recording, episode.length,
-        run.settings.environment.goal in episode.flags,
-        episode.reward == approx(built.search.winner.reward)
-    ) == (
-        built.search.demonstration,
-        len(built.search.demonstration.presses),
-        True, True
-    )
+    assert built.search.reached
+    assert built.step < 100_000
+    assert episode.recording == built.search.demonstration
+    assert episode.length == len(built.search.demonstration.presses)
+    assert run.settings.environment.goal in episode.flags
+    assert episode.reward == approx(built.search.winner.reward)
 
 
 def test_a_search_records_itself_as_one_with_its_settings(
@@ -273,7 +267,9 @@ def test_a_search_records_itself_as_one_with_its_settings(
     run  = finish(searcher())
     read = Run.read(run.directory)
 
-    assert (read.searches, read.resumes, read.settings) == (True, None, run.settings)
+    assert read.searches
+    assert read.resumes is None
+    assert read.settings == run.settings
 
 
 def test_a_search_shuts_its_pool_down_whether_or_not_it_raised(
@@ -343,11 +339,9 @@ def test_a_termination_signal_to_the_runs_group_ends_it_at_its_iterations_end(
     run, = map(Run.read, Path("data/runs").iterdir())
     line = iterations(run)[-1]
 
-    assert (
-        process.exitcode,
-        SearchCheckpoint.from_path(run.checkpoint).frontier.presses,
-        line.presses < run.settings.steps
-    ) == (0, line.presses, True)
+    assert process.exitcode == 0
+    assert SearchCheckpoint.from_path(run.checkpoint).frontier.presses == line.presses
+    assert line.presses < run.settings.steps
 
 
 def test_a_search_stopped_halfway_and_resumed_ends_as_one_that_never_stopped(
@@ -412,9 +406,8 @@ def test_a_stop_file_ends_the_search_at_its_iterations_end(
 
     assert built.step < built.run.settings.steps
     assert SearchCheckpoint.from_path(run.checkpoint).frontier.presses == line.presses
-    assert any(
-        f"after {built.search.iterations:,} iterations on finding {run.stop}" in message
-        for message in logged
+    assert f"after {built.search.iterations:,} iterations on finding {run.stop}" in (
+        "\n".join(logged)
     )
 
 
@@ -429,7 +422,8 @@ def test_a_termination_signal_stops_the_search_as_an_interrupt_does(
 
     finish(built, signaling(SIGTERM))
 
-    assert built.interrupted and built.step < built.run.settings.steps
+    assert built.interrupted
+    assert built.step < built.run.settings.steps
 
 
 def test_an_interrupt_ends_the_search_at_its_iterations_end(
@@ -443,7 +437,7 @@ def test_an_interrupt_ends_the_search_at_its_iterations_end(
     built = searcher()
     run   = finish(built, signaling(SIGINT))
 
-    assert any("end of the iteration" in message for message in logged)
+    assert "end of the iteration" in "\n".join(logged)
     assert built.step < built.run.settings.steps
     assert SearchCheckpoint.from_path(run.checkpoint).frontier.presses == built.step
 
@@ -489,11 +483,11 @@ def test_each_iteration_writes_a_line_and_the_path_it_leaves(
 
     assert len(lines) == built.search.iterations > 1
     assert [line.presses for line in lines] == sorted(line.presses for line in lines)
-    assert all(
-        line.seconds > 0.0 and line.memory > 0 and line.nodes > 0 for line in lines
-    )
-    assert (
-        lines[-1].presses,
-        lines[-1].reward
-    ) == (built.step, built.search.winner.reward)
+    assert [
+        (index, line.seconds, line.memory, line.nodes)
+        for index, line in enumerate(lines)
+        if min(line.seconds, line.memory, line.nodes) <= 0
+    ] == []
+    assert lines[-1].presses == built.step
+    assert lines[-1].reward == built.search.winner.reward
     assert lines[-1].length == len(built.search.demonstration.presses)

@@ -18,7 +18,7 @@ from itertools        import pairwise
 from numpy            import arange, array, int8, ndarray, uint8, zeros
 from numpy.random     import default_rng
 from numpy.testing    import assert_array_equal
-from pytest           import fixture, mark, param, raises
+from pytest           import Subtests, fixture, mark, param, raises
 from torch            import Tensor, tensor
 from torch.testing    import assert_close
 
@@ -354,8 +354,9 @@ def test_replay_refuses_arrays_of_another_dtype_or_name(
 
 
 def test_replay_gathers_each_array_it_holds_uncopied_under_its_name(
-    stacked : Stacked,
-    tiny    : Dict
+    stacked  : Stacked,
+    subtests : Subtests,
+    tiny     : Dict
 ):
     """
     Asserts that the arrays replay memory gathers for a checkpoint are the
@@ -366,10 +367,12 @@ def test_replay_gathers_each_array_it_holds_uncopied_under_its_name(
     fill(replay, stacked, tiny)
     arrays = replay.arrays
 
-    assert all(
-        arrays[key] is column.elements for key, column in replay.columns.items()
-    )
-    assert (arrays["actions"] is replay.actions, arrays["pushed"].item()) == (True, 16)
+    for key, column in replay.columns.items():
+        with subtests.test(key):
+            assert arrays[key] is column.elements
+
+    assert arrays["actions"] is replay.actions
+    assert arrays["pushed"].item() == 16
 
 
 def test_replay_holds_a_box_bounded_at_0_and_1_unpacked_in_its_dtype():
@@ -386,7 +389,11 @@ def test_replay_holds_a_box_bounded_at_0_and_1_unpacked_in_its_dtype():
     assert replay.sample("cpu", 1).windows[Entry.FLAGS].tolist() == [[[0, 1], [1, 0]]]
 
 
-def test_replay_keeps_the_arrays_it_loads_uncopied(stacked: Stacked, tiny: Dict):
+def test_replay_keeps_the_arrays_it_loads_uncopied(
+    stacked  : Stacked,
+    subtests : Subtests,
+    tiny     : Dict
+):
     """
     Asserts that replay memory loading arrays holds those arrays themselves
     rather than copies of them.
@@ -397,11 +404,9 @@ def test_replay_keeps_the_arrays_it_loads_uncopied(stacked: Stacked, tiny: Dict)
     loaded = Replay(16, default_rng(4), tiny)
     loaded.load(given)
 
-    assert all(
-        array is given[name]
-        for name, array in loaded.arrays.items()
-        if name != "pushed"
-    )
+    for name in loaded.arrays.keys() - {"pushed"}:
+        with subtests.test(name):
+            assert loaded.arrays[name] is given[name]
 
 
 def test_replay_loaded_from_another_replays_arrays_draws_and_stores_as_it_would(

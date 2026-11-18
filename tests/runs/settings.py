@@ -15,6 +15,7 @@ Pins the settings one run reads, covering:
 
 from collections.abc  import Mapping
 from json             import dumps
+from operator         import attrgetter
 from pathlib          import Path
 from pydantic         import ValidationError
 from pytest           import mark, param, raises
@@ -61,12 +62,13 @@ def test_distinct_run_seeds_share_no_stream_seed(first: int, second: int):
     )
 
 
-def test_each_stream_seed_fits_in_64_unsigned_bits():
+@mark.parametrize("stream", Stream, ids=attrgetter("name"))
+def test_each_stream_seed_fits_in_64_unsigned_bits(stream: Stream):
     """
-    Asserts that every stream's seed is a 64-bit unsigned integer, the
-    widest seed `torch.manual_seed` takes.
+    Asserts that the stream's seed is a 64-bit unsigned integer, the widest
+    seed `torch.manual_seed` takes.
     """
-    assert all(0 <= value < 2**64 for value in RunSettings().seeds.values())
+    assert 0 <= RunSettings().seeds[stream] < 2**64
 
 
 def test_the_default_seed_derives_the_stream_seeds_its_fixture_holds(
@@ -142,20 +144,26 @@ def test_the_settings_refuse_terms_one_step_could_sum_past_one_on_the_way_to_the
     [
         param(
             RewardSettings(goal=0.5, milestone=0.125, novelty=0.125),
-            id = "powers-of-two"
+            id = "exactly-one-at-the-goal-in-powers-of-two"
         ),
-        param(RewardSettings(goal=0.68, milestone=0.07, novelty=0.11), id="decimals")
+        param(
+            RewardSettings(goal=0.68, milestone=0.07, novelty=0.11),
+            id = "exactly-one-at-the-goal-in-decimals"
+        ),
+        param(RewardSettings(milestone=0.15), id="past-one-only-past-the-goal")
     ]
 )
-def test_the_settings_accept_terms_one_step_sums_to_exactly_one_at_the_goal(
+def test_the_settings_take_terms_paying_one_step_at_most_one_up_to_the_goal(
     reward: RewardSettings
 ):
     """
-    Asserts that the settings accept terms where a step reaching a new
+    Asserts that the settings take terms where a step reaching a new
     position and first setting every flag up to the starter at once earns
-    exactly 1, the most the bound Mnih et al. clip each reward to allows.
+    at most 1, the most the bound Mnih et al. clip each reward to allows,
+    counting no flag past the goal, which a run ending at the starter never
+    sets.
     """
-    assert RunSettings(reward=reward).reward == reward
+    RunSettings(reward=reward)
 
 
 @mark.parametrize(
@@ -215,17 +223,6 @@ def test_the_settings_carry_the_defaults_and_descriptions_their_fixture_holds(
         ensure_ascii = False,
         indent       = 2
     ) == snapshot
-
-
-def test_the_settings_count_no_flag_past_the_goal_toward_the_ceiling():
-    """
-    Asserts that terms summing past 1 over every flag up to the Pokédex are
-    accepted for a run ending at the starter, whose episodes set none of the
-    flags after it.
-    """
-    reward = RewardSettings(milestone=0.15)
-
-    assert RunSettings(reward=reward).reward == reward
 
 
 def test_the_settings_refuse_a_demonstration_for_the_deep_q_network():

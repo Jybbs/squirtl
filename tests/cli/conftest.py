@@ -18,7 +18,7 @@ Defines the fixtures the tests of `squirtl.cli` request:
   attaches it
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Hashable
 from common.cli      import Invocation, Invoker
 from common.releases import GitHub
 from common.search   import PoolStandIn
@@ -118,17 +118,19 @@ def trained(
     accepted : None,
     clone    : Path,
     invoke   : Invoker,
+    played   : Callable[[Hashable, Callable[[], Path]], Path],
     quick    : list[str],
     rom      : Path
 ) -> Path:
     """
     Takes a run of `quick` through `squirtl train` in `clone` on the
-    cartridge `rom` writes, which `accepted` lets past its digest.
+    cartridge `rom` writes, which `accepted` lets past its digest, once a
+    session through `played`.
 
     Returns:
         The run's directory, which the command prints.
     """
-    return Path(invoke(["train", *quick]).output.strip())
+    return played("train", lambda: Path(invoke(["train", *quick]).output.strip()))
 
 
 @fixture
@@ -154,18 +156,23 @@ def rolled(
     accepted : None,
     clone    : Path,
     invoke   : Invoker,
+    played   : Callable[[Hashable, Callable[[], Path]], Path],
     request  : FixtureRequest,
     rolling  : Callable[[str], list[str]],
     rom      : Path
 ) -> Path:
     """
     Takes a run of PPO and a run of PQN through `squirtl train` in `clone`
-    on the cartridge `rom` writes, which `accepted` lets past its digest.
+    on the cartridge `rom` writes, which `accepted` lets past its digest,
+    each once a session through `played`.
 
     Returns:
         The run's directory, which the command prints.
     """
-    return Path(invoke(["train", *rolling(request.param)]).output.strip())
+    return played(
+        ("train", request.param),
+        lambda: Path(invoke(["train", *rolling(request.param)]).output.strip())
+    )
 
 
 @fixture
@@ -174,25 +181,32 @@ def stopped(
     clone       : Path,
     invoke      : Invoker,
     monkeypatch : MonkeyPatch,
+    played      : Callable[[Hashable, Callable[[], Path]], Path],
     quick       : list[str],
     rom         : Path
 ) -> Path:
     """
     Takes a run of `quick` through `squirtl train` in `clone`, stopping it
     at the end of its second episode on step 8, short of its ten steps, as
-    `squirtl stop` would.
+    `squirtl stop` would, once a session through `played`.
 
     Returns:
         The run's directory, which the command prints.
     """
-    with monkeypatch.context() as patch:
-        patch.setattr(
-            Trainer,
-            "stopping",
-            property(lambda trainer: trainer.agent.step >= 8)
-        )
+    def play() -> Path:
+        """
+        Takes the run through, stopping it on step 8.
+        """
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                Trainer,
+                "stopping",
+                property(lambda trainer: trainer.agent.step >= 8)
+            )
 
-        return Path(invoke(["train", *quick]).output.strip())
+            return Path(invoke(["train", *quick]).output.strip())
+
+    return played("train stopped", play)
 
 
 @fixture
@@ -238,17 +252,19 @@ def searched(
     clone    : Path,
     game     : None,
     invoke   : Invoker,
+    played   : Callable[[Hashable, Callable[[], Path]], Path],
     pools    : list[PoolStandIn],
     rom      : Path
 ) -> Path:
     """
     Takes a search of `brief` through `squirtl search` in `clone` on the
-    fake game of `game`, in the process running the test.
+    fake game of `game`, in the process running the test, once a session
+    through `played`.
 
     Returns:
         The run's directory, which the command prints.
     """
-    return Path(invoke(["search", *brief]).output.strip())
+    return played("search", lambda: Path(invoke(["search", *brief]).output.strip()))
 
 
 @fixture
@@ -258,18 +274,24 @@ def found(
     clone    : Path,
     game     : None,
     invoke   : Invoker,
+    played   : Callable[[Hashable, Callable[[], Path]], Path],
     pools    : list[PoolStandIn],
     rom      : Path
 ) -> Path:
     """
     Takes a search of `brief` through `squirtl search` in `clone` on the
     fake game of `game` until it reaches `EVENT_GOT_STARTER`, its steps
-    raised to 100,000.
+    raised to 100,000, once a session through `played`.
 
     Returns:
         The run's directory, which the command prints.
     """
-    return Path(invoke(["search", *brief[:-2], "--steps", "100000"]).output.strip())
+    return played(
+        "search found",
+        lambda: Path(
+            invoke(["search", *brief[:-2], "--steps", "100000"]).output.strip()
+        )
+    )
 
 
 @fixture
@@ -280,22 +302,29 @@ def halted(
     game        : None,
     invoke      : Invoker,
     monkeypatch : MonkeyPatch,
+    played      : Callable[[Hashable, Callable[[], Path]], Path],
     pools       : list[PoolStandIn],
     rom         : Path
 ) -> Path:
     """
     Takes a search of `brief` through `squirtl search` in `clone`, stopping
     it at the end of the first iteration reaching 20 presses, as `squirtl
-    stop` would.
+    stop` would, once a session through `played`.
 
     Returns:
         The run's directory, which the command prints.
     """
-    with monkeypatch.context() as patch:
-        patch.setattr(
-            Searcher,
-            "stopping",
-            property(lambda searcher: searcher.step >= 20)
-        )
+    def play() -> Path:
+        """
+        Takes the search through, stopping it at 20 presses.
+        """
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                Searcher,
+                "stopping",
+                property(lambda searcher: searcher.step >= 20)
+            )
 
-        return Path(invoke(["search", *brief]).output.strip())
+            return Path(invoke(["search", *brief]).output.strip())
+
+    return played("search halted", play)

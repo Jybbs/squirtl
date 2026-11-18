@@ -39,11 +39,12 @@ Pins the training loop of one run on the CPU, covering:
   directory is made
 """
 
-from collections.abc   import Callable
+from collections.abc   import Callable, Hashable
 from common.agents     import each_agent
 from common.console    import set_event, stand
 from common.evaluation import EvaluatorStandIn, played
 from datetime          import UTC, datetime
+from functools         import partial
 from gymnasium.spaces  import Box, Dict
 from gymnasium.vector  import AutoresetMode
 from itertools         import count
@@ -67,6 +68,8 @@ from squirtl.runs.handover         import VectorCheckpoint
 from squirtl.runs.schemas          import Run
 from squirtl.runs.settings         import CurriculumSettings, RunSettings, Stream
 from squirtl.runs.trainer          import EpisodeTrainer, RolloutTrainer, Trainer
+
+type Unbroken = Callable[[Hashable, Callable[[], Run]], Run]
 
 
 def along(
@@ -664,7 +667,9 @@ def test_the_settings_start_the_training_loop_of_the_agent_they_name(
     monkeypatch.setattr(RolloutTrainer, "__init__", lambda trainer, *arguments: None)
     settings = RunSettings(agent=AgentSettings(algorithm=algorithm))
 
-    assert type(Trainer.start(cartridge, settings, datetime.now(UTC))) is kind
+    assert type(
+        Trainer.start(cartridge, settings, datetime(2026, 10, 4, tzinfo=UTC))
+    ) is kind
 
 
 def test_a_run_remembers_the_value_of_a_final_observation_at_the_step_truncating_it(
@@ -883,11 +888,9 @@ def test_a_stop_within_a_rollout_ends_the_run_once_its_update_ends(
         stop    = lambda step, trainer: step == 10 and stop(trainer)
     )
 
-    assert (
-        len(list(run.recorded)),
-        VectorCheckpoint.from_path(run.checkpoint).step
-    ) == (2, 16)
-    assert any(line.startswith(message) for line in logged)
+    assert len(list(run.recorded)) == 2
+    assert VectorCheckpoint.from_path(run.checkpoint).step == 16
+    assert message in [line[: len(message)] for line in logged]
 
 
 def test_a_stop_file_ends_the_run_at_the_end_of_its_episode(
@@ -947,7 +950,8 @@ def test_a_rollout_run_stopped_and_resumed_ends_as_a_run_that_never_stopped(
     limit      : int,
     played     : int,
     rolling    : Callable[..., Trainer],
-    stopped_at : int
+    stopped_at : int,
+    unbroken   : Unbroken
 ):
     """
     Asserts that a run stopped with each environment `played` steps into
@@ -956,7 +960,6 @@ def test_a_rollout_run_stopped_and_resumed_ends_as_a_run_that_never_stopped(
     action.
     """
     environment = EnvironmentSettings(max_episode_steps=limit)
-    unbroken    = finish(rewarding(rolling(algorithm, environment=environment)))
     stopped     = finish(
         trainer = rewarding(rolling(algorithm, environment=environment)),
         stop    = lambda step, trainer: step == stopped_at and trainer.run.stop.touch()
@@ -971,13 +974,21 @@ def test_a_rollout_run_stopped_and_resumed_ends_as_a_run_that_never_stopped(
         len(slot.recording.presses)
         for slot in VectorCheckpoint.from_path(stopped.checkpoint).slots
     ] == [played] * 2
-    assert_ended_alike(resumed, unbroken)
+    assert_ended_alike(
+        resumed  = resumed,
+        unbroken = unbroken(
+            ("rewarding", algorithm, limit),
+            lambda: finish(rewarding(rolling(algorithm, environment=environment)))
+        )
+    )
 
 
 @each_agent
 def test_a_rollout_run_stopped_before_its_first_step_resumes_as_one_never_stopped(
     algorithm : Algorithm,
-    rolling   : Callable[..., Trainer]
+    rolling   : Callable[..., Trainer],
+    short     : RunSettings,
+    unbroken  : Unbroken
 ):
     """
     Asserts that a run finding its `stop` file before its first step writes
@@ -997,7 +1008,10 @@ def test_a_rollout_run_stopped_before_its_first_step_resumes_as_one_never_stoppe
     ) == (0, [0, 0])
     assert_ended_alike(
         resumed  = finish(rewarding(rolling(algorithm, resumes=stopped))),
-        unbroken = finish(rewarding(rolling(algorithm)))
+        unbroken = unbroken(
+            ("rewarding", algorithm, short.environment.max_episode_steps),
+            lambda: finish(rewarding(rolling(algorithm)))
+        )
     )
 
 
@@ -1248,13 +1262,12 @@ def test_ppos_episode_logs_no_epsilon_beside_its_measures(
     )
     finish(trainer)
 
-    assert any(
-        message.endswith(
-            "epsilon none, clipped 0.25, entropy 1.5, kl 0.01, policy_loss -0.5, "
-            "value_loss 3"
-        )
-        for message in logged
+    measures = (
+        "epsilon none, clipped 0.25, entropy 1.5, kl 0.01, policy_loss -0.5, "
+        "value_loss 3"
     )
+
+    assert measures in [message[-len(measures):] for message in logged]
 
 
 @each_agent
@@ -1262,7 +1275,8 @@ def test_a_rollout_run_along_a_demonstration_starts_each_episode_from_a_window(
     algorithm    : Algorithm,
     demonstrated : Path,
     rolling      : Callable[..., Trainer],
-    timed        : Cartridge
+    timed        : Cartridge,
+    unbroken     : Unbroken
 ):
     """
     Asserts that a run along the demonstration of 13 presses starts every
@@ -1271,18 +1285,25 @@ def test_a_rollout_run_along_a_demonstration_starts_each_episode_from_a_window(
     demonstration's presses before its own, which play back to its return,
     and checkpoints windows that have moved back from their ends.
     """
-    trainer = along(
-        algorithm    = algorithm,
-        demonstrated = demonstrated,
-        rolling      = rolling,
-        timed        = timed
+    run = unbroken(
+        ("along", algorithm),
+        lambda: finish(
+            trainer = along(
+                algorithm    = algorithm,
+                demonstrated = demonstrated,
+                rolling      = rolling,
+                timed        = timed
+            )
+        )
     )
-    run      = finish(trainer)
-    lines    = list(run.recorded)
-    syllabus = VectorCheckpoint.from_path(run.checkpoint).syllabus
+    lines      = list(run.recorded)
+    checkpoint = VectorCheckpoint.from_path(run.checkpoint)
+    syllabus   = checkpoint.syllabus
 
-    assert trainer.agent.step == 32
-    assert all(line.recording.takeover for line in lines)
+    assert checkpoint.step == 32
+    assert [
+        index for index, line in enumerate(lines) if line.recording.takeover is None
+    ] == []
     assert [len(
         line.recording.played
     ) for line in lines] == [line.length for line in lines]
@@ -1382,42 +1403,25 @@ def test_a_rollout_run_along_a_demonstration_resumes_as_one_never_stopped(
     algorithm    : Algorithm,
     demonstrated : Path,
     rolling      : Callable[..., Trainer],
-    timed        : Cartridge
+    timed        : Cartridge,
+    unbroken     : Unbroken
 ):
     """
     Asserts that a run along a demonstration stopped halfway and resumed
     ends with the windows, the moving average, and the generator moving them
     of a run that never stopped, beside its weights and its lines.
     """
-    unbroken = finish(
-        trainer = along(
-            algorithm    = algorithm,
-            demonstrated = demonstrated,
-            rolling      = rolling,
-            timed        = timed
-        )
-    )
+    start   = partial(along, algorithm, demonstrated, rolling, timed)
     stopped = finish(
-        trainer = along(
-            algorithm    = algorithm,
-            demonstrated = demonstrated,
-            rolling      = rolling,
-            timed        = timed
-        ),
-        stop = lambda step, trainer: step == 14 and trainer.run.stop.touch()
-    )
-    resumed = finish(
-        trainer = along(
-            algorithm    = algorithm,
-            demonstrated = demonstrated,
-            resumes      = stopped,
-            rolling      = rolling,
-            timed        = timed
-        )
+        trainer = start(),
+        stop    = lambda step, trainer: step == 14 and trainer.run.stop.touch()
     )
 
     assert VectorCheckpoint.from_path(stopped.checkpoint).syllabus.average is not None
-    assert_ended_alike(resumed, unbroken)
+    assert_ended_alike(
+        resumed  = finish(start(resumes=stopped)),
+        unbroken = unbroken(("along", algorithm), lambda: finish(start()))
+    )
 
 
 def test_the_run_puts_each_signals_handler_back_once_it_ends(

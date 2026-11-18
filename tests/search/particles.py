@@ -25,7 +25,7 @@ from common.search   import assert_same_checkpoint, drive, ending, particle, sea
 from gymnasium       import Env
 from numpy           import frombuffer, uint8
 from pathlib         import Path
-from pytest          import MonkeyPatch, mark, param, raises
+from pytest          import MonkeyPatch, Subtests, mark, param, raises
 from torch.testing   import assert_close
 
 from squirtl.environment.overworld import Overworld
@@ -418,7 +418,8 @@ def test_a_search_finishes_at_its_steps_or_the_starter(
 
 def test_each_group_plays_only_while_it_has_outer_steps_left(
     monkeypatch : MonkeyPatch,
-    searching   : Callable[..., Search]
+    searching   : Callable[..., Search],
+    subtests    : Subtests
 ):
     """
     Asserts that one iteration plays each group for the outer steps it drew
@@ -446,9 +447,10 @@ def test_each_group_plays_only_while_it_has_outer_steps_left(
     drive(search)
 
     assert played == [4, 2]
-    assert all(
-        len({held.node for held in group.particles}) == 1 for group in search.groups
-    )
+
+    for index, group in enumerate(search.groups):
+        with subtests.test(group=index):
+            assert len({held.node for held in group.particles}) == 1
 
 
 @mark.parametrize(

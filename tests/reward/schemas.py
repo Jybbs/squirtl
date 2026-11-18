@@ -311,7 +311,7 @@ def test_the_settings_accept_a_goal_paying_more_than_every_other_term():
     Asserts that a goal paying half again the milestone is accepted, so the
     goal has only to pay more than every other term.
     """
-    assert RewardSettings(goal=0.1875, milestone=0.125).goal == 0.1875
+    RewardSettings(goal=0.1875, milestone=0.125)
 
 
 def test_the_total_sums_every_term_but_the_novelty(settings: RewardSettings):

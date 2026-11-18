@@ -57,7 +57,7 @@ describe('paintMap', () => {
   it('draws nobody over a room faded to black', () => {
     const black = PLAY.steps[0]!.find(frame => frame.fade === FADE.length - 1)!
 
-    expect(painted(black, null, ROOM).marks.every(mark => mark.alpha === 0)).toBe(true)
+    expect(painted(black, null, ROOM).marks.filter(mark => mark.alpha !== 0)).toStrictEqual([])
   })
 
   it('sets the newest square’s ring back while a later entry of the key is picked out', () => {

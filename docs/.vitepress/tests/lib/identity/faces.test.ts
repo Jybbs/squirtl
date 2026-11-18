@@ -27,7 +27,7 @@ describe('WEIGHTS', () => {
   })
 
   it('gives every face at least one weight', () => {
-    expect(faces.ROLES.every(role => faces.WEIGHTS[role].length > 0)).toBe(true)
+    expect(faces.ROLES.filter(role => faces.WEIGHTS[role].length === 0)).toStrictEqual([])
   })
 })
 

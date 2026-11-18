@@ -17,7 +17,7 @@ from gymnasium.spaces       import Box, Dict
 from gymnasium.vector.utils import batch_space
 from math             import sqrt
 from numpy            import ones, uint8
-from pytest           import mark, param, raises
+from pytest           import Subtests, mark, param, raises
 from re               import escape
 from scipy.stats      import kstest, truncnorm
 from syrupy.assertion import SnapshotAssertion
@@ -237,20 +237,27 @@ def test_ppos_fully_connected_biases_keep_pytorchs_default(layer: str, space: Di
     assert 0 < module.bias.abs().max() <= 1 / sqrt(module.in_features)
 
 
-def test_pqns_layer_normalization_keeps_its_own_parameters(space: Dict):
+def test_pqns_layer_normalization_keeps_its_own_parameters(
+    space    : Dict,
+    subtests : Subtests
+):
     """
     Asserts that setting PQN's weights leaves every layer norm with a scale
     of one and a bias of zero, which `torch.nn.LayerNorm` and Flax's both
     start from.
     """
     norms = [
-        layer
-        for layer in acting_network(7, Algorithm.PQN, space).modules()
+        (name, layer)
+        for name, layer in acting_network(7, Algorithm.PQN, space).named_modules()
         if isinstance(layer, LayerNorm)
     ]
 
     assert norms
-    assert all(norm.weight.eq(1).all() and not norm.bias.any() for norm in norms)
+
+    for name, norm in norms:
+        with subtests.test(name):
+            assert norm.weight.eq(1).all()
+            assert not norm.bias.any()
 
 
 def test_tensors_moves_each_entry_onto_the_device_it_names():

@@ -233,12 +233,18 @@ def test_a_working_directory_no_clone_holds_exits_1_before_making_any_directory(
     assert (invoke(["search", *brief]).code, Path("data/runs").exists()) == (1, False)
 
 
-@mark.usefixtures("searched")
-def test_a_search_shuts_down_the_workers_it_booted(pools: list[PoolStandIn]):
+@mark.usefixtures("accepted", "clone", "game", "rom")
+def test_a_search_shuts_down_the_workers_it_booted(
+    brief  : list[str],
+    invoke : Invoker,
+    pools  : list[PoolStandIn]
+):
     """
     Asserts that the command leaves no worker running behind it, shutting
     down the pool and dropping each rollout not yet started.
     """
+    invoke(["search", *brief])
+
     assert pools[0].shutdowns == [True]
 
 

@@ -38,7 +38,7 @@ describe('the trace', () => {
   })
 
   it('reaches each square first on the step the newest names it', () => {
-    expect(memory.NEWEST.every((row, n) => memory.FIRST.get(`${row.place}:${row.at[0]},${row.at[1]}`)! <= n)).toBe(true)
+    expect(memory.NEWEST.filter((row, n) => memory.FIRST.get(`${row.place}:${row.at[0]},${row.at[1]}`)! > n)).toStrictEqual([])
   })
 })
 
