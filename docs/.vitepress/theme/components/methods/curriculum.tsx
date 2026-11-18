@@ -1,10 +1,11 @@
 import { defineComponent, ref } from 'vue'
 
-import { RoomImages }                       from '../../../lib/game/images.ts'
-import * as curriculum                      from '../../../lib/methods/curriculum.ts'
-import { useCurriculumPlayback }            from '../../../lib/methods/curriculum/playback.ts'
-import { DETAIL, LABEL, LIST, SCRUB_PARTS } from '../kit/widget.ts'
-import { CurriculumLane }                   from './curriculum/lane.tsx'
+import { RoomImages }            from '../../../lib/game/images.ts'
+import * as curriculum           from '../../../lib/methods/curriculum.ts'
+import { useCurriculumPlayback } from '../../../lib/methods/curriculum/playback.ts'
+import { Slider }                from '../kit/slider.tsx'
+import { DETAIL, LABEL, LIST }   from '../kit/widget.ts'
+import { CurriculumLane }        from './curriculum/lane.tsx'
 
 /**
  * The words the widget sets.
@@ -55,13 +56,7 @@ export const MethodsCurriculum = defineComponent({
         </div>
         <div class="flex items-center gap-3">
           <span aria-hidden="true" class={[DETAIL, 'w-curriculum-head flex-none whitespace-nowrap text-ink tabular-nums']}>{curriculum.batchName(at.value)}</span>
-          <div {...scrub.root.value} class="relative min-w-0 flex-auto">
-            <div {...scrub.control.value} class={[SCRUB_PARTS.control, 'relative h-6 select-none']}>
-              <span class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-rule" />
-              <span class="absolute top-1/2 left-0 h-1 -translate-y-1/2 rounded-full bg-denim-mark" style={{ width: `${100 * at.value / (curriculum.BATCHES - 1)}%` }} />
-            </div>
-            <div {...scrub.thumb.value} class={[SCRUB_PARTS.thumb, 'absolute top-1/2 size-4 -translate-1/2 rounded-full border-ring border-lift bg-denim-mark']} style={{ left: `${100 * at.value / (curriculum.BATCHES - 1)}%` }} />
-          </div>
+          <Slider at={at.value} class="min-w-0 flex-auto" scrub={scrub} />
         </div>
       </div>
     )

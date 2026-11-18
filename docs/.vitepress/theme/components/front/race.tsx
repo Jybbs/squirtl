@@ -3,18 +3,9 @@ import { defineComponent, ref, useId } from 'vue'
 import { useRace, useRaceClock } from '../../../lib/front/race/chart.ts'
 import * as race                 from '../../../lib/front/race.ts'
 import { Key }                   from '../kit/key.tsx'
-import { SCRUB_PARTS }           from '../kit/widget.ts'
+import { Slider }                from '../kit/slider.tsx'
+import { OVER }                  from '../kit/widget.ts'
 import { drawRace }              from './race/chart.tsx'
-
-/**
- * The classes laying out the chart's box, which the slider's control and its
- * thumb fill, beside the ones every slider's parts take.
- */
-const LAYOUT = {
-  box     : 'relative h-race-plot',
-  control : 'absolute inset-0 select-none',
-  thumb   : 'absolute inset-0'
-}
 
 /**
  * The words the widget sets, the key's label and the heads over its figures.
@@ -49,10 +40,9 @@ export const StoryRace = defineComponent({
           heads={WORDS.heads}
           label={WORDS.key}
         />
-        <div {...clock.scrub.root.value} class={LAYOUT.box} ref={box}>
+        <div class="relative h-race-plot" ref={box}>
           {drawRace(plot.value, clip, clock.at.value)}
-          <div {...clock.scrub.control.value} class={[SCRUB_PARTS.control, LAYOUT.control]} />
-          <div {...clock.scrub.thumb.value} class={[SCRUB_PARTS.thumb, LAYOUT.thumb]} />
+          <Slider parts={OVER} scrub={clock.scrub} />
         </div>
       </div>
     )

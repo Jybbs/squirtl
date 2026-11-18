@@ -5,6 +5,7 @@ import { GROUNDS, SCHEMES }                         from '../../../lib/identity/
 import * as seam                                    from '../../../lib/identity/seam.ts'
 import { blocksOf, viewBoxOf }                      from '../../../lib/marks/drawings.ts'
 import { dotRadius, paintOf }                       from '../../../lib/marks/logo.ts'
+import { Slider }                                   from '../kit/slider.tsx'
 import { DETAIL, LABEL, SCRUB_PARTS }               from '../kit/widget.ts'
 
 /**
@@ -62,18 +63,8 @@ function drawStrip({ strip }: Seam) {
 /**
  * Draws the range stepping the trail dot by dot.
  */
-function drawTrail({ fill, last, trail }: Seam) {
-  const along = `${100 * fill.value / last}%`
-
-  return (
-    <div {...trail.root.value} class="relative">
-      <div {...trail.control.value} class={[SCRUB_PARTS.control, 'relative h-6 select-none']}>
-        <span class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-rule" />
-        <span class="absolute top-1/2 left-0 h-1 -translate-y-1/2 rounded-full bg-denim-mark" style={{ width: along }} />
-      </div>
-      <div {...trail.thumb.value} class={[SCRUB_PARTS.thumb, 'absolute top-1/2 size-4 -translate-1/2 rounded-full border-ring border-lift bg-denim-mark']} style={{ left: along }} />
-    </div>
-  )
+function drawTrail({ fill, trail }: Seam) {
+  return <Slider at={fill.value} scrub={trail} />
 }
 
 /**

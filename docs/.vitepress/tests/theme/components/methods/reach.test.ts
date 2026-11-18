@@ -7,6 +7,7 @@ import { FRAME }              from '../../../../lib/game/screen.ts'
 import * as reach             from '../../../../lib/methods/reach.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
+import { stopped }            from '../../../common/clock.ts'
 import * as pointer           from '../../../common/pointer.ts'
 
 const { MethodsReach } = await import('../../../../theme/components/methods/reach.tsx')
@@ -81,8 +82,7 @@ describe('MethodsReach’s playback', () => {
     expect([status(wrapper), pointer.sliderState(wrapper)]).toStrictEqual(['Pass 2 of 8', ['2', 'After pass 2 of 8']])
   })
 
-  it('plays on the Game Boy’s frame clock once it shows, and stands after the last pass under reduced motion', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] })
+  stopped('plays on the Game Boy’s frame clock once it shows, and stands after the last pass under reduced motion', async () => {
     drawInto(null)
     const sight   = browser.stubSight()
     const wrapper = mount(MethodsReach, { attachTo: document.body })

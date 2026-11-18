@@ -1,3 +1,5 @@
+import type { Parts } from './slider.tsx'
+
 /**
  * The classes of a quiet line of detail set beneath a label, such as a step or
  * the size of an entry.
@@ -23,6 +25,16 @@ export const LABEL = 'font-code text-label leading-snug font-medium tracking-cap
 export const LIST = 'm-0 list-none p-0 *:mt-0'
 
 /**
+ * The classes of a slider laid over the whole of the drawing beside it, the
+ * control taking no text selection as a pointer drags across it.
+ */
+export const OVER: Parts = {
+  control : 'absolute inset-0 select-none',
+  root    : 'absolute inset-0',
+  thumb   : 'absolute inset-0'
+}
+
+/**
  * The classes of the parts of a drawing that serves as its own slider, its
  * control showing the cursor that drags it while a touch still scrolls the
  * page, and its thumb ringed while it has focus and passing a pointer's press
@@ -34,12 +46,12 @@ export const SCRUB_PARTS = {
 }
 
 /**
- * The classes of a slider's parts laid over the whole of the drawing it
- * scrubs, the control taking no text selection as a pointer drags across it.
+ * The classes of a slider's control and thumb laid over the whole of the
+ * drawing it scrubs, beside the ones every slider's control and thumb take.
  */
 export const COVER = {
-  control : [SCRUB_PARTS.control, 'absolute inset-0 select-none'],
-  thumb   : [SCRUB_PARTS.thumb, 'absolute inset-0']
+  control : [SCRUB_PARTS.control, OVER.control],
+  thumb   : [SCRUB_PARTS.thumb, OVER.thumb]
 }
 
 /**

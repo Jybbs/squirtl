@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { type VueWrapper, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, test, vi }        from 'vitest'
-import { nextTick }                                                 from 'vue'
+import { afterEach, beforeEach, describe, expect, vi }              from 'vitest'
 
 import { walksOf }            from '../../../../lib/front/learning.ts'
 import { STRIP }              from '../../../../lib/front/learning/strip.ts'
@@ -9,6 +8,7 @@ import { battlePhases }       from '../../../../lib/front/learning/transition.ts
 import { PLAY }               from '../../../../lib/front/learning/walks.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
+import { stopped }            from '../../../common/clock.ts'
 import * as pointer           from '../../../common/pointer.ts'
 
 const { StoryLearning } = await import('../../../../theme/components/front/learning.tsx')
@@ -39,19 +39,16 @@ const valuesOf = (wrapper: VueWrapper): string[] =>
 
 beforeEach(() => {
   browser.preference.value = 'reduce'
-  vi.useFakeTimers({
-    toFake: ['cancelAnimationFrame', 'clearTimeout', 'performance', 'requestAnimationFrame', 'setTimeout']
-  })
 })
 
 enableAutoUnmount(afterEach)
 
 describe('StoryLearning playing', () => {
-  test('shows every walk’s end at once where the reader asks for reduced motion', async () => {
+  stopped('shows every walk’s end at once where the reader asks for reduced motion', async () => {
     const { sight, wrapper } = await mounted()
 
     sight.show(true)
-    await nextTick()
+    await wrapper.vm.$nextTick()
     const [now, text] = pointer.sliderState(wrapper)
 
     expect(valuesOf(wrapper)).toStrictEqual(PRESSES.map(String))
@@ -60,31 +57,31 @@ describe('StoryLearning playing', () => {
     expect(wrapper.get('text.font-medium').text()).toBe('204 presses')
   })
 
-  test('sets every walk off together a press at a time, each stopping where it ends', async () => {
+  stopped('sets every walk off together a press at a time, each stopping where it ends', async () => {
     browser.preference.value = 'no-preference'
     const { sight, wrapper } = await mounted()
 
     sight.show(true)
     vi.advanceTimersByTime(PLAY.press * 19)
-    await nextTick()
+    await wrapper.vm.$nextTick()
 
     expect(valuesOf(wrapper)).toStrictEqual(['20', '20', '20', '18'])
     expect(pointer.sliderState(wrapper)[0]).toBe('20')
   })
 
-  test('ends each loop in the transition into a wild battle, setting the walks off beneath it', async () => {
+  stopped('ends each loop in the transition into a wild battle, setting the walks off beneath it', async () => {
     browser.preference.value = 'no-preference'
     const { sight, wrapper } = await mounted()
 
     sight.show(true)
     vi.advanceTimersByTime(PLAY.press * 203 + 3200)
-    await nextTick()
+    await wrapper.vm.$nextTick()
     const ended = valuesOf(wrapper)
     vi.advanceTimersByTime(battlePhases.circle + 100)
-    await nextTick()
+    await wrapper.vm.$nextTick()
     const covered = valuesOf(wrapper)
     vi.advanceTimersByTime(battlePhases.end - battlePhases.circle + PLAY.press * 3)
-    await nextTick()
+    await wrapper.vm.$nextTick()
 
     expect([ended, covered]).toStrictEqual([PRESSES.map(String), ['0', '0', '0', '0']])
     expect(Number(valuesOf(wrapper)[0])).toBeGreaterThan(0)
@@ -92,22 +89,22 @@ describe('StoryLearning playing', () => {
 })
 
 describe('StoryLearning clock', () => {
-  test('holds the clock still while a mouse moves along the strip', async () => {
+  stopped('holds the clock still while a mouse moves along the strip', async () => {
     browser.preference.value = 'no-preference'
     const { sight, wrapper } = await mounted()
     const control            = pointer.controlOf(wrapper, 200)
 
     sight.show(true)
-    await nextTick()
+    await wrapper.vm.$nextTick()
     const rested = valuesOf(wrapper)
     await pointer.sweep(control, [20, 100, 180])
     vi.advanceTimersByTime(1000)
-    await nextTick()
+    await wrapper.vm.$nextTick()
 
     expect(valuesOf(wrapper)).toStrictEqual(rested)
   })
 
-  test('sets the clock at the press a press along the strip lands on', async () => {
+  stopped('sets the clock at the press a press along the strip lands on', async () => {
     const { wrapper } = await mounted()
     const control     = pointer.controlOf(wrapper, 200)
 
@@ -116,7 +113,7 @@ describe('StoryLearning clock', () => {
     expect(valuesOf(wrapper)).toStrictEqual(['102', '102', '50', '18'])
   })
 
-  test('moves the clock with the keys once the strip has focus', async () => {
+  stopped('moves the clock with the keys once the strip has focus', async () => {
     const { sight, wrapper } = await mounted()
     const thumb              = wrapper.get('[role="slider"]')
 
@@ -129,7 +126,7 @@ describe('StoryLearning clock', () => {
 })
 
 describe('StoryLearning picking', () => {
-  test('picks out the walk a mouse points at along the strip, dimming every other Blue', async () => {
+  stopped('picks out the walk a mouse points at along the strip, dimming every other Blue', async () => {
     const { screen, wrapper } = await mounted()
     const strip               = wrapper.get('.px-3')
 
@@ -143,7 +140,7 @@ describe('StoryLearning picking', () => {
       .not.toContain(true)
   })
 
-  test.each([
+  stopped.each([
     ['a touch on a band', '.px-3', 'pointermove', { clientY: STRIP.top, pointerType: 'touch' }],
     ['a mouse above every band', '.px-3', 'pointermove', { clientY: 0, pointerType: 'mouse' }],
     ['a touch on a button', 'button', 'pointerenter', { pointerType: 'touch' }]
@@ -156,7 +153,7 @@ describe('StoryLearning picking', () => {
       .not.toContain(true)
   })
 
-  test('picks out a walk while a mouse rests on its button, and keeps it picked once pressed', async () => {
+  stopped('picks out a walk while a mouse rests on its button, and keeps it picked once pressed', async () => {
     const { wrapper } = await mounted()
     const second      = wrapper.findAll('button')[1]!
 
@@ -174,7 +171,7 @@ describe('StoryLearning picking', () => {
 })
 
 describe('StoryLearning lifetime', () => {
-  test('plays on undrawn where the canvas gives no drawing context', async () => {
+  stopped('plays on undrawn where the canvas gives no drawing context', async () => {
     drawInto(null)
     const sight   = browser.stubSight()
     const wrapper = mount(StoryLearning, { attachTo: document.body })
@@ -186,7 +183,7 @@ describe('StoryLearning lifetime', () => {
     expect(valuesOf(wrapper)).toStrictEqual(PRESSES.map(String))
   })
 
-  test('reads no town once it unmounts before the town’s image loads', async () => {
+  stopped('reads no town once it unmounts before the town’s image loads', async () => {
     const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
     browser.stubSight()
     mount(StoryLearning, { attachTo: document.body }).unmount()
@@ -195,14 +192,14 @@ describe('StoryLearning lifetime', () => {
     expect(getContext).not.toHaveBeenCalled()
   })
 
-  test('leaves the town undrawn where its image fails to decode', async () => {
+  stopped('leaves the town undrawn where its image fails to decode', async () => {
     vi.spyOn(HTMLImageElement.prototype, 'decode').mockRejectedValue(new Error('undecodable'))
     const { screen } = await mounted()
 
     expect(screen.views).toStrictEqual([])
   })
 
-  test('draws nothing more once it unmounts', async () => {
+  stopped('draws nothing more once it unmounts', async () => {
     browser.preference.value         = 'no-preference'
     const { screen, sight, wrapper } = await mounted()
     sight.show(true)
@@ -217,7 +214,7 @@ describe('StoryLearning lifetime', () => {
 })
 
 describe('StoryLearning words', () => {
-  test('names its view, its strip, its clock, and its key in published prose', async () => {
+  stopped('names its view, its strip, its clock, and its key in published prose', async () => {
     const { wrapper } = await mounted()
     const names       = [
       wrapper.get('canvas').attributes('aria-label')!,

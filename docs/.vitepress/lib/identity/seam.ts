@@ -90,9 +90,8 @@ export function seamWords(at: number): string {
  * lands.
  *
  * Returns:
- *   The seam's position, the fill's, the last position the fill reaches, the
- *   hex the dot the fill stands on takes on each ground, and the slider over
- *   each.
+ *   The seam's position, the fill's, the hex the dot the fill stands on takes
+ *   on each ground, and the slider over each.
  */
 export function useSeam(box: Ref<HTMLElement | undefined>) {
   const at     = ref<number>(NUDGE[0])
@@ -125,7 +124,6 @@ export function useSeam(box: Ref<HTMLElement | undefined>) {
   return {
     at    : at,
     fill  : fill,
-    last  : last,
     lit   : computed(() => Object.fromEntries(SCHEMES.map(scheme => [scheme, logo.paintOf(FILLED[fill.value]!, scheme)])) as Record<Scheme, string>),
     strip : strip,
     trail : trail

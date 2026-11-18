@@ -34,7 +34,7 @@ const SLIDER = 'The episode’s steps, which hold the observation at the step th
  * sees gliding between squares beside the observation the network reads, which
  * drops into its canvases once a step's glide lands, or at the next press.
  */
-export class Playthrough {
+class Playthrough {
   readonly flagged     : Ref<boolean[]>
   readonly frames      : Canvas[] = Array.from({ length: sees.OBSERVING.stack }, () => ref())
   readonly grid        : Canvas   = ref()

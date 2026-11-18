@@ -6,6 +6,7 @@ import { nextTick }                               from 'vue'
 import * as step              from '../../../../lib/methods/step.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
+import { stopped }            from '../../../common/clock.ts'
 import * as pointer           from '../../../common/pointer.ts'
 
 const { MethodsStep } = await import('../../../../theme/components/methods/step.tsx')
@@ -70,8 +71,7 @@ describe('MethodsStep’s slider', () => {
 })
 
 describe('MethodsStep’s playback', () => {
-  it('plays a frame a beat once it shows', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] })
+  stopped('plays a frame a beat once it shows', async () => {
     drawInto(null)
     const sight   = browser.stubSight()
     const wrapper = mount(MethodsStep, { attachTo: document.body })
@@ -90,8 +90,7 @@ describe('MethodsStep’s playback', () => {
       .toStrictEqual(['Step 1 of 10 · frame 1 of 17', 'Step 1 of 10 · frame 1 of 17', 'Step 1 of 10 · frame 2 of 17'])
   })
 
-  it('rests on the frame PyBoy draws before the next step, and stands on the last frame under reduced motion', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] })
+  stopped('rests on the frame PyBoy draws before the next step, and stands on the last frame under reduced motion', async () => {
     drawInto(null)
     const sight   = browser.stubSight()
     const wrapper = mount(MethodsStep, { attachTo: document.body })
