@@ -27,7 +27,8 @@ from squirtl.identity.schemas import Identity
 from squirtl.repo.schemas import (
     Actions, Citation, Finding, Labels, License, Lockfile, Manifest, MiseConfig,
     Project, PullRequestTemplate, ReleaseNotes, Rulesets, Scripts, Severity,
-    SiteLockfile, SiteManifest, Tasks, Templates, Tree, Unreadable, Workflows
+    SiteLockfile, SiteManifest, Tasks, Templates, Tree, Unreadable, WorkflowJob,
+    Workflows
 )
 from squirtl.runs.schemas import Run
 
@@ -338,29 +339,29 @@ class Footnotes(Check):
 
 class Gates(Check):
     """
-    Holds every workflow to the one gate it ends on, the job running `task`,
-    which waits on every other job whatever their results, and holds each
-    check a ruleset requires to the name of a pull-request workflow's gate.
+    Holds every workflow to the one gate it ends on, the job running
+    `WorkflowJob.brief`, which waits on every other job whatever their
+    results, and holds each check a ruleset requires to the name of a
+    pull-request workflow's gate.
     """
-
-    task: ClassVar[str] = "gha:brief"
 
     rulesets  : Rulesets
     workflows : Workflows
 
     def scan(self) -> Iterator[Finding]:
         """
-        Yields a finding for a workflow running `task` in no job or in more
-        than one, for a gate setting no name, running under another `if`
-        than `always()`, or waiting on fewer than every other job, and for a
-        required check no pull-request workflow's gate reports.
+        Yields a finding for a workflow running `WorkflowJob.brief` in
+        no job or in more than one, for a gate setting no name, running
+        under another `if` than `always()`, or waiting on fewer than every
+        other job, and for a required check no pull-request workflow's gate
+        reports.
         """
         reported = set()
 
         for workflow in self.workflows.workflows:
             path  = workflow.path
             jobs  = workflow.jobs
-            gates = [job for job in jobs if self.task in job.tasks]
+            gates = [job for job in jobs if job.gate]
 
             if not gates:
                 yield Finding(
@@ -368,7 +369,7 @@ class Gates(Check):
                     line    = (workflow.root.at("jobs") or workflow.root).line,
                     message = (
                         f"`{path}` ends on no gate, since no job runs "
-                        f"`{self.task}`"
+                        f"`{WorkflowJob.brief}`"
                     )
                 )
 
@@ -378,9 +379,9 @@ class Gates(Check):
                 missing = sorted({job.key for job in jobs} - {gate.key, *gate.needs})
                 name    = gate.get("name")
                 faults  = {
-                    "lacks `if: always()`, so a failed job skips it" : not gate.always,
-                    f"is one of {count} jobs running `{self.task}`"  : count > 1,
-                    f"sets no name, so its check reports as `{gate.key}`": not name,
+                    "lacks `if: always()`, so a failed job skips it": not gate.always,
+                    f"is one of {count} jobs running `{WorkflowJob.brief}`" : count > 1,
+                    f"sets no name, so its check reports as `{gate.key}`"   : not name,
                     f"waits on no {', '.join(missing)}": bool(missing)
                 }
 
@@ -837,7 +838,7 @@ class Marks(Check):
 
             for job in workflow.jobs:
                 if (
-                    Gates.task in job.tasks
+                    job.gate
                     and (named := job.get("name"))
                     and not str(named).startswith(f"{gate_mark} ")
                 ):
@@ -1017,7 +1018,7 @@ class Rows(Check):
             for workflow in self.workflows.workflows
             if workflow.pulls
             for job in workflow.jobs
-            if Gates.task not in job.tasks
+            if not job.gate
             for task in job.tasks
         }
 
@@ -1319,8 +1320,8 @@ class Subsets(Check):
 class Summaries(Check):
     """
     Holds the workflow run's summary to the one writer it has, the gate,
-    which runs `Gates.task`, so no other job and no composite step writes
-    it.
+    which runs `WorkflowJob.brief`, so no other job and no composite step
+    writes it.
     """
 
     actions   : Actions
@@ -1329,11 +1330,11 @@ class Summaries(Check):
     def scan(self) -> Iterator[Finding]:
         """
         Yields a finding on each step that writes the summary in a job that
-        runs no `Gates.task`, and on each step of a composite action that
-        writes it.
+        runs no `WorkflowJob.brief`, and on each step of a composite action
+        that writes it.
         """
         for path, job in self.workflows.jobs:
-            for step in job.steps if Gates.task not in job.tasks else []:
+            for step in [] if job.gate else job.steps:
                 if step.writes_summary:
                     yield Finding(
                         file    = path,
