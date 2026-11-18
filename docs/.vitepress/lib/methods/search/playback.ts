@@ -1,5 +1,5 @@
-import { type MaybeElementRef }            from '@vueuse/core'
-import { type ComputedRef, computed, ref } from 'vue'
+import { type MaybeElementRef }                       from '@vueuse/core'
+import { type ComputedRef, type Ref, computed, ref } from 'vue'
 
 import { REST }                 from '../../widgets/autoplay.ts'
 import { useFrameLoop }         from '../../widgets/frames.ts'
@@ -12,7 +12,7 @@ import * as moments             from './moments.ts'
  * they show, the figures over them, and the slider.
  */
 export interface SearchPlayback {
-  along   : ComputedRef<string>
+  at      : Ref<number>
   copies  : ComputedRef<moments.Shown[][]>
   figures : ComputedRef<moments.Figures>
   scrub   : Scrub
@@ -30,7 +30,6 @@ export function useSearchPlayback(target: MaybeElementRef, label: string): Searc
   const at      = ref(LAST)
   const t       = ref(moments.ITERATION)
   const moment  = computed(() => moments.momentOf(t.value))
-  const along   = computed(() => `${100 * at.value / LAST}%`)
   const copies  = computed(() => moments.shownOf(at.value, moment.value))
   const figures = computed(() => moments.figuresOf(at.value, moment.value))
 
@@ -55,5 +54,5 @@ export function useSearchPlayback(target: MaybeElementRef, label: string): Searc
     }
   }, { at, count: LAST + 1, describe: moments.describe, label, seek })
 
-  return { along, copies, figures, scrub }
+  return { at, copies, figures, scrub }
 }

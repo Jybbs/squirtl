@@ -4,23 +4,31 @@ import { figuresAt, showingOf }   from '../../../lib/front/reward.ts'
 import { useClimb }               from '../../../lib/front/reward/climb.ts'
 import { useEpisode }             from '../../../lib/front/reward/screen.ts'
 import { SCREEN }                 from '../../../lib/game/screen.ts'
-import { GAME_VIEW, SCRUB_PARTS } from '../kit/widget.ts'
+import { type Parts, Slider }     from '../kit/slider.tsx'
+import { GAME_VIEW }              from '../kit/widget.ts'
 import { drawClimb }              from './reward/climb.tsx'
 import { RewardKey, drawFigures } from './reward/figures.tsx'
 
 /**
- * The classes laying out each part of the widget beside the ones every slider's
- * parts and every view of the game take: the climb's box, which stretches to the
- * screen's height once the two sit side by side, and its control, the plot
- * holding the figures and the climb, the screen, and the climb's thumb, which
- * fills the box from its top left, where a box positioned absolutely sits while
- * its insets stay unset.
+ * The classes laying out each part of the widget beside the ones every view of
+ * the game takes: the climb's box, which stretches to the screen's height once
+ * the two sit side by side, the plot holding the figures and the climb, and the
+ * screen.
  */
 const LAYOUT = {
-  box     : 'relative h-reward-climb @lg:h-auto',
+  box    : 'relative h-reward-climb @lg:h-auto',
+  plot   : 'relative grid min-w-0 @max-lg:mb-6',
+  screen : 'self-start'
+}
+
+/**
+ * The classes laying the climb's slider over its box: the control inset to the
+ * ends of the course, and the thumb filling the box from its top left, where a
+ * box positioned absolutely sits while its insets stay unset.
+ */
+const CLIMB: Parts = {
   control : 'absolute right-6 left-7 h-full select-none',
-  plot    : 'relative grid min-w-0 @max-lg:mb-6',
-  screen  : 'self-start',
+  root    : 'absolute inset-0',
   thumb   : 'absolute size-full'
 }
 
@@ -56,12 +64,11 @@ export const StoryReward = defineComponent({
             role="img"
             width={SCREEN.width}
           />
-          <div {...playback.scrub.root.value} class={LAYOUT.plot}>
+          <div class={LAYOUT.plot}>
             {drawFigures(figuresAt(showing.trace, playback.at.value))}
             <div class={LAYOUT.box} ref={box}>
               {plot.value ? drawClimb(plot.value, playback.at.value, clip) : null}
-              <div {...playback.scrub.control.value} class={[SCRUB_PARTS.control, LAYOUT.control]} />
-              <div {...playback.scrub.thumb.value} class={[SCRUB_PARTS.thumb, LAYOUT.thumb]} />
+              <Slider parts={CLIMB} scrub={playback.scrub} />
             </div>
           </div>
         </div>

@@ -7,6 +7,7 @@ import * as experience        from '../../../../lib/methods/experience.ts'
 import { count }              from '../../../../lib/widgets/numbers.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
+import { stopped }            from '../../../common/clock.ts'
 import * as pointer           from '../../../common/pointer.ts'
 
 const { MethodsExperience } = await import('../../../../theme/components/methods/experience.tsx')
@@ -74,8 +75,7 @@ describe('MethodsExperience’s playback', () => {
     browser.preference.value = 'no-preference'
   })
 
-  it('plays an update a beat once it shows', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] })
+  stopped('plays an update a beat once it shows', async () => {
     drawInto(null)
     const sight   = browser.stubSight()
     const wrapper = mount(MethodsExperience, { attachTo: document.body })
