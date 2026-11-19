@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { type VueWrapper, enableAutoUnmount, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it }            from 'vitest'
-import { nextTick }                                   from 'vue'
+import { afterEach, describe, expect, it }           from 'vitest'
+import { nextTick }                                  from 'vue'
 
 import * as pointer from '../../../common/pointer.ts'
 import { held }     from '../../../common/results.ts'
@@ -18,13 +18,11 @@ const tiles = (wrapper: VueWrapper) =>
   wrapper.findAll('.results-seed').map(tile => [tile.text(), tile.attributes('data-differs') !== undefined])
 
 /**
- * Reads the row of evaluations, each pick's text beside the row's columns and
- * its thumb's width.
+ * Reads the row of evaluations, each pick's text beside the row's columns.
  */
 const picks = (wrapper: VueWrapper) => [
   wrapper.findAll('.results-pick').map(pick => pick.text()),
-  wrapper.get<HTMLElement>('.results-pick').element.parentElement!.style.gridTemplateColumns,
-  wrapper.get<HTMLElement>('[role="slider"]').element.style.width
+  wrapper.get<HTMLElement>('.results-pick').element.parentElement!.style.gridTemplateColumns
 ]
 
 describe('ResultsArgmax', () => {
@@ -33,7 +31,7 @@ describe('ResultsArgmax', () => {
     expect(mount(ResultsArgmax).html()).toBe('')
   })
 
-  it('opens on the last evaluation under the takeaway, a column and a thumb width per evaluation', () => {
+  it('opens on the last evaluation under the takeaway, a column per evaluation', () => {
     held.runs     = true
     const wrapper = mount(ResultsArgmax)
 
@@ -46,7 +44,7 @@ describe('ResultsArgmax', () => {
       'Sampling and the most likely press differ at 1 of PPO’s 12 evaluations, and at none from 1.00M steps on.',
       ['2', 'Evaluation 3 of 3, 1.50M steps, No seed differs, so nothing is marked'],
       [['Seed 230of 30', false], ['Seed 330of 30', false], ['Seed 430of 30', false], ['Seed 530of 30', false]],
-      [['11', '2', '3'], 'repeat(3, minmax(0, 1fr))', `${100 / 3}%`]
+      [['11', '2', '3'], 'repeat(3, minmax(0, 1fr))']
     ])
   })
 

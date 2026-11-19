@@ -27,6 +27,12 @@ export interface Ticking {
 }
 
 /**
+ * The ticking of a widget that never plays on its own, its one run already
+ * done.
+ */
+export const IDLE: Ticking = { beat: 0, done: () => true, finish: () => {}, tick: () => {} }
+
+/**
  * A reason a widget's autoplay holds, a pointer resting on its drawing or the
  * keys on its control.
  */
