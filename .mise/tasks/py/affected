@@ -17,7 +17,6 @@ importing() {
 
 naming() {
   grep \
-    --exclude-dir common \
     --exclude-dir fixtures \
     --include '*.py' \
     -lFr \
@@ -57,9 +56,9 @@ reach() {
       src/squirtl/*/*)
         rest=${path#src/squirtl/}
         echo "tests/${rest%%/*}"
-        naming "$path" ;;
+        naming "$path" | reach ;;
       *)
-        naming "$path" ;;
+        naming "$path" | reach ;;
     esac
   done
 }
