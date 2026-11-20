@@ -5,7 +5,8 @@ import { useExperiencePlayback } from '../../../lib/methods/experience/playback.
 import { count }                 from '../../../lib/widgets/numbers.ts'
 import { Chip }                  from '../kit/chip.tsx'
 import { Key }                   from '../kit/key.tsx'
-import { COVER, LABEL }          from '../kit/widget.ts'
+import { OVER, Slider }          from '../kit/slider.tsx'
+import { LABEL }                 from '../kit/widget.ts'
 import { drawLine, drawTicks }   from './experience/line.tsx'
 import { drawStrip }             from './experience/strip.tsx'
 
@@ -50,13 +51,12 @@ export const MethodsExperience = defineComponent({
 
       return (
         <div class="@container grid gap-3">
-          <div {...scrub.root.value} class="relative grid gap-1" ref={box}>
+          <div class="relative grid gap-1" ref={box}>
             <p aria-hidden="true" class={[LABEL, 'm-0 justify-self-end']}>{WORDS.update}</p>
             {drawLine(arcs.map(arc => arc.value), WORDS.drawing)}
             {drawTicks()}
             {drawStrip(windows)}
-            <div {...scrub.control.value} class={COVER.control} />
-            <div {...scrub.thumb.value} class={COVER.thumb} />
+            <Slider parts={OVER} scrub={scrub} />
           </div>
           <div class="experience-chips grid gap-2">
             <Chip class="w-full" name="Median age" note="steps" value={count(figures.median)} />
