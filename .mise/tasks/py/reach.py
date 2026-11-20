@@ -161,8 +161,8 @@ def pytestmark(module: Module) -> set[str]:
 def requests(test: AsyncFunctionDef | FunctionDef) -> tuple[set[str], set[str]]:
     """
     Reads the fixtures `test` requests through its parameters and its
-    `usefixtures` marks, leaving out each parameter a `parametrize` mark
-    fills directly rather than through `indirect`.
+    `usefixtures` marks, beside the parameters a `parametrize` mark fills
+    directly rather than through `indirect`.
 
     Returns:
         The names requested, beside the names `parametrize` fills directly,
@@ -179,7 +179,7 @@ def requests(test: AsyncFunctionDef | FunctionDef) -> tuple[set[str], set[str]]:
         if not (isinstance(indirect, Constant) and indirect.value is True):
             direct |= names(call.args[0] if call.args else None) - names(indirect)
 
-    return parameters(test) - direct | used(marked("usefixtures", test)), direct
+    return parameters(test) | used(marked("usefixtures", test)), direct
 
 
 def undocumented(node: Module | stmt) -> Module | stmt:
@@ -513,15 +513,20 @@ class Suite:
     @cached_property
     def imports(self) -> dict[str, set[Binding]]:
         """
-        Reads each file every module loads, keyed by the module's path.
+        Reads each file every module under `tests/` and every package
+        `__init__` under `src/` loads, keyed by the module's path.
         """
-        return {path: set(bindings(tree)) for path, tree in self.trees.items()}
+        return {
+            path.as_posix(): set(bindings(parse(path.read_text(encoding="utf-8"))))
+            for path in Path("src").rglob("__init__.py")
+        } | {path: set(bindings(tree)) for path, tree in self.trees.items()}
 
     @cached_property
     def loaded(self) -> dict[str, set[str]]:
         """
-        Follows each module's imports through every module under `tests/` it
-        loads, which import in turn.
+        Follows each module's imports through every module under `tests/`
+        and every package `__init__` under `src/` it loads, which import
+        in turn.
 
         Returns:
             Each file a module loads, directly or through a helper, keyed
@@ -539,7 +544,10 @@ class Suite:
                 for binding in self.imports.get(path, ()):
                     found.add(binding.target)
 
-                    if binding.target.startswith("tests/"):
+                    if (
+                        binding.target.startswith("tests/")
+                        or binding.target in self.imports
+                    ):
                         found |= visit(binding.target)
 
             return loaded[path]

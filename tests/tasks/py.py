@@ -132,7 +132,9 @@ def pytest_collection_modifyitems(items):
     """
 '''
 SUITE = {
-    "pyproject.toml": '"-p common.plugin"\n',
+    "pyproject.toml"              : '"-p common.plugin"\n',
+    "src/squirtl/cli/__init__.py" : 'register("squirtl.cli.train:train")\n',
+    "src/squirtl/cli/train.py"    : "",
     "src/squirtl/emulator/console.py" : "",
     "src/squirtl/emulator/schemas.py" : "",
     "src/squirtl/reward/__init__.py"  : "from squirtl.reward.terms import Term\n",
@@ -144,11 +146,13 @@ SUITE = {
     "tests/common/plugin.py"    : "from common.terms import each_term\n",
     "tests/common/terms.py"     : "from squirtl.reward import Term\n",
     "tests/conftest.py"         : CONFTEST,
+    "tests/docs/commands.py"    : "from squirtl.cli import app\n",
     "tests/emulator/console.py" : "from squirtl.emulator import console\n",
     "tests/reward/conftest.py"  : "from squirtl.emulator.console import GameBoy\n",
     "tests/reward/progress.py"  : "import os\n",
-    "tests/runs/fixtures/handover/a.py" : "import squirtl.emulator.console\n",
-    "tests/runs/handover.py"            : """
+    "tests/runs/fixtures/handover/a.py": "import squirtl.emulator.console\n",
+
+    "tests/runs/handover.py": """
 from pytest import mark, param
 
 
@@ -163,6 +167,11 @@ def test_clones(clone):
 
 @mark.parametrize("clone", [param([], id="empty")], indirect=True)
 def test_clones_each(clone):
+    pass
+
+
+@mark.parametrize("clone", [param([], id="listed")], indirect=["clone"])
+def test_clones_listed(clone):
     pass
 
 
@@ -192,12 +201,20 @@ class TestOverride:
     def test_reads_its_own(self, github):
         pass
 """,
-    "tests/runs/marked.py"              : (
+
+    "tests/runs/marked.py": (
         'from pytest import mark\n\npytestmark = mark.usefixtures("limited")\n\n\n'
         "async def test_waits():\n    pass\n"
     ),
-    "tests/search/tree.py"    : "from common.console import set_event\n",
-    "tests/search/workers.py" :
+
+    "tests/runs/nulled.py": (
+        "from pytest import fixture\n\n\n@fixture(autouse=True)\ndef nulled(null):\n"
+        "    pass\n\n\ndef test_nulls():\n    pass\n"
+    ),
+
+    "tests/search/tree.py": "from common.console import set_event\n",
+
+    "tests/search/workers.py":
         '"squirtl.emulator.console.GameBoy.press"\n"squirtl.unknown.name"\n'
 }
 
@@ -520,6 +537,11 @@ def reach(
             "tests/common/console.py",
             ["tests/search/tree.py"],
             id = "helper-unread-by-root-fixtures"
+        ),
+        param(
+            "src/squirtl/cli/train.py",
+            ["tests/docs/commands.py"],
+            id = "loaded-by-package-init"
         )
     ]
 )
@@ -530,13 +552,13 @@ def test_reach_selects_the_tests_importing_a_changed_module(
 ):
     """
     Pins that the `py:affected` reader selects each test module importing
-    a changed module directly, through a package `__init__`, a helper, or
-    a quoted name, the folder of a subpackage conftest importing it, and
-    the tests requesting a root fixture reading a name the root conftest
-    binds to it, while a removed file, a helper `pyproject.toml` loads as
-    a plugin, a name the autouse fixture reads, and a package `__init__`
-    the root conftest loads on the way reach every test, and a module under
-    `fixtures/` reaches none.
+    a changed module directly, through a package `__init__`, a helper, a
+    quoted name, or a package `__init__` under `src/` quoting it, the folder
+    of a subpackage conftest importing it, and the tests requesting a root
+    fixture reading a name the root conftest binds to it, while a removed
+    file, a helper `pyproject.toml` loads as a plugin, a name the autouse
+    fixture reads, and a package `__init__` the root conftest loads on the
+    way reach every test, and a module under `fixtures/` reaches none.
     """
     assert reach(CONFTEST, changed) == selected
 
@@ -549,7 +571,8 @@ def test_reach_selects_the_tests_importing_a_changed_module(
             "    return [1]\n",
             [
                 "tests/runs/handover.py::test_clones",
-                "tests/runs/handover.py::test_clones_each"
+                "tests/runs/handover.py::test_clones_each",
+                "tests/runs/handover.py::test_clones_listed"
             ],
             id = "fixture-and-its-requester"
         ),
@@ -563,7 +586,7 @@ def test_reach_selects_the_tests_importing_a_changed_module(
         param(
             "from os     import devnull",
             "from os.path import devnull",
-            ["tests/runs/handover.py::test_names"],
+            ["tests/runs/handover.py::test_names", "tests/runs/nulled.py::test_nulls"],
             id = "rebound-import"
         ),
         param(
@@ -585,6 +608,12 @@ def test_reach_selects_the_tests_importing_a_changed_module(
             id = "hook"
         ),
         param("LIMIT = 3", "LIMIT = 4", ["tests"], id="name-a-fixture-reads"),
+        param(
+            "LIMIT = 3",
+            'LIMIT = 3\npytest_plugins = ["common.terms"]',
+            ["tests"],
+            id = "plugins"
+        ),
         param(
             "\n\n@fixture\ndef null",
             "\n\nprint()\n\n\n@fixture\ndef null",
@@ -610,8 +639,8 @@ def test_reach_selects_the_tests_requesting_a_changed_root_fixture(
     `tests/conftest.py`, the tests requesting a fixture whose definition the
     change touches or that reads a name an import line binds anew, none for
     a docstring or a binding no fixture reads, and every test for a change
-    to the autouse fixture, a hook, a name a fixture reads, or any other
-    statement.
+    to the autouse fixture, a hook, `pytest_plugins`, a name a fixture
+    reads, or any other statement.
     """
     assert old in CONFTEST
 
@@ -654,5 +683,6 @@ def test_reach_selects_the_tests_requesting_a_removed_root_fixture(
         "tests/conftest.py"
     ) == [
         "tests/runs/handover.py::test_clones",
-        "tests/runs/handover.py::test_clones_each"
+        "tests/runs/handover.py::test_clones_each",
+        "tests/runs/handover.py::test_clones_listed"
     ]
