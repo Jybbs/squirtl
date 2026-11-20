@@ -32,7 +32,7 @@ BASE = {
     "tests/agent/conftest.py"           : '"docs/notes/readme.md"\n',
     "tests/agent/fixtures/memory/a.txt" : "from common.agents import each_agent\n",
     "tests/agent/learner.py"            : "from common.agents import each_agent\n",
-    "tests/agent/memory.py"             : "",
+    "tests/agent/memory.py"             : "def test_remembers(event):\n    pass\n",
     "tests/agent/networks.py"           : "import common.records as records\n",
     "tests/cli/app.py"           : "",
     "tests/cli/conftest.py"      : "from common.cli import Invoker\n",
@@ -43,10 +43,16 @@ BASE = {
     "tests/common/evaluation.py" : '"docs/notes/citation.cff"\n',
     "tests/common/records.py"    : "from common.cli import Invoker\n",
     "tests/common/snapshots.py"  : "",
-    "tests/conftest.py"          : "from common.console import set_event\n",
+    "tests/conftest.py"          : (
+        "from pytest import fixture\n\nfrom common.console import set_event\n\n\n"
+        "@fixture\ndef event():\n    return set_event\n\n\n"
+        '"docs/notes/setup.md"\n'
+    ),
+    "tests/evaluation/scores.py" : "from squirtl.agent.memory import Memory\n",
     "tests/repo/checks.py"       :
         '"src/squirtl/docs/references.bib"\n"src/squirtl/agent/layout.toml"\n',
-    "tests/runs/trainer.py"      : "    from common.agents   import each_agent\n",
+    "tests/runs/trainer.py"      :
+        "def test_trains():\n    from common.agents import each_agent\n",
     "tests/search/tree.py"       : "from common.agents_pool import each_pool\n",
     "tests/tasks/bin.py"         : "",
     "tests/tasks/py.py"          : ""
@@ -298,7 +304,11 @@ def test_each_task_hands_its_program_its_flags_and_arguments(
         param(".mise/tasks/py/lint", ["tests/tasks/py.py"], id="task"),
         param("src/squirtl/docs/references.bib", ["tests/repo/checks.py"], id="named"),
         param("pyproject.toml", ["tests"], id="manifest"),
-        param("src/squirtl/agent/memory.py", ["tests/agent/memory.py"], id="module"),
+        param(
+            "src/squirtl/agent/memory.py",
+            ["tests/agent/memory.py", "tests/evaluation/scores.py"],
+            id = "module"
+        ),
         param("src/squirtl/cli/__init__.py", ["tests/cli/app.py"], id="app"),
         param(
             "src/squirtl/agent/layout.toml",
@@ -312,6 +322,7 @@ def test_each_task_hands_its_program_its_flags_and_arguments(
             id = "package-file-helper-named"
         ),
         param("docs/notes/readme.md", ["tests/agent"], id="conftest-named"),
+        param("docs/notes/setup.md", ["tests"], id="root-conftest-named"),
         param(
             "tests/agent/fixtures/memory/a.txt",
             ["tests/agent/memory.py"],
@@ -333,7 +344,11 @@ def test_each_task_hands_its_program_its_flags_and_arguments(
             ["tests/agent/networks.py", "tests/cli"],
             id = "conftest-helper"
         ),
-        param("tests/common/console.py", ["tests"], id="root-conftest-helper"),
+        param(
+            "tests/common/console.py",
+            ["tests/agent/memory.py::test_remembers"],
+            id = "root-conftest-helper"
+        ),
         param(
             "tests/common/records.py",
             ["tests/agent/networks.py", "tests/cli"],
@@ -351,9 +366,9 @@ def test_affected_runs_the_test_modules_a_changed_file_reaches(
     printed   : Callable[..., list[str]]
 ):
     """
-    Pins the test modules `py:affected` hands pytest for one file changed
-    since the merge base with `origin/main`, whether committed, modified, or
-    untracked, after the arguments it forwards.
+    Pins the test modules, folders, and node IDs `py:affected` hands pytest
+    for one file changed since the merge base with `origin/main`, whether
+    committed, modified, or untracked, after the arguments it forwards.
     """
     branch(committed, path)
 
