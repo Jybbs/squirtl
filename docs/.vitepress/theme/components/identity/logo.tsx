@@ -5,13 +5,23 @@ import { GROUNDS, SCHEMES }                         from '../../../lib/identity/
 import * as seam                                    from '../../../lib/identity/seam.ts'
 import { blocksOf, viewBoxOf }                      from '../../../lib/marks/drawings.ts'
 import { dotRadius, paintOf }                       from '../../../lib/marks/logo.ts'
-import { Slider }                                   from '../kit/slider.tsx'
-import { DETAIL, LABEL, SCRUB_PARTS }               from '../kit/widget.ts'
+import { type Parts, Slider }                       from '../kit/slider.tsx'
+import { DETAIL, LABEL }                            from '../kit/widget.ts'
 
 /**
  * The opacity a dot of the trail the fill has not reached stands at.
  */
 const UNLIT = 0.12
+
+/**
+ * The classes of the strip's slider: the bar reading each scheme as its
+ * control, and the thumb laid over it, its ring following the bar's corners.
+ */
+const STRIP: Parts = {
+  control : 'identity-strip-bar relative h-7 overflow-hidden rounded-2 select-none',
+  root    : 'relative',
+  thumb   : 'absolute inset-0 rounded-2'
+}
 
 /**
  * The seam's state, as `useSeam` holds it.
@@ -39,24 +49,21 @@ function drawMark(scheme: Scheme, at: number) {
  */
 function drawStrip({ strip }: Seam) {
   return (
-    <div {...strip.root.value} class="relative">
-      <div {...strip.control.value} class={[SCRUB_PARTS.control, 'identity-strip-bar relative h-7 overflow-hidden rounded-2 select-none']}>
-        {SCHEMES.map(scheme => (
-          <span
-            aria-hidden="true"
-            class="identity-side absolute inset-0 flex items-center px-3 font-code text-label font-medium tracking-caps uppercase"
-            data-scheme={scheme}
-            style={{ background: GROUNDS[scheme].hex, color: hexOf(IDENTITY.logo[scheme].thirds.at(-1) as Token) }}
-          >
-            {scheme}
-          </span>
-        ))}
-        <span aria-hidden="true" class="identity-handle absolute inset-y-0 flex items-center justify-center gap-0 bg-primary font-code text-label text-athens-gray">
-          <span>◀</span><span>▶</span>
+    <Slider parts={STRIP} scrub={strip}>
+      {SCHEMES.map(scheme => (
+        <span
+          aria-hidden="true"
+          class="identity-side absolute inset-0 flex items-center px-3 font-code text-label font-medium tracking-caps uppercase"
+          data-scheme={scheme}
+          style={{ background: GROUNDS[scheme].hex, color: hexOf(IDENTITY.logo[scheme].thirds.at(-1) as Token) }}
+        >
+          {scheme}
         </span>
-      </div>
-      <div {...strip.thumb.value} class={[SCRUB_PARTS.thumb, 'absolute inset-0 rounded-2']} />
-    </div>
+      ))}
+      <span aria-hidden="true" class="identity-handle absolute inset-y-0 flex items-center justify-center gap-0 bg-primary font-code text-label text-athens-gray">
+        <span>◀</span><span>▶</span>
+      </span>
+    </Slider>
   )
 }
 

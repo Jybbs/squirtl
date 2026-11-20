@@ -6,11 +6,11 @@ import * as watching                  from '../watch.ts'
 
 /**
  * The playback as the widget runs it: the milliseconds it stands at, the step
- * that time reaches, the slider over the recording's presses with its control
- * taking a press of its own, and the handlers holding the playback on the byte
- * a pointer presses or drags across.
+ * that time reaches, the slider over the recording's presses, and the band
+ * holding the playback on the byte a pointer presses or drags across.
  */
-export interface WatchPlayback extends Band {
+export interface WatchPlayback {
+  band  : Band
   scrub : Scrub
   step  : ComputedRef<number>
   t     : Ref<number>
@@ -28,10 +28,9 @@ function byteAt(event: PointerEvent): number {
 
 /**
  * Plays the recording at sixty steps a second while the widget at `box`
- * shows, holding it at the byte the slider names, a press on the band moving
- * focus to the slider's `thumb`.
+ * shows, holding it at the byte the slider or a pointer on the band names.
  */
-export function useWatchPlayback(box: Ref<HTMLElement | undefined>, thumb: Ref<HTMLElement | undefined>, label: string): WatchPlayback {
+export function useWatchPlayback(box: Ref<HTMLElement | undefined>, label: string): WatchPlayback {
   const t    = ref(0)
   const step = computed(() => watching.stepAt(t.value))
   const at   = computed({
@@ -54,7 +53,7 @@ export function useWatchPlayback(box: Ref<HTMLElement | undefined>, thumb: Ref<H
     seek     : value => { at.value = Math.max(1, value) }
   })
 
-  const band = useBand(scrub, thumb, event => { at.value = byteAt(event) })
+  const band = useBand(scrub, event => { at.value = byteAt(event) })
 
-  return { ...band, scrub, step, t }
+  return { band, scrub, step, t }
 }
