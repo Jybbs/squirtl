@@ -65,7 +65,7 @@ type(scope): concise description
 
 GitHub fills the body from `.github/PULL_REQUEST_TEMPLATE.md`, whose comments name what each section holds, and GitHub requests a review from the owner `.github/CODEOWNERS` names. The pull request takes the issue's labels and milestone, and its body closes the issue it was built for.
 
-Every pull request runs the checks below in the `🕹️ CI` workflow, each of which the command beside it reproduces on a laptop:
+Every pull request that is not a draft runs the checks below in the `🕹️ CI` workflow when it opens or reopens, when it is marked ready for review, and on each push, whereas a draft runs none of them, and the command beside each check reproduces it on a laptop:
 
 | **Check** | **Local Command** | **Fails When** |
 |---|---|---|
@@ -83,7 +83,7 @@ Every pull request runs the checks below in the `🕹️ CI` workflow, each of w
 | `🚩 Types` | `mise typecheck` | `tsc` reports a type error in the site's TypeScript, or a `.vue` file appears beside the `.tsx` modules every component is written as |
 | `🎒 Brief` | `mise ci` | Any row above fails |
 
-The `main` ruleset requires `🎒 Brief` alone, on a branch up to date with `main`, and `mise ci` runs every row above it in one sweep before a push.
+The `main` ruleset requires `🎒 Brief` alone, on a branch up to date with `main`, and a draft never waits on it, since GitHub reports a job its condition skips as passing. `mise ci` runs every row above it in one sweep before a push.
 
 ---
 

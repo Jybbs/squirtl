@@ -5,6 +5,7 @@ permissions : { contents: read }
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
   workflow_dispatch:
 
@@ -15,6 +16,7 @@ concurrency:
 jobs:
   check:
     name            : ${{ matrix.name }}
+    if              : ${{ !github.event.pull_request.draft }}
     runs-on         : &runner ubuntu-26.04
     timeout-minutes : &timeout 15
 
@@ -92,7 +94,7 @@ jobs:
 
   brief:
     name            : 🎒 Brief
-    if              : always()
+    if              : always() && !github.event.pull_request.draft
     needs           : check
     runs-on         : *runner
     timeout-minutes : *timeout

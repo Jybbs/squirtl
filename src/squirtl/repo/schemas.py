@@ -2138,6 +2138,8 @@ class WorkflowJob(Block):
 
     brief: ClassVar[str] = "gha:brief"
 
+    draft: ClassVar[str] = "!github.event.pull_request.draft"
+
     key: str
     """
     The id the workflow keys the job by, which another job's `needs` names.
@@ -2152,15 +2154,10 @@ class WorkflowJob(Block):
     @property
     def always(self) -> bool:
         """
-        Tells whether the job runs under `if: always()`, written bare or
-        inside `${{ }}`, so it runs whatever the jobs it waits on end in.
+        Tells whether the job runs under `if: always()`, alone or beside
+        `draft`, so it runs whatever the jobs it waits on end in.
         """
-        return (
-            str(self.get("if", default=""))
-            .removeprefix("${{")
-            .removesuffix("}}")
-            .strip()
-        ) == "always()"
+        return "always()" in self.terms and {*self.terms} <= {"always()", self.draft}
 
     @property
     def cache_mode(self) -> str | None:
@@ -2169,6 +2166,14 @@ class WorkflowJob(Block):
         workflow's.
         """
         return self.get("cache-mode", default=self.inherited)
+
+    @property
+    def drafts(self) -> bool:
+        """
+        Tells whether the job runs on a draft pull request, which holds
+        where no term of its `if` is `draft`.
+        """
+        return self.draft not in self.terms
 
     @property
     def gate(self) -> bool:
@@ -2206,6 +2211,33 @@ class WorkflowJob(Block):
             for named in step.tasks
             for task in self.expand(named)
         ]
+
+    @cached_property
+    def terms(self) -> list[str]:
+        """
+        Splits the job's `if`, written bare or inside `${{ }}`, into the
+        terms its `&&` joins outside every parenthesis and string literal,
+        reading a term that wraps a group as one term and a condition
+        holding `||` at that level as one term, since `&&` binds tighter.
+        """
+        condition = (
+            str(self.get("if", default=""))
+            .removeprefix("${{")
+            .removesuffix("}}")
+            .strip()
+        )
+        depth, start, terms = 0, 0, []
+
+        for token in finditer(r"'(?:[^']|'')*'|[()]|&&|\|\|", condition):
+            match token[0]:
+                case "("               : depth += 1
+                case ")"               : depth -= 1
+                case "||" if not depth : return [condition]
+                case "&&" if not depth:
+                    terms.append(condition[start:token.start()])
+                    start = token.end()
+
+        return [term for term in map(str.strip, [*terms, condition[start:]]) if term]
 
     def expand(self, text: str) -> list[str]:
         """

@@ -304,6 +304,32 @@ class Docstrings(Check):
                     )
 
 
+class Drafts(Check):
+    """
+    Holds every job of a workflow a pull request runs to the condition
+    `WorkflowJob.draft`, so a push to a draft pull request starts no job.
+    """
+
+    workflows: Workflows
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding on the `if` of each job of a pull-request workflow
+        that runs on a draft, or on the job where it sets no `if`.
+        """
+        for workflow in self.workflows.workflows:
+            for job in workflow.jobs if workflow.pulls else []:
+                if job.drafts:
+                    yield Finding(
+                        file    = workflow.path,
+                        line    = (job.at("if") or job).line,
+                        message = (
+                            f"The job `{job.key}` runs on a draft pull request, "
+                            f"since its `if` lacks `{WorkflowJob.draft}`"
+                        )
+                    )
+
+
 class Footnotes(Check):
     """
     Holds each footnote labeled by a key in every Markdown file git tracks
@@ -350,11 +376,11 @@ class Gates(Check):
 
     def scan(self) -> Iterator[Finding]:
         """
-        Yields a finding for a workflow running `WorkflowJob.brief` in
-        no job or in more than one, for a gate setting no name, running
-        under another `if` than `always()`, or waiting on fewer than every
-        other job, and for a required check no pull-request workflow's gate
-        reports.
+        Yields a finding for a workflow running `WorkflowJob.brief` in no
+        job or in more than one, for a gate setting no name, running under
+        another `if` than `always()`, alone or beside `WorkflowJob.draft`,
+        or waiting on fewer than every other job, and for a required check
+        no pull-request workflow's gate reports.
         """
         reported = set()
 
