@@ -368,7 +368,7 @@ def test_replay_gathers_each_array_it_holds_uncopied_under_its_name(
     arrays = replay.arrays
 
     for key, column in replay.columns.items():
-        with subtests.test(key):
+        with subtests.test(str(key)):
             assert arrays[key] is column.elements
 
     assert arrays["actions"] is replay.actions
@@ -405,7 +405,7 @@ def test_replay_keeps_the_arrays_it_loads_uncopied(
     loaded.load(given)
 
     for name in loaded.arrays.keys() - {"pushed"}:
-        with subtests.test(name):
+        with subtests.test(str(name)):
             assert loaded.arrays[name] is given[name]
 
 

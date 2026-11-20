@@ -20,10 +20,11 @@ Defines the fixtures the tests of `squirtl.cli` request:
   writes, whose record alone `docs/runs/` commits
 """
 
-from collections.abc import Callable, Hashable
+from collections.abc import Callable
 from common.cli      import Invocation, Invoker
 from common.records  import idled
 from common.releases import GitHub
+from common.runs     import Played
 from common.search   import PoolStandIn
 from datetime        import UTC, datetime
 from pathlib         import Path
@@ -125,7 +126,7 @@ def trained(
     accepted : None,
     clone    : Path,
     invoke   : Invoker,
-    played   : Callable[[Hashable, Callable[[], Path]], Path],
+    played   : Played,
     quick    : list[str],
     rom      : Path
 ) -> Path:
@@ -163,7 +164,7 @@ def rolled(
     accepted : None,
     clone    : Path,
     invoke   : Invoker,
-    played   : Callable[[Hashable, Callable[[], Path]], Path],
+    played   : Played,
     request  : FixtureRequest,
     rolling  : Callable[[str], list[str]],
     rom      : Path
@@ -188,7 +189,7 @@ def stopped(
     clone       : Path,
     invoke      : Invoker,
     monkeypatch : MonkeyPatch,
-    played      : Callable[[Hashable, Callable[[], Path]], Path],
+    played      : Played,
     quick       : list[str],
     rom         : Path
 ) -> Path:
@@ -284,7 +285,7 @@ def searched(
     clone    : Path,
     game     : None,
     invoke   : Invoker,
-    played   : Callable[[Hashable, Callable[[], Path]], Path],
+    played   : Played,
     pools    : list[PoolStandIn],
     rom      : Path
 ) -> Path:
@@ -306,7 +307,7 @@ def found(
     clone    : Path,
     game     : None,
     invoke   : Invoker,
-    played   : Callable[[Hashable, Callable[[], Path]], Path],
+    played   : Played,
     pools    : list[PoolStandIn],
     rom      : Path
 ) -> Path:
@@ -334,7 +335,7 @@ def halted(
     game        : None,
     invoke      : Invoker,
     monkeypatch : MonkeyPatch,
-    played      : Callable[[Hashable, Callable[[], Path]], Path],
+    played      : Played,
     pools       : list[PoolStandIn],
     rom         : Path
 ) -> Path:
