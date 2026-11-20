@@ -1,18 +1,19 @@
 #!/usr/bin/env -S bash -euo pipefail
 #MISE alias       = "affected"
-#MISE description = "Run the test modules the files changed since the merge base with `main` reach, uncommitted and untracked files included, passing any further arguments to pytest"
+#MISE description = "Run the tests the files changed since the merge base with `main` reach, uncommitted and untracked files included, passing any further arguments to pytest"
 
-importing() {
-  local module=${1%.py}
-  module=${module#tests/}
-  module=${module//\//.}
-  grep \
-    --include '*.py' \
-    -lEr \
-    -- "^[[:space:]]*(from|import) ${module//./\\.}( |$)" \
-    tests \
-    || true
-  grep -lFw -- "$module" pyproject.toml || true
+importers() {
+  local imported=() path
+  while IFS= read -r path; do
+    case "$path" in
+      src/*.py | tests/common/*.py | tests/conftest.py)
+        imported+=("$path") ;;
+      *)
+        echo "$path" ;;
+    esac
+  done
+  (( ! ${#imported[@]} )) \
+    || python3 "${BASH_SOURCE[0]%/*}/reach.py" "$base" "${imported[@]}"
 }
 
 naming() {
@@ -33,19 +34,16 @@ reach() {
       pyproject.toml | uv.lock | .mise/config.toml | .mise/mise.lock)
         echo tests ;;
       src/squirtl/cli/__init__.py)
-        echo tests/cli/app.py ;;
+        printf '%s\n' tests/cli/app.py "$path" ;;
       src/squirtl/*.py)
-        echo "tests/${path#src/squirtl/}" ;;
+        printf '%s\n' "tests/${path#src/squirtl/}" "$path" ;;
       tests/*/fixtures/*/*)
         rest=${path#*/fixtures/}
         echo "${path%%/fixtures/*}/${rest%%/*}.py" ;;
-      tests/conftest.py | tests/*/conftest.py)
+      tests/conftest.py)
+        if (( $# )); then echo tests; else echo "$path"; fi ;;
+      tests/*/conftest.py)
         echo "${path%/*}" ;;
-      tests/common/*.py)
-        [[ " ${seen-} " == *" $path "* ]] || {
-          seen="${seen-} $path"
-          importing "$path" | reach
-        } ;;
       tests/*.py)
         echo "$path" ;;
       .mise/tasks/*/*)
@@ -56,9 +54,9 @@ reach() {
       src/squirtl/*/*)
         rest=${path#src/squirtl/}
         echo "tests/${rest%%/*}"
-        naming "$path" | reach ;;
+        naming "$path" | reach named ;;
       *)
-        naming "$path" | reach ;;
+        naming "$path" | reach named ;;
     esac
   done
 }
@@ -69,10 +67,11 @@ changed=$(
   git diff --name-only --no-renames "$base" \
     && git ls-files --exclude-standard --others
 )
+selected=$(reach <<<"$changed" | importers | sort -u)
 
-while IFS= read -r module; do
-  [[ ! -e "$module" ]] || set -- "$@" "$module"
-done < <(reach <<<"$changed" | sort -u)
+while IFS= read -r argument; do
+  [[ ! -e "${argument%%::*}" ]] || set -- "$@" "$argument"
+done <<<"$selected"
 
 (( $# > forwarded )) \
   || { echo "No test module reaches a file changed since $base"; exit 0; }

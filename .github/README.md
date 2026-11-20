@@ -69,7 +69,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | **Command** | **What It Does** |
 |---|---|
 | `mise test` | *Runs the test suite across every core, one worker each* |
-| `mise affected` | *Runs the test modules the files changed since the merge base with `main` reach, uncommitted and untracked files among them* |
+| `mise affected` | *Runs the tests the files changed since the merge base with `main` reach through imports and fixture requests, uncommitted and untracked files among them* |
 | `mise coverage` | *Runs the suite under coverage, fails when the total falls below **95%**, and writes the HTML report under `.cache/coverage/html/` beside the JSON report the site serves the figure from* |
 | `mise lint` | *Reports every rewrite the formatter would make and every lint finding* |
 | `mise format` | *Rewrites the Python source to the house style* |
