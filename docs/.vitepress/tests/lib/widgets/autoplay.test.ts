@@ -143,6 +143,19 @@ describe('useAutoplay under reduced motion', () => {
     expect(log).toStrictEqual(['finish', 'restart', 'finish'])
   })
 
+  test('leaves the widget where the reader left it once the last hold ends', async () => {
+    browser.preference.value       = 'reduce'
+    const { autoplay, log, sight } = await played(2)
+
+    sight.show(true)
+    autoplay.hold('keys', true)
+    autoplay.hold('keys', false)
+
+    expect(log).toStrictEqual(['finish'])
+  })
+})
+
+describe('useAutoplay as the reader changes the motion preference', () => {
   test('stops a run and shows its end as the reader turns on reduced motion', async () => {
     const { log, sight } = await played(3)
 
@@ -153,14 +166,14 @@ describe('useAutoplay under reduced motion', () => {
     expect(log).toStrictEqual(['tick 1', 'finish'])
   })
 
-  test('leaves the widget where the reader left it once the last hold ends', async () => {
-    browser.preference.value       = 'reduce'
-    const { autoplay, log, sight } = await played(2)
+  test('plays on from where the widget stands as the reader turns reduced motion off', async () => {
+    browser.preference.value = 'reduce'
+    const { log, sight }     = await played(2)
 
     sight.show(true)
-    autoplay.hold('keys', true)
-    autoplay.hold('keys', false)
+    browser.preference.value = 'no-preference'
+    vi.advanceTimersByTime(1000)
 
-    expect(log).toStrictEqual(['finish'])
+    expect(log).toStrictEqual(['finish', 'tick 1', 'tick 2'])
   })
 })
