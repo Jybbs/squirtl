@@ -24,9 +24,9 @@ export interface StepPlayback {
 /**
  * Plays the sheet a frame a beat while the widget at `box` shows, resting on
  * the frame PyBoy draws, and holds it on the cell the slider names or a pointer
- * picks, a press moving focus to the slider's `thumb`.
+ * picks.
  */
-export function useStepPlayback(box: Ref<HTMLElement | undefined>, thumb: Ref<HTMLElement | undefined>, label: string): StepPlayback {
+export function useStepPlayback(box: Ref<HTMLElement | undefined>, label: string): StepPlayback {
   const at    = ref(CELLS - 1)
   const where = computed(() => step.cellOf(at.value))
   const scrub = useScrub(box, {
@@ -43,7 +43,7 @@ export function useStepPlayback(box: Ref<HTMLElement | undefined>, thumb: Ref<HT
     seek     : position => { at.value = position }
   })
 
-  const band = useBand(scrub, thumb, event => {
+  const band = useBand(scrub, event => {
     const [f, s] = cellAt(event, step.FRAMES, step.STEPS.length)
     at.value     = s * step.FRAMES + f
   })

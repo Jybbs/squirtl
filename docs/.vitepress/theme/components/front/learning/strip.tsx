@@ -1,31 +1,19 @@
 import { type PropType, type VNode, defineComponent, ref } from 'vue'
 
-import type { Moment }   from '../../../../lib/front/learning.ts'
-import * as strip        from '../../../../lib/front/learning/strip.ts'
-import type { Hue }      from '../../../../lib/identity/identity.ts'
-import { counted }       from '../../../../lib/widgets/numbers.ts'
-import type { Scrub }    from '../../../../lib/widgets/scrub.ts'
-import { useDrawnWidth } from '../../../../lib/widgets/width.ts'
-import * as clock        from '../../kit/clock.tsx'
-import { SCRUB_PARTS }   from '../../kit/widget.ts'
-import { WalkBands }     from './bands.tsx'
-
-/**
- * The classes laying out the strip as the slider's control beside the ones
- * every slider's control takes, a press or a drag along it moving the clock.
- */
-const CONTROL = 'focus-ring-within grid rounded-1 select-none'
+import type { Moment }    from '../../../../lib/front/learning.ts'
+import * as strip         from '../../../../lib/front/learning/strip.ts'
+import type { Hue }       from '../../../../lib/identity/identity.ts'
+import { counted }        from '../../../../lib/widgets/numbers.ts'
+import type { Scrub }     from '../../../../lib/widgets/scrub.ts'
+import { useDrawnWidth }  from '../../../../lib/widgets/width.ts'
+import * as clock         from '../../kit/clock.tsx'
+import { AROUND, Slider } from '../../kit/slider.tsx'
+import { WalkBands }      from './bands.tsx'
 
 /**
  * The strip's geometry.
  */
 const STRIP = strip.STRIP
-
-/**
- * The classes stacking the slider's thumb over the strip's left edge, taking no
- * width so a pointer's press lands on the drawing.
- */
-const THUMB = 'col-start-1 row-start-1 justify-self-start outline-none'
 
 /**
  * The name a screen reader reads for the strip's drawing.
@@ -75,15 +63,14 @@ export const WalkStrip = defineComponent({
       const { ended, left, now } = strip.stripClockAt(props.at, props.moments, wide)
       return (
         <div
-          {...props.scrub.root.value}
           class="px-3"
           onPointerleave={() => emit('point', null)}
           onPointermove={(event: PointerEvent) => emit('point', strip.walkUnder(event, props.moments.length))}
         >
-          <div {...props.scrub.control.value} class={[SCRUB_PARTS.control, CONTROL]}>
+          <Slider parts={AROUND} scrub={props.scrub}>
             <svg
               aria-label={WORDS}
-              class="col-start-1 row-start-1 block h-auto w-full overflow-visible"
+              class="block h-auto w-full overflow-visible"
               ref={drawing}
               role="img"
               viewBox={`0 0 ${wide} ${rows.height}`}
@@ -99,8 +86,7 @@ export const WalkStrip = defineComponent({
               />
               {drawStripClock(props.at, left, now, rows)}
             </svg>
-            <span {...props.scrub.thumb.value} class={THUMB} />
-          </div>
+          </Slider>
         </div>
       )
     }
