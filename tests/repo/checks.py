@@ -5,8 +5,8 @@ Pins what each check `repo:audit` runs reports, covering:
   `.mise/` against the lockfile and the manifest
 - The license file and `CITATION.cff` against the manifest
 - The workflows and the action manifests, meaning their commits, anchors,
-  inputs, runners, tool subsets, push filters, gates, and the steps writing
-  the summary
+  inputs, runners, tool subsets, push filters, draft guards, gates, and the
+  steps writing the summary
 - The rows of a pull-request workflow against `repo:ci`, and each defect
   `mise tasks validate` reports
 - The label registry against the files naming its labels
@@ -38,11 +38,13 @@ from squirtl.docs.outputs     import Inventory
 from squirtl.docs.results     import Trained
 from squirtl.emulator.schemas import Record
 from squirtl.repo.checks  import (
-    Anchors, Attribution, Audit, Check, Commits, Docstrings, Footnotes, Gates,
-    Imports, Inputs, Installs, LabelCheck, Layout, Marks, Pins, Rendered, Rows,
-    Runners, ScriptCheck, SiteCopies, SitePins, Subsets, Summaries, TaskCheck, Warming
+    Anchors, Attribution, Audit, Check, Commits, Docstrings, Drafts, Footnotes,
+    Gates, Imports, Inputs, Installs, LabelCheck, Layout, Marks, Pins, Rendered,
+    Rows, Runners, ScriptCheck, SiteCopies, SitePins, Subsets, Summaries, TaskCheck, Warming
 )
-from squirtl.repo.schemas import Finding, Severity, Task, TaskIssue, Tasks, Tree, Unreadable
+from squirtl.repo.schemas import (
+    Finding, Severity, Task, TaskIssue, Tasks, Tree, Unreadable, WorkflowJob
+)
 
 type Scan = Callable[..., list[tuple[str, int | None, str]]]
 
@@ -1405,6 +1407,37 @@ def test_warming_reports_each_file_a_key_is_built_from_that_no_push_reaches(
             ("if      : always()", "if      : ${{ always() }}"),
             [],
             id = "an-expression-gate"
+        ),
+        param(
+            (
+                "if      : always()",
+                "if      : always() && !github.event.pull_request.draft"
+            ),
+            [],
+            id = "a-gate-skipping-a-draft"
+        ),
+        param(
+            ("if      : always()", "if      : always() && success()"),
+            [
+                (
+                    ".github/workflows/ci.yml", 32,
+                    "The gate `brief` lacks `if: always()`, so a failed job skips it"
+                )
+            ],
+            id = "a-gate-under-another-term"
+        ),
+        param(
+            (
+                "if      : always()",
+                "if      : always() || !github.event.pull_request.draft"
+            ),
+            [
+                (
+                    ".github/workflows/ci.yml", 32,
+                    "The gate `brief` lacks `if: always()`, so a failed job skips it"
+                )
+            ],
+            id = "a-gate-under-either-term"
         )
     ]
 )
@@ -1416,10 +1449,11 @@ def test_gates_hold_every_workflow_to_one_gate_its_ruleset_requires(
     workflow  : str
 ):
     """
-    Pins that the gate check passes a workflow ending on one named gate that
-    runs `gha:brief` under `if: always()` after every other job, beside a
-    ruleset requiring that gate's name, and reports each departure on the
-    job it concerns, or on the ruleset for a check no gate reports.
+    Pins that the gate check passes a workflow ending on one named gate
+    that runs `gha:brief` under `if: always()`, alone or joined by `&&` to
+    the draft guard, after every other job, beside a ruleset requiring that
+    gate's name, and reports each departure on the job it concerns, or on
+    the ruleset for a check no gate reports.
     """
     ruleset = {
         "enforcement"   : "active",
@@ -1450,6 +1484,69 @@ def test_gates_hold_every_workflow_to_one_gate_its_ruleset_requires(
     )
 
     assert findings == found
+
+
+@mark.parametrize(
+    ("event", "check", "brief", "found"),
+    [
+        param(
+            "pull_request",
+            "${{ !github.event.pull_request.draft }}",
+            "always() && !github.event.pull_request.draft",
+            [],
+            id = "every-job-skips-a-draft"
+        ),
+        param(
+            "pull_request",
+            None,
+            "always()",
+            [(11, "check"), (33, "brief")],
+            id = "no-job-skips-a-draft"
+        ),
+        param(
+            "pull_request",
+            "${{ !github.event.pull_request.draft || github.actor == 'a' }}",
+            "always() && !github.event.pull_request.draft",
+            [(12, "check")],
+            id = "a-guard-beside-either-term"
+        ),
+        param("push", None, "always()", [], id="a-workflow-no-pull-request-runs")
+    ]
+)
+def test_drafts_report_each_job_of_a_pull_request_workflow_a_draft_runs(
+    brief    : str,
+    check    : str | None,
+    event    : str,
+    found    : list[tuple[int, str]],
+    scan     : Scan,
+    workflow : str
+):
+    """
+    Pins that the draft check passes a pull-request workflow whose every
+    job takes the draft guard as a term its `&&` joins, and reports a job
+    setting no `if` on the job and one whose guard sits beside `||` on its
+    `if`, while reading no workflow a pull request does not run.
+    """
+    runner = "    runs-on : ubuntu-26.04\n\n    strategy"
+    text   = (
+        dedent(workflow).replace("  pull_request:", f"  {event}:")
+                        .replace(
+                            runner,
+                            f"    if      : {check}\n{runner}" if check else runner
+                        )
+                        .replace("if      : always()", f"if      : {brief}")
+    )
+
+    findings = scan(Drafts, {".github/workflows/ci.yml": text})
+
+    assert [(line, message) for _, line, message in findings] == [
+        (
+            line,
+            f"The job `{key}` runs on a draft pull request, since its `if` lacks "
+            f"`{WorkflowJob.draft}`"
+        )
+        for line, key in found
+    ]
 
 
 @mark.parametrize(

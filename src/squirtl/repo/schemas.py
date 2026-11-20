@@ -2138,6 +2138,8 @@ class WorkflowJob(Block):
 
     brief: ClassVar[str] = "gha:brief"
 
+    draft: ClassVar[str] = "!github.event.pull_request.draft"
+
     key: str
     """
     The id the workflow keys the job by, which another job's `needs` names.
@@ -2152,15 +2154,10 @@ class WorkflowJob(Block):
     @property
     def always(self) -> bool:
         """
-        Tells whether the job runs under `if: always()`, written bare or
-        inside `${{ }}`, so it runs whatever the jobs it waits on end in.
+        Tells whether the job runs under `if: always()`, alone or beside
+        `draft`, so it runs whatever the jobs it waits on end in.
         """
-        return (
-            str(self.get("if", default=""))
-            .removeprefix("${{")
-            .removesuffix("}}")
-            .strip()
-        ) == "always()"
+        return "always()" in self.terms and {*self.terms} <= {"always()", self.draft}
 
     @property
     def cache_mode(self) -> str | None:
@@ -2169,6 +2166,14 @@ class WorkflowJob(Block):
         workflow's.
         """
         return self.get("cache-mode", default=self.inherited)
+
+    @property
+    def drafts(self) -> bool:
+        """
+        Tells whether the job runs on a draft pull request, which holds
+        where no term of its `if` is `draft`.
+        """
+        return self.draft not in self.terms
 
     @property
     def gate(self) -> bool:
@@ -2206,6 +2211,25 @@ class WorkflowJob(Block):
             for named in step.tasks
             for task in self.expand(named)
         ]
+
+    @property
+    def terms(self) -> list[str]:
+        """
+        Splits the job's `if`, written bare or inside `${{ }}`, into the
+        terms its `&&` joins, reading a condition holding `||` as one term,
+        since `&&` binds tighter.
+        """
+        condition = (
+            str(self.get("if", default=""))
+            .removeprefix("${{")
+            .removesuffix("}}")
+            .strip()
+        )
+
+        if "||" in condition:
+            return [condition]
+
+        return [term.strip() for term in condition.split("&&") if term.strip()]
 
     def expand(self, text: str) -> list[str]:
         """
