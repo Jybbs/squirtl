@@ -18,6 +18,7 @@ from collections.abc   import Callable, Hashable, Iterable, Iterator, Mapping
 from common.console    import set_event
 from common.evaluation import EvaluatorStandIn
 from common.releases   import GitHub
+from common.runs       import Played
 from common.search     import PoolStandIn
 from io                import StringIO
 from numpy             import ndarray
@@ -340,10 +341,7 @@ def github(monkeypatch: MonkeyPatch) -> GitHub:
 
 
 @fixture(scope="session")
-def played(tmp_path_factory: TempPathFactory) -> Callable[[
-    Hashable,
-    Callable[[], Path]
-], Path]:
+def played(tmp_path_factory: TempPathFactory) -> Played:
     """
     Builds a reader of the run directory each key names, playing it through
     `play` the first time a case reads it and keeping a copy, then copying

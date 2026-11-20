@@ -1,8 +1,7 @@
-import fs from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
-import { Episode }             from '../../../lib/game/episode.ts'
+import PAGE                     from '../../../../pages/methods/search.md?raw'
+import { Episode }              from '../../../lib/game/episode.ts'
 import { BUTTONS, type Button } from '../../../lib/game/rooms.ts'
 import * as search              from '../../../lib/methods/search.ts'
 import SETTINGS                 from '../../../lib/rendered/settings.json' with { type: 'json' }
@@ -11,10 +10,6 @@ type Group = Iteration['groups'][number]
 
 type Iteration = search.Search['iterations'][number]
 
-/**
- * The page the drawing sits on.
- */
-const PAGE = fs.readFileSync(new URL('../../../../pages/methods/search.md', import.meta.url), 'utf8')
 /**
  * The search the drawing plays.
  */

@@ -69,14 +69,15 @@ def test_a_search_reads_each_setting_from_its_flag_and_the_table(
     invoke   : Invoker
 ):
     """
-    Asserts that a run records a setting the `[tool.squirtl]` table of the
-    manifest names, and one its flag names over that table, as `squirtl
-    train` reads them.
+    Asserts that a 4-press search records a setting the `[tool.squirtl]`
+    table of the manifest names, and one its flag names over that table, as
+    `squirtl train` reads them.
     """
     checkout({"pyproject.toml": "[tool.squirtl]\nseed = 7\n"})
 
-    tabled  = Path(invoke(["search", *brief]).output.strip())
-    flagged = Path(invoke(["search", *brief, "--seed", "9"]).output.strip())
+    presses = [*brief[:-2], "--steps", "4"]
+    tabled  = Path(invoke(["search", *presses]).output.strip())
+    flagged = Path(invoke(["search", *presses, "--seed", "9"]).output.strip())
 
     assert (Run.read(tabled).settings.seed, Run.read(flagged).settings.seed) == (7, 9)
 

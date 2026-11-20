@@ -1,11 +1,9 @@
-import { readFileSync }           from 'node:fs'
-import path                       from 'node:path'
 import { createMarkdownRenderer } from 'vitepress'
 import { describe, expect, it }   from 'vitest'
 
-import { pagesDir }                                from '../../../lib/config/paths.ts'
 import { SINGLES, placed, slugOf }                 from '../../../lib/config/sections.ts'
 import { type Placement, WIDGETS, sectionWidgets } from '../../../lib/markdown/widgets.ts'
+import { PAGES }                                   from '../../common/pages.ts'
 
 /**
  * A command's page in the shape `squirtl write docs` writes one, its title and
@@ -31,7 +29,7 @@ const PLACED: readonly Placement[] = [
  * carries.
  */
 const headingsOf = (page: string): string[] =>
-  [...readFileSync(path.join(pagesDir(import.meta.url), page), 'utf8').matchAll(/^#+ (.+)$/gmu)].map(match => match[1]!)
+  [...(PAGES[page] ?? '').matchAll(/^#+ (.+)$/gmu)].map(match => match[1]!)
 
 /**
  * Renders `source` as the page at `relativePath`, through a renderer carrying

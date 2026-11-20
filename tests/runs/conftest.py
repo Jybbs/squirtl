@@ -1,22 +1,26 @@
 """
 Defines the fixtures the tests of `squirtl.runs` request, meaning the
 stand-in records a test reading no clone builds on, the record of one
-episode, a writer of a run's episodes, a run holding a demonstration,
-the settings of a short run beside factories of trainers starting one, a
-reader of each run that never stopped, played once a session, a factory of
-searchers on the fake game of `game` beside one on real worker processes,
-and the messages loguru logs during a test.
+episode, a writer of a run's episodes, a run holding a demonstration, the
+settings of a short run beside factories of trainers starting one, each
+rollout trainer's workers forking from a forkserver that preloads the
+environment's modules, a reader of each run that never stopped, played once
+a session, a factory of searchers on the fake game of `game` beside one on
+real worker processes, and the messages loguru logs during a test.
 """
 
 from collections.abc import Callable, Hashable, Iterator, Mapping
 from common.records  import idled
+from common.runs     import Played, Unbroken
 from common.search   import PoolStandIn, finish, stop_at_thirty
 from contextlib      import ExitStack
 from datetime        import UTC, datetime, timedelta
 from itertools       import count
 from loguru          import logger
+from multiprocessing import get_context
 from pathlib         import Path
-from pytest          import fixture
+from pytest          import MonkeyPatch, TempPathFactory, fixture
+from shutil          import copytree
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm
 from squirtl.emulator.schemas    import Cartridge
@@ -57,9 +61,10 @@ def run(revision: Revision) -> Run:
 @fixture
 def demonstrated(clone: Path) -> Path:
     """
-    Starts a run in `clone` the day before every run `trainer` starts, whose
-    one episode reaches the starter of the cartridge `timed` writes after 13
-    idle presses at a `timer_div` of 0, each advancing 64 frames.
+    Starts a run in `clone` at midnight UTC on 3 October 2026, before every
+    run `trainer` starts, whose one episode reaches the starter of the
+    cartridge `timed` writes after 13 idle presses at a `timer_div` of 0,
+    each advancing 64 frames.
 
     Returns:
         The run's directory.
@@ -111,19 +116,47 @@ def short(clone: Path, rom: Path) -> RunSettings:
     )
 
 
+def pytest_configure():
+    """
+    Names the modules the forkserver imports once as it starts, the
+    environment's own beside the packages it builds on, before forking each
+    worker of a rollout trainer from itself.
+    """
+    get_context("forkserver").set_forkserver_preload(
+        [
+            "gymnasium", "numpy", "pyboy",
+            "squirtl.environment.overworld", "squirtl.environment.workers"
+        ],
+        on_error = "fail"
+    )
+
+
 @fixture
-def trainer(cartridge: Cartridge, short: RunSettings) -> Callable[..., Trainer]:
+def trainer(
+    cartridge   : Cartridge,
+    monkeypatch : MonkeyPatch,
+    short       : RunSettings
+) -> Callable[..., Trainer]:
     """
     Builds a factory starting a run of `short`, any keyword a field of
     `RunSettings` to set in its place, and returning a trainer of that run
-    on `cartridge`, each run started a second after the one before.
+    on `cartridge`, each run started a second after the one before unless
+    `started` names its instant. Each worker of a rollout trainer forks from
+    the forkserver, whose context stands in for the `multiprocessing` module
+    `AsyncVectorEnv` reads its context from.
     """
     seconds = count()
 
+    monkeypatch.setattr(
+        "gymnasium.vector.async_vector_env.multiprocessing",
+        get_context("forkserver")
+    )
+
     def build(
-        resumes   : Run | None = None,
+        resumes   : Run | None      = None,
         *,
-        cartridge : Cartridge  = cartridge,
+        cartridge : Cartridge       = cartridge,
+        started   : datetime | None = None,
         **fields  : object
     ) -> Trainer:
         """
@@ -134,7 +167,9 @@ def trainer(cartridge: Cartridge, short: RunSettings) -> Callable[..., Trainer]:
         return Trainer.start(
             cartridge,
             short.model_copy(update=fields),
-            datetime(2026, 10, 4, tzinfo=UTC) + timedelta(seconds=next(seconds)),
+            started or datetime(2026, 10, 4, tzinfo=UTC) + timedelta(
+                seconds = next(seconds)
+            ),
             resumes and Trainer.handover(resumes)
         )
 
@@ -205,10 +240,7 @@ def searcher(
 
 
 @fixture
-def halted(
-    played   : Callable[[Hashable, Callable[[], Path]], Path],
-    searcher : Callable[..., Searcher]
-) -> Run:
+def halted(played: Played, searcher: Callable[..., Searcher]) -> Run:
     """
     Takes a search of `searching` to the end of the first iteration reaching
     30 presses, as `squirtl stop` would stop it, once a session through
@@ -253,9 +285,9 @@ def rolling(trainer: Callable[..., Trainer]) -> Callable[..., Trainer]:
     ) -> Trainer:
         """
         Builds the trainer of the run of `algorithm` that `fields` describe,
-        any key of `agent` a field of `AgentSettings` to set in its place,
-        which continues the run `resumes` from its checkpoint where it is
-        one.
+        beside the `started` instant `trainer` takes, any key of `agent` a
+        field of `AgentSettings` to set in its place, which continues the
+        run `resumes` from its checkpoint where it is one.
         """
         return trainer(
             resumes,
@@ -321,22 +353,40 @@ def logged() -> Iterator[list[str]]:
 
 
 @fixture(scope="session")
-def unbroken() -> Callable[[Hashable, Callable[[], Run]], Run]:
+def kept() -> dict[Hashable, Path]:
+    """
+    Builds the session's store of each run that never stopped, its copied
+    directory by the key `unbroken` reads it under.
+    """
+    return {}
+
+
+@fixture
+def unbroken(
+    kept             : dict[Hashable, Path],
+    tmp_path         : Path,
+    tmp_path_factory : TempPathFactory
+) -> Unbroken:
     """
     Builds a reader of the run each key names, playing it through `play` the
-    first time a case reads it and reading it back from its directory after,
-    so each run that never stopped plays once a session.
+    first time a case reads it and keeping a copy under the session's own
+    temporary folder, then copying that copy under `tmp_path`, so each run
+    that never stopped plays once a session and each case reads it from its
+    own directory.
     """
-    runs: dict[Hashable, Run] = {}
 
     def read(key: Hashable, play: Callable[[], Run]) -> Run:
         """
         Reads the run `key` names, played through `play` where no case has
         read it yet.
         """
-        if key not in runs:
-            runs[key] = Run.read(play().directory.absolute())
+        if key not in kept:
+            directory = play().directory
+            kept[key] = copytree(
+                directory,
+                tmp_path_factory.mktemp("unbroken") / directory.name
+            )
 
-        return runs[key]
+        return Run.read(copytree(kept[key], tmp_path / "unbroken" / kept[key].name))
 
     return read

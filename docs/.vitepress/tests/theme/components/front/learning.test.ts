@@ -184,9 +184,10 @@ describe('StoryLearning lifetime', () => {
   })
 
   stopped('reads no town once it unmounts before the town’s image loads', async () => {
-    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
     browser.stubSight()
-    mount(StoryLearning, { attachTo: document.body }).unmount()
+    const wrapper    = mount(StoryLearning, { attachTo: document.body })
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+    wrapper.unmount()
     await flushPromises()
 
     expect(getContext).not.toHaveBeenCalled()
