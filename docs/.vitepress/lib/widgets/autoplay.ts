@@ -73,7 +73,11 @@ export function useAutoplay(target: MaybeElementRef, ticking: Ticking): Autoplay
     beat.start()
   }
 
-  const settle = () => animate.value ? run() : ticking.finish()
+  const settle = () => {
+    if (animate.value) return run()
+    stop()
+    ticking.finish()
+  }
 
   const again = () => {
     ticking.restart?.()

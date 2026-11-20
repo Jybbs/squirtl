@@ -166,6 +166,17 @@ describe('useAutoplay as the reader changes the motion preference', () => {
     expect(log).toStrictEqual(['tick 1', 'finish'])
   })
 
+  test('ends the rest before a repeat as the reader turns on reduced motion', async () => {
+    const { log, sight } = await played(1, true)
+
+    sight.show(true)
+    vi.advanceTimersByTime(150)
+    browser.preference.value = 'reduce'
+    vi.advanceTimersByTime(1000)
+
+    expect(log).toStrictEqual(['tick 1', 'finish'])
+  })
+
   test('plays on from where the widget stands as the reader turns reduced motion off', async () => {
     browser.preference.value = 'reduce'
     const { log, sight }     = await played(2)

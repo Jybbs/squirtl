@@ -166,16 +166,15 @@ describe('StoryReward drawing its screen', () => {
     decoding.resolve()
     await vi.runAllTimersAsync()
 
-    expect([first > 0, recorder.images.length - first]).toStrictEqual([true, 1])
+    expect([first, recorder.images.length]).toStrictEqual([2, 3])
   })
 
   test('leaves the screen as it stands where a room’s image fails to decode', async () => {
     const { recorder } = await mounted(true, () => Promise.reject(new Error('undecodable')))
-    const first        = recorder.images.length
 
     await vi.runAllTimersAsync()
 
-    expect([first > 0, recorder.images.length]).toStrictEqual([true, first])
+    expect(recorder.images).toHaveLength(2)
   })
 
   test('draws nothing where the canvas gives no context', async () => {
