@@ -1,9 +1,8 @@
-import fs   from 'node:fs'
-import path from 'node:path'
+import fs from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-import { docsDir }                 from '../../../lib/config/paths.ts'
+import readme                      from '../../../../../.github/README.md?raw'
 import { WALKING, walksOf }        from '../../../lib/front/learning.ts'
 import { SCHEMES }                 from '../../../lib/identity/palette.ts'
 import * as movie                  from '../../../lib/readme/movie.ts'
@@ -35,8 +34,6 @@ const QUICK: movie.Preview = { ...movie.PREVIEW, frame: 1000, rest: 0, scale: 1 
 
 describe('previewAlt', () => {
   test('describes the walks the preview plays in the sentence the README carries', () => {
-    const readme = fs.readFileSync(path.join(docsDir(import.meta.url), '..', '.github', 'README.md'), 'utf8')
-
     expect(readme).toContain(`alt="${preview.previewAlt()}"`)
   })
 
@@ -49,7 +46,7 @@ describe('previewAlt', () => {
 
 describe('previewPath', () => {
   it.each(SCHEMES)('holds the committed %s preview at the size the preview draws, within the 6 MB guide', scheme => {
-    const bytes  = fs.readFileSync(path.join(docsDir(import.meta.url), preview.previewPath(scheme)))
+    const bytes  = fs.readFileSync(preview.previewPath(import.meta.url, scheme))
     const played = movie.previewMovie(import.meta.url, MOMENTS, movie.PREVIEW, scheme)
 
     expect([bytes.readUInt16LE(6), bytes.readUInt16LE(8)]).toStrictEqual([played.width, played.height])
@@ -63,8 +60,7 @@ describe('writePreviews', () => {
 
     preview.writePreviews(metaUrl, MOMENTS, QUICK)
 
-    const docs    = docsDir(metaUrl)
-    const decoded = SCHEMES.map(scheme => decodeGif(fs.readFileSync(path.join(docs, preview.previewPath(scheme)))))
+    const decoded = SCHEMES.map(scheme => decodeGif(fs.readFileSync(preview.previewPath(metaUrl, scheme))))
     const length  = [...movie.previewMovie(metaUrl, MOMENTS, QUICK, 'light').frames()].length * QUICK.frame
 
     expect(decoded.map(gif => [gif.loops, gif.locals, lengthOf(gif), gif.frames[0]!.at(-1)]))

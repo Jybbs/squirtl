@@ -29,9 +29,11 @@ export function previewAlt(moments: readonly Moment[] = walksOf()): string {
 }
 
 /**
- * Reads the path under `docs/` of the README's preview in `scheme`.
+ * Finds the README's preview in `scheme` under the `docs/` of the checkout
+ * `metaUrl` names.
  */
-export const previewPath = (scheme: Scheme): string => path.join('assets', 'readme', `learning-${scheme}.gif`)
+export const previewPath = (metaUrl: string, scheme: Scheme): string =>
+  path.join(docsDir(metaUrl), 'assets', 'readme', `learning-${scheme}.gif`)
 
 /**
  * Writes the README's preview in every scheme under the `docs/` of the checkout
@@ -43,7 +45,7 @@ export function writePreviews(
   preview : movie.Preview     = movie.PREVIEW
 ): void {
   for (const scheme of SCHEMES) {
-    const target = path.join(docsDir(metaUrl), previewPath(scheme))
+    const target = previewPath(metaUrl, scheme)
     fs.mkdirSync(path.dirname(target), { recursive: true })
     fs.writeFileSync(target, encodeGif(movie.previewMovie(metaUrl, moments, preview, scheme)))
   }

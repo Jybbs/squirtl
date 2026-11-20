@@ -29,26 +29,27 @@ BASE = {
     "src/squirtl/agent/memory.py"       : "",
     "src/squirtl/cli/__init__.py"       : "",
     "src/squirtl/docs/references.bib"   : "@misc{sutton2018}\n",
-    "tests/agent/conftest.py"           : "",
+    "tests/agent/conftest.py"           : '"docs/notes/readme.md"\n',
     "tests/agent/fixtures/memory/a.txt" : "from common.agents import each_agent\n",
     "tests/agent/learner.py"            : "from common.agents import each_agent\n",
     "tests/agent/memory.py"             : "",
     "tests/agent/networks.py"           : "import common.records as records\n",
-    "tests/cli/app.py"          : "",
-    "tests/cli/conftest.py"     : "from common.cli import Invoker\n",
-    "tests/common/agents.py"    : "",
-    "tests/common/cli.py"       :
-        'from common.records import idled\n"src/squirtl/docs/references.bib"\n',
-    "tests/common/console.py"   : "",
-    "tests/common/records.py"   : "from common.cli import Invoker\n",
-    "tests/common/snapshots.py" : "",
-    "tests/conftest.py"         : "from common.console import set_event\n",
-    "tests/repo/checks.py"      :
+    "tests/cli/app.py"           : "",
+    "tests/cli/conftest.py"      : "from common.cli import Invoker\n",
+    "tests/common/agents.py"     :
+        '"docs/notes/license.md"\n"src/squirtl/search/tiles.bin"\n',
+    "tests/common/cli.py"        : "from common.records import idled\n",
+    "tests/common/console.py"    : "",
+    "tests/common/evaluation.py" : '"docs/notes/citation.cff"\n',
+    "tests/common/records.py"    : "from common.cli import Invoker\n",
+    "tests/common/snapshots.py"  : "",
+    "tests/conftest.py"          : "from common.console import set_event\n",
+    "tests/repo/checks.py"       :
         '"src/squirtl/docs/references.bib"\n"src/squirtl/agent/layout.toml"\n',
-    "tests/runs/trainer.py"     : "    from common.agents   import each_agent\n",
-    "tests/search/tree.py"      : "from common.agents_pool import each_pool\n",
-    "tests/tasks/bin.py"        : "",
-    "tests/tasks/py.py"         : ""
+    "tests/runs/trainer.py"      : "    from common.agents   import each_agent\n",
+    "tests/search/tree.py"       : "from common.agents_pool import each_pool\n",
+    "tests/tasks/bin.py"         : "",
+    "tests/tasks/py.py"          : ""
 }
 CONFTEST = '''"""
 Shares the fixtures.
@@ -306,6 +307,12 @@ def test_each_task_hands_its_program_its_flags_and_arguments(
         ),
         param("tests/agent/conftest.py", ["tests/agent"], id="conftest"),
         param(
+            "src/squirtl/search/tiles.bin",
+            ["tests/agent/learner.py", "tests/runs/trainer.py", "tests/search"],
+            id = "package-file-helper-named"
+        ),
+        param("docs/notes/readme.md", ["tests/agent"], id="conftest-named"),
+        param(
             "tests/agent/fixtures/memory/a.txt",
             ["tests/agent/memory.py"],
             id = "snapshot"
@@ -315,6 +322,11 @@ def test_each_task_hands_its_program_its_flags_and_arguments(
             "tests/common/agents.py",
             ["tests/agent/learner.py", "tests/runs/trainer.py"],
             id = "helper"
+        ),
+        param(
+            "docs/notes/license.md",
+            ["tests/agent/learner.py", "tests/runs/trainer.py"],
+            id = "helper-named"
         ),
         param(
             "tests/common/cli.py",
@@ -411,7 +423,8 @@ def test_affected_reads_no_file_main_changed_past_the_merge_base(
     [
         param(None, id="unchanged"),
         param("src/squirtl/agent/replay.py", id="unmirrored"),
-        param("tests/common/search.py", id="unimported-helper")
+        param("tests/common/search.py", id="unimported-helper"),
+        param("docs/notes/citation.cff", id="unimported-helper-named")
     ]
 )
 def test_affected_starts_no_pytest_where_no_test_module_is_reached(
@@ -422,8 +435,8 @@ def test_affected_starts_no_pytest_where_no_test_module_is_reached(
     """
     Pins that `py:affected` starts no pytest on a branch changing no file,
     and on one whose one changed file is a module with no mirrored test
-    module or a helper no module imports, since pytest given no path runs
-    the whole suite.
+    module, a helper no module imports, or a file only that helper names,
+    since pytest given no path runs the whole suite.
     """
     if path:
         branch(False, path)

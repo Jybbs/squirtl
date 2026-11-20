@@ -1,14 +1,14 @@
-import { computed, defineComponent, ref } from 'vue'
+import { defineComponent, ref } from 'vue'
 
-import { marks }         from '../../../lib/front/reward.ts'
-import * as discount     from '../../../lib/methods/discount.ts'
-import { count, fixed }  from '../../../lib/widgets/numbers.ts'
-import { useScrub }      from '../../../lib/widgets/scrub.ts'
-import { useDrawnWidth } from '../../../lib/widgets/width.ts'
-import { Chip }          from '../kit/chip.tsx'
-import { ROLES }         from '../kit/hues.ts'
-import * as plots        from '../kit/plots.tsx'
-import { COVER, LABEL }  from '../kit/widget.ts'
+import { marks }               from '../../../lib/front/reward.ts'
+import * as discount           from '../../../lib/methods/discount.ts'
+import { useDiscountPlayback } from '../../../lib/methods/discount/playback.ts'
+import { fixed }               from '../../../lib/widgets/numbers.ts'
+import { Chip }                from '../kit/chip.tsx'
+import { ROLES }               from '../kit/hues.ts'
+import * as plots              from '../kit/plots.tsx'
+import { OVER, Slider }        from '../kit/slider.tsx'
+import { LABEL }               from '../kit/widget.ts'
 
 /**
  * The words the widget sets, the label over the starter's chips, the axes'
@@ -26,14 +26,6 @@ const WORDS = {
  * Amethyst.
  */
 const TERM_FILL = { goal: 'fill-amethyst-mark', milestone: 'fill-heath-mark' } as const
-
-/**
- * Describes the half point at `stop` for a screen reader.
- */
-function describe(stop: number): string {
-  const at = discount.discountAt(stop)
-  return `Discount ${discount.spelled(at)}, half its weight at ${count(Math.round(discount.halfLife(at)))} steps`
-}
 
 /**
  * Draws the lane of `plot`: each episode's tiles along the top, edged in its
@@ -92,42 +84,31 @@ function drawFigures(at: number) {
 export const MethodsDiscount = defineComponent({
   name  : 'MethodsDiscount',
   setup : () => {
-    const box   = ref<HTMLElement>()
-    const at    = ref(discount.stopOf(discount.DISCOUNT))
-    const width = useDrawnWidth(box, discount.LEAST)
-    const set   = computed(() => discount.discountAt(at.value))
-    const plot  = computed(() => discount.plotOf(set.value, width.value))
-    const scrub = useScrub(box, { beat: 0, done: () => true, finish: () => {}, tick: () => {} }, {
-      at       : at,
-      count    : discount.WEIGHING.stops + 1,
-      describe : describe,
-      label    : WORDS.slider,
-      seek     : stop => { at.value = stop }
-    })
+    const box                         = ref<HTMLElement>()
+    const { plot, scrub, set, width } = useDiscountPlayback(box, WORDS.slider)
 
     return () => {
-      const { box: room, height } = discount.WEIGHING
-      const { floor, half }       = plot.value
+      const { box: room, height }                       = discount.WEIGHING
+      const { curve, floor, grid, half, labels, stops } = plot.value
 
       return (
         <div class="@container grid gap-3">
           {drawFigures(set.value)}
-          <div {...scrub.root.value} class="relative" ref={box}>
+          <div class="relative" ref={box}>
             <svg aria-hidden="true" class="block h-auto w-full overflow-visible" viewBox={`0 0 ${width.value} ${height}`}>
-              {plots.drawAxis(plot.value.grid)}
-              {plot.value.labels.map(label => plots.drawLabel(label))}
+              {plots.drawAxis(grid)}
+              {labels.map(label => plots.drawLabel(label))}
               {plots.drawLabel({ anchor: 'end', text: WORDS.ahead, x: width.value - room.right, y: floor + 42 }, plots.TITLE)}
               {plots.drawLabel({ anchor: 'start', text: WORDS.weight, x: room.left - 36, y: room.top - 16 }, plots.TITLE)}
-              {plot.value.stops.map(x => <path class="stroke-quiet" d={`M${x},${half.y - 5}V${half.y + 5}`} stroke-width={discount.STROKES.axis} />)}
-              <path class={['fill-none', ROLES.agent.stroke]} d={plot.value.curve} {...plots.CURVE} />
+              {stops.map(x => <path class="stroke-quiet" d={`M${x},${half.y - 5}V${half.y + 5}`} stroke-width={discount.STROKES.axis} />)}
+              <path class={['fill-none', ROLES.agent.stroke]} d={curve} {...plots.CURVE} />
               {drawLane(plot.value)}
               <path class="stroke-quiet" d={`M${half.x},${half.y}V${floor}`} stroke-dasharray="3 3" stroke-width={discount.STROKES.reference} />
               <circle class="fill-ground stroke-rule" cx={half.x} cy={half.y} r="11" />
               <circle class={ROLES.agent.fill} cx={half.x} cy={half.y} r="6" />
               {plots.drawLabel(half.label, plots.TITLE)}
             </svg>
-            <div {...scrub.control.value} class={COVER.control} />
-            <div {...scrub.thumb.value} class={COVER.thumb} />
+            <Slider parts={OVER} scrub={scrub} />
           </div>
         </div>
       )

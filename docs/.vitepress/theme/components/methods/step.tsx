@@ -1,14 +1,13 @@
-import { defineComponent, onMounted, ref } from 'vue'
+import { defineComponent, ref } from 'vue'
 
-import { Episode }            from '../../../lib/game/episode.ts'
-import { RoomImages }         from '../../../lib/game/images.ts'
-import { padMark, pressName } from '../../../lib/game/pad.ts'
-import { GameScreen, SCREEN } from '../../../lib/game/screen.ts'
-import * as step              from '../../../lib/methods/step.ts'
-import { useStepPlayback }    from '../../../lib/methods/step/playback.ts'
-import { Chip }               from '../kit/chip.tsx'
-import { ROLES }              from '../kit/hues.ts'
-import { COVER, DETAIL }      from '../kit/widget.ts'
+import { padMark, pressName }             from '../../../lib/game/pad.ts'
+import * as step                          from '../../../lib/methods/step.ts'
+import { useStepPlayback }                from '../../../lib/methods/step/playback.ts'
+import { HEIGHT, PITCH, WIDTH, useSheet } from '../../../lib/methods/step/sheet.ts'
+import { Chip }                           from '../kit/chip.tsx'
+import { ROLES }                          from '../kit/hues.ts'
+import { OVER, Slider }                   from '../kit/slider.tsx'
+import { DETAIL }                         from '../kit/widget.ts'
 
 /**
  * The marks the sheet's key names, drawn as the sheet draws them: the bar over
@@ -40,37 +39,6 @@ const KEY = [
 const WORDS = {
   sheet  : 'The frames of ten steps, a row a step and a column a frame, the seventeenth of each row the one PyBoy draws',
   slider : 'The frame the sheet stands at, a row a step and a column a frame'
-}
-
-/**
- * The pixels from one cell's corner to the next, and the sheet's width and
- * height.
- */
-const PITCH  = step.SHEET.cell + step.SHEET.gap
-const WIDTH  = step.FRAMES * PITCH
-const HEIGHT = step.STEPS.length * PITCH
-
-/**
- * Draws every frame of every step into `canvas`, each cell the part of the
- * bedroom's screen round Blue as pret/pokered draws it on that frame, leaving
- * the canvas blank where it gives no 2D context.
- */
-function paintSheet(canvas: HTMLCanvasElement, images: RoomImages): void {
-  const episode = new Episode()
-  const screen  = new GameScreen(episode, images)
-  const source  = Object.assign(document.createElement('canvas'), SCREEN).getContext('2d')
-  const context = canvas.getContext('2d')
-  const { cell, crop, gap } = step.SHEET
-  if (!source || !context) return
-  episode.at                    = step.START.at
-  context.imageSmoothingEnabled = false
-  step.STEPS.forEach((each, s) => each.frames.forEach((frame, f) => {
-    screen.view.at.splice(0, 2, ...step.viewAt(each, f + 1))
-    episode.facing = frame.facing
-    screen.stance  = frame.stance
-    screen.draw(source)
-    context.drawImage(source.canvas, crop[0], crop[1], cell, cell, f * PITCH + gap / 2, s * PITCH + gap / 2, cell, cell)
-  }))
 }
 
 /**
@@ -170,24 +138,18 @@ export const MethodsStep = defineComponent({
   setup : () => {
     const box    = ref<HTMLElement>()
     const canvas = ref<HTMLCanvasElement>()
-    const thumb  = ref<HTMLElement>()
-    const { at, band, scrub, where } = useStepPlayback(box, thumb, WORDS.slider)
-
-    onMounted(() => {
-      const images = new RoomImages()
-      images.whenReady(() => paintSheet(canvas.value!, images), ['bedroom'])
-    })
+    const { at, band, scrub, where } = useStepPlayback(box, WORDS.slider)
+    useSheet(canvas)
 
     return () => (
       <div class="@container grid gap-4">
         <div class="step-sheet grid gap-x-2 gap-y-1">
           {drawHead()}
           {drawLabels()}
-          <div {...scrub.root.value} class="step-cells relative" ref={box}>
+          <div class="step-cells relative" ref={box}>
             <canvas aria-label={WORDS.sheet} class="pixelated block h-auto w-full" height={HEIGHT} ref={canvas} role="img" width={WIDTH} />
             {drawMarks(at.value)}
-            <div {...band.control.value} class={COVER.control} onPointerdown={band.press} onPointermove={(event: PointerEvent) => { if (event.buttons) band.point(event) }} />
-            <div {...scrub.thumb.value} class={COVER.thumb} ref={thumb} />
+            <Slider band={band} parts={OVER} scrub={scrub} />
           </div>
         </div>
         <div class="grid gap-3">

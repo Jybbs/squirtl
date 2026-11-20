@@ -3,8 +3,7 @@ import { defineComponent, ref, useId } from 'vue'
 import { useRace, useRaceClock } from '../../../lib/front/race/chart.ts'
 import * as race                 from '../../../lib/front/race.ts'
 import { Key }                   from '../kit/key.tsx'
-import { Slider }                from '../kit/slider.tsx'
-import { OVER }                  from '../kit/widget.ts'
+import { OVER, Slider }          from '../kit/slider.tsx'
 import { drawRace }              from './race/chart.tsx'
 
 /**
