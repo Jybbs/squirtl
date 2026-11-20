@@ -82,13 +82,15 @@ describe('Slider', () => {
     expect(control.findAll('*').map(part => part.element.tagName)).toStrictEqual(['I'])
   })
 
-  it('hands a press on its control to the band, moving focus to its thumb', async () => {
+  it('hands a press on its control to the band, capturing the pointer and moving focus to its thumb', async () => {
     const pick    = vi.fn<(event: PointerEvent) => void>()
     const wrapper = slid(null, OVER, pick)
+    const control = wrapper.get("[data-part='control']")
 
-    await wrapper.get("[data-part='control']").trigger('pointerdown', { button: 0, pointerId: 1, pointerType: 'mouse' })
+    await control.trigger('pointerdown', { button: 0, pointerId: 1, pointerType: 'mouse' })
 
-    expect([pick.mock.calls.length, document.activeElement]).toStrictEqual([1, wrapper.get('[role="slider"]').element])
+    expect([pick.mock.calls.length, control.element.hasPointerCapture(1), document.activeElement])
+      .toStrictEqual([1, true, wrapper.get('[role="slider"]').element])
   })
 })
 

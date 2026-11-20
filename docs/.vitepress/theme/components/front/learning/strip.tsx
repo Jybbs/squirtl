@@ -1,14 +1,14 @@
 import { type PropType, type VNode, defineComponent, ref } from 'vue'
 
-import type { Moment }        from '../../../../lib/front/learning.ts'
-import * as strip             from '../../../../lib/front/learning/strip.ts'
-import type { Hue }           from '../../../../lib/identity/identity.ts'
-import { counted }            from '../../../../lib/widgets/numbers.ts'
-import type { Scrub }         from '../../../../lib/widgets/scrub.ts'
-import { useDrawnWidth }      from '../../../../lib/widgets/width.ts'
-import * as clock             from '../../kit/clock.tsx'
-import { AROUND, Slider }     from '../../kit/slider.tsx'
-import { WalkBands }          from './bands.tsx'
+import type { Moment }    from '../../../../lib/front/learning.ts'
+import * as strip         from '../../../../lib/front/learning/strip.ts'
+import type { Hue }       from '../../../../lib/identity/identity.ts'
+import { counted }        from '../../../../lib/widgets/numbers.ts'
+import type { Scrub }     from '../../../../lib/widgets/scrub.ts'
+import { useDrawnWidth }  from '../../../../lib/widgets/width.ts'
+import * as clock         from '../../kit/clock.tsx'
+import { AROUND, Slider } from '../../kit/slider.tsx'
+import { WalkBands }      from './bands.tsx'
 
 /**
  * The strip's geometry.

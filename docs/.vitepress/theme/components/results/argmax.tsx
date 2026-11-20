@@ -1,10 +1,10 @@
 import { defineComponent, ref } from 'vue'
 
-import * as argmax            from '../../../lib/results/argmax.ts'
-import { IDLE }               from '../../../lib/widgets/autoplay.ts'
-import { useScrub }           from '../../../lib/widgets/scrub.ts'
-import { AROUND, Slider }     from '../kit/slider.tsx'
-import { DETAIL, LABEL }      from '../kit/widget.ts'
+import * as argmax        from '../../../lib/results/argmax.ts'
+import { IDLE }           from '../../../lib/widgets/autoplay.ts'
+import { useScrub }       from '../../../lib/widgets/scrub.ts'
+import { AROUND, Slider } from '../kit/slider.tsx'
+import { DETAIL, LABEL }  from '../kit/widget.ts'
 
 /**
  * The classes of the widget's parts: the takeaway as its heading and the
