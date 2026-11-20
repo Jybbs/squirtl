@@ -7,6 +7,7 @@ line.
 """
 
 from collections.abc import Callable, Mapping
+from common.startup  import EAGERLY
 from json            import loads
 from pathlib         import Path
 from pkgutil         import iter_modules
@@ -21,17 +22,16 @@ from squirtl.docs.outputs  import Inventory, Output
 from squirtl.emulator.schemas import Symbol
 from squirtl.identity.schemas import Face, Identity, Monospace
 
-PROBE = (
+PROBE = EAGERLY + (
     "from importlib import import_module\n"
-    "from sys import argv, modules, set_lazy_imports\n"
-    "set_lazy_imports('normal')\n"
+    "from sys import argv, modules\n"
     "import_module(argv[1])\n"
     "print('squirtl.cli' in modules)"
 )
 """
 The program an interpreter of its own runs, importing the module its
-argument names with every import loading eagerly, and printing whether
-`squirtl.cli` loaded with it.
+argument names with every import of a `squirtl` module loading eagerly, and
+printing whether `squirtl.cli` loaded with it.
 """
 
 
@@ -203,8 +203,8 @@ def test_squirtl_docs_and_each_of_its_modules_load_without_the_command_line(
 ):
     """
     Asserts that importing `squirtl.docs` or one of its modules, in an
-    interpreter of its own whose imports all load eagerly so an import of
-    the command line runs where it is written, leaves `squirtl.cli` out
-    of `sys.modules`.
+    interpreter of its own whose imports of `squirtl` modules load eagerly
+    so an import of the command line runs where it is written, leaves
+    `squirtl.cli` out of `sys.modules`.
     """
     assert check_output([executable, "-c", PROBE, module], text=True) == "False\n"
