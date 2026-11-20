@@ -612,6 +612,7 @@ def test_every_particle_of_a_new_search_starts_on_the_root(
     assert (search.winner.node, search.winner.reward, len(search.tree)) == (0, 0.0, 1)
 
 
+@mark.slow
 @mark.usefixtures("game")
 def test_one_seed_finds_one_demonstration_whichever_order_the_rollouts_play_in(
     root      : Snapshot,

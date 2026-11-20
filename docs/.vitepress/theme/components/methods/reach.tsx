@@ -7,7 +7,8 @@ import { CROP }                        from '../../../lib/methods/reach/paint.ts
 import { useReachPlayback }            from '../../../lib/methods/reach/playback.ts'
 import { GROUPS, SCREENS, useScreens } from '../../../lib/methods/reach/screens.ts'
 import { Key }                         from '../kit/key.tsx'
-import { COVER, DETAIL, LABEL }        from '../kit/widget.ts'
+import { OVER, Slider }                from '../kit/slider.tsx'
+import { DETAIL, LABEL }               from '../kit/widget.ts'
 
 /**
  * The words the widget sets.
@@ -34,7 +35,7 @@ export const MethodsReach = defineComponent({
 
     return () => (
       <div class="@container grid gap-3">
-        <div {...scrub.root.value} class="relative" ref={box}>
+        <div class="relative" ref={box}>
           <div class="reach-screens grid gap-x-2 gap-y-2">
             {GROUPS.map(({ group, span }) => (
               <p class={[LABEL, 'm-0 border-b-hairline border-rule pb-1 whitespace-nowrap text-ink']} style={{ gridColumn: `span ${span}` }}>{group}</p>
@@ -53,8 +54,7 @@ export const MethodsReach = defineComponent({
               </figure>
             ))}
           </div>
-          <div {...scrub.control.value} class={COVER.control} />
-          <div {...scrub.thumb.value} class={COVER.thumb} />
+          <Slider parts={OVER} scrub={scrub} />
         </div>
         <span class={[DETAIL, 'reach-status text-ink']}>{at.value ? `Pass ${at.value} of ${reach.PASSES}` : 'Before training'}</span>
         <Key entries={KEY} />
