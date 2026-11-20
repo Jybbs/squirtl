@@ -24,7 +24,7 @@ from itertools       import accumulate
 from pathlib         import Path
 from re              import compile, escape, search
 from subprocess      import run
-from sys             import argv
+from sys             import argv, stdout
 from typing          import Self
 
 DOTTED = compile(r"squirtl(?:\.\w+)+")
@@ -74,9 +74,11 @@ def located(dotted: str) -> str | None:
 def main(base: str, *changed: str):
     """
     Prints each pytest argument the `changed` files reach since `base`, one
-    a line.
+    a line, and nothing where they reach no test.
     """
-    print(*Suite.read().select(base, changed), sep="\n")
+    stdout.writelines(
+        f"{argument}\n" for argument in Suite.read().select(base, changed)
+    )
 
 
 def marked(

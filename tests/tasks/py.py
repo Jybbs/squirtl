@@ -596,11 +596,13 @@ def test_reach_prints_each_selection_or_every_test(
     reach     : Callable[..., list[str]]
 ):
     """
-    Pins that the `py:affected` reader prints one selection a line, and
-    `tests` alone once a change reaches every test.
+    Pins that the `py:affected` reader prints one selection a line, nothing
+    where no test is reached, and `tests` alone once a change reaches every
+    test.
     """
     module = load_task(".mise/tasks/py/reach.py")
 
+    module.main("HEAD")
     module.main("HEAD", "tests/common/console.py")
     module.main("HEAD", "tests/common/terms.py")
 
