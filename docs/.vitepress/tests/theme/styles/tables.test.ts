@@ -1,5 +1,5 @@
-import { Window }                          from 'happy-dom'
-import { createMarkdownRenderer }          from 'vitepress'
+import { Window }                         from 'happy-dom'
+import { createMarkdownRenderer }         from 'vitepress'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import { markdownRules } from '../../../lib/markdown/rules.ts'
