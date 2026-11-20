@@ -70,6 +70,7 @@ from squirtl.runs.schemas          import Run
 from squirtl.runs.settings         import CurriculumSettings, RunSettings, Stream
 from squirtl.runs.trainer          import EpisodeTrainer, RolloutTrainer, Trainer
 
+type Played   = Callable[[Hashable, Callable[[], Path]], Path]
 type Unbroken = Callable[[Hashable, Callable[[], Run]], Run]
 
 
@@ -84,7 +85,8 @@ def along(
     Builds the trainer of a run of `algorithm` on `timed` along the
     demonstration `demonstrated` holds, each step advancing 64 frames,
     each window two steps wide and moving once two of its episodes end, any
-    keyword a field of `RunSettings` to set in its place.
+    keyword a field of `RunSettings` to set in its place or the `started`
+    instant `trainer` takes.
     """
     return rolling(
         algorithm,
@@ -154,6 +156,40 @@ def finish(
             stop(step, trainer)
 
     return trainer.run
+
+
+def halfway(
+    algorithm    : Algorithm,
+    demonstrated : Path,
+    played       : Played,
+    rolling      : Callable[..., Trainer],
+    timed        : Cartridge
+) -> Run:
+    """
+    Takes a run of `algorithm` along the demonstration `demonstrated` holds
+    to the end of the rollout reaching step 14, as `squirtl stop` would stop
+    it, once a session through `played`. The run starts at midnight UTC on
+    5 October 2026, a day after every run `trainer` starts, so no run a case
+    starts shares its directory.
+
+    Returns:
+        The run it recorded, read from the copy each case changes alone.
+    """
+    return Run.read(
+        played(
+            ("halfway", algorithm),
+            lambda: finish(
+                trainer = along(
+                    algorithm    = algorithm,
+                    demonstrated = demonstrated,
+                    rolling      = rolling,
+                    timed        = timed,
+                    started      = datetime(2026, 10, 5, tzinfo=UTC)
+                ),
+                stop = lambda step, trainer: step == 14 and trainer.run.stop.touch()
+            ).directory
+        )
+    )
 
 
 def replace_updates(
@@ -386,6 +422,7 @@ def test_each_finished_episode_writes_a_line_and_the_cut_one_none(
 
 def test_a_resume_whose_demonstration_ends_elsewhere_is_refused_before_any_directory(
     demonstrated : Path,
+    played       : Played,
     rolling      : Callable[..., Trainer],
     timed        : Cartridge
 ):
@@ -395,14 +432,12 @@ def test_a_resume_whose_demonstration_ends_elsewhere_is_refused_before_any_direc
     is refused, naming both lists of ends, before it makes a directory of
     its own.
     """
-    stopped = finish(
-        trainer = along(
-            algorithm    = Algorithm.PPO,
-            demonstrated = demonstrated,
-            rolling      = rolling,
-            timed        = timed
-        ),
-        stop = lambda step, trainer: step == 14 and trainer.run.stop.touch()
+    stopped = halfway(
+        algorithm    = Algorithm.PPO,
+        demonstrated = demonstrated,
+        played       = played,
+        rolling      = rolling,
+        timed        = timed
     )
     checkpoint = VectorCheckpoint.from_path(stopped.checkpoint)
     syllabus   = checkpoint.syllabus
@@ -1403,10 +1438,12 @@ def test_a_rollout_run_has_its_curriculum_take_in_each_episode_it_records(
     assert VectorCheckpoint.from_path(run.checkpoint).syllabus == curriculum.syllabus
 
 
+@mark.slow
 @each_agent
 def test_a_rollout_run_along_a_demonstration_resumes_as_one_never_stopped(
     algorithm    : Algorithm,
     demonstrated : Path,
+    played       : Played,
     rolling      : Callable[..., Trainer],
     timed        : Cartridge,
     unbroken     : Unbroken
@@ -1417,9 +1454,12 @@ def test_a_rollout_run_along_a_demonstration_resumes_as_one_never_stopped(
     of a run that never stopped, beside its weights and its lines.
     """
     start   = partial(along, algorithm, demonstrated, rolling, timed)
-    stopped = finish(
-        trainer = start(),
-        stop    = lambda step, trainer: step == 14 and trainer.run.stop.touch()
+    stopped = halfway(
+        algorithm    = algorithm,
+        demonstrated = demonstrated,
+        played       = played,
+        rolling      = rolling,
+        timed        = timed
     )
 
     assert VectorCheckpoint.from_path(stopped.checkpoint).syllabus.average is not None

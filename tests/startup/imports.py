@@ -6,14 +6,17 @@ imports, covering:
 - The mode and the filter `start` sets
 - The mode and the filter an interpreter of the virtual environment starts
   under, and the normal mode one started without `site` keeps
-- Every module of the package importing under the normal mode, which a cycle
-  among them breaks while the lazy mode hides it
+- Every module of the package importing with each import of a `squirtl`
+  module eager, which a cycle among them breaks while the lazy mode hides it
+- `EAGERLY` loading each import of a `squirtl` module and leaving torch,
+  SciPy, and PyBoy unloaded
 """
 
-from importlib  import reload
-from pytest     import mark, param
-from subprocess import check_output
-from sys        import executable, get_lazy_imports, get_lazy_imports_filter
+from common.startup import EAGERLY
+from importlib      import reload
+from pytest         import mark, param
+from subprocess     import check_output
+from sys            import executable, get_lazy_imports, get_lazy_imports_filter
 
 from squirtl.startup import imports
 
@@ -26,11 +29,9 @@ The program a started interpreter runs, printing its mode and its filter's
 name.
 """
 
-WALK = (
+WALK = EAGERLY + (
     "from importlib import import_module\n"
     "from pkgutil import walk_packages\n"
-    "from sys import set_lazy_imports\n"
-    "set_lazy_imports('normal')\n"
     "import squirtl\n"
     "for module in walk_packages(squirtl.__path__, 'squirtl.'):\n"
     "    try:\n"
@@ -39,17 +40,35 @@ WALK = (
     "        print(module.name, error)"
 )
 """
-The program a started interpreter runs, turning the lazy mode off before
-importing each module of the package and printing each that fails with its
-error.
+The program a started interpreter runs, loading each import of a `squirtl`
+module eagerly before importing each module of the package and printing
+each that fails with its error.
 """
 
 
-def test_every_module_of_the_package_imports_under_the_normal_mode():
+def test_eagerly_loads_each_squirtl_import_and_leaves_torch_scipy_and_pyboy_out():
     """
-    Asserts that each module under `squirtl` imports in an interpreter whose
-    lazy mode is turned off, so no import cycle among the package's modules
-    loads only because the start file defers it.
+    Asserts that importing `squirtl.docs.outputs` after `EAGERLY` loads
+    the `squirtl.identity.schemas` it imports where its import is written,
+    while torch, SciPy, and PyBoy stay out of `sys.modules`, so `WALK` and
+    the command-line probe of `squirtl.docs` each meet a cycle the lazy mode
+    would hide.
+    """
+    program = EAGERLY + (
+        "from sys import modules\n"
+        "import squirtl.docs.outputs\n"
+        "print('squirtl.identity.schemas' in modules,"
+        " {'pyboy', 'scipy', 'torch'} & modules.keys())"
+    )
+
+    assert check_output([executable, "-c", program], text=True) == "True set()\n"
+
+
+def test_every_module_of_the_package_imports_with_its_own_imports_eager():
+    """
+    Asserts that each module under `squirtl` imports in an interpreter
+    loading every import of a `squirtl` module eagerly, so no import cycle
+    among the package's modules loads only because the start file defers it.
     """
     assert check_output([executable, "-c", WALK], text=True) == ""
 
