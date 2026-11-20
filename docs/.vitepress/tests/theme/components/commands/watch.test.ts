@@ -68,6 +68,21 @@ describe('CommandsWatch at a hold', () => {
     expect(checks(wrapper)).toStrictEqual(['Digestmatches', 'Returnmatches'])
   })
 
+  stopped('keeps the byte the reader picks as the window leaves the screen and returns, motion reduced', async () => {
+    browser.preference.value = 'reduce'
+    const { sight, wrapper } = await mounted()
+    const thumb              = wrapper.get('[role="slider"]')
+
+    await thumb.trigger('focusin')
+    await thumb.trigger('keydown', { key: 'Home' })
+    sight.show(true)
+    sight.show(false)
+    sight.show(true)
+    await nextTick()
+
+    expect(pointer.sliderState(wrapper)[0]).toBe('1')
+  })
+
   stopped('holds the playback on the byte a press lands on', async () => {
     const { wrapper } = await mounted()
     const control     = wrapper.get("[data-part='control']")

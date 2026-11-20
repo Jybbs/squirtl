@@ -16,8 +16,9 @@ export interface Band {
 /**
  * Turns the control of `scrub` into a band where the position under a pointer
  * is the one `pick` reads from it, rather than one along a single axis, a press
- * capturing the pointer and moving focus to the band's thumb, and a drag with
- * a button held picking again as it moves.
+ * capturing the pointer and moving focus to the band's thumb with no focus
+ * ring, canceled so that no `mousedown` follows to move focus off it, and
+ * a drag with a button held picking again as it moves.
  */
 export function useBand(scrub: Scrub, pick: (event: PointerEvent) => void): Band {
   const thumb   = ref<HTMLElement>()
@@ -25,7 +26,8 @@ export function useBand(scrub: Scrub, pick: (event: PointerEvent) => void): Band
     ...scrub.control.value,
     onPointerdown: (event: PointerEvent) => {
       (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-      thumb.value!.focus({ preventScroll: true })
+      thumb.value!.focus({ focusVisible: false, preventScroll: true })
+      event.preventDefault()
       pick(event)
     },
     onPointermove: (event: PointerEvent) => { if (event.buttons) pick(event) }

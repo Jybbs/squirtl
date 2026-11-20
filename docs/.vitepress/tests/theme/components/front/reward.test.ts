@@ -94,17 +94,18 @@ describe('StoryReward under reduced motion', () => {
   })
 
   test('draws the climb once measured, dimming each jump the step shown has not reached', async () => {
-    const { resize, sight, wrapper } = await mounted()
-    const before                     = wrapper.findAll(DRAWING).length
+    const { resize, wrapper } = await mounted()
+    const before              = wrapper.findAll(DRAWING).length
+    const thumb               = wrapper.get('[role="slider"]')
 
     resize(401, 298)
     await nextTick()
     const dimmed = () => wrapper.findAll('g.opacity-45').length
-    const first  = dimmed()
-    sight.show(true)
-    await nextTick()
+    const ended  = dimmed()
+    await thumb.trigger('focusin')
+    await thumb.trigger('keydown', { key: 'Home' })
 
-    expect([before, first, dimmed()]).toStrictEqual([0, 4, 0])
+    expect([before, ended, dimmed()]).toStrictEqual([0, 0, 4])
     expect(wrapper.get(DRAWING).attributes('viewBox')).toBe('0 0 401 298')
   })
 })
@@ -165,7 +166,7 @@ describe('StoryReward drawing its screen', () => {
     decoding.resolve()
     await vi.runAllTimersAsync()
 
-    expect([first, recorder.images.length]).toStrictEqual([1, 2])
+    expect([first, recorder.images.length]).toStrictEqual([2, 3])
   })
 
   test('leaves the screen as it stands where a room’s image fails to decode', async () => {
@@ -173,7 +174,7 @@ describe('StoryReward drawing its screen', () => {
 
     await vi.runAllTimersAsync()
 
-    expect(recorder.images).toHaveLength(1)
+    expect(recorder.images).toHaveLength(2)
   })
 
   test('draws nothing where the canvas gives no context', async () => {
