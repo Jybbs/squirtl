@@ -4,16 +4,20 @@ output format `py:lint` chooses for the shell it runs in, the coverage flags
 `py:coverage` passes pytest, the test modules `py:affected` selects from the
 files a branch changes, each further argument forwarded after the flags and
 ahead of the operands, and the folders `py:lint` and `py:format` name as the
-formatter's operands.
+formatter's operands, beside the tests the reader in `reach.py` selects for
+a changed module, helper, or root conftest.
 
-The stand-in under `fixtures/` answers for `prose` and `pytest`, printing
-each argument it receives on a line of its own, so no case starts either
-program.
+The reader's cases import it through `load_task` and run it in a checkout
+holding the files `SUITE` lists, with `tests/conftest.py` rewritten past its
+one commit. The stand-in under `fixtures/` answers for `prose` and `pytest`,
+printing each argument it receives on a line of its own, so no case starts
+either program.
 """
 
 from collections.abc import Callable, Mapping
 from pathlib         import Path
-from pytest          import fixture, mark, param
+from pytest          import CaptureFixture, fixture, mark, param
+from types           import ModuleType
 
 BASE = {
     ".mise/bin/pytest"    : "",
@@ -45,6 +49,149 @@ BASE = {
     "tests/search/tree.py"      : "from common.agents_pool import each_pool\n",
     "tests/tasks/bin.py"        : "",
     "tests/tasks/py.py"         : ""
+}
+CONFTEST = '''"""
+Shares the fixtures.
+"""
+
+from os     import devnull
+from pytest import fixture
+
+from squirtl.emulator.console import GameBoy
+from squirtl.search.tree      import Tree
+
+LIMIT = 3
+
+
+@fixture(autouse=True)
+def environment():
+    """
+    Isolates each test.
+    """
+    return Tree
+
+
+@fixture
+def clone(github):
+    """
+    Clones the repository.
+    """
+    return github
+
+
+@fixture
+def game():
+    """
+    Plays the game.
+    """
+    return GameBoy
+
+
+@fixture
+def github():
+    """
+    Serves each release.
+    """
+    return []
+
+
+@fixture
+def limited():
+    """
+    Caps the steps.
+    """
+    return LIMIT
+
+
+@fixture
+def null():
+    """
+    Names the null device.
+    """
+    return devnull
+
+
+@fixture
+def patched(monkeypatch):
+    """
+    Patches the press.
+    """
+    monkeypatch.setattr("squirtl.emulator.schemas.Button", None)
+
+
+def pytest_collection_modifyitems(items):
+    """
+    Marks each test.
+    """
+'''
+SUITE = {
+    "pyproject.toml": '"-p common.plugin"\n',
+    "src/squirtl/emulator/console.py" : "",
+    "src/squirtl/emulator/schemas.py" : "",
+    "src/squirtl/reward/__init__.py"  : "from squirtl.reward.terms import Term\n",
+    "src/squirtl/reward/terms.py"     : "",
+    "src/squirtl/search/__init__.py"  : "",
+    "src/squirtl/search/tree.py"      : "",
+    "tests/cli/watch.py"              : "import squirtl.emulator.console as console\n",
+    "tests/common/console.py"   : "from squirtl.emulator.console import GameBoy\n",
+    "tests/common/plugin.py"    : "from common.terms import each_term\n",
+    "tests/common/terms.py"     : "from squirtl.reward import Term\n",
+    "tests/conftest.py"         : CONFTEST,
+    "tests/emulator/console.py" : "from squirtl.emulator import console\n",
+    "tests/reward/conftest.py"  : "from squirtl.emulator.console import GameBoy\n",
+    "tests/reward/progress.py"  : "import os\n",
+    "tests/runs/fixtures/handover/a.py" : "import squirtl.emulator.console\n",
+    "tests/runs/handover.py"            : """
+from pytest import mark, param
+
+
+@mark.usefixtures("game")
+def test_plays():
+    pass
+
+
+def test_clones(clone):
+    pass
+
+
+@mark.parametrize("clone", [param([], id="empty")], indirect=True)
+def test_clones_each(clone):
+    pass
+
+
+@mark.parametrize(("github",), [param([], id="empty")])
+def test_reads_a_release(github):
+    pass
+
+
+def test_caps(limited):
+    pass
+
+
+def test_names(null):
+    pass
+
+
+def test_patches(patched):
+    pass
+
+
+class TestOverride:
+
+    @fixture
+    def github(self):
+        return {}
+
+    def test_reads_its_own(self, github):
+        pass
+""",
+    "tests/runs/marked.py"              : (
+        'from pytest import mark\n\npytestmark = mark.usefixtures("limited")\n\n\n'
+        "async def test_waits():\n    pass\n"
+    ),
+    "tests/search/tree.py"    : "from common.console import set_event\n",
+    "tests/search/workers.py" :
+        '"squirtl.emulator.console.GameBoy.press"\n"squirtl.unknown.name"\n'
 }
 
 
@@ -284,3 +431,198 @@ def test_affected_starts_no_pytest_where_no_test_module_is_reached(
     [line] = printed("py/affected")
 
     assert line.startswith("No test module reaches a file changed since ")
+
+
+@fixture
+def reach(
+    checkout  : Callable[[Mapping[str, str]], None],
+    git       : Callable[..., None],
+    load_task : Callable[[str], ModuleType]
+) -> Callable[..., list[str]]:
+    """
+    Builds a checkout whose one commit holds each file `SUITE` lists, and a
+    function rewriting `tests/conftest.py` past it before returning what the
+    `py:affected` reader selects for the changed paths it receives.
+
+    Returns:
+        A function taking the conftest's text in the working tree and then
+        the changed paths, which returns the reader's selection, or
+        `["tests"]` where a change reaches every test.
+    """
+    checkout(SUITE)
+    git("init", "--quiet")
+    git("add", "--all")
+    git("commit", "--message", "Base", "--quiet")
+
+    def select(conftest: str, *changed: str) -> list[str]:
+        """
+        Writes `conftest` as `tests/conftest.py` and reads the selection.
+        """
+        checkout({"tests/conftest.py": conftest})
+        return load_task(".mise/tasks/py/reach.py").Suite.read().select(
+            "HEAD", changed
+        )
+
+    return select
+
+
+@mark.parametrize(
+    ("changed", "selected"),
+    [
+        param(
+            "src/squirtl/emulator/console.py",
+            [
+                "tests/cli/watch.py", "tests/emulator/console.py",
+                "tests/reward", "tests/runs/handover.py::test_plays",
+                "tests/search/tree.py", "tests/search/workers.py"
+            ],
+            id = "module"
+        ),
+        param(
+            "src/squirtl/emulator/schemas.py",
+            ["tests/runs/handover.py::test_patches"],
+            id = "quoted-in-root-fixture"
+        ),
+        param("src/squirtl/reward/terms.py", ["tests"], id="reexported-to-plugin"),
+        param("tests/common/terms.py", ["tests"], id="plugin-helper"),
+        param("tests/common/removed.py", ["tests"], id="removed"),
+        param("src/squirtl/search/tree.py", ["tests"], id="read-by-autouse"),
+        param("src/squirtl/search/__init__.py", ["tests"], id="package-of-root-import"),
+        param(
+            "tests/common/console.py",
+            ["tests/search/tree.py"],
+            id = "helper-unread-by-root-fixtures"
+        )
+    ]
+)
+def test_reach_selects_the_tests_importing_a_changed_module(
+    changed  : str,
+    reach    : Callable[..., list[str]],
+    selected : list[str]
+):
+    """
+    Pins that the `py:affected` reader selects each test module importing
+    a changed module directly, through a package `__init__`, a helper, or
+    a quoted name, the folder of a subpackage conftest importing it, and
+    the tests requesting a root fixture reading a name the root conftest
+    binds to it, while a removed file, a helper `pyproject.toml` loads as
+    a plugin, a name the autouse fixture reads, and a package `__init__`
+    the root conftest loads on the way reach every test, and a module under
+    `fixtures/` reaches none.
+    """
+    assert reach(CONFTEST, changed) == selected
+
+
+@mark.parametrize(
+    ("old", "new", "selected"),
+    [
+        param(
+            "    return []\n",
+            "    return [1]\n",
+            [
+                "tests/runs/handover.py::test_clones",
+                "tests/runs/handover.py::test_clones_each"
+            ],
+            id = "fixture-and-its-requester"
+        ),
+        param("Serves each release.", "Serves every release.", [], id="docstring"),
+        param(
+            "Shares the fixtures.",
+            "Shares each fixture.",
+            [],
+            id = "module-docstring"
+        ),
+        param(
+            "from os     import devnull",
+            "from os.path import devnull",
+            ["tests/runs/handover.py::test_names"],
+            id = "rebound-import"
+        ),
+        param(
+            "from os     import devnull",
+            "from os import devnull, sep",
+            [],
+            id = "added-import"
+        ),
+        param(
+            '    """\n    Isolates each test.\n    """\n',
+            "    pass\n",
+            ["tests"],
+            id = "autouse"
+        ),
+        param(
+            '    Marks each test.\n    """\n',
+            '    """\n    del items\n',
+            ["tests"],
+            id = "hook"
+        ),
+        param("LIMIT = 3", "LIMIT = 4", ["tests"], id="name-a-fixture-reads"),
+        param(
+            "\n\n@fixture\ndef null",
+            "\n\nprint()\n\n\n@fixture\ndef null",
+            ["tests"],
+            id = "statement"
+        ),
+        param(
+            "@fixture\ndef limited():",
+            '@fixture(scope="session")\ndef limited():',
+            ["tests/runs/handover.py::test_caps", "tests/runs/marked.py::test_waits"],
+            id = "decorator"
+        )
+    ]
+)
+def test_reach_selects_the_tests_requesting_a_changed_root_fixture(
+    new      : str,
+    old      : str,
+    reach    : Callable[..., list[str]],
+    selected : list[str]
+):
+    """
+    Pins that the `py:affected` reader selects, for a change to
+    `tests/conftest.py`, the tests requesting a fixture whose definition the
+    change touches or that reads a name an import line binds anew, none for
+    a docstring or a binding no fixture reads, and every test for a change
+    to the autouse fixture, a hook, a name a fixture reads, or any other
+    statement.
+    """
+    assert old in CONFTEST
+
+    assert reach(CONFTEST.replace(old, new), "tests/conftest.py") == selected
+
+
+def test_reach_prints_each_selection_or_every_test(
+    capsys    : CaptureFixture[str],
+    load_task : Callable[[str], ModuleType],
+    reach     : Callable[..., list[str]]
+):
+    """
+    Pins that the `py:affected` reader prints one selection a line, and
+    `tests` alone once a change reaches every test.
+    """
+    module = load_task(".mise/tasks/py/reach.py")
+
+    module.main("HEAD", "tests/common/console.py")
+    module.main("HEAD", "tests/common/terms.py")
+
+    assert capsys.readouterr().out == "tests/search/tree.py\ntests\n"
+
+
+def test_reach_selects_the_tests_requesting_a_removed_root_fixture(
+    reach: Callable[..., list[str]]
+):
+    """
+    Pins that the `py:affected` reader selects the tests still requesting a
+    fixture `tests/conftest.py` no longer defines, through the side of the
+    change that defined it, leaving out a test whose class overrides it.
+    """
+    github, limited = (CONFTEST.index(f"@fixture\ndef {name}") for name in (
+        "github", "limited"
+    ))
+
+    assert reach(
+        CONFTEST[:github] + CONFTEST[limited:],
+        "tests/conftest.py"
+    ) == [
+        "tests/runs/handover.py::test_clones",
+        "tests/runs/handover.py::test_clones_each"
+    ]
