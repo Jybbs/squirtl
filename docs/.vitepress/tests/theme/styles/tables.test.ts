@@ -1,66 +1,71 @@
-// @vitest-environment happy-dom
-import fs   from 'node:fs'
-import path from 'node:path'
+import { Window }                          from 'happy-dom'
+import { createMarkdownRenderer }          from 'vitepress'
+import { afterAll, describe, expect, it } from 'vitest'
 
-import { createMarkdownRenderer } from 'vitepress'
-import { describe, expect, it }   from 'vitest'
-
-import { pagesDir }      from '../../../lib/config/paths.ts'
 import { markdownRules } from '../../../lib/markdown/rules.ts'
 import tablesSheet       from '../../../theme/styles/tables.css?raw'
+import { PAGES }         from '../../common/pages.ts'
 
 /**
- * The folder holding the site's pages.
+ * A page under `docs/pages/`, its path there beside its text.
  */
-const PAGES = pagesDir(import.meta.url)
+interface Page {
+  name : string
+  text : string
+}
 
 /**
  * The HTML each page renders to, kept as each case first renders it.
  */
 const RENDERED = new Map<string, Promise<string>>()
-
 /**
- * Reads the page at `name`, a path under the site's pages.
+ * The window each case renders a page into, built in Node's environment because
+ * Vitest's `--changed` reads no `.md?raw` import of a file running under the
+ * `happy-dom` environment, where Vite rewrites it to `.md?import&raw`.
  */
-const page = (name: string): string => fs.readFileSync(path.join(PAGES, name), 'utf8')
+const dom = new Window()
 
 /**
  * Lists the value of `property` computed for each element `selector` matches.
  */
 const computed = (selector: string, property: string): string[] =>
-  [...document.querySelectorAll(selector)]
-    .map(element => getComputedStyle(element).getPropertyValue(property))
+  [...dom.document.querySelectorAll(selector)]
+    .map(element => dom.getComputedStyle(element).getPropertyValue(property))
 
 /**
  * Sets the document to the page at `name` as `styled` reads it, each page
  * rendered once for every case reading it.
  */
-async function render(name: string) {
-  document.body.innerHTML = await RENDERED.getOrInsertComputed(name, styled)
+async function render({ name, text }: Page) {
+  dom.document.body.innerHTML = await RENDERED.getOrInsertComputed(name, () => styled(name, text))
 }
 
 /**
- * Reads the HTML of the page at `name` through the site's Markdown rules,
- * inside the default theme's content column and styled by `tables.css`.
+ * Reads the HTML of `text`, the page at `name`, through the site's Markdown
+ * rules, inside the default theme's content column and styled by `tables.css`.
  */
-async function styled(name: string): Promise<string> {
+async function styled(name: string, text: string): Promise<string> {
   const md   = await createMarkdownRenderer(process.cwd(), { config: markdownRules, math: true })
-  const body = await md.renderAsync(page(name), { relativePath: name })
+  const body = await md.renderAsync(text, { relativePath: name })
 
   return `<style>${tablesSheet}</style><div class="vp-doc">${body}</div>`
 }
 
+afterAll(() => dom.happyDOM.close())
+
 describe('tables.css', () => {
-  const tabled = fs.globSync('**/*.md', { cwd: PAGES }).filter(name => page(name).includes('\n|---'))
+  const tabled = Object.entries(PAGES)
+    .filter(([, text]) => text.includes('\n|---'))
+    .map(([name, text]) => ({ name, text }))
 
   it('finds the table on a command’s page', () => {
-    expect(tabled).toContain('commands/train.md')
+    expect(tabled.map(({ name }) => name)).toContain('commands/train.md')
   })
 
-  it.for(tabled)('lays each table of %s across the column inside a block scrolling sideways', async name => {
-    await render(name)
+  it.for(tabled)('lays each table of $name across the column inside a block scrolling sideways', async page => {
+    await render(page)
 
-    const tables = document.querySelectorAll('table')
+    const tables = dom.document.querySelectorAll('table')
 
     expect(tables.length).toBeGreaterThan(0)
     expect([...tables].filter(table => !table.parentElement?.matches('.table-scroll'))).toStrictEqual([])
@@ -69,8 +74,8 @@ describe('tables.css', () => {
     expect([...new Set(computed('table', 'width'))]).toStrictEqual(['100%'])
   })
 
-  it.for(tabled)('keeps each code span set alone in a cell of %s on one line while the cell’s prose wraps', async name => {
-    await render(name)
+  it.for(tabled)('keeps each code span set alone in a cell of $name on one line while the cell’s prose wraps', async page => {
+    await render(page)
 
     const alone = computed('td > code', 'white-space')
 
