@@ -1,37 +1,37 @@
-import { clamp }                                from '@vueuse/core'
-import { type ComputedRef, type Ref, computed } from 'vue'
+import { clamp }                   from '@vueuse/core'
+import { type Ref, computed, ref } from 'vue'
 
 import type { Scrub } from './scrub.ts'
 
 /**
- * A drawing a pointer presses or drags across to pick a position directly,
- * the slider's control with Zag.js's own press left out, and the handlers that
- * take its place.
+ * A drawing a pointer presses or drags across to pick a position directly:
+ * the slider's control with Zag.js's own press replaced by one picking the
+ * position under the pointer, and the thumb that press moves focus to.
  */
 export interface Band {
-  control : ComputedRef<Record<string, unknown>>
-  point   : (event: PointerEvent) => void
-  press   : (event: PointerEvent) => void
+  control : Scrub['control']
+  thumb   : Ref<HTMLElement | undefined>
 }
 
 /**
  * Turns the control of `scrub` into a band where the position under a pointer
  * is the one `pick` reads from it, rather than one along a single axis, a press
- * capturing the pointer and moving focus to the slider's `thumb`.
+ * capturing the pointer and moving focus to the band's thumb, and a drag with
+ * a button held picking again as it moves.
  */
-export function useBand(scrub: Scrub, thumb: Ref<HTMLElement | undefined>, pick: (event: PointerEvent) => void): Band {
-  const control = computed(() => {
-    const { onPointerdown: _, ...rest } = scrub.control.value as typeof scrub.control.value & { onPointerdown: unknown }
-    return rest
-  })
+export function useBand(scrub: Scrub, pick: (event: PointerEvent) => void): Band {
+  const thumb   = ref<HTMLElement>()
+  const control = computed(() => ({
+    ...scrub.control.value,
+    onPointerdown: (event: PointerEvent) => {
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+      thumb.value!.focus({ preventScroll: true })
+      pick(event)
+    },
+    onPointermove: (event: PointerEvent) => { if (event.buttons) pick(event) }
+  }))
 
-  const press = (event: PointerEvent) => {
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-    thumb.value!.focus({ preventScroll: true })
-    pick(event)
-  }
-
-  return { control, point: pick, press }
+  return { control, thumb }
 }
 
 /**
