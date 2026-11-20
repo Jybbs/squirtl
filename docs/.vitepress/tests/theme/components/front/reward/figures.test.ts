@@ -1,7 +1,4 @@
 // @vitest-environment happy-dom
-import { readFileSync } from 'node:fs'
-import { join }         from 'node:path'
-
 import { enableAutoUnmount, mount }        from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import { defineComponent }                 from 'vue'
@@ -10,11 +7,7 @@ import { figuresAt, traceOf } from '../../../../../lib/front/reward.ts'
 import { CLIMB }              from '../../../../../lib/front/reward/climb.ts'
 import { IDENTITY }           from '../../../../../lib/identity/identity.ts'
 import * as figures           from '../../../../../theme/components/front/reward/figures.tsx'
-
-/**
- * The sheet setting the columns the widget and its key take.
- */
-const SHEET = readFileSync(join(import.meta.dirname, '../../../../../theme/styles/front/reward.css'), 'utf8')
+import rewardSheet            from '../../../../../theme/styles/front/reward.css?raw'
 
 /**
  * Draws the figures at the episode's first step.
@@ -26,7 +19,7 @@ enableAutoUnmount(afterEach)
 describe('drawFigures', () => {
   it('lays the figures over the climb only from the width the climb stands beside the screen', () => {
     const classes = mount(Figures).classes()
-    const split   = Number(/@container \(width >= ([\d.]+)rem\)/u.exec(SHEET)![1]) * 16
+    const split   = Number(/@container \(width >= ([\d.]+)rem\)/u.exec(rewardSheet)![1]) * 16
     const right   = classes.find(each => each.startsWith('@lg:pr-'))!.slice('@lg:pr-'.length)
     const gap     = IDENTITY.lengths.spacing[right as keyof typeof IDENTITY.lengths.spacing]
 
