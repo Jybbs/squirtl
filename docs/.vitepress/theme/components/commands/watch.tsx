@@ -1,12 +1,13 @@
 import { defineComponent, ref } from 'vue'
 
-import * as watching                                    from '../../../lib/commands/watch.ts'
-import { useWatchPlayback }                             from '../../../lib/commands/watch/playback.ts'
-import { useWatchScreen }                               from '../../../lib/commands/watch/screen.ts'
-import { SCREEN }                                       from '../../../lib/game/screen.ts'
-import { count }                                        from '../../../lib/widgets/numbers.ts'
-import { COVER, DETAIL, GAME_VIEW, LABEL, SCRUB_PARTS } from '../kit/widget.ts'
-import { drawAfter, drawBefore, drawPresses }           from './watch/parts.tsx'
+import * as watching                          from '../../../lib/commands/watch.ts'
+import { useWatchPlayback }                   from '../../../lib/commands/watch/playback.ts'
+import { useWatchScreen }                     from '../../../lib/commands/watch/screen.ts'
+import { SCREEN }                             from '../../../lib/game/screen.ts'
+import { count }                              from '../../../lib/widgets/numbers.ts'
+import { OVER, type Parts, Slider }           from '../kit/slider.tsx'
+import { DETAIL, GAME_VIEW, LABEL }           from '../kit/widget.ts'
+import { drawAfter, drawBefore, drawPresses } from './watch/parts.tsx'
 
 /**
  * The words the widget sets.
@@ -15,6 +16,16 @@ const WORDS = {
   presses : 'The presses',
   screen  : 'PyBoy’s window replaying the episode',
   slider  : 'The recording’s presses, a press on one holding the playback there'
+}
+
+/**
+ * The classes of the slider over the recording's presses: the band of bytes as
+ * its control, and the thumb laid over the band.
+ */
+const PRESSES: Parts = {
+  control : 'watch-band grid select-none gap-1',
+  root    : 'relative',
+  thumb   : OVER.thumb
 }
 
 /**
@@ -28,10 +39,9 @@ const WORDS = {
 export const CommandsWatch = defineComponent({
   name  : 'CommandsWatch',
   setup : () => {
-    const box                                     = ref<HTMLElement>()
-    const canvas                                  = ref<HTMLCanvasElement>()
-    const thumb                                   = ref<HTMLElement>()
-    const { control, point, press, scrub, step, t } = useWatchPlayback(box, thumb, WORDS.slider)
+    const box                      = ref<HTMLElement>()
+    const canvas                   = ref<HTMLCanvasElement>()
+    const { band, scrub, step, t } = useWatchPlayback(box, WORDS.slider)
     useWatchScreen(canvas, t, step)
 
     return () => (
@@ -48,11 +58,8 @@ export const CommandsWatch = defineComponent({
               <span class={LABEL}>{WORDS.presses}</span>
               <span class={DETAIL}>{`${count(watching.LAST)} bytes · timer_div ${watching.RUN.timerDiv}`}</span>
             </p>
-            <div {...scrub.root.value} class="relative" ref={box}>
-              <div {...control.value} class={[SCRUB_PARTS.control, 'watch-band grid select-none gap-1']} onPointerdown={press} onPointermove={(event: PointerEvent) => { if (event.buttons) point(event) }}>
-                {drawPresses(step.value)}
-              </div>
-              <div {...scrub.thumb.value} class={COVER.thumb} ref={thumb} />
+            <div ref={box}>
+              <Slider band={band} parts={PRESSES} scrub={scrub}>{drawPresses(step.value)}</Slider>
             </div>
           </div>
         </div>
