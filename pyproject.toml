@@ -87,7 +87,7 @@ align-docstring-entries = false
 addopts                  = [
     "--allow-unix-socket",
     "--disable-socket",
-    "--dist=loadscope",
+    "--dist=loadgroup",
     "--import-mode=importlib",
     "-m",
     "not network",

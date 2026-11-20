@@ -353,30 +353,40 @@ def logged() -> Iterator[list[str]]:
 
 
 @fixture(scope="session")
-def unbroken(tmp_path_factory: TempPathFactory) -> Unbroken:
+def kept() -> dict[Hashable, Path]:
     """
-    Builds a reader of the run each key names, playing it through `play`
-    the first time a case reads it and copying its directory under the
-    session's own temporary folder, so each run that never stopped plays
-    once a session and every case reads that copy rather than another case's
-    directory.
+    Builds the session's store of each run that never stopped, its copied
+    directory by the key `unbroken` reads it under.
     """
-    runs: dict[Hashable, Run] = {}
+    return {}
+
+
+@fixture
+def unbroken(
+    kept             : dict[Hashable, Path],
+    tmp_path         : Path,
+    tmp_path_factory : TempPathFactory
+) -> Unbroken:
+    """
+    Builds a reader of the run each key names, playing it through `play` the
+    first time a case reads it and keeping a copy under the session's own
+    temporary folder, then copying that copy under `tmp_path`, so each run
+    that never stopped plays once a session and each case reads it from its
+    own directory.
+    """
 
     def read(key: Hashable, play: Callable[[], Run]) -> Run:
         """
         Reads the run `key` names, played through `play` where no case has
         read it yet.
         """
-        if key not in runs:
+        if key not in kept:
             directory = play().directory
-            runs[key] = Run.read(
-                copytree(
-                    directory,
-                    tmp_path_factory.mktemp("unbroken") / directory.name
-                )
+            kept[key] = copytree(
+                directory,
+                tmp_path_factory.mktemp("unbroken") / directory.name
             )
 
-        return runs[key]
+        return Run.read(copytree(kept[key], tmp_path / "unbroken" / kept[key].name))
 
     return read
