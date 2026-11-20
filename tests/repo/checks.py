@@ -1524,6 +1524,20 @@ def test_gates_hold_every_workflow_to_one_gate_its_ruleset_requires(
             [(12, "check")],
             id = "the-equality-form-of-the-guard"
         ),
+        param(
+            "pull_request",
+            "${{ !github.event.pull_request.draft && github.actor || always() }}",
+            "always() && !github.event.pull_request.draft",
+            [(12, "check")],
+            id = "a-guarded-term-beside-either-term"
+        ),
+        param(
+            "pull_request",
+            "${{ !(github.actor && !github.event.pull_request.draft && github.ref) }}",
+            "always() && !github.event.pull_request.draft",
+            [(12, "check")],
+            id = "a-guard-inside-a-negated-group"
+        ),
         param("push", None, "always()", [], id="a-workflow-no-pull-request-runs")
     ]
 )
@@ -1539,8 +1553,8 @@ def test_drafts_report_each_job_of_a_pull_request_workflow_a_draft_runs(
     Pins that the draft check passes a pull-request workflow whose every
     job takes the draft guard as a term its `&&` joins, and reports a job
     setting no `if` on the job and, on its `if`, one whose guard sits beside
-    `||` or is written as `draft == false`, while reading no workflow a pull
-    request does not run.
+    `||` or inside a negated group or is written as `draft == false`, while
+    reading no workflow a pull request does not run.
     """
     runner = "    runs-on : ubuntu-26.04\n\n    strategy"
     text   = (

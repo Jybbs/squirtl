@@ -2216,8 +2216,9 @@ class WorkflowJob(Block):
     def terms(self) -> list[str]:
         """
         Splits the job's `if`, written bare or inside `${{ }}`, into the
-        terms its `&&` joins, reading a condition holding `||` as one term,
-        since `&&` binds tighter.
+        terms its `&&` joins outside every parenthesis and string literal,
+        reading a term that wraps a group as one term and a condition
+        holding `||` at that level as one term, since `&&` binds tighter.
         """
         condition = (
             str(self.get("if", default=""))
@@ -2225,11 +2226,18 @@ class WorkflowJob(Block):
             .removesuffix("}}")
             .strip()
         )
+        depth, start, terms = 0, 0, []
 
-        if "||" in condition:
-            return [condition]
+        for token in finditer(r"'(?:[^']|'')*'|[()]|&&|\|\|", condition):
+            match token[0]:
+                case "("               : depth += 1
+                case ")"               : depth -= 1
+                case "||" if not depth : return [condition]
+                case "&&" if not depth:
+                    terms.append(condition[start:token.start()])
+                    start = token.end()
 
-        return [term for term in map(str.strip, condition.split("&&")) if term]
+        return [term for term in map(str.strip, [*terms, condition[start:]]) if term]
 
     def expand(self, text: str) -> list[str]:
         """
