@@ -43,6 +43,7 @@ dev = [
     "pytest-randomly",
     "pytest-socket",
     "pytest-subprocess",
+    "pytest-xdist",
     "syrupy"
 ]
 
@@ -86,9 +87,11 @@ align-docstring-entries = false
 addopts                  = [
     "--allow-unix-socket",
     "--disable-socket",
+    "--dist=loadscope",
     "--import-mode=importlib",
     "-m",
     "not network",
+    "--numprocesses=auto",
     "-ra",
     "--snapshot-default-extension=common.snapshots.PlainFile",
     "--snapshot-dirname=fixtures"
