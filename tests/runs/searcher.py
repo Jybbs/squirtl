@@ -308,6 +308,7 @@ def test_a_search_over_a_real_pool_reaches_the_lines_of_one_in_the_process(
     assert lines(real) == lines(twin)
 
 
+@mark.slow
 @mark.usefixtures("clone")
 def test_a_termination_signal_to_the_runs_group_ends_it_at_its_iterations_end(
     cartridge : Cartridge,
