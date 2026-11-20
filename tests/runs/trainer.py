@@ -40,10 +40,11 @@ Pins the training loop of one run on the CPU, covering:
   directory is made
 """
 
-from collections.abc   import Callable, Hashable
+from collections.abc   import Callable
 from common.agents     import each_agent
 from common.console    import set_event, stand
 from common.evaluation import EvaluatorStandIn, played
+from common.runs       import Played, Unbroken
 from datetime          import UTC, datetime
 from functools         import partial
 from gymnasium.spaces  import Box, Dict
@@ -69,9 +70,6 @@ from squirtl.runs.handover         import VectorCheckpoint
 from squirtl.runs.schemas          import Run
 from squirtl.runs.settings         import CurriculumSettings, RunSettings, Stream
 from squirtl.runs.trainer          import EpisodeTrainer, RolloutTrainer, Trainer
-
-type Played   = Callable[[Hashable, Callable[[], Path]], Path]
-type Unbroken = Callable[[Hashable, Callable[[], Run]], Run]
 
 
 def along(

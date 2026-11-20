@@ -11,6 +11,7 @@ real worker processes, and the messages loguru logs during a test.
 
 from collections.abc import Callable, Hashable, Iterator, Mapping
 from common.records  import idled
+from common.runs     import Played, Unbroken
 from common.search   import PoolStandIn, finish, stop_at_thirty
 from contextlib      import ExitStack
 from datetime        import UTC, datetime, timedelta
@@ -18,7 +19,8 @@ from itertools       import count
 from loguru          import logger
 from multiprocessing import get_context
 from pathlib         import Path
-from pytest          import MonkeyPatch, fixture
+from pytest          import MonkeyPatch, TempPathFactory, fixture
+from shutil          import copytree
 
 from squirtl.agent.schemas       import AgentSettings, Algorithm
 from squirtl.emulator.schemas    import Cartridge
@@ -238,10 +240,7 @@ def searcher(
 
 
 @fixture
-def halted(
-    played   : Callable[[Hashable, Callable[[], Path]], Path],
-    searcher : Callable[..., Searcher]
-) -> Run:
+def halted(played: Played, searcher: Callable[..., Searcher]) -> Run:
     """
     Takes a search of `searching` to the end of the first iteration reaching
     30 presses, as `squirtl stop` would stop it, once a session through
@@ -354,11 +353,13 @@ def logged() -> Iterator[list[str]]:
 
 
 @fixture(scope="session")
-def unbroken() -> Callable[[Hashable, Callable[[], Run]], Run]:
+def unbroken(tmp_path_factory: TempPathFactory) -> Unbroken:
     """
-    Builds a reader of the run each key names, playing it through `play` the
-    first time a case reads it and reading it back from its directory after,
-    so each run that never stopped plays once a session.
+    Builds a reader of the run each key names, playing it through `play`
+    the first time a case reads it and copying its directory under the
+    session's own temporary folder, so each run that never stopped plays
+    once a session and every case reads that copy rather than another case's
+    directory.
     """
     runs: dict[Hashable, Run] = {}
 
@@ -368,7 +369,13 @@ def unbroken() -> Callable[[Hashable, Callable[[], Run]], Run]:
         read it yet.
         """
         if key not in runs:
-            runs[key] = Run.read(play().directory.absolute())
+            directory = play().directory
+            runs[key] = Run.read(
+                copytree(
+                    directory,
+                    tmp_path_factory.mktemp("unbroken") / directory.name
+                )
+            )
 
         return runs[key]
 
