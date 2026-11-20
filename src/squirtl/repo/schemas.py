@@ -2212,7 +2212,7 @@ class WorkflowJob(Block):
             for task in self.expand(named)
         ]
 
-    @property
+    @cached_property
     def terms(self) -> list[str]:
         """
         Splits the job's `if`, written bare or inside `${{ }}`, into the
@@ -2229,7 +2229,7 @@ class WorkflowJob(Block):
         if "||" in condition:
             return [condition]
 
-        return [term.strip() for term in condition.split("&&") if term.strip()]
+        return [term for term in map(str.strip, condition.split("&&")) if term]
 
     def expand(self, text: str) -> list[str]:
         """

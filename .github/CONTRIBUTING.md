@@ -65,7 +65,7 @@ type(scope): concise description
 
 GitHub fills the body from `.github/PULL_REQUEST_TEMPLATE.md`, whose comments name what each section holds, and GitHub requests a review from the owner `.github/CODEOWNERS` names. The pull request takes the issue's labels and milestone, and its body closes the issue it was built for.
 
-Every pull request that is not a draft runs the checks below in the `🕹️ CI` workflow when it opens, when it is marked ready for review, and on each push, whereas a draft runs none of them. Each check is one the command beside it reproduces on a laptop:
+Every pull request that is not a draft runs the checks below in the `🕹️ CI` workflow when it opens, when it is marked ready for review, and on each push, whereas a draft runs none of them, and the command beside each check reproduces it on a laptop:
 
 | **Check** | **Local Command** | **Fails When** |
 |---|---|---|
