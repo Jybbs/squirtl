@@ -94,17 +94,18 @@ describe('StoryReward under reduced motion', () => {
   })
 
   test('draws the climb once measured, dimming each jump the step shown has not reached', async () => {
-    const { resize, sight, wrapper } = await mounted()
-    const before                     = wrapper.findAll(DRAWING).length
+    const { resize, wrapper } = await mounted()
+    const before              = wrapper.findAll(DRAWING).length
+    const thumb               = wrapper.get('[role="slider"]')
 
     resize(401, 298)
     await nextTick()
     const dimmed = () => wrapper.findAll('g.opacity-45').length
-    const first  = dimmed()
-    sight.show(true)
-    await nextTick()
+    const ended  = dimmed()
+    await thumb.trigger('focusin')
+    await thumb.trigger('keydown', { key: 'Home' })
 
-    expect([before, first, dimmed()]).toStrictEqual([0, 4, 0])
+    expect([before, ended, dimmed()]).toStrictEqual([0, 0, 4])
     expect(wrapper.get(DRAWING).attributes('viewBox')).toBe('0 0 401 298')
   })
 })
@@ -165,15 +166,16 @@ describe('StoryReward drawing its screen', () => {
     decoding.resolve()
     await vi.runAllTimersAsync()
 
-    expect([first, recorder.images.length]).toStrictEqual([1, 2])
+    expect([first > 0, recorder.images.length - first]).toStrictEqual([true, 1])
   })
 
   test('leaves the screen as it stands where a room’s image fails to decode', async () => {
     const { recorder } = await mounted(true, () => Promise.reject(new Error('undecodable')))
+    const first        = recorder.images.length
 
     await vi.runAllTimersAsync()
 
-    expect(recorder.images).toHaveLength(1)
+    expect([first > 0, recorder.images.length]).toStrictEqual([true, first])
   })
 
   test('draws nothing where the canvas gives no context', async () => {

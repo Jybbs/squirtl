@@ -1,5 +1,5 @@
 import { type MaybeElementRef, useElementVisibility, useTimeoutFn } from '@vueuse/core'
-import { type MaybeRefOrGetter, watch }                             from 'vue'
+import { type MaybeRefOrGetter, onMounted, watch }                  from 'vue'
 
 import { useMotion } from './motion.ts'
 
@@ -15,7 +15,7 @@ export interface Autoplay {
 /**
  * What an autoplay steps through, each beat calling `tick` until `done` reports
  * the run ended, then calling `restart` after `rest` where a run repeats, and
- * calling `finish` once at once where motion is off.
+ * calling `finish` in its place where motion is off.
  */
 export interface Ticking {
   beat     : MaybeRefOrGetter<number>
@@ -45,9 +45,11 @@ const SHOWING = 0.2
 
 /**
  * Steps `ticking` on a timer while `target` shows on screen and motion plays,
- * holding while any reason stands and, where the reader asks for reduced
- * motion, leaving the widget where the reader left it once the last reason
- * ends, and ends every timer when the widget unmounts.
+ * holding while any reason stands, and ends every timer when the widget
+ * unmounts. Where the reader asks for reduced motion, it calls `finish` once
+ * the widget mounts or the preference takes hold, and again on each replay, so
+ * a position the reader picks survives the widget leaving the screen and
+ * coming back.
  */
 export function useAutoplay(target: MaybeElementRef, ticking: Ticking): Autoplay {
   const animate = useMotion()
@@ -56,8 +58,7 @@ export function useAutoplay(target: MaybeElementRef, ticking: Ticking): Autoplay
 
   const run = () => {
     stop()
-    if (!animate.value) return ticking.finish()
-    if (holding.size > 0 || !visible.value) return
+    if (!animate.value || holding.size > 0 || !visible.value) return
     if (ticking.done()) {
       if (ticking.restart) rest.start()
       return
@@ -66,9 +67,11 @@ export function useAutoplay(target: MaybeElementRef, ticking: Ticking): Autoplay
     beat.start()
   }
 
+  const settle = () => animate.value ? run() : ticking.finish()
+
   const again = () => {
     ticking.restart?.()
-    run()
+    settle()
   }
 
   const beat = useTimeoutFn(run, ticking.beat, { immediate: false })
@@ -79,14 +82,15 @@ export function useAutoplay(target: MaybeElementRef, ticking: Ticking): Autoplay
     rest.stop()
   }
 
-  watch([visible, animate], run, { flush: 'sync' })
+  watch(visible, run, { flush: 'sync' })
+  watch(animate, settle, { flush: 'sync' })
+  onMounted(settle)
 
   return {
     hold: (reason, on) => {
       if (on) holding.add(reason)
       else holding.delete(reason)
-      if (holding.size > 0) stop()
-      else if (animate.value) run()
+      run()
     },
     replay: again
   }
