@@ -31,7 +31,7 @@ export default defineConfig({
 
     forceRerunTriggers: [
       ...configDefaults.forceRerunTriggers, '**/.vitepress/lib/rendered/theme.css', '**/docs/bun.lock',
-      '**/docs/pages/**', '**/pyproject.toml'
+      '**/pyproject.toml'
     ],
 
     reporters: process.env.GITHUB_ACTIONS
