@@ -1,14 +1,21 @@
-import fs   from 'node:fs'
-import path from 'node:path'
-
 import { describe, expect, it } from 'vitest'
 
 import { drawSectionCard } from '../../../lib/cards/section-card.ts'
 import { drawSiteCard }    from '../../../lib/cards/site-card.ts'
-import { pagesDir }        from '../../../lib/config/paths.ts'
 import * as stops          from '../../../lib/missing/stops.ts'
 import { FACTS }           from '../../common/facts.ts'
 import { METHODS }         from '../../common/sections.ts'
+
+/**
+ * The text of the front page and of each section's overview, keyed by its path
+ * under `docs/pages/` after a `./`.
+ */
+const OVERVIEWS = import.meta.glob<string>(['./index.md', './*/index.md'], {
+  base   : '../../../../pages',
+  eager  : true,
+  import : 'default',
+  query  : '?raw'
+})
 
 describe('stopsOf', () => {
   it('leads back to the front page first, then to each section’s overview with its two lines', () => {
@@ -21,9 +28,9 @@ describe('stopsOf', () => {
   })
 
   it('leads only to a page the site builds', () => {
-    const files = stops.stopsOf().map(stop => path.join(pagesDir(import.meta.url), stop.link, 'index.md'))
+    const files = stops.stopsOf().map(stop => `.${stop.link}index.md`)
 
-    expect(files.filter(file => !fs.existsSync(file))).toStrictEqual([])
+    expect(files.filter(file => !Object.hasOwn(OVERVIEWS, file))).toStrictEqual([])
   })
 })
 

@@ -81,16 +81,28 @@ describe('Slider', () => {
 
     expect(control.findAll('*').map(part => part.element.tagName)).toStrictEqual(['I'])
   })
+})
 
-  it('hands a press on its control to the band, capturing the pointer and moving focus to its thumb', async () => {
+describe('Slider over a band', () => {
+  it('hands a press to the band, capturing the pointer and focusing the thumb with no ring', () => {
     const pick    = vi.fn<(event: PointerEvent) => void>()
     const wrapper = slid(null, OVER, pick)
     const control = wrapper.get("[data-part='control']")
+    const thumb   = wrapper.get<HTMLElement>('[role="slider"]').element
+    const focus   = vi.spyOn(thumb, 'focus')
+    const press   = new PointerEvent('pointerdown', {
+      button      : 0,
+      cancelable  : true,
+      pointerId   : 1,
+      pointerType : 'mouse'
+    })
 
-    await control.trigger('pointerdown', { button: 0, pointerId: 1, pointerType: 'mouse' })
+    control.element.dispatchEvent(press)
 
-    expect([pick.mock.calls.length, control.element.hasPointerCapture(1), document.activeElement])
-      .toStrictEqual([1, true, wrapper.get('[role="slider"]').element])
+    expect([pick.mock.calls.length, control.element.hasPointerCapture(1), press.defaultPrevented])
+      .toStrictEqual([1, true, true])
+    expect([document.activeElement, focus.mock.calls])
+      .toStrictEqual([thumb, [[{ focusVisible: false, preventScroll: true }]]])
   })
 })
 
