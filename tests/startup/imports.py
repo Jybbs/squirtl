@@ -31,18 +31,22 @@ name.
 
 WALK = EAGERLY + (
     "from importlib import import_module\n"
-    "from pkgutil import walk_packages\n"
+    "from pathlib import Path\n"
     "import squirtl\n"
-    "for module in walk_packages(squirtl.__path__, 'squirtl.'):\n"
-    "    try:\n"
-    "        import_module(module.name)\n"
-    "    except ImportError as error:\n"
-    "        print(module.name, error)"
+    "for root in map(Path, squirtl.__path__):\n"
+    "    for file in sorted(root.rglob('*.py')):\n"
+    "        parts = file.relative_to(root).with_suffix('').parts\n"
+    "        name = '.'.join(('squirtl', *parts)).removesuffix('.__init__')\n"
+    "        try:\n"
+    "            import_module(name)\n"
+    "        except ImportError as error:\n"
+    "            print(name, error)"
 )
 """
 The program a started interpreter runs, loading each import of a `squirtl`
-module eagerly before importing each module of the package and printing
-each that fails with its error.
+module eagerly before importing the module each file under the package
+holds, a namespace subpackage's included, and printing each that fails with
+its error.
 """
 
 

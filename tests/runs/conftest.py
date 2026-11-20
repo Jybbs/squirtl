@@ -59,9 +59,10 @@ def run(revision: Revision) -> Run:
 @fixture
 def demonstrated(clone: Path) -> Path:
     """
-    Starts a run in `clone` the day before every run `trainer` starts, whose
-    one episode reaches the starter of the cartridge `timed` writes after 13
-    idle presses at a `timer_div` of 0, each advancing 64 frames.
+    Starts a run in `clone` at midnight UTC on 3 October 2026, before every
+    run `trainer` starts, whose one episode reaches the starter of the
+    cartridge `timed` writes after 13 idle presses at a `timer_div` of 0,
+    each advancing 64 frames.
 
     Returns:
         The run's directory.
@@ -123,7 +124,8 @@ def pytest_configure():
         [
             "gymnasium", "numpy", "pyboy",
             "squirtl.environment.overworld", "squirtl.environment.workers"
-        ]
+        ],
+        on_error = "fail"
     )
 
 
