@@ -1,0 +1,4 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE description = "Select every collected test and skip each one, failing where syrupy finds a snapshot no collected test bears, and passing any further arguments to pytest"
+
+pytest -p common.skipped "$@"

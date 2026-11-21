@@ -1,0 +1,4 @@
+#!/usr/bin/env -S bash -euo pipefail
+#MISE description = "Run the test suite under coverage, writing only the data file, which `py:combine` reports on, and passing any further arguments to pytest, such as the `--splits`, `--group`, and `--randomly-seed` naming one machine's share of a split run"
+
+pytest --cov --cov-fail-under=0 --cov-report= "$@"

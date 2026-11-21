@@ -34,7 +34,7 @@
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) follows a change from its issue through its branch, its commits, and its pull request to the release that lists it.
 
-## 👟 Quickstart
+## ⌨️ Quickstart
 
 [mise](https://mise.jdx.dev) installs every tool `.mise/config.toml` pins, after [activating it in your shell](https://mise.jdx.dev/installing-mise.html):
 
@@ -86,7 +86,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise attach` | *Packs every committed run through `squirtl pack` and uploads each tar and the manifest to the draft release once you confirm it, replacing any asset already attached* |
 | `mise bump` | *Moves the version to the next minor release, or to the next patch release under `mise bump patch`, in `pyproject.toml`, `uv.lock`, and `CITATION.cff`* |
 | `mise skim` | *Runs the lints, the lockfile check, the type check, and the tests of the package and the site reaching the files changed since the merge base with `main`, the check run after each edit and before each commit* |
-| `mise ci` | *Runs the lockfile check, the workflow audit, the repository audit, the formatter's check, the suite under coverage, and every check of the docs site in one sweep* |
+| `mise ci` | *Runs the lockfile check, the workflow audit, the repository audit, the formatter's check, the suite under coverage and its combined report, the check for unused snapshots, and every check of the docs site in one sweep* |
 
 ## 🎒 Results
 
@@ -96,6 +96,6 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 
 <!-- /results -->
 
-## 🕹️ Attribution
+## ©️ Attribution
 
 *SquiRtL* began as a project for Northeastern University's CS5800 Algorithms course.

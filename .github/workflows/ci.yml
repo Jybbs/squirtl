@@ -21,7 +21,6 @@ jobs:
     timeout-minutes : &timeout 15
 
     outputs:
-      coverage      : ${{ matrix.report.name == 'coverage' && steps.attach.outputs.artifact-url || '' }}
       site-coverage : ${{ matrix.report.name == 'site-coverage' && steps.attach.outputs.artifact-url || '' }}
 
     strategy:
@@ -41,10 +40,9 @@ jobs:
             caches : uv
             task   : py:lint
             tools  : *package
-          - name   : 🏟️ Suite
+          - name   : 🏟️ Suite · Snapshots
             caches : uv
-            report : { name: coverage, path: .cache/coverage/html }
-            task   : py:coverage
+            task   : py:snapshots
             tools  : *package
           - name  : 🗝️ Workflows
             task  : gha:lint
@@ -92,10 +90,66 @@ jobs:
         uses : actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with : { name: "${{ matrix.report.name }}", path: "${{ matrix.report.path }}", retention-days: 14 }
 
+  suite:
+    name            : 🏟️ Suite · ${{ matrix.group }}
+    if              : ${{ !github.event.pull_request.draft }}
+    runs-on         : *runner
+    timeout-minutes : *timeout
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        group: [1, 2, 3]
+
+    steps:
+      - *checkout
+
+      - name : Provision the tools and the caches the task reads
+        uses : $/.github/actions/provision
+        with : { caches: uv, tools: *package }
+
+      - name : mise run py:split
+        env  : { GROUP: "${{ matrix.group }}", SEED: "${{ github.run_id }}", SPLITS: "${{ strategy.job-total }}" }
+        run  : mise run py:split --group "$GROUP" --randomly-seed "$SEED" --splits "$SPLITS"
+
+      - name : Attach the coverage data
+        if   : ${{ !cancelled() }}
+        uses : actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with : { if-no-files-found: error, name: "coverage-data-${{ matrix.group }}", path: .cache/coverage/data, retention-days: 1 }
+
+  combine:
+    name            : 🏟️ Suite
+    if              : ${{ !cancelled() && !github.event.pull_request.draft }}
+    needs           : suite
+    outputs         : { coverage: "${{ steps.attach.outputs.artifact-url }}" }
+    runs-on         : *runner
+    timeout-minutes : *timeout
+
+    steps:
+      - *checkout
+
+      - name : Provision the tools the combining script reads
+        uses : $/.github/actions/provision
+        with : { tools: *package }
+
+      - name : Download the coverage data of every machine
+        uses : actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with : { path: .cache/coverage/parts, pattern: coverage-data-* }
+
+      - name : mise run py:combine
+        run  : mise run py:combine
+
+      - name : Attach the coverage report
+        id   : attach
+        if   : ${{ !cancelled() }}
+        uses : actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with : { name: coverage, path: .cache/coverage/html, retention-days: 14 }
+
   brief:
     name            : 🎒 Brief
     if              : always() && !github.event.pull_request.draft
-    needs           : check
+    needs           : [check, combine, suite]
     runs-on         : *runner
     timeout-minutes : *timeout
 
