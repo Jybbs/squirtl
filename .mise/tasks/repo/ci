@@ -3,8 +3,10 @@
 #MISE depends     = [
 #MISE   "gha:lint",
 #MISE   "lock:check",
-#MISE   "py:coverage",
+#MISE   "py:combine",
 #MISE   "py:lint",
+#MISE   "py:snapshots",
+#MISE   "py:split",
 #MISE   "repo:audit",
 #MISE   "site:coverage",
 #MISE   "site:cruft",

@@ -42,6 +42,7 @@ dev = [
     "pytest-cov",
     "pytest-randomly",
     "pytest-socket",
+    "pytest-split",
     "pytest-subprocess",
     "pytest-xdist",
     "syrupy"

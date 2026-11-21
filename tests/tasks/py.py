@@ -1,23 +1,33 @@
 """
 Pins the arguments each `py` task hands the program it runs, meaning the
 output format `py:lint` chooses for the shell it runs in, the coverage flags
-`py:coverage` passes pytest, the test modules `py:affected` selects from the
-files a branch changes, each further argument forwarded after the flags and
-ahead of the operands, and the folders `py:lint` and `py:format` name as the
-formatter's operands, beside the tests the reader in `reach.py` selects for
-a changed module, helper, or root conftest.
+`py:coverage` and `py:split` pass pytest, the plugin `py:snapshots` loads,
+the test modules `py:affected` selects from the files a branch changes,
+each further argument forwarded after the flags and ahead of the operands,
+and the folders `py:lint` and `py:format` name as the formatter's operands,
+beside the tests the reader in `reach.py` selects for a changed module,
+helper, or root conftest, the verdict `py:combine` reaches from the parts it
+combines, and the snapshots the plugin `py:snapshots` loads leaves syrupy to
+fail on.
 
-The reader's cases import it through `load_task` and run it in a checkout
-holding the files `SUITE` lists, with `tests/conftest.py` rewritten past its
-one commit. The stand-in under `fixtures/` answers for `prose` and `pytest`,
-printing each argument it receives on a line of its own, so no case starts
-either program.
+The reader's and `py:combine`'s cases import each script through
+`load_task`, the reader's running in a checkout holding the files `SUITE`
+lists, with `tests/conftest.py` rewritten past its one commit. The stand-in
+under `fixtures/` answers for `prose` and `pytest`, printing each argument
+it receives on a line of its own, so no task case starts either program,
+whereas the plugin's cases start pytest in an interpreter of their own over
+a module written under `tmp_path`.
 """
 
-from collections.abc import Callable, Mapping
-from pathlib         import Path
-from pytest          import CaptureFixture, fixture, mark, param
-from types           import ModuleType
+from collections.abc     import Callable, Mapping
+from coverage            import CoverageData
+from coverage.exceptions import CoverageWarning
+from json                import loads
+from pathlib             import Path
+from pytest              import CaptureFixture, Config, MonkeyPatch, fixture, mark, param, warns
+from subprocess          import run
+from sys                 import executable
+from types               import ModuleType
 
 BASE = {
     ".mise/bin/pytest"    : "",
@@ -294,6 +304,8 @@ def stand_in(install_stand_ins: Callable[..., Path]):
             ],
             id = "lint-actions"
         ),
+        param("snapshots", {}, ["-p", "common.skipped", "--diff"], id="snapshots"),
+        param("split", {}, ["--cov", "--cov-report=", "--diff"], id="split"),
         param("test", {}, ["--diff"], id="test")
     ],
     indirect = ["shell"]
@@ -647,6 +659,29 @@ def test_reach_selects_the_tests_requesting_a_changed_root_fixture(
     assert reach(CONFTEST.replace(old, new), "tests/conftest.py") == selected
 
 
+def test_combine_stops_on_a_part_it_cannot_read(
+    load_task   : Callable[[str], ModuleType],
+    monkeypatch : MonkeyPatch,
+    tmp_path    : Path
+):
+    """
+    Asserts that `py:combine` returns the failing status of the combine and
+    writes no report where the one part it finds holds no coverage data,
+    which coverage.py warns of before it fails.
+    """
+    part = tmp_path / ".cache/coverage/parts/1/data"
+
+    monkeypatch.chdir(tmp_path)
+    part.parent.mkdir(parents=True)
+    part.write_text("no data")
+
+    with warns(CoverageWarning, match="Couldn't use data file"):
+        status = load_task(".mise/tasks/py/combine.py").combine(part.parents[1])
+
+    assert status == 1
+    assert not (tmp_path / "htmlcov").exists()
+
+
 def test_reach_prints_each_selection_or_every_test(
     capsys    : CaptureFixture[str],
     load_task : Callable[[str], ModuleType],
@@ -664,6 +699,101 @@ def test_reach_prints_each_selection_or_every_test(
     module.main("HEAD", "tests/common/terms.py")
 
     assert capsys.readouterr().out == "tests/search/tree.py\ntests\n"
+
+
+@mark.parametrize(
+    ("parts", "local", "status", "percent"),
+    [
+        param({"1": [1, 2], "2": [3, 4]}, None, 0, 100, id="combined"),
+        param({"1": [1, 2], "2": [3]}, None, 2, 75, id="below"),
+        param({}, [1, 2, 3, 4], 0, 100, id="local")
+    ]
+)
+def test_combine_reports_the_combined_data_and_gates_its_total(
+    load_task   : Callable[[str], ModuleType],
+    local       : list[int] | None,
+    monkeypatch : MonkeyPatch,
+    parts       : dict[str, list[int]],
+    percent     : int,
+    status      : int,
+    tmp_path    : Path
+):
+    """
+    Pins that `py:combine` combines every machine's data file under
+    `.cache/coverage/parts/` before it writes the JSON report and gates the
+    total, so the lines each machine ran add up, exits 2 where the combined
+    total falls below `fail_under`, and reports on the data file a local run
+    wrote where no part exists.
+    """
+    source = tmp_path / "module.py"
+    data   = tmp_path / ".cache/coverage"
+
+    monkeypatch.chdir(tmp_path)
+    source.write_text("a = 1\nb = 2\nc = 3\nd = 4\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.coverage.html]\ndirectory = ".cache/coverage/html"\n\n'
+        '[tool.coverage.json]\noutput = ".cache/coverage/coverage.json"\n\n'
+        "[tool.coverage.report]\nfail_under = 95\n\n"
+        '[tool.coverage.run]\ndata_file = ".cache/coverage/data"\n'
+    )
+
+    for path, lines in [
+        *((data / "parts" / name / "data", lines) for name, lines in parts.items()),
+        *([(data / "data", local)] if local else [])
+    ]:
+        path.parent.mkdir(exist_ok=True, parents=True)
+        recorded = CoverageData(basename=str(path))
+        recorded.add_lines({str(source): lines})
+        recorded.write()
+
+    assert load_task(".mise/tasks/py/combine.py").combine(data / "parts") == status
+    assert loads(
+        (data / "coverage.json").read_text()
+    )["totals"]["percent_covered"] == percent
+
+
+@mark.parametrize(
+    ("snapshots", "returncode"),
+    [
+        param(["test_kept"], 0, id="borne"),
+        param(["test_gone", "test_kept"], 1, id="unborne")
+    ]
+)
+def test_snapshots_fails_on_a_snapshot_no_collected_test_bears(
+    pytestconfig : Config,
+    returncode   : int,
+    snapshots    : list[str],
+    tmp_path     : Path
+):
+    """
+    Pins that the plugin `py:snapshots` loads skips every collected test
+    while syrupy still fails the run on a snapshot whose name no collected
+    test bears, and keeps the snapshot of a test it skipped.
+    """
+    fixtures = tmp_path / "fixtures/test_sample"
+
+    fixtures.mkdir(parents=True)
+    (tmp_path / "test_sample.py").write_text(
+        "def test_kept(snapshot):\n    assert snapshot == 'kept'\n"
+    )
+
+    for name in snapshots:
+        (fixtures / f"{name}.txt").write_text("kept")
+
+    finished = run(
+        [
+            executable, "-m", "pytest", "-p", "common.skipped", "--rootdir",
+            str(tmp_path),
+            "--snapshot-default-extension=common.snapshots.PlainFile",
+            "--snapshot-dirname=fixtures"
+        ],
+        capture_output = True,
+        cwd            = tmp_path,
+        env            = {"PYTHONPATH": str(pytestconfig.rootpath / "tests")},
+        text           = True
+    )
+
+    assert (finished.returncode, "1 skipped" in finished.stdout) == (returncode, True)
 
 
 def test_reach_selects_the_tests_requesting_a_removed_root_fixture(
