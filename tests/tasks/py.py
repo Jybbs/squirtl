@@ -158,12 +158,21 @@ SUITE = {
     "tests/conftest.py"              : CONFTEST,
     "tests/docs/commands.py"         : "from squirtl.cli import app\n",
 
+    "tests/docs/listed.py": (
+        "import pkgutil\nimport squirtl.docs as listed\n\n"
+        "NAMES = [*pkgutil.walk_packages(listed.__path__)]\n"
+    ),
     "tests/docs/outputs.py": (
         "from pkgutil import iter_modules\n\nfrom squirtl import docs\n\n"
         "NAMES = [module.name for module in iter_modules(docs.__path__)]\n"
     ),
 
     "tests/docs/paths.py": "from squirtl import docs\n\nPATHS = [*docs.__path__]\n",
+
+    "tests/docs/stdlib.py": (
+        "import email\nfrom pkgutil import iter_modules\n\nfrom squirtl import docs\n\n"
+        "NAMES = [docs, *iter_modules(email.__path__)]\n"
+    ),
     "tests/emulator/console.py" : "from squirtl.emulator import console\n",
     "tests/reward/conftest.py"  : "from squirtl.emulator.console import GameBoy\n",
     "tests/reward/progress.py"  : "import os\n",
@@ -556,7 +565,10 @@ def reach(
         ),
         param(
             "src/squirtl/docs/regions.py",
-            ["tests/docs/outputs.py", "tests/startup/imports.py"],
+            [
+                "tests/docs/listed.py", "tests/docs/outputs.py",
+                "tests/startup/imports.py"
+            ],
             id = "under-a-walked-package"
         ),
         param("src/squirtl/reward/terms.py", ["tests"], id="reexported-to-plugin"),

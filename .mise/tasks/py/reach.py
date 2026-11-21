@@ -3,18 +3,19 @@ Prints the pytest arguments the files changed since a merge base reach
 through the suite's imports and fixture requests, one a line, taking the
 merge base first and each changed path after it.
 
-A changed module reaches each test module loading it through any chain
-of imports among the package's modules and the suite's, a function-local
-import, a package `__init__`, a helper, and a quoted dotted `squirtl` name
-included, or walking the package holding it by computed name, and the folder
-of a subpackage conftest loading it. `tests/conftest.py` passes a change
-on only to the tests requesting a fixture that reads what changed, and the
-script prints `tests` alone where a change reaches every test.
+A changed module reaches each test module and each subpackage conftest
+folder loading it, by an import or by walking the package holding it by
+computed name. An import counts through any chain among the package's
+modules and the suite's, function-local imports, package `__init__` files,
+helpers, and quoted dotted `squirtl` names included. `tests/conftest.py`
+passes a change on only to the tests requesting a fixture that reads what
+changed, and the script prints `tests` alone where a change reaches every
+test.
 """
 
 from ast             import (
     AST, AnnAssign, Assign, AsyncFunctionDef, Attribute, Call, ClassDef, Constant, FunctionDef,
-    Import, ImportFrom, List, Load, Module, Name, Store, Tuple, dump, expr, get_docstring, parse, stmt, walk
+    Import, ImportFrom, List, Load, Module, Name, Store, Tuple, dump, expr, get_docstring, parse, stmt, unparse, walk
 )
 from collections     import Counter, defaultdict
 from collections.abc import Iterable, Iterator
@@ -54,11 +55,11 @@ class Whole(Exception):
 @cache
 def located(dotted: str) -> str | None:
     """
-    Finds the file importing `dotted` loads, at the path `source` reads.
+    Finds the file importing `dotted` loads, at the path `source` builds.
 
     Returns:
-        The file's path from the worktree root, or `None` where neither
-        folder holds a module or a package of that name.
+        The file's path from the worktree root, or `None` where no module
+        or package of that name sits there.
     """
     base = source(dotted)
 
@@ -79,9 +80,9 @@ def imported(node: Import | ImportFrom) -> Iterator[tuple[str, str]]:
     """
     for alias in node.names:
         if isinstance(node, Import):
-            yield alias.asname or alias.name.partition(".")[0], (
-                alias.name if alias.asname else alias.name.partition(".")[0]
-            )
+            first = alias.name.partition(".")[0]
+
+            yield (alias.asname, alias.name) if alias.asname else (first, first)
         elif not node.level:
             yield alias.asname or alias.name, f"{node.module}.{alias.name}"
 
@@ -206,19 +207,6 @@ def source(dotted: str) -> Path:
     parts = dotted.split(".")
 
     return Path("src" if parts[0] == "squirtl" else "tests", *parts)
-
-
-def spelled(node: expr) -> str | None:
-    """
-    Reads the dotted name a chain of attributes on a name spells, or `None`
-    where `node` is no such chain.
-    """
-    match node:
-        case Name(id=name): return name
-        case Attribute(value=value, attr=attr) if outer := spelled(value):
-            return f"{outer}.{attr}"
-
-    return None
 
 
 def undocumented(node: Module | stmt) -> Module | stmt:
@@ -384,9 +372,10 @@ class Conftest:
 @dataclass(frozen=True)
 class Binding:
     """
-    One file a module of the suite loads, with the name an import statement
-    binds to it, or `None` for a package `__init__` the import runs on the
-    way or a module a string names, which `quoted` marks.
+    One file a module of the suite or the package loads, with the name an
+    import statement binds to it, or `None` for a package `__init__` the
+    import runs on the way, a file under a package walked by computed name,
+    or a module a string names, which `quoted` marks.
     """
 
     target : str
@@ -555,15 +544,14 @@ class Suite:
         Reads each file every module under `tests/` and `src/` loads, by an
         import or by walking a package, keyed by the module's path.
         """
+        trees = {
+            path.as_posix(): parse(path.read_text(encoding="utf-8"))
+            for path in Path("src").rglob("*.py")
+        } | self.trees
+
         return {
             path: {*bindings(nodes := [*walk(tree)]), *walked(nodes)}
-            for path, tree in (
-                *(
-                    (path.as_posix(), parse(path.read_text(encoding="utf-8")))
-                    for path in Path("src").rglob("*.py")
-                ),
-                *self.trees.items()
-            )
+            for path, tree in trees.items()
         }
 
     @cached_property
@@ -663,8 +651,9 @@ class Suite:
             Whole: Where the change removes `changed`, which leaves no
                    import of it to resolve, where `pyproject.toml` names
                    a helper loading it, or where `tests/conftest.py` loads
-                   it through a package `__init__`, a quoted name outside a
-                   function, or a name an autouse fixture or a hook reads.
+                   it through a package `__init__`, a quoted name outside
+                   a function, a package it walks, or a name an autouse
+                   fixture or a hook reads.
         """
         if not Path(changed).is_file():
             raise Whole
@@ -674,7 +663,6 @@ class Suite:
         paths    = set()
 
         for path in self.trees.keys() & loading - {ROOT}:
-
             if path.startswith("tests/common/"):
                 dotted = (
                     path.removeprefix("tests/")
@@ -824,11 +812,10 @@ def quoted(dotted: str) -> Iterator[Binding]:
 
 def walked(nodes: Iterable[AST]) -> Iterator[Binding]:
     """
-    Yields each file under each package whose `__path__` the `nodes`
-    of a module read, in code or in a quoted program, where they
-    name `importlib.import_module`, `pkgutil.iter_modules`, or
-    `pkgutil.walk_packages`, which load a module by a name computed from
-    that path.
+    Yields each file under each package whose `__path__` the `nodes` of a
+    module read, in code or in a quoted program, where they name a loader
+    `LOADERS` matches, which imports a module by a name computed from that
+    path.
     """
     bound, loads, read = {}, False, set()
 
@@ -837,20 +824,16 @@ def walked(nodes: Iterable[AST]) -> Iterator[Binding]:
             case Import() | ImportFrom(): bound.update(imported(node))
             case Constant(value=str(text)):
                 loads |= bool(LOADERS.search(text))
-                read  |= set(PATHS.findall(text))
-            case Attribute(attr="__path__", value=value) if dotted := spelled(value):
-                read.add(dotted)
+                read.update(PATHS.findall(text))
+            case Attribute(attr="__path__", value=value): read.add(unparse(value))
             case Name(id=name) | Attribute(attr=name):
                 loads |= bool(LOADERS.fullmatch(name))
 
     for dotted in read if loads else ():
-        first, _, rest = dotted.partition(".")
-        folder         = source(".".join(filter(None, (bound.get(first, first), rest))))
+        first  = dotted.partition(".")[0]
+        folder = source(bound.get(first, first) + dotted.removeprefix(first))
 
-        if folder.is_dir():
-            yield from (Binding(path.as_posix()) for path in sorted(
-                folder.rglob("*.py")
-            ))
+        yield from (Binding(path.as_posix()) for path in folder.rglob("*.py"))
 
 
 if __name__ == "__main__":
