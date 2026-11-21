@@ -3,18 +3,20 @@ Prints the pytest arguments the files changed since a merge base reach
 through the suite's imports and fixture requests, one a line, taking the
 merge base first and each changed path after it.
 
-A changed module reaches each test module importing it, directly, through
-a package `__init__`, a helper, or a quoted dotted `squirtl` name, and the
-folder of a subpackage conftest importing it. `tests/conftest.py` passes a
-change on only to the tests requesting a fixture that reads what changed,
-and the script prints `tests` alone where a change reaches every test.
+A changed module reaches each test module loading it through any chain
+of imports among the package's modules and the suite's, a function-local
+import, a package `__init__`, a helper, and a quoted dotted `squirtl` name
+included, or walking the package holding it by computed name, and the folder
+of a subpackage conftest loading it. `tests/conftest.py` passes a change
+on only to the tests requesting a fixture that reads what changed, and the
+script prints `tests` alone where a change reaches every test.
 """
 
 from ast             import (
-    AnnAssign, Assign, AsyncFunctionDef, Call, ClassDef, Constant, FunctionDef,
+    AST, AnnAssign, Assign, AsyncFunctionDef, Attribute, Call, ClassDef, Constant, FunctionDef,
     Import, ImportFrom, List, Load, Module, Name, Store, Tuple, dump, expr, get_docstring, parse, stmt, walk
 )
-from collections     import Counter
+from collections     import Counter, defaultdict
 from collections.abc import Iterable, Iterator
 from copy            import replace
 from dataclasses     import dataclass
@@ -27,8 +29,10 @@ from subprocess      import run
 from sys             import argv, stdout
 from typing          import Self
 
-DOTTED = compile(r"squirtl(?:\.\w+)+")
-ROOT   = "tests/conftest.py"
+DOTTED  = compile(r"squirtl(?:\.\w+)+")
+LOADERS = compile(r"\b(?:import_module|iter_modules|walk_packages)\b")
+PATHS   = compile(r"\b([A-Za-z_][\w.]*)\.__path__\b")
+ROOT    = "tests/conftest.py"
 
 
 class Fixture(StrEnum):
@@ -50,16 +54,13 @@ class Whole(Exception):
 @cache
 def located(dotted: str) -> str | None:
     """
-    Finds the file importing `dotted` loads, under `src/` for
-    the package and under `tests/` for every other name, since
-    `[tool.pytest].pythonpath` names `tests`.
+    Finds the file importing `dotted` loads, at the path `source` reads.
 
     Returns:
         The file's path from the worktree root, or `None` where neither
         folder holds a module or a package of that name.
     """
-    parts = dotted.split(".")
-    base  = Path("src" if parts[0] == "squirtl" else "tests", *parts)
+    base = source(dotted)
 
     return next(
         (
@@ -69,6 +70,20 @@ def located(dotted: str) -> str | None:
         ),
         None
     )
+
+
+def imported(node: Import | ImportFrom) -> Iterator[tuple[str, str]]:
+    """
+    Yields each name an absolute import statement binds, beside the dotted
+    name of the module or attribute it binds.
+    """
+    for alias in node.names:
+        if isinstance(node, Import):
+            yield alias.asname or alias.name.partition(".")[0], (
+                alias.name if alias.asname else alias.name.partition(".")[0]
+            )
+        elif not node.level:
+            yield alias.asname or alias.name, f"{node.module}.{alias.name}"
 
 
 def main(base: str, *changed: str):
@@ -180,6 +195,30 @@ def requests(test: AsyncFunctionDef | FunctionDef) -> tuple[set[str], set[str]]:
             direct |= names(call.args[0] if call.args else None) - names(indirect)
 
     return parameters(test) | used(marked("usefixtures", test)), direct
+
+
+def source(dotted: str) -> Path:
+    """
+    Finds the path a module or package named `dotted` sits at without its
+    suffix, under `src/` for the package and under `tests/` for every other
+    name, since `[tool.pytest].pythonpath` names `tests`.
+    """
+    parts = dotted.split(".")
+
+    return Path("src" if parts[0] == "squirtl" else "tests", *parts)
+
+
+def spelled(node: expr) -> str | None:
+    """
+    Reads the dotted name a chain of attributes on a name spells, or `None`
+    where `node` is no such chain.
+    """
+    match node:
+        case Name(id=name): return name
+        case Attribute(value=value, attr=attr) if outer := spelled(value):
+            return f"{outer}.{attr}"
+
+    return None
 
 
 def undocumented(node: Module | stmt) -> Module | stmt:
@@ -364,14 +403,14 @@ def used(calls: Iterable[Call]) -> set[str]:
     )}
 
 
-def bindings(tree: Module | stmt) -> Iterator[Binding]:
+def bindings(nodes: Iterable[AST]) -> Iterator[Binding]:
     """
-    Yields each file an import statement anywhere in `tree` loads, and the
-    module each dotted `squirtl` name quoted in a string names, read as the
-    longest prefix naming a module, leaving out each relative import and
-    each import of a module neither `src/` nor `tests/` holds.
+    Yields each file an import statement among `nodes` loads, and the module
+    each dotted `squirtl` name quoted in a string names, read as the longest
+    prefix naming a module, leaving out each relative import and each import
+    of a module neither `src/` nor `tests/` holds.
     """
-    for node in walk(tree):
+    for node in nodes:
         match node:
             case Import():
                 for alias in node.names:
@@ -513,49 +552,33 @@ class Suite:
     @cached_property
     def imports(self) -> dict[str, set[Binding]]:
         """
-        Reads each file every module under `tests/` and every package
-        `__init__` under `src/` loads, keyed by the module's path.
+        Reads each file every module under `tests/` and `src/` loads, by an
+        import or by walking a package, keyed by the module's path.
         """
         return {
-            path.as_posix(): set(bindings(parse(path.read_text(encoding="utf-8"))))
-            for path in Path("src").rglob("__init__.py")
-        } | {path: set(bindings(tree)) for path, tree in self.trees.items()}
+            path: {*bindings(nodes := [*walk(tree)]), *walked(nodes)}
+            for path, tree in (
+                *(
+                    (path.as_posix(), parse(path.read_text(encoding="utf-8")))
+                    for path in Path("src").rglob("*.py")
+                ),
+                *self.trees.items()
+            )
+        }
 
     @cached_property
-    def loaded(self) -> dict[str, set[str]]:
+    def loaders(self) -> dict[str, set[str]]:
         """
-        Follows each module's imports through every module under `tests/`
-        and every package `__init__` under `src/` it loads, which import
-        in turn.
-
-        Returns:
-            Each file a module loads, directly or through a helper, keyed
-            by the module's path.
+        Inverts `imports`, keying each file loaded by the modules loading
+        it directly.
         """
-        loaded: dict[str, set[str]] = {}
+        loaders = defaultdict(set)
 
-        def visit(path: str) -> set[str]:
-            """
-            Fills the files `path` loads into `loaded` and returns them.
-            """
-            if path not in loaded:
-                loaded[path] = found = set()
+        for path, found in self.imports.items():
+            for binding in found:
+                loaders[binding.target].add(path)
 
-                for binding in self.imports.get(path, ()):
-                    found.add(binding.target)
-
-                    if (
-                        binding.target.startswith("tests/")
-                        or binding.target in self.imports
-                    ):
-                        found |= visit(binding.target)
-
-            return loaded[path]
-
-        for path in self.trees:
-            visit(path)
-
-        return loaded
+        return loaders
 
     def chain(self, path: str) -> list[dict[str, tuple[set[str], Fixture]]]:
         """
@@ -646,12 +669,11 @@ class Suite:
         if not Path(changed).is_file():
             raise Whole
 
+        loading  = self.loading(changed)
         manifest = Path("pyproject.toml").read_text(encoding="utf-8")
         paths    = set()
 
-        for path in self.trees:
-            if path == ROOT or not self.reaches(changed, path):
-                continue
+        for path in self.trees.keys() & loading - {ROOT}:
 
             if path.startswith("tests/common/"):
                 dotted = (
@@ -667,13 +689,25 @@ class Suite:
             else:
                 paths.add(path)
 
-        return paths, self.read_from_root(changed)
+        return paths, self.read_from_root(loading)
 
-    def reaches(self, changed: str, target: str) -> bool:
+    def loading(self, changed: str) -> set[str]:
         """
-        Reads whether loading `target` loads `changed`.
+        Follows `loaders` outward from `changed` through every chain of
+        imports, a cycle among them included.
+
+        Returns:
+            Each module loading `changed`, directly or through another,
+            with `changed` itself.
         """
-        return target == changed or changed in self.loaded.get(target, ())
+        loading, pending = {changed}, [changed]
+
+        while pending:
+            found    = self.loaders.get(pending.pop(), set()) - loading
+            loading |= found
+            pending += found
+
+        return loading
 
     @classmethod
     def read(cls) -> Self:
@@ -689,16 +723,17 @@ class Suite:
             }
         )
 
-    def read_from_root(self, changed: str) -> set[str]:
+    def read_from_root(self, loading: set[str]) -> set[str]:
         """
         Finds the fixtures of `tests/conftest.py` reading a name it binds to
-        a module loading `changed`, or defining a function whose body quotes
-        a name of `changed`.
+        a module in `loading`, the files loading a changed one, or defining
+        a function whose body quotes a name of one.
 
         Raises:
-            Whole: Where the conftest loads `changed` through a package
-                   `__init__` or a quoted name outside a function, or an
-                   autouse fixture or a hook reads the name bound.
+            Whole: Where the conftest loads one through a package
+                   `__init__`, a quoted name outside a function, or a
+                   package it walks, or an autouse fixture or a hook reads
+                   the name bound.
         """
         if ROOT not in self.trees:
             return set()
@@ -706,9 +741,12 @@ class Suite:
         root = self.trees[ROOT]
         read = set()
 
+        if any(binding.target in loading for binding in walked(walk(root))):
+            raise Whole
+
         for node in root.body:
-            for binding in bindings(node):
-                if not self.reaches(changed, binding.target):
+            for binding in bindings(walk(node)):
+                if binding.target not in loading:
                     continue
 
                 if binding.name:
@@ -782,6 +820,37 @@ def quoted(dotted: str) -> Iterator[Binding]:
         if target := located(prefix):
             yield Binding(target, quoted=True)
             return
+
+
+def walked(nodes: Iterable[AST]) -> Iterator[Binding]:
+    """
+    Yields each file under each package whose `__path__` the `nodes`
+    of a module read, in code or in a quoted program, where they
+    name `importlib.import_module`, `pkgutil.iter_modules`, or
+    `pkgutil.walk_packages`, which load a module by a name computed from
+    that path.
+    """
+    bound, loads, read = {}, False, set()
+
+    for node in nodes:
+        match node:
+            case Import() | ImportFrom(): bound.update(imported(node))
+            case Constant(value=str(text)):
+                loads |= bool(LOADERS.search(text))
+                read  |= set(PATHS.findall(text))
+            case Attribute(attr="__path__", value=value) if dotted := spelled(value):
+                read.add(dotted)
+            case Name(id=name) | Attribute(attr=name):
+                loads |= bool(LOADERS.fullmatch(name))
+
+    for dotted in read if loads else ():
+        first, _, rest = dotted.partition(".")
+        folder         = source(".".join(filter(None, (bound.get(first, first), rest))))
+
+        if folder.is_dir():
+            yield from (Binding(path.as_posix()) for path in sorted(
+                folder.rglob("*.py")
+            ))
 
 
 if __name__ == "__main__":
