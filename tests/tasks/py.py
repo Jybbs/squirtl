@@ -305,7 +305,12 @@ def stand_in(install_stand_ins: Callable[..., Path]):
             id = "lint-actions"
         ),
         param("snapshots", {}, ["-p", "common.skipped", "--diff"], id="snapshots"),
-        param("split", {}, ["--cov", "--cov-report=", "--diff"], id="split"),
+        param(
+            "split",
+            {},
+            ["--cov", "--cov-fail-under=0", "--cov-report=", "--diff"],
+            id = "split"
+        ),
         param("test", {}, ["--diff"], id="test")
     ],
     indirect = ["shell"]
@@ -712,6 +717,7 @@ def test_reach_prints_each_selection_or_every_test(
     ]
 )
 def test_combine_reports_the_combined_data_and_gates_its_total(
+    capsys       : CaptureFixture[str],
     files        : dict[str, list[int]],
     load_task    : Callable[[str], ModuleType],
     monkeypatch  : MonkeyPatch,
@@ -722,10 +728,11 @@ def test_combine_reports_the_combined_data_and_gates_its_total(
 ):
     """
     Pins that `py:combine` combines every machine's data file under
-    `.cache/coverage/parts/` before it writes the JSON report and gates the
-    total, so the lines each machine ran add up, exits 2 where the combined
-    total falls below the `fail_under` that `pyproject.toml` sets, and
-    reports on the data file a local run wrote where no part exists.
+    `.cache/coverage/parts/` before it writes the HTML report, the JSON
+    report, and the terminal table and gates the total, so the lines each
+    machine ran add up, exits 2 where the combined total falls below the
+    `fail_under` that `pyproject.toml` sets, and reports on the data file a
+    local run wrote where no part exists.
     """
     source = tmp_path / "src/squirtl/module.py"
     data   = tmp_path / ".cache/coverage"
@@ -742,6 +749,8 @@ def test_combine_reports_the_combined_data_and_gates_its_total(
         recorded.write()
 
     assert load_task(".mise/tasks/py/combine.py").combine(data / "parts") == status
+    assert (data / "html/index.html").is_file()
+    assert "TOTAL" in capsys.readouterr().out
     assert loads(
         (data / "coverage.json").read_text()
     )["totals"]["percent_covered"] == percent
