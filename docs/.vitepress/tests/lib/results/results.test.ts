@@ -16,14 +16,16 @@ const RESULTS = FIXTURE as unknown as results.Results
 const GROUPS = results.groupsOf(RESULTS)
 
 describe('groupsOf', () => {
-  it('pairs each comparison with its runs under its agent’s name and hue, naming the curriculum where it trained along one', () => {
-    expect(GROUPS.map(group => [group.id, group.name, group.hue, group.runs.map(run => run.seed)])).toStrictEqual([
-      ['dqn-bedroom', 'Deep Q-network', 'fern', [1]],
-      ['ppo-bedroom', 'PPO', 'denim', [2, 3]],
-      ['ppo-curriculum', 'PPO, curriculum', 'denim', [4, 5]],
-      ['pqn-bedroom', 'PQN', 'heath', [6]],
-      ['pqn-curriculum', 'PQN, curriculum', 'heath', [7]]
-    ])
+  it('pairs each comparison with its runs under its agent’s name and hue, naming the curriculum where it '
+   + 'trained along one', () => {
+    expect(GROUPS.map(group => [group.id, group.name, group.hue, group.runs.map(run => run.seed)]))
+      .toStrictEqual([
+        ['dqn-bedroom', 'Deep Q-network', 'fern', [1]],
+        ['ppo-bedroom', 'PPO', 'denim', [2, 3]],
+        ['ppo-curriculum', 'PPO, curriculum', 'denim', [4, 5]],
+        ['pqn-bedroom', 'PQN', 'heath', [6]],
+        ['pqn-curriculum', 'PQN, curriculum', 'heath', [7]]
+      ])
   })
 
   it('reads the runs the repository commits by default', () => {
@@ -52,7 +54,10 @@ describe('meansOf', () => {
 
   it('takes each later evaluation across the runs that reached it', () => {
     const [first, second] = GROUPS[1]!.runs
-    const short           = { ...GROUPS[1]!, runs: [first!, { ...second!, scores: second!.scores.slice(0, 1) }] }
+    const short           = {
+      ...GROUPS[1]!,
+      runs: [first!, { ...second!, scores: second!.scores.slice(0, 1) }]
+    }
 
     expect(results.meansOf(short).map(score => score.reached)).toStrictEqual([0.375, 1, 1])
   })
@@ -90,7 +95,8 @@ describe('verdictOf', () => {
 })
 
 describe('figuresOf', () => {
-  it('lists each group’s share and odds against random presses, lit in its hue while pressed, above random presses’ share', () => {
+  it('lists each group’s share and odds against random presses, lit in its hue while pressed, above random '
+   + 'presses’ share', () => {
     const entries = results.figuresOf(GROUPS, RESULTS.random!, new Set(['ppo-bedroom']))
 
     expect(entries.map(entry => [entry.name, entry.figures])).toStrictEqual([

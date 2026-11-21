@@ -13,7 +13,12 @@ describe('useComparison', () => {
   it('draws the runs it is handed in place of the committed ones', () => {
     const handed = FIXTURE as unknown as results.Results
     let drawn: readonly results.Group[] = []
-    mount(defineComponent({ setup: () => { drawn = useComparison(ref(), 'hatch', handed).groups; return () => null } }))
+    mount(defineComponent({
+      setup: () => {
+        drawn = useComparison(ref(), 'hatch', handed).groups
+        return () => null
+      }
+    }))
 
     expect(drawn).toStrictEqual(results.groupsOf(handed))
   })

@@ -1,8 +1,9 @@
 import { clamp } from '@vueuse/core'
 
-import { type PlotLabel, multiplesOf, round }                                                                                from '../drawing/plot.ts'
-import { type Axis, type Lane, type Lanes, LANES, type OddsLine, WORDS, finalsWidth, laneHeight, oddsLine, oddsOf, shadeOf } from './lanes.ts'
-import { AGENTS, type Estimate, type Group, percent, verdictOf }                                                             from './results.ts'
+import { type PlotLabel, multiplesOf, round }                               from '../drawing/plot.ts'
+import { LANES, WORDS, finalsWidth, laneHeight, oddsLine, oddsOf, shadeOf } from './lanes.ts'
+import type { Axis, Lane, Lanes, OddsLine }                                 from './lanes.ts'
+import { AGENTS, type Estimate, type Group, percent, verdictOf }            from './results.ts'
 
 /**
  * Clamps `t` between 0 and 1.
@@ -45,12 +46,30 @@ function wideOf(groups: readonly Group[], width: number, finals: number): Lanes 
   const last   = lastOf(groups)
   const lanes  = groups.map((group, n) => {
     const lane = n * pitch
-    const at   = { factsX: s1 + 6 + LANES.factsAt, factsY: lane, height: tall, lane, last, s0, s1, tabX: (f0 + width) / 2, x0, x1 }
-    return { ...laneOf(group, at), glyphs: [[6, lane + 8] as const], heads: headsOf(group, 18, lane + 12, null) }
+    const at   = {
+      factsX : s1 + 6 + LANES.factsAt,
+      factsY : lane,
+      height : tall,
+      lane   : lane,
+      last   : last,
+      s0     : s0,
+      s1     : s1,
+      tabX   : (f0 + width) / 2,
+      x0     : x0,
+      x1     : x1
+    }
+    return {
+      ...laneOf(group, at),
+      glyphs : [[6, lane + 8] as const],
+      heads  : headsOf(group, 18, lane + 12, null)
+    }
   })
 
   return {
-    folded : { curves: clamped((LANES.fold - (x1 - x0)) / LANES.folding), finals: clamped((LANES.fold - finals) / LANES.folding) },
+    folded : {
+      curves : clamped((LANES.fold - (x1 - x0)) / LANES.folding),
+      finals : clamped((LANES.fold - finals) / LANES.folding)
+    },
     height : bottom + LANES.foot,
     lanes  : lanes,
     opened : opened,
@@ -82,9 +101,16 @@ function stackedOf(groups: readonly Group[], width: number): Lanes {
   const lanes  = groups.map((group, n) => {
     const top   = n * pitch
     const lane  = t2 + n * pitch2 + drop
-    const curve = laneOf(group, { factsX: 0, factsY: 0, height: tall, lane: top + LANES.head, last, s0, s1, tabX: 0, x0: 0, x1: width })
-    const final = laneOf(group, { factsX: over ? s0 : s1 + LANES.factsAt, factsY: lane - drop, height: tall, lane, last, s0, s1, tabX: 0, x0: 0, x1: width })
-    return { ...final, glyphs: [[6, top + 7] as const, [6, lane + tall / 2] as const], heads: headsOf(group, 18, top + 11, width), rows: curve.rows }
+    const shared = { height: tall, last, s0, s1, tabX: 0, x0: 0, x1: width }
+    const curve  = laneOf(group, { ...shared, factsX: 0, factsY: 0, lane: top + LANES.head })
+    const facts  = { factsX: over ? s0 : s1 + LANES.factsAt, factsY: lane - drop }
+    const final  = laneOf(group, { ...shared, ...facts, lane })
+    return {
+      ...final,
+      glyphs : [[6, top + 7] as const, [6, lane + tall / 2] as const],
+      heads  : headsOf(group, 18, top + 11, width),
+      rows   : curve.rows
+    }
   })
 
   return {
@@ -117,7 +143,8 @@ function stepsAxis(left: number, right: number, bottom: number, last: number): A
       x      : x(step),
       y      : bottom + 16
     })),
-    titles : titles.map((text, n) => ({ anchor: 'middle', text, x: round((left + right) / 2), y: bottom + 34 + n * 16 }))
+    titles : titles.map((text, n) =>
+      ({ anchor: 'middle', text, x: round((left + right) / 2), y: bottom + 34 + n * 16 }))
   }
 }
 
@@ -126,19 +153,30 @@ function stepsAxis(left: number, right: number, bottom: number, last: number): A
  * down each of `spans`, every quarter labeled from 220px and every half under
  * it, and its title over two lines under 200px.
  */
-function sharesAxis(left: number, right: number, y: number, spans: readonly (readonly [number, number])[]): Axis {
+function sharesAxis(
+  left  : number,
+  right : number,
+  y     : number,
+  spans : readonly (readonly [number, number])[]
+): Axis {
   const x      = (share: number) => round(left + share * (right - left))
   const shares = right - left < 220 ? [0, 0.5, 1] : [0, 0.25, 0.5, 0.75, 1]
-  const titles = right - left < 200 ? ['Last evaluation', '(% reaching it)'] : ['Last evaluation (% reaching it)']
+  const titles = right - left < 200
+    ? ['Last evaluation', '(% reaching it)']
+    : ['Last evaluation (% reaching it)']
   return {
-    grid   : spans.flatMap(([top, tall]) => [0, 0.25, 0.5, 0.75, 1].map(share => `M${x(share)},${round(top)}V${round(top + tall)}`)).join(''),
+    grid   : spans
+      .flatMap(([top, tall]) =>
+        [0, 0.25, 0.5, 0.75, 1].map(share => `M${x(share)},${round(top)}V${round(top + tall)}`))
+      .join(''),
     labels : shares.map((share, n) => ({
       anchor : n === 0 ? 'start' : n === shares.length - 1 ? 'end' : 'middle',
       text   : `${share * 100}%`,
       x      : x(share),
       y      : y + 14
     })),
-    titles : titles.map((text, n) => ({ anchor: 'middle', text, x: round((left + right) / 2), y: y + 32 + n * 16 }))
+    titles : titles.map((text, n) =>
+      ({ anchor: 'middle', text, x: round((left + right) / 2), y: y + 32 + n * 16 }))
   }
 }
 
@@ -161,11 +199,16 @@ function laneOf(group: Group, at: LanePlaces): Omit<Lane, 'glyphs' | 'heads'> {
   const fx      = (share: number) => round(s0 + share * (s1 - s0))
   const rowY    = (k: number) => lane + k * (LANES.row + LANES.rowGap)
   const tall    = at.height
-  const between = (estimate: Estimate) => (estimate.interval ?? [estimate.value, estimate.value]).map(share => fx(share)) as [number, number]
+  const between = (estimate: Estimate) =>
+    (estimate.interval ?? [estimate.value, estimate.value]).map(share => fx(share)) as [number, number]
   const bedroom = group.comparison.bedroom
 
   return {
-    bells  : group.runs.map((run, k) => ({ from: fx(run.baseline.reached), to: fx(run.scores.at(-1)!.reached), y: rowY(k) + LANES.row / 2 })),
+    bells  : group.runs.map((run, k) => ({
+      from : fx(run.baseline.reached),
+      to   : fx(run.scores.at(-1)!.reached),
+      y    : rowY(k) + LANES.row / 2
+    })),
     finals : {
       interval : between(group.comparison.reached),
       mean     : fx(group.comparison.reached.value),
@@ -180,7 +223,11 @@ function laneOf(group: Group, at: LanePlaces): Omit<Lane, 'glyphs' | 'heads'> {
     rows : group.runs.map((run, k) => ({
       cells : run.scores.map((score, i) => {
         const from = x(i === 0 ? 0 : run.scores[i - 1]!.step)
-        return { shade: shadeOf(score.reached), width: round(Math.max(0.5, x(score.step) - from - 1)), x: round(from + 0.5) }
+        return {
+          shade : shadeOf(score.reached),
+          width : round(Math.max(0.5, x(score.step) - from - 1)),
+          x     : round(from + 0.5)
+        }
       }),
       clip  : { width: round(x1 - x0 + 4), x: round(x0 - 2), y: rowY(k) - 1 },
       hatch : group.curriculum ? { width: round(x(run.scores.at(-1)!.step) - x0), x: x0 } : null,
@@ -231,6 +278,8 @@ function headsOf(group: Group, x: number, y: number, end: number | null): PlotLa
   const figure = percent(group.comparison.reached)
   return [
     { anchor: 'start', text: capsOf(group), x, y },
-    end === null ? { anchor: 'start', text: figure, x, y: y + 15 } : { anchor: 'end', text: figure, x: end, y }
+    end === null
+      ? { anchor: 'start', text: figure, x, y: y + 15 }
+      : { anchor: 'end', text: figure, x: end, y }
   ]
 }

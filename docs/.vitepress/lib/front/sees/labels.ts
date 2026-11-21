@@ -84,5 +84,6 @@ export function frameNamesOf(observing: sees.Observing = sees.OBSERVING): FrameN
  * in the order the network reads the flags.
  */
 export function pastOf(): PastFlag[] {
-  return EVENTS.flatMap(({ index, name, term }) => term ? [] : [{ index, name: PAST[name as keyof typeof PAST] }])
+  return EVENTS.flatMap(({ index, name, term }) =>
+    term ? [] : [{ index, name: PAST[name as keyof typeof PAST] }])
 }

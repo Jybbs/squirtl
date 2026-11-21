@@ -3,7 +3,8 @@ import { describe, expect, it }   from 'vitest'
 
 import { footnotes } from '../../../lib/markdown/footnotes.ts'
 
-const MNIH = '[^mnih2015]: Mnih et al. 2015. "Human." *Nature* 518(7540): 529–533. <https://doi.org/10.1038/nature14236>'
+const MNIH = '[^mnih2015]: Mnih et al. 2015. "Human." *Nature* 518(7540): 529–533. '
+           + '<https://doi.org/10.1038/nature14236>'
 const PARDO = '[^pardo2018]: Pardo et al. 2018. "Time." arXiv:1. <https://arxiv.org/abs/1>'
 
 /**
@@ -24,7 +25,9 @@ function count(html: string, part: string): number {
 
 describe('the markers', () => {
   it('anchors a footnote by its key and numbers every marker of one source alike', async () => {
-    const html = await rendered(`One.[^pardo2018] Two.[^mnih2015] Three.[^pardo2018]\n\n${MNIH}\n\n${PARDO}\n`)
+    const html = await rendered(
+      `One.[^pardo2018] Two.[^mnih2015] Three.[^pardo2018]\n\n${MNIH}\n\n${PARDO}\n`
+    )
 
     expect(count(html, '<a aria-label="Source 1" href="#footnote-pardo2018"')).toBe(2)
     expect(html).toContain('<a aria-label="Source 2" href="#footnote-mnih2015"')
@@ -32,7 +35,10 @@ describe('the markers', () => {
     expect(html).toContain('href="#footnote-pardo2018" id="footnote-ref-pardo2018">')
     expect(html).toContain('href="#footnote-pardo2018" id="footnote-ref-pardo2018:1">')
     expect(html).not.toContain('[1:1]')
-    expect(html).toContain('<a aria-label="Back to citation 2 of source 1" class="footnote-backref" href="#footnote-ref-pardo2018:1">')
+    expect(html).toContain(
+        '<a aria-label="Back to citation 2 of source 1" class="footnote-backref" '
+      + 'href="#footnote-ref-pardo2018:1">'
+    )
   })
 
   it('draws a lone marker as a phone with its numeral on the glass', async () => {
@@ -69,7 +75,9 @@ describe('the definitions', () => {
     const html  = await rendered(`One.[^mnih2015] Two.[^mnih2015]\n\n${MNIH}\n`)
     const entry = html.slice(html.indexOf('<li id="footnote-mnih2015"'), html.indexOf('</li>'))
 
-    expect(entry).toMatch(/footnote-opener[\s\S]*<strong class="footnote-name">Mnih et al\. 2015\.<\/strong>[\s\S]*<p>&quot;Human\.&quot;[\s\S]*<\/p>[\s\S]*footnote-backs/u)
+    expect(entry).toMatch(
+      /footnote-opener[\s\S]*<strong class="footnote-name">Mnih et al\. 2015\.<\/strong>[\s\S]*<p>&quot;Human\.&quot;[\s\S]*<\/p>[\s\S]*footnote-backs/u
+    )
     expect(count(entry.slice(entry.indexOf('footnote-backs')), 'footnote-backref')).toBe(2)
   })
 
@@ -80,8 +88,12 @@ describe('the definitions', () => {
     expect(html).toContain('doi.org/<wbr>10.1038/<wbr>nature14236</span>')
   })
 
-  it('writes the name line and an address with their markup escaped, and leaves a written link as written', async () => {
-    const html = await rendered('One.[^smith2020]\n\n[^smith2020]: Smith & Jones 2020. "T." [The page](https://a.example/b/c). <https://a.example/d?e=1&f=2>\n')
+  it('writes the name line and an address with their markup escaped, and leaves a written link as '
+   + 'written', async () => {
+    const html = await rendered(
+        'One.[^smith2020]\n\n[^smith2020]: Smith & Jones 2020. "T." [The page](https://a.example/b/c). '
+      + '<https://a.example/d?e=1&f=2>\n'
+    )
 
     expect(html).toContain('<strong class="footnote-name">Smith &amp; Jones 2020.</strong>')
     expect(html).toContain('d?e=1&amp;f=2</span>')
@@ -93,7 +105,9 @@ describe('the definitions', () => {
     const html = await rendered(`One.[^mnih2015]\n\n${MNIH}\n`)
 
     expect(html).toContain('<hr class="footnotes-sep">')
-    expect(html).toMatch(/<section class="footnotes footnote-snap">.*<div aria-hidden="true" class="footnote-phone-art">.*<ol class="footnotes-list">/su)
+    expect(html).toMatch(
+      /<section class="footnotes footnote-snap">.*<div aria-hidden="true" class="footnote-phone-art">.*<ol class="footnotes-list">/su
+    )
     expect(html).toContain('</ol></div></div></div></section>')
   })
 

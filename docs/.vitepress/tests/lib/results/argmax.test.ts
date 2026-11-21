@@ -69,7 +69,8 @@ describe('argmaxOf’s takeaway', () => {
             + 'and at the last evaluation, 1.50M steps, every seed’s two counts match.'],
     [3, 2, 0, 'Sampling and the most likely press differ at 2 of PPO’s 12 evaluations, and still at the '
             + 'last.', 'The most likely press reaches the goal in fewer episodes at 2 of the 2.']
-  ])('reads its takeaway from the counts once seed %i at evaluation %i reads %d', (seed, n, to, head, says) => {
+  ])('reads its takeaway from the counts once seed %i at evaluation %i reads '
+   + '%d', (seed, n, to, head, says) => {
     expect(scored(seed, n, { argmax: to }).takeaway).toStrictEqual({ head, says })
   })
 
@@ -90,7 +91,9 @@ describe('argmaxOf’s evaluations', () => {
 
   it('lays out the evaluations every PPO run played', () => {
     const short = RESULTS.runs.find(run => run.seed === 4)!
-    const runs  = [...RESULTS.runs.filter(run => run !== short), { ...short, scores: short.scores.slice(0, 2) }]
+    const runs  = [
+      ...RESULTS.runs.filter(run => run !== short), { ...short, scores: short.scores.slice(0, 2) }
+    ]
 
     expect(argmax.argmaxOf({ ...RESULTS, runs })!.steps).toStrictEqual([500_000, 1_000_000])
   })

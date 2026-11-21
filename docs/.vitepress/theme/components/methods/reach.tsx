@@ -38,12 +38,20 @@ export const MethodsReach = defineComponent({
         <div class="relative" ref={box}>
           <div class="reach-screens grid gap-x-2 gap-y-2">
             {GROUPS.map(({ group, span }) => (
-              <p class={[LABEL, 'm-0 border-b-hairline border-rule pb-1 whitespace-nowrap text-ink']} style={{ gridColumn: `span ${span}` }}>{group}</p>
+              <p
+                class={[LABEL, 'm-0 border-b-hairline border-rule pb-1 whitespace-nowrap text-ink']}
+                style={{ gridColumn: `span ${span}` }}
+              >
+                {group}
+              </p>
             ))}
             {SCREENS.map((screen, n) => (
               <figure class="m-0 grid min-w-0 gap-1.5">
                 <canvas
-                  aria-label={`The walk up to the north edge with the Game Boy’s pad on every square, each arm filled by ${screen.says}`}
+                  aria-label={
+                      'The walk up to the north edge with the Game Boy’s pad on every square, '
+                    + `each arm filled by ${screen.says}`
+                  }
                   class="pixelated block h-auto w-full rounded-1 border-hairline border-rule"
                   height={CROP.h * SQUARE * CROP.scale}
                   ref={(canvas: unknown) => { if (canvas) canvases.value[n] = canvas as HTMLCanvasElement }}
@@ -56,7 +64,9 @@ export const MethodsReach = defineComponent({
           </div>
           <Slider parts={OVER} scrub={scrub} />
         </div>
-        <span class={[DETAIL, 'reach-status text-ink']}>{at.value ? `Pass ${at.value} of ${reach.PASSES}` : 'Before training'}</span>
+        <span class={[DETAIL, 'reach-status text-ink']}>
+          {at.value ? `Pass ${at.value} of ${reach.PASSES}` : 'Before training'}
+        </span>
         <Key entries={KEY} />
       </div>
     )

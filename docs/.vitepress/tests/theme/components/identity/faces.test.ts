@@ -13,7 +13,8 @@ enableAutoUnmount(afterEach)
  * Reads the place of the copy each face's stack shows.
  */
 const shownCopies = (wrapper: ReturnType<typeof mount>): number[] =>
-  wrapper.findAll('.identity-stack').map(stack => stack.findAll('.identity-copy').findIndex(copy => copy.attributes('data-shown') === 'true'))
+  wrapper.findAll('.identity-stack').map(stack =>
+    stack.findAll('.identity-copy').findIndex(copy => copy.attributes('data-shown') === 'true'))
 
 describe('IdentityFaces', () => {
   it('names each face in its role’s order beside what it sets, a swatch for each weight it loads', () => {
@@ -31,23 +32,28 @@ describe('IdentityFaces', () => {
     const lone    = faces.ROLES.map(role => faces.WEIGHTS[role].length === 1)
 
     expect(shownCopies(wrapper)).toStrictEqual(faces.ROLES.map(() => 0))
-    expect(wrapper.findAll('[role="radiogroup"]').map(group => group.get('button').attributes('disabled') !== undefined)).toStrictEqual(lone)
+    expect(wrapper.findAll('[role="radiogroup"]').map(group =>
+      group.get('button').attributes('disabled') !== undefined))
+      .toStrictEqual(lone)
   })
 
 })
 
 describe('IdentityFaces’s weights', () => {
-  it('moves Literata’s one upright copy to the weight a reader presses and crossfades to its italic', async () => {
+  it('moves Literata’s one upright copy to the weight a reader presses and crossfades to its '
+   + 'italic', async () => {
     const wrapper = mount(IdentityFaces, { attachTo: document.body })
     const body    = faces.ROLES.indexOf('body')
     const buttons = wrapper.findAll('[role="radiogroup"]')[body]!.findAll('button')
-    const upright = () => wrapper.findAll('.identity-stack')[body]!.get('.identity-copy > div').attributes('style')
+    const upright = () =>
+      wrapper.findAll('.identity-stack')[body]!.get('.identity-copy > div').attributes('style')
 
     await buttons.at(-2)!.trigger('click')
     const pressed = [shownCopies(wrapper)[body], upright()]
     await buttons.at(-1)!.trigger('click')
 
-    expect([...pressed, shownCopies(wrapper)[body]]).toStrictEqual([0, expect.stringContaining('font-weight: 700'), 1])
+    expect([...pressed, shownCopies(wrapper)[body]])
+      .toStrictEqual([0, expect.stringContaining('font-weight: 700'), 1])
   })
 
   it('shows the copy of a face loading static weights at the weight a reader presses', async () => {
@@ -73,7 +79,11 @@ describe('IdentityFaces’s weights', () => {
 
     await wrapper.findAll('[role="radiogroup"]')[code]!.findAll('button')[1]!.trigger('click')
 
-    expect(wrapper.findAll('.identity-inline').at(-1)!.findAll('code').map(each => each.attributes('data-shown')))
+    expect(wrapper
+      .findAll('.identity-inline')
+      .at(-1)!
+      .findAll('code')
+      .map(each => each.attributes('data-shown')))
       .toStrictEqual(faces.WEIGHTS.code.map((_, n) => String(n === 1)))
   })
 })

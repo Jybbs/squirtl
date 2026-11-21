@@ -24,7 +24,8 @@ describe('legendOf', () => {
     ])
   })
 
-  it('draws each agent in its hue, hatches the curriculum through the pattern named, and states random presses’ share', () => {
+  it('draws each agent in its hue, hatches the curriculum through the pattern named, and states random '
+   + 'presses’ share', () => {
     const [agents, starts, , , random] = legend
 
     expect([
@@ -36,22 +37,29 @@ describe('legendOf', () => {
 })
 
 describe('lookOf', () => {
-  it('sets the curves’ key after what each start draws and the most likely press’s key last, every other row the legend’s', () => {
+  it('sets the curves’ key after what each start draws and the most likely press’s key last, every other row '
+   + 'the legend’s', () => {
     const legend = legendOf(GROUPS, RESULTS.random!, 'hatch')
 
     expect(lookOf(GROUPS, RESULTS.random!, 'hatch')).toStrictEqual([
-      legend[0], legend[1], { entries: CURVES, head: 'Curve' }, ...legend.slice(2), { entries: ARGMAX, head: 'Most likely press' }
+      legend[0],
+      legend[1],
+      { entries: CURVES, head: 'Curve' },
+      ...legend.slice(2),
+      { entries: ARGMAX, head: 'Most likely press' }
     ])
   })
 
-  it('marks the differing seed, the evaluation shown, and the count at the most likely press each through its own class', () => {
+  it('marks the differing seed, the evaluation shown, and the count at the most likely press each through '
+   + 'its own class', () => {
     const classes = ['results-differs', 'results-shown', 'results-named']
 
-    expect(ARGMAX.map(entry => [entry.name, classes.filter(name => entry.mark!.includes(name))])).toStrictEqual([
-      ['A seed differing at its most likely press', ['results-differs']],
-      ['The evaluation shown', ['results-shown']],
-      ['A count at the most likely press', ['results-named']]
-    ])
+    expect(ARGMAX.map(entry => [entry.name, classes.filter(name => entry.mark!.includes(name))]))
+      .toStrictEqual([
+        ['A seed differing at its most likely press', ['results-differs']],
+        ['The evaluation shown', ['results-shown']],
+        ['A count at the most likely press', ['results-named']]
+      ])
   })
 })
 

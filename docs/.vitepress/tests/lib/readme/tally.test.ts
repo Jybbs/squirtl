@@ -8,7 +8,8 @@ import { tallyOf }          from '../../../lib/readme/tally.ts'
 /**
  * Reads the words of every line `svg` sets, in the order it sets them.
  */
-const wordsOf = (svg: string): string[] => [...svg.matchAll(/<text [^>]*>([^<]*)<\/text>/gu)].map(([, text]) => text!)
+const wordsOf = (svg: string): string[] =>
+  [...svg.matchAll(/<text [^>]*>([^<]*)<\/text>/gu)].map(([, text]) => text!)
 
 describe('tallyOf', () => {
   it.each([

@@ -24,24 +24,28 @@ function mounted(values: readonly string[]) {
 describe('useChoice', () => {
   it('presses the first option and the one a reader presses, never leaving none pressed', async () => {
     const { chosen, wrapper } = mounted(['one', 'two'])
-    const checked             = () => wrapper.findAll('[role="radio"]').map(radio => radio.attributes('aria-checked'))
+    const checked             = () =>
+      wrapper.findAll('[role="radio"]').map(radio => radio.attributes('aria-checked'))
     const first               = checked()
 
     await wrapper.findAll('button')[1]!.trigger('click')
     const second = checked()
     await wrapper.findAll('button')[1]!.trigger('click')
 
-    expect([first, second, checked(), chosen]).toStrictEqual([['true', 'false'], ['false', 'true'], ['false', 'true'], ['two']])
+    expect([first, second, checked(), chosen])
+      .toStrictEqual([['true', 'false'], ['false', 'true'], ['false', 'true'], ['two']])
   })
 })
 
 describe('useChoice’s own ref', () => {
-  it('presses the option the caller sets in the ref it hands, and writes a reader’s press back to it', async () => {
+  it('presses the option the caller sets in the ref it hands, and writes a reader’s press back to '
+   + 'it', async () => {
     const pressed = ref('two')
     const wrapper = mount(defineComponent({
       setup: () => {
         const choice = useChoice(['one', 'two'], () => {}, pressed)
-        return () => h('div', choice.root.value, ['one', 'two'].map(value => h('button', choice.item(value), value)))
+        return () =>
+          h('div', choice.root.value, ['one', 'two'].map(value => h('button', choice.item(value), value)))
       }
     }), { attachTo: document.body })
     const checked = () => wrapper.findAll('[role="radio"]').map(radio => radio.attributes('aria-checked'))
@@ -59,7 +63,8 @@ describe('usePick', () => {
     const wrapper = mount(defineComponent({
       setup: () => {
         const pick = usePick(['one', 'two'], picked)
-        return () => h('div', pick.root.value, ['one', 'two'].map(value => h('button', pick.item(value), value)))
+        return () =>
+          h('div', pick.root.value, ['one', 'two'].map(value => h('button', pick.item(value), value)))
       }
     }), { attachTo: document.body })
     const seen: (string | null)[] = []
@@ -79,7 +84,11 @@ describe('useSwitches', () => {
     const wrapper = mount(defineComponent({
       setup: () => {
         const switches = useSwitches(['one', 'two', 'three'], pressed)
-        return () => h('div', switches.root.value, ['one', 'two', 'three'].map(value => h('button', switches.item(value), value)))
+        return () => h(
+          'div',
+          switches.root.value,
+          ['one', 'two', 'three'].map(value => h('button', switches.item(value), value))
+        )
       }
     }), { attachTo: document.body })
     const states = () => wrapper.findAll('button').map(button => button.attributes('data-state'))
@@ -88,6 +97,7 @@ describe('useSwitches', () => {
     await wrapper.findAll('button')[2]!.trigger('click')
     await wrapper.findAll('button')[0]!.trigger('click')
 
-    expect([first, states(), [...pressed.value]]).toStrictEqual([['off', 'on', 'off'], ['on', 'on', 'on'], ['one', 'two', 'three']])
+    expect([first, states(), [...pressed.value]])
+      .toStrictEqual([['off', 'on', 'off'], ['on', 'on', 'on'], ['one', 'two', 'three']])
   })
 })

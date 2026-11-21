@@ -22,17 +22,26 @@ function drawGithub({ project }: SiteTheme): VNode {
     <div class="grid text-small">
       <div class="flex flex-wrap items-center gap-2 px-3 pt-3 pb-2">
         <span class="text-body text-link">{repo.owner} / <strong>{repo.name}</strong></span>
-        <span class="rounded-full border-hairline border-rule px-2 font-code text-label text-quiet">Public</span>
+        <span class="rounded-full border-hairline border-rule px-2 font-code text-label text-quiet">
+          Public
+        </span>
       </div>
-      <div aria-hidden="true" class="flex gap-3 overflow-hidden border-b-hairline border-rule px-3 whitespace-nowrap">
-        {TABS.map((tab, n) => <span class="identity-gh-tab pt-1 pb-2 text-quiet" data-on={n === 0}>{tab}</span>)}
+      <div
+        aria-hidden="true"
+        class="flex gap-3 overflow-hidden border-b-hairline border-rule px-3 whitespace-nowrap"
+      >
+        {TABS.map((tab, n) => (
+          <span class="identity-gh-tab pt-1 pb-2 text-quiet" data-on={n === 0}>{tab}</span>
+        ))}
       </div>
       <aside class="grid content-start gap-2 p-3">
         <div class="font-semibold">About</div>
         <div class="font-body text-small">{project.description}</div>
         <div class="font-semibold text-link">{project.host}</div>
         <div class="flex flex-wrap gap-1">
-          {project.keywords.map(word => <span class="identity-topic rounded-full px-2 font-code text-label text-link">{word}</span>)}
+          {project.keywords.map(word => (
+            <span class="identity-topic rounded-full px-2 font-code text-label text-link">{word}</span>
+          ))}
         </div>
       </aside>
     </div>
@@ -47,10 +56,14 @@ function drawGithub({ project }: SiteTheme): VNode {
 function drawFront({ project }: SiteTheme): VNode {
   return (
     <div class="grid">
-      <div class="border-b-hairline border-rule px-3 py-2 font-code text-label text-quiet">{project.host}</div>
+      <div class="border-b-hairline border-rule px-3 py-2 font-code text-label text-quiet">
+        {project.host}
+      </div>
       <div class="grid gap-2 px-3 py-4">
         <span class="font-display text-figure leading-tight font-medium text-ink">
-          {Array.from(IDENTITY.name, char => <span class={logoLetters.includes(char) ? 'text-link' : undefined}>{char}</span>)}
+          {Array.from(IDENTITY.name, char => (
+            <span class={logoLetters.includes(char) ? 'text-link' : undefined}>{char}</span>
+          ))}
         </span>
         <span class="font-display text-body leading-tight font-medium text-ink">{IDENTITY.tagline}</span>
         <span class="font-body text-small text-quiet">{project.description}</span>
@@ -69,7 +82,10 @@ function drawCard({ edition, project }: SiteTheme, scheme: Scheme): VNode {
       <span class="font-code text-label text-quiet">{project.host}</span>
       <span class="text-body font-semibold text-link">{IDENTITY.name}</span>
       <span class="mb-2 font-body text-small">{project.description}</span>
-      <span class="identity-card-art block overflow-hidden rounded-2" innerHTML={drawSiteCard(edition, scheme)} />
+      <span
+        class="identity-card-art block overflow-hidden rounded-2"
+        innerHTML={drawSiteCard(edition, scheme)}
+      />
     </div>
   )
 }

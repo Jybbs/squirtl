@@ -16,7 +16,8 @@ const MARGINS = { bottom: 10, left: 20, right: 10, top: 10 }
 describe('RUNS', () => {
   it('makes one run for each series hue in the order, each carrying its hue’s role', () => {
     expect(order.RUNS.map(run => [run.hue, run.role, run.place]))
-      .toStrictEqual(HUES.map((hue, place) => [hue, Object.entries(IDENTITY.roles).find(([, each]) => each === hue)![0], place]))
+      .toStrictEqual(HUES.map((hue, place) =>
+        [hue, Object.entries(IDENTITY.roles).find(([, each]) => each === hue)![0], place]))
   })
 
   it('keeps every value of every run between 0 and 1 across every step', () => {
@@ -36,7 +37,11 @@ describe('tagOf', () => {
 
 describe('penOf', () => {
   it.each([[true, 1], [false, 0]])('draws every line whole where whole is %s, as %d', (whole, drawn) => {
-    expect(order.penOf(whole)).toStrictEqual({ active: null, drawn: Object.fromEntries(HUES.map(hue => [hue, drawn])), rewinding: false })
+    expect(order.penOf(whole)).toStrictEqual({
+      active    : null,
+      drawn     : Object.fromEntries(HUES.map(hue => [hue, drawn])),
+      rewinding : false
+    })
   })
 })
 
@@ -70,7 +75,8 @@ describe('advance', () => {
     for (const _ of HUES.slice(1)) order.advance(pen, new Set(HUES), order.TEMPO.rewind)
     order.advance(pen, new Set(HUES), order.TEMPO.draw / 4)
 
-    expect([first, pen.rewinding, pen.active, pen.drawn[HUES[0]!]]).toStrictEqual([[HUES.at(-1), 0], false, HUES[0], 0.25])
+    expect([first, pen.rewinding, pen.active, pen.drawn[HUES[0]!]])
+      .toStrictEqual([[HUES.at(-1), 0], false, HUES[0], 0.25])
   })
 
   it('reports no move once every line shown is whole and every other none', () => {
@@ -85,7 +91,11 @@ describe('finish', () => {
     const pen = { ...order.penOf(false), active: HUES[0]!, rewinding: true }
     order.finish(pen, new Set([HUES[1]!]))
 
-    expect(pen).toStrictEqual({ active: null, drawn: Object.fromEntries(HUES.map(hue => [hue, Number(hue === HUES[1])])), rewinding: false })
+    expect(pen).toStrictEqual({
+      active    : null,
+      drawn     : Object.fromEntries(HUES.map(hue => [hue, Number(hue === HUES[1])])),
+      rewinding : false
+    })
   })
 })
 
@@ -114,8 +124,10 @@ describe('pointAt', () => {
 })
 
 describe('pointsOf', () => {
-  it('lays the run’s first value at the left margin and its last at the right, each value up from the bottom', () => {
-    const run    = { ...order.RUNS[0]!, values: [0, ...Array.from({ length: order.STEPS - 2 }, () => 0.5), 1] }
+  it('lays the run’s first value at the left margin and its last at the right, each value up from the '
+   + 'bottom', () => {
+    const middle = Array.from({ length: order.STEPS - 2 }, () => 0.5)
+    const run    = { ...order.RUNS[0]!, values: [0, ...middle, 1] }
     const points = order.pointsOf(run, 120, 60, MARGINS)
 
     expect([points[0], points.at(-1)]).toStrictEqual([[20, 50], [110, 10]])

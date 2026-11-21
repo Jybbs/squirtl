@@ -5,10 +5,15 @@ import { IDENTITY, spriteShades } from '../../../lib/identity/identity.ts'
 import * as drawings              from '../../../lib/marks/drawings.ts'
 import { markOf }                 from '../../../lib/marks/logo.ts'
 
+/**
+ * Matches the opening of an icon's SVG, through the box its R and L sit in.
+ */
+const OPENING = /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="-10 90 1020 620" role="img" /u
+
 describe('drawings', () => {
   it.each(['dark', 'light'] as const)('draws the %s icon as the R and the L with crisp edges', scheme => {
     const svg = drawings.drawIcon(scheme)
-    expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="-10 90 1020 620" role="img" /u)
+    expect(svg).toMatch(OPENING)
     expect(svg).toContain('shape-rendering="crispEdges"')
     expect(svg.match(/<circle /gu)).toHaveLength(markOf('RL').dots.length)
   })

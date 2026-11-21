@@ -35,12 +35,17 @@ export const pressName = (press: Press): string => press === null ? 'No press' :
 export function padMark(press: Press): string {
   const open = '<svg viewBox="0 0 16 16" shape-rendering="crispEdges">'
   if (press === 'a' || press === 'b') {
-    const letter = runsAt(NAMES[press]).map(run =>
-      `<rect x="${4 + run.x}" y="${4 + run.y}" width="${run.width}" height="1" class="fill-ground"/>`).join('')
+    const letter = runsAt(NAMES[press])
+      .map(run =>
+        `<rect x="${4 + run.x}" y="${4 + run.y}" width="${run.width}" height="1" class="fill-ground"/>`)
+      .join('')
     return `${open}<circle cx="8" cy="8" r="7" fill="currentColor"/>${letter}</svg>`
   }
   const arm   = press === null ? null : ARMS[press]
-  const cross = `<path d="M6 1h4v5h5v4h-5v5h-4v-5h-5v-4h5z" fill="currentColor" opacity="${arm ? 0.32 : 0.55}"/>`
-  const fill  = arm ? `<rect x="${arm[0]}" y="${arm[1]}" width="${arm[2]}" height="${arm[3]}" fill="currentColor"/>` : ''
+  const cross = '<path d="M6 1h4v5h5v4h-5v5h-4v-5h-5v-4h5z" fill="currentColor" '
+              + `opacity="${arm ? 0.32 : 0.55}"/>`
+  const fill = arm
+    ? `<rect x="${arm[0]}" y="${arm[1]}" width="${arm[2]}" height="${arm[3]}" fill="currentColor"/>`
+    : ''
   return `${open}${cross}${fill}</svg>`
 }

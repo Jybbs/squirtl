@@ -55,18 +55,32 @@ export const MemoryStage = defineComponent({
 
     return () => {
       const { cols, height, left, rows, top, width } = fit.value
-      const { PLATE }                                = marks
       return (
-        <div class="memory-stage relative w-full cursor-crosshair touch-pan-y" onPointerleave={() => emit('point', null)} onPointermove={point} ref={stage}>
+        <div
+          class="memory-stage relative w-full cursor-crosshair touch-pan-y"
+          onPointerleave={() => emit('point', null)}
+          onPointermove={point}
+          ref={stage}
+        >
           <canvas
             aria-hidden="true"
             class="pixelated absolute"
             height={rows * SQUARE}
             ref={canvas}
-            style={{ height: `${100 * height / PLATE.height}%`, left: `${100 * left / PLATE.width}%`, top: `${100 * top / PLATE.height}%`, width: `${100 * width / PLATE.width}%` }}
+            style={{
+              height : `${100 * height / marks.PLATE.height}%`,
+              left   : `${100 * left / marks.PLATE.width}%`,
+              top    : `${100 * top / marks.PLATE.height}%`,
+              width  : `${100 * width / marks.PLATE.width}%`
+            }}
             width={cols * SQUARE}
           />
-          <MemoryOverlay fit={fit.value} frame={props.frame} lit={props.lit} target={props.pointed ?? props.frame.square} />
+          <MemoryOverlay
+            fit={fit.value}
+            frame={props.frame}
+            lit={props.lit}
+            target={props.pointed ?? props.frame.square}
+          />
         </div>
       )
     }

@@ -2,8 +2,8 @@ import type { DOMWrapper, VueWrapper } from '@vue/test-utils'
 import { vi }                          from 'vitest'
 
 /**
- * An element a case moves a pointer across, the events it takes beside the box
- * a pointer's position along it is read against.
+ * An element a case moves a pointer across or presses keys on, the events it
+ * takes beside the box a pointer's position along it is read against.
  */
 type Control = Pick<DOMWrapper<Element>, 'element' | 'trigger'>
 
@@ -31,6 +31,15 @@ export function laidOut<C extends Control>(control: C, width: number, left = 0):
  */
 export async function press(control: Pick<Control, 'trigger'>, clientX: number): Promise<void> {
   await control.trigger('pointerdown', { button: 0, clientX, clientY: 0, pointerType: 'mouse' })
+}
+
+/**
+ * Focuses `control` and presses each of `keys` on it in order, the events a
+ * Zag.js machine reads as a reader typing on the control it holds focused.
+ */
+export async function pressKeys(control: Pick<Control, 'trigger'>, ...keys: string[]): Promise<void> {
+  await control.trigger('focusin')
+  await Promise.all(keys.map(key => control.trigger('keydown', { key })))
 }
 
 /**

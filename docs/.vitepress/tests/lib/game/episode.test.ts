@@ -122,7 +122,8 @@ describe('Episode behind Oak', () => {
     expect(game.script).toStrictEqual([])
   })
 
-  it('walks Blue behind Oak whatever he presses, into the lab and up to the table, where Oak starts to speak', () => {
+  it('walks Blue behind Oak whatever he presses, into the lab and up to the table, where Oak starts to '
+   + 'speak', () => {
     const game = stopped()
     const walk = game.script.length
     const paid = Array.from({ length: walk }, (_, n) => game.press(rooms.BUTTONS[n % rooms.BUTTONS.length]!))
@@ -174,7 +175,8 @@ describe('Episode through Oak’s speech', () => {
     const game = seated()
     for (let n = 0; n < episode.SPEECH; n++) game.press('b')
 
-    expect([game.press('down'), game.turned, game.press('down'), game.at]).toStrictEqual([[], true, [], [5, 4]])
+    expect([game.press('down'), game.turned, game.press('down'), game.at])
+      .toStrictEqual([[], true, [], [5, 4]])
   })
 })
 

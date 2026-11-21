@@ -151,7 +151,13 @@ export class Gait {
    * read on, before the pad is read on that frame, so a caller reading the
    * gait between yields reads what that frame shows.
    */
-  *frames(n: number, held: rooms.Button | null, blocked: boolean, turn: boolean, step: Step = STEP): Generator<{ f: number, read: number }> {
+  *frames(
+    n       : number,
+    held    : rooms.Button | null,
+    blocked : boolean,
+    turn    : boolean,
+    step    : Step = STEP
+  ): Generator<{ f: number, read: number }> {
     const read = 1 + (n % 2)
     for (let f = 1; f <= step.frames; f++) {
       yield { f, read }

@@ -44,7 +44,8 @@ export const TABLES: readonly { table: Table, title: string }[] = [
  * Every color the identity names, table by table in the order of `TABLES`.
  */
 export const NAMED: readonly Named[] = TABLES.flatMap(({ table }) =>
-  Object.entries(IDENTITY[table]).map(([token, color]) => ({ hex: color.hex, name: color.name, table, token: token as Token })))
+  Object.entries(IDENTITY[table]).map(([token, color]) =>
+    ({ hex: color.hex, name: color.name, table, token: token as Token })))
 
 /**
  * The color schemes, the light one first, as the palette sets them out.
@@ -54,7 +55,8 @@ export const SCHEMES: readonly Scheme[] = ['light', 'dark']
 /**
  * The ground each color scheme sets every page on.
  */
-export const GROUNDS = Object.fromEntries(SCHEMES.map(scheme => [scheme, groundOf(scheme)])) as Readonly<Record<Scheme, { hex: string, name: string }>>
+export const GROUNDS = Object.fromEntries(SCHEMES.map(scheme => [scheme, groundOf(scheme)])) as
+  Readonly<Record<Scheme, { hex: string, name: string }>>
 
 /**
  * Finds the color the identity names `token`.
@@ -102,7 +104,9 @@ export function levelOf(ratio: number): Level {
  * grounds stands farther from it.
  */
 export function inkOn(hex: string): string {
-  return contrast(hex, GROUNDS.dark.hex) >= contrast(hex, GROUNDS.light.hex) ? GROUNDS.dark.hex : GROUNDS.light.hex
+  return contrast(hex, GROUNDS.dark.hex) >= contrast(hex, GROUNDS.light.hex)
+    ? GROUNDS.dark.hex
+    : GROUNDS.light.hex
 }
 
 /**

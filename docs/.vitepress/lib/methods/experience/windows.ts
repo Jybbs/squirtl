@@ -26,14 +26,26 @@ const CROP = { left: 3 * SQUARE, top: 3 * SQUARE } as const
  * Blue through `screen` into `source` and copying the three squares round him,
  * leaving the window blank where either gives no 2D context.
  */
-function paintWindow(canvas: HTMLCanvasElement, shown: experience.Shown, screen: GameScreen, source: CanvasRenderingContext2D | null): void {
+function paintWindow(
+  canvas : HTMLCanvasElement,
+  shown  : experience.Shown,
+  screen : GameScreen,
+  source : CanvasRenderingContext2D | null
+): void {
   const context = canvas.getContext('2d')
   if (!source || !context) return
-  Object.assign(screen.episode, { at: shown.at, chosen: shown.chosen, facing: shown.facing, leader: null, place: shown.place })
+  Object.assign(screen.episode, {
+    at     : shown.at,
+    chosen : shown.chosen,
+    facing : shown.facing,
+    leader : null,
+    place  : shown.place
+  })
   screen.snap()
   screen.draw(source)
   context.imageSmoothingEnabled = false
-  context.drawImage(source.canvas, CROP.left, CROP.top, experience.WINDOW, experience.WINDOW, 0, 0, experience.WINDOW, experience.WINDOW)
+  const side = experience.WINDOW
+  context.drawImage(source.canvas, CROP.left, CROP.top, side, side, 0, 0, side, side)
 }
 
 /**
@@ -45,7 +57,10 @@ export function useWindows(ages: ComputedRef<readonly number[]>, motion: Ref<boo
   const canvases = ref<HTMLCanvasElement[]>([])
   const shown    = Array.from({ length: experience.MEMORY.batch / experience.EVERY }, (_, n) => {
     const i = n * experience.EVERY
-    return refDebounced(computed(() => ({ age: ages.value[i]!, i })), () => motion.value ? i * experience.STEP : 0)
+    return refDebounced(
+      computed(() => ({ age: ages.value[i]!, i })),
+      () => motion.value ? i * experience.STEP : 0
+    )
   })
   const images = new RoomImages()
   const screen = new GameScreen(new Episode(), images)

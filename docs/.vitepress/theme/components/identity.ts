@@ -8,4 +8,6 @@ import { IdentityTagline } from './identity/tagline.tsx'
 /**
  * The widgets the Identity page closes a part on.
  */
-export const IDENTITY = [IdentityFaces, IdentityLogo, IdentityOrder, IdentityPalette, IdentityResults, IdentityTagline] as const
+export const IDENTITY = [
+  IdentityFaces, IdentityLogo, IdentityOrder, IdentityPalette, IdentityResults, IdentityTagline
+] as const

@@ -26,7 +26,9 @@ export const MARK = logo.markOf(IDENTITY.name)
  * since it stands lit whatever the fill.
  */
 export const FILLED: readonly logo.Dot[] = [
-  ...MARK.dots.filter((dot): dot is Extract<logo.Dot, { kind: 'trail' }> => dot.kind === 'trail').toSorted((a, b) => a.step - b.step),
+  ...MARK.dots
+    .filter((dot): dot is Extract<logo.Dot, { kind: 'trail' }> => dot.kind === 'trail')
+    .toSorted((a, b) => a.step - b.step),
   ...MARK.dots.filter(dot => dot.kind === 'ahead')
 ]
 
@@ -119,12 +121,20 @@ export function useSeam(box: Ref<HTMLElement | undefined>) {
     finish  : () => { fill.value = last },
     restart : () => { fill.value = 0 },
     tick    : () => { fill.value++ }
-  }, { at: fill, count: last + 1, describe: n => `Dot ${n + 1} of ${last + 1}`, label: 'The trail', seek: n => { fill.value = n } })
+  }, {
+    at       : fill,
+    count    : last + 1,
+    describe : n => `Dot ${n + 1} of ${last + 1}`,
+    label    : 'The trail',
+    seek     : n => { fill.value = n }
+  })
 
   return {
     at    : at,
     fill  : fill,
-    lit   : computed(() => Object.fromEntries(SCHEMES.map(scheme => [scheme, logo.paintOf(FILLED[fill.value]!, scheme)])) as Record<Scheme, string>),
+    lit   : computed(() => Object.fromEntries(
+      SCHEMES.map(scheme => [scheme, logo.paintOf(FILLED[fill.value]!, scheme)])
+    ) as Record<Scheme, string>),
     strip : strip,
     trail : trail
   }

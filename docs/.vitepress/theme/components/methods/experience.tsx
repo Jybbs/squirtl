@@ -15,7 +15,8 @@ import { drawStrip }             from './experience/strip.tsx'
  * reader reads for the drawing and for the slider, and the key's one entry.
  */
 const WORDS = {
-  drawing : `Each update’s ${experience.MEMORY.batch} arcs easing one after another, newest first, from the last update’s steps to this one’s, each shown window sliding with its arc`,
+  drawing : `Each update’s ${experience.MEMORY.batch} arcs easing one after another, newest first, from the `
+          + 'last update’s steps to this one’s, each shown window sliding with its arc',
   slider  : 'The deep Q-network’s updates, held at the update it names',
   update  : 'This update'
 }
@@ -24,7 +25,8 @@ const WORDS = {
  * The key's one entry, an arc from the update to a step it reads.
  */
 const KEY = [{
-  mark : '<svg viewBox="0 0 16 16"><path d="M2 13 Q8 1 14 13" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
+  mark : '<svg viewBox="0 0 16 16"><path d="M2 13 Q8 1 14 13" fill="none" stroke="currentColor" '
+       + 'stroke-width="1.5"/></svg>',
   name : 'A step read',
   note : 'An arc from this update to a step it reads, easing to the next update’s step as the clock moves',
   role : 'agent'

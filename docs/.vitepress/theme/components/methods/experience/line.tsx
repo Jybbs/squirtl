@@ -12,11 +12,31 @@ export function drawLine(ages: readonly number[], label: string) {
   const { height, lane, left, right, top, width } = experience.LINE
 
   return (
-    <svg aria-label={label} class="block h-auto w-full overflow-visible" role="img" viewBox={`0 0 ${width} ${height}`}>
+    <svg
+      aria-label={label}
+      class="block h-auto w-full overflow-visible"
+      role="img"
+      viewBox={`0 0 ${width} ${height}`}
+    >
       {experience.TICKS.map(age => (
-        <line class="stroke-rule" stroke-width="1" x1={experience.xOf(age)} x2={experience.xOf(age)} y1={lane - 6} y2={lane + 16} />
+        <line
+          class="stroke-rule"
+          stroke-width="1"
+          x1={experience.xOf(age)}
+          x2={experience.xOf(age)}
+          y1={lane - 6}
+          y2={lane + 16}
+        />
       ))}
-      <rect class={ROLES.agent.fill} height="10" opacity="0.3" rx="2" width={right - left} x={left} y={lane} />
+      <rect
+        class={ROLES.agent.fill}
+        height="10"
+        opacity="0.3"
+        rx="2"
+        width={right - left}
+        x={left}
+        y={lane}
+      />
       <circle class={ROLES.agent.fill} cx={right} cy={top} r="6" />
       <g class={['fill-none', ROLES.agent.stroke]} opacity="0.6" stroke-width="1.2">
         {ages.map(age => <path d={experience.arcOf(age)} />)}
@@ -35,7 +55,10 @@ export function drawTicks() {
     <p aria-hidden="true" class={[LABEL, 'experience-ticks relative m-0']}>
       {'\u200B'}
       {experience.TICKS.map(age => (
-        <span class={[LABEL, 'experience-tick absolute top-0 whitespace-nowrap']} style={{ left: `${(experience.xOf(age) / experience.LINE.width * 100).toFixed(2)}%` }}>
+        <span
+          class={[LABEL, 'experience-tick absolute top-0 whitespace-nowrap']}
+          style={{ left: `${(experience.xOf(age) / experience.LINE.width * 100).toFixed(2)}%` }}
+        >
           {age ? `${count(age)} ago` : 'now'}
         </span>
       ))}

@@ -84,7 +84,8 @@ const SHAPES: Readonly<Record<Role, (x: number) => number>> = {
 /**
  * The role each series hue carries, the reverse of the identity's `roles`.
  */
-const ROLE_OF = Object.fromEntries(Object.entries(IDENTITY.roles).map(([role, hue]) => [hue, role])) as Record<Hue, Role>
+const ROLE_OF = Object.fromEntries(Object.entries(IDENTITY.roles).map(([role, hue]) => [hue, role])) as
+  Record<Hue, Role>
 
 /**
  * One made-up run for each series hue, in the identity's `order`.
@@ -108,7 +109,11 @@ export function tagOf(run: Run): string {
  * otherwise.
  */
 export function penOf(whole: boolean): Pen {
-  return { active: null, drawn: Object.fromEntries(RUNS.map(run => [run.hue, whole ? 1 : 0])) as Record<Hue, number>, rewinding: false }
+  return {
+    active    : null,
+    drawn     : Object.fromEntries(RUNS.map(run => [run.hue, whole ? 1 : 0])) as Record<Hue, number>,
+    rewinding : false
+  }
 }
 
 /**
@@ -191,7 +196,10 @@ export function yOf(value: number, height: number, margins: Margins): number {
  * `margins`.
  */
 export function pointsOf(run: Run, width: number, height: number, margins: Margins): Point[] {
-  return run.values.map((value, n) => [margins.left + n / (STEPS - 1) * (width - margins.left - margins.right), yOf(value, height, margins)])
+  return run.values.map((value, n) => [
+    margins.left + n / (STEPS - 1) * (width - margins.left - margins.right),
+    yOf(value, height, margins)
+  ])
 }
 
 /**
@@ -230,7 +238,8 @@ export function usePen(box: Ref<HTMLElement | undefined>) {
       go()
     },
     height   : height,
-    lines    : computed(() => RUNS.map(run => ({ points: pointsOf(run, width.value, height.value, PLATE), run }))),
+    lines    : computed(() =>
+      RUNS.map(run => ({ points: pointsOf(run, width.value, height.value, PLATE), run }))),
     pen      : pen,
     switches : useSwitches(hues, shown),
     width    : width

@@ -44,14 +44,21 @@ const AGENT = hueHex(roleHue('agent'))
 /**
  * Reads where pressed square `k` sits on a screen, in the game's pixels.
  */
-const squareOf = (k: number): [number, number] => [(reach.WALK[k]![0] - CROP.x) * SQUARE, (reach.WALK[k]![1] - CROP.y) * SQUARE]
+const squareOf = (k: number): [number, number] =>
+  [(reach.WALK[k]![0] - CROP.x) * SQUARE, (reach.WALK[k]![1] - CROP.y) * SQUARE]
 
 /**
  * Draws the pad at pressed square `k`, its edge in the room's darkest shade
  * as the fade gives it, and each arm filled outward from the pad's middle as
  * far as `arms` reach, the fill fainter as the screen fades.
  */
-function paintPad(context: CanvasRenderingContext2D, faded: Faded, k: number, arms: Record<Direction, number>, fade: number): void {
+function paintPad(
+  context : CanvasRenderingContext2D,
+  faded   : Faded,
+  k       : number,
+  arms    : Record<Direction, number>,
+  fade    : number
+): void {
   const [x, y]      = squareOf(k)
   context.fillStyle = colorOf(faded.shades[Number(PALETTES[fade]![0])]!)
   context.fillRect(x + 5, y + 1, 6, 14)
@@ -61,11 +68,17 @@ function paintPad(context: CanvasRenderingContext2D, faded: Faded, k: number, ar
   context.fillRect(x + 2, y + 6, 12, 4)
   context.globalAlpha = 1 - fade / 3
   context.fillStyle   = AGENT
-  for (const [press, [left, top, width, height, dx, dy]] of Object.entries(ARMS) as [Direction, (typeof ARMS)[Direction]][]) {
+  const placed = Object.entries(ARMS) as [Direction, (typeof ARMS)[Direction]][]
+  for (const [press, [left, top, width, height, dx, dy]] of placed) {
     const level = clamp(arms[press], 0, 1)
     if (level <= 0) continue
     const long = (dx ? width : height) * level
-    context.fillRect(x + (dx < 0 ? left + width - long : left), y + (dy < 0 ? top + height - long : top), dx ? long : width, dy ? long : height)
+    context.fillRect(
+      x + (dx < 0 ? left + width - long : left),
+      y + (dy < 0 ? top + height - long : top),
+      dx ? long : width,
+      dy ? long : height
+    )
   }
   context.globalAlpha = 1
 }
@@ -86,7 +99,19 @@ function paintBlue(context: CanvasRenderingContext2D, faded: Faded, moment: reac
   const y      = (stride ? stride.y : square[1] * SQUARE) - CROP.y * SQUARE - LIFT
   const pad    = WORLD.pallet.pad
   paintSprite(context, frameFor('player', edge ? 'down' : 'up', stride?.stance), x, y, fills)
-  if (edge) context.drawImage(faded.over[moment.fade]!, (pad + square[0]) * SQUARE, (pad + square[1]) * SQUARE + LIFT, SQUARE, SQUARE / 2, x, y + SQUARE / 2, SQUARE, SQUARE / 2)
+  if (edge) {
+    context.drawImage(
+      faded.over[moment.fade]!,
+      (pad + square[0]) * SQUARE,
+      (pad + square[1]) * SQUARE + LIFT,
+      SQUARE,
+      SQUARE / 2,
+      x,
+      y + SQUARE / 2,
+      SQUARE,
+      SQUARE / 2
+    )
+  }
   if (moment.bubble && !stride) paintRuns(context, emoteRuns.shock, x, y - SQUARE, fills)
 }
 
@@ -111,9 +136,21 @@ export function paintScreen(
     return
   }
   const pad = WORLD.pallet.pad
-  context.drawImage(faded.map[moment.fade]!, (pad + x) * SQUARE, (pad + y) * SQUARE, w * SQUARE, h * SQUARE, 0, 0, w * SQUARE, h * SQUARE)
+  const [width, height] = [w * SQUARE, h * SQUARE]
+  context.drawImage(
+    faded.map[moment.fade]!,
+    (pad + x) * SQUARE,
+    (pad + y) * SQUARE,
+    width,
+    height,
+    0,
+    0,
+    width,
+    height
+  )
   for (let k = 0; k < reach.PRESSES; k++) {
-    paintPad(context, faded, k, reach.armsOf(reach.valueAt(series.values, shared, k), k, series.odds), moment.fade)
+    const arms = reach.armsOf(reach.valueAt(series.values, shared, k), k, series.odds)
+    paintPad(context, faded, k, arms, moment.fade)
   }
   paintBlue(context, faded, moment)
 }

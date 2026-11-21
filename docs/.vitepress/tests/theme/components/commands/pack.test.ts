@@ -28,7 +28,8 @@ describe('CommandsPack', () => {
     const wrapper = mount(CommandsPack, { attachTo: document.body })
     const lines   = wrapper.findAll('pre code > span')
 
-    expect([lines.length, wrapper.get('pre').text()]).toStrictEqual([pack.WINDOW, expect.stringContaining('·'.repeat(64))])
+    expect([lines.length, wrapper.get('pre').text()])
+      .toStrictEqual([pack.WINDOW, expect.stringContaining('·'.repeat(64))])
   })
 
   it('rests on the written manifest, then packs again from the first tar', async () => {

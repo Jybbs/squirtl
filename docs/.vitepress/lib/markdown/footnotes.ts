@@ -98,7 +98,8 @@ function nameLine(state: RuleState, inline?: Token): Token[] {
 
   first.content = match[3]!
 
-  return [raw(state, 'html_block', `<strong class="footnote-name">${state.md.utils.escapeHtml(match[1]!)} ${match[2]}.</strong>`)]
+  const name = state.md.utils.escapeHtml(match[1]!)
+  return [raw(state, 'html_block', `<strong class="footnote-name">${name} ${match[2]}.</strong>`)]
 }
 
 /**
@@ -156,16 +157,21 @@ export function footnotes(md: MarkdownRenderer) {
     const number = id + 1
     const mark   = run?.numbers.length > 1 ? cell(number, run.numbers, run.position) : lone(number)
     const name   = anchored(md, token)
-    return `<sup class="footnote-ref"><a aria-label="Source ${number}" href="#footnote${name}" id="footnote-ref${name}${repeat(token)}">${mark}</a></sup>`
+    return `<sup class="footnote-ref"><a aria-label="Source ${number}" href="#footnote${name}" `
+         + `id="footnote-ref${name}${repeat(token)}">${mark}</a></sup>`
   }
 
   rules.footnote_anchor = (tokens, index) => {
     const token = tokens[index]!
     const { id, subId } = token.meta
-    return `<a aria-label="Back to citation ${subId + 1} of source ${id + 1}" class="footnote-backref" href="#footnote-ref${anchored(md, token)}${repeat(token)}">${BACK_ARROW}</a>`
+    return `<a aria-label="Back to citation ${subId + 1} of source ${id + 1}" class="footnote-backref" `
+         + `href="#footnote-ref${anchored(md, token)}${repeat(token)}">${BACK_ARROW}</a>`
   }
 
-  rules.footnote_block_open = () => `<hr class="footnotes-sep"><section class="footnotes footnote-snap"><div class="footnote-phone"><div aria-hidden="true" class="footnote-phone-art">${PHONE_ART}</div><div class="footnote-phone-body"><div class="footnote-phone-glass"><ol class="footnotes-list">\n`
+  rules.footnote_block_open = () =>
+      '<hr class="footnotes-sep"><section class="footnotes footnote-snap"><div class="footnote-phone">'
+    + `<div aria-hidden="true" class="footnote-phone-art">${PHONE_ART}</div>`
+    + '<div class="footnote-phone-body"><div class="footnote-phone-glass"><ol class="footnotes-list">\n'
 
   rules.footnote_block_close = () => '</ol></div></div></div></section>\n'
 

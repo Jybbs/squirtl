@@ -35,7 +35,8 @@ const NOVELTY = SETTINGS.reward.novelty
 /**
  * Names a position as the three bytes `Position.read` takes.
  */
-const position = (place: rooms.Place, at: rooms.Square): string => `(${byte(MAPS[place])}, ${byte(at[0])}, ${byte(at[1])})`
+const position = (place: rooms.Place, at: rooms.Square): string =>
+  `(${byte(MAPS[place])}, ${byte(at[0])}, ${byte(at[1])})`
 
 /**
  * Reads the term a step's payment counts toward, the goal's over a
@@ -55,15 +56,42 @@ function sayOf(n: number, trace: readonly Row[] = TRACE): Say {
   const paid = row.pay.novelty + row.pay.milestone + row.pay.goal
   const term = termOf(row.pay)
   const said = { paid, step: `Step ${count(n)}`, term }
-  if (n === 0) return { ...said, did: [['stands on ', null], [pos, 'bytes'], [` in ${ROOMS[row.place]}`, null]], tail: [] }
+  if (n === 0) {
+    return {
+      ...said,
+      did  : [['stands on ', null], [pos, 'bytes'], [` in ${ROOMS[row.place]}`, null]],
+      tail : []
+    }
+  }
   if (paid) {
     const set  = FLAG_BITS.filter(each => row.flags.has(each.flag) && !trace[n - 1]!.flags.has(each.flag))
-    const did: Part[] = row.pay.novelty ? [['reaches ', null], [pos, 'bytes'], [' for the first time', 'novelty']] : []
-    set.forEach((flag, k) => did.push([k ? ' and ' : row.pay.novelty ? ' and sets ' : 'sets ', null], [`${flag.name} (bit ${flag.bit} of ${address(flag.address)})`, flag.term]))
-    return { ...said, did, tail: [[', paying ', null], [fixed(paid, 5), term], [term === 'goal' ? ', which ends the episode' : '', null]] }
+    const did: Part[] = row.pay.novelty
+      ? [['reaches ', null], [pos, 'bytes'], [' for the first time', 'novelty']]
+      : []
+    set.forEach((flag, k) => did.push(
+      [k ? ' and ' : row.pay.novelty ? ' and sets ' : 'sets ', null],
+      [`${flag.name} (bit ${flag.bit} of ${address(flag.address)})`, flag.term]
+    ))
+    return {
+      ...said,
+      did  : did,
+      tail : [
+        [', paying ', null], [fixed(paid, 5), term], [term === 'goal' ? ', which ends the episode' : '', null]
+      ]
+    }
   }
-  if (row.turned) return { ...said, did: [[`turns Blue to face ${row.facing} on `, null], [pos, 'bytes'], [' without a step', null]], tail: [[', paying nothing', null]] }
-  return { ...said, did: [['stands on ', null], [pos, 'bytes'], [', reached before', null]], tail: [[', paying nothing for the position', null]] }
+  if (row.turned) {
+    return {
+      ...said,
+      did  : [[`turns Blue to face ${row.facing} on `, null], [pos, 'bytes'], [' without a step', null]],
+      tail : [[', paying nothing', null]]
+    }
+  }
+  return {
+    ...said,
+    did  : [['stands on ', null], [pos, 'bytes'], [', reached before', null]],
+    tail : [[', paying nothing for the position', null]]
+  }
 }
 
 export const SAYS: readonly Say[] = TRACE.map((_, n) => sayOf(n))
@@ -76,10 +104,14 @@ export function pointedSay(place: rooms.Place, at: rooms.Square, n: number): Say
   const first   = FIRST.get(squareKey(place, at))
   const reached = first !== undefined && first <= n
   return {
-    did  : [[position(place, at), 'bytes'], [` is ${reached ? '' : 'not '}reached by step ${count(n)}`, null]],
+    did  : [
+      [position(place, at), 'bytes'], [` is ${reached ? '' : 'not '}reached by step ${count(n)}`, null]
+    ],
     paid : reached ? 0 : NOVELTY,
     step : `Step ${count(n)}`,
-    tail : reached ? [[', so stepping onto it again pays nothing', null]] : [[', so the first step onto it pays ', null], [fixed(NOVELTY, 5), 'novelty']],
+    tail : reached
+      ? [[', so stepping onto it again pays nothing', null]]
+      : [[', so the first step onto it pays ', null], [fixed(NOVELTY, 5), 'novelty']],
     term : reached ? null : 'novelty'
   }
 }
@@ -100,6 +132,9 @@ export const textOf = (parts: readonly Part[]): string => parts.map(([words]) =>
  * The longest sentence any step or pointed square takes, laid unseen under the
  * one shown so the line holds that height as the episode plays.
  */
-export const LONGEST = [...SAYS.map(say => partsOf(say, false)), partsOf(pointedSay('pallet', [0, 0], LAST), true)]
+export const LONGEST = [
+  ...SAYS.map(say => partsOf(say, false)),
+  partsOf(pointedSay('pallet', [0, 0], LAST), true)
+]
   .map(parts => textOf(parts))
   .reduce((best, each) => each.length > best.length ? each : best, '')

@@ -14,7 +14,9 @@ import { MemoryStage }       from './memory/stage.tsx'
  * The words the widget sets.
  */
 const WORDS = {
-  hint   : 'Point at a square to read the bytes it would hold and whether the episode has reached it while the episode plays on. The slider beneath the map, or the arrow keys once it has focus, hold the episode at a step.',
+  hint   : 'Point at a square to read the bytes it would hold and whether the episode has reached it while '
+         + 'the episode plays on. The slider beneath the map, or the arrow keys once it has focus, hold the '
+         + 'episode at a step.',
   slider : 'The episode’s steps, which hold the bytes at the step it names'
 }
 
@@ -45,12 +47,24 @@ export const MethodsMemory = defineComponent({
       <div class="@container" ref={box}>
         <div class="memory grid items-start gap-x-5 gap-y-4">
           <div class="memory-plate grid min-w-0 gap-3">
-            <MemoryStage frame={frame.value} lit={lit.value} onPoint={(next: rooms.Square | null) => { pointed.value = next }} pointed={pointed.value} />
+            <MemoryStage
+              frame={frame.value}
+              lit={lit.value}
+              onPoint={(next: rooms.Square | null) => { pointed.value = next }}
+              pointed={pointed.value}
+            />
             <Slider at={at.value} class="memory-under" scrub={scrub} />
           </div>
           <div class="memory-side grid min-w-0 content-start gap-4">
             <MemoryBytes frame={frame.value} square={square.value} />
-            <Key entries={KEY} lit={lit.value} onHover={(n: number | null) => { hovered.value = n }} onPress={(n: number) => { pressed.value = pressed.value === n ? null : n }} pressable={true} pressed={pressed.value} />
+            <Key
+              entries={KEY}
+              lit={lit.value}
+              onHover={(n: number | null) => { hovered.value = n }}
+              onPress={(n: number) => { pressed.value = pressed.value === n ? null : n }}
+              pressable={true}
+              pressed={pressed.value}
+            />
           </div>
           <MemorySays frame={frame.value} pointed={pointed.value} />
           <p class={[DETAIL, 'memory-hint m-0']}>{WORDS.hint}</p>

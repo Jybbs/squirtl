@@ -23,9 +23,11 @@ const images = () => new RoomImages(() => new Image())
 
 describe('a lane’s screen', () => {
   it('replays the recording in gray up to the start, then stands the agent there', () => {
-    expect([laneAt(100, 0), laneAt(100, TIMING.replay / 2), laneAt(100, TIMING.replay), laneAt(0, 0)]).toStrictEqual([
-      { phase: 'recording', step: 0 }, { phase: 'recording', step: 50 }, { phase: 'agent', step: 100 }, { phase: 'agent', step: 0 }
-    ])
+    expect([laneAt(100, 0), laneAt(100, TIMING.replay / 2), laneAt(100, TIMING.replay), laneAt(0, 0)])
+      .toStrictEqual([
+        { phase: 'recording', step: 0 }, { phase: 'recording', step: 50 },
+        { phase: 'agent', step: 100 }, { phase: 'agent', step: 0 }
+      ])
   })
 
   it('rings the goal’s square in the goal’s room, and none back in the bedroom', () => {

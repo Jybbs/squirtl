@@ -17,7 +17,11 @@ export interface LegendRow {
  */
 export const CURVES: readonly KeyEntry[] = [
   { mark: glyphOf({ agent: 'ppo', curriculum: false }), name: 'Solid, from the bedroom', role: 'agent' },
-  { mark: glyphOf({ agent: 'ppo', curriculum: true }), name: 'Hollow and dashed, with the curriculum', role: 'agent' },
+  {
+    mark : glyphOf({ agent: 'ppo', curriculum: true }),
+    name : 'Hollow and dashed, with the curriculum',
+    role : 'agent'
+  },
   { name: 'Random presses', role: 'random' }
 ]
 
@@ -55,7 +59,8 @@ function swatchOf(shade: number, hatch: string | null = null): string {
   const cell = '<rect x="2" y="4" width="14" height="10"'
   return marked(hatch === null
     ? `${cell} class="results-cell-${shade}"/>`
-    : `<defs><pattern id="${hatch}" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">`
+    : `<defs><pattern id="${hatch}" width="4" height="4" patternUnits="userSpaceOnUse" `
+      + 'patternTransform="rotate(45)">'
       + `<rect class="fill-ground" width="1.5" height="4"/></pattern></defs>`
       + `${cell} class="results-cell-${shade}"/>${cell} fill="url(#${hatch})"/>`)
 }
@@ -78,7 +83,8 @@ const FINALS: readonly KeyEntry[] = [
     role : 'agent'
   },
   {
-    mark : marked('<rect class="results-pale" x="1" y="3" width="16" height="12" rx="2"/><path class="results-mean" d="M9,3V15"/>'),
+    mark : marked('<rect class="results-pale" x="1" y="3" width="16" height="12" rx="2"/>'
+         + '<path class="results-mean" d="M9,3V15"/>'),
     name : 'Interquartile mean, 95% interval',
     role : 'agent'
   }
@@ -90,7 +96,8 @@ const FINALS: readonly KeyEntry[] = [
  */
 const VERDICT: readonly KeyEntry[] = [
   {
-    mark : marked(`${TRACK}<path class="results-whisker" d="M3,9H15M3,5V13M15,5V13"/><circle class="fill-current" cx="10" cy="9" r="3"/>`),
+    mark : marked(`${TRACK}<path class="results-whisker" d="M3,9H15M3,5V13M15,5V13"/>`
+         + '<circle class="fill-current" cx="10" cy="9" r="3"/>'),
     name : 'Odds of the higher return, 95% interval',
     role : 'agent'
   },
@@ -128,13 +135,20 @@ export const ARGMAX: readonly KeyEntry[] = [
  * share `random` across every seed, and the verdict's odds, the curriculum's
  * hatching drawn through the pattern `hatch`.
  */
-export function legendOf(groups: readonly Pick<Group, 'agent'>[], random: Estimate, hatch: string): LegendRow[] {
+export function legendOf(
+  groups : readonly Pick<Group, 'agent'>[],
+  random : Estimate,
+  hatch  : string
+): LegendRow[] {
   const agents = [...new Set(groups.map(group => group.agent))]
   const band   = '<rect class="fill-random opacity-15" x="1" y="1" width="16" height="16"/>'
                + '<path class="stroke-random" d="M9,1V17" stroke-width="2"/>'
 
   return [
-    { entries: agents.map(agent => ({ hue: hueOf(agent), mark: swatchOf(3), name: AGENTS[agent].short })), head: 'Agent' },
+    {
+      entries : agents.map(agent => ({ hue: hueOf(agent), mark: swatchOf(3), name: AGENTS[agent].short })),
+      head    : 'Agent'
+    },
     {
       entries : [
         { mark: swatchOf(3), name: 'From the bedroom', role: 'agent' },
@@ -143,11 +157,15 @@ export function legendOf(groups: readonly Pick<Group, 'agent'>[], random: Estima
       head : 'Start'
     },
     {
-      entries : SHADES.map((name, shade) => ({ mark: swatchOf(shade), name, role: shade === 0 ? 'none' : 'agent' })),
+      entries : SHADES.map((name, shade) =>
+        ({ mark: swatchOf(shade), name, role: shade === 0 ? 'none' : 'agent' })),
       head    : 'Share reaching the goal'
     },
     { entries: FINALS, head: 'Last evaluation' },
-    { entries: [{ mark: marked(band), name: 'Across every seed', role: 'random', value: percent(random) }], head: 'Random presses' },
+    {
+      entries : [{ mark: marked(band), name: 'Across every seed', role: 'random', value: percent(random) }],
+      head    : 'Random presses'
+    },
     { entries: VERDICT, head: 'Verdict' }
   ]
 }
@@ -157,7 +175,17 @@ export function legendOf(groups: readonly Pick<Group, 'agent'>[], random: Estima
  * `groups` with the curves' key set after what each start draws and the most
  * likely press's key last, so one legend names the look the charts share.
  */
-export function lookOf(groups: readonly Pick<Group, 'agent'>[], random: Estimate, hatch: string): LegendRow[] {
+export function lookOf(
+  groups : readonly Pick<Group, 'agent'>[],
+  random : Estimate,
+  hatch  : string
+): LegendRow[] {
   const [agents, start, ...rest] = legendOf(groups, random, hatch)
-  return [agents!, start!, { entries: CURVES, head: 'Curve' }, ...rest, { entries: ARGMAX, head: 'Most likely press' }]
+  return [
+    agents!,
+    start!,
+    { entries: CURVES, head: 'Curve' },
+    ...rest,
+    { entries: ARGMAX, head: 'Most likely press' }
+  ]
 }

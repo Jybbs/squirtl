@@ -10,14 +10,22 @@ describe('a lane', () => {
     const placed = placeOf(SIZES, 82, 122, 'right')
     const at     = along(82) * 600
 
-    expect(placed).toStrictEqual({ at, far: at - 40 + 80 + 8, reach: along(123) * 600 - at, screen: at - 40, side: 'right' })
+    expect(placed).toStrictEqual({
+      at     : at,
+      far    : at - 40 + 80 + 8,
+      reach  : along(123) * 600 - at,
+      screen : at - 40,
+      side   : 'right'
+    })
   })
 
   it('holds the screen inside the track at either end', () => {
-    expect([placeOf(SIZES, 0, 10, 'right').screen, placeOf(SIZES, LAST, LAST, 'left').screen]).toStrictEqual([0, 520])
+    expect([placeOf(SIZES, 0, 10, 'right').screen, placeOf(SIZES, LAST, LAST, 'left').screen])
+      .toStrictEqual([0, 520])
   })
 
-  it('keeps the figure on its side while it fits there, and moves it only once the screen leaves it no room', () => {
+  it('keeps the figure on its side while it fits there, and moves it only once the screen leaves it no '
+   + 'room', () => {
     expect([
       placeOf(SIZES, 82, 122, 'left').side,
       placeOf(SIZES, 160, 162, 'right').side,
