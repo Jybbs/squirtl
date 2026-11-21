@@ -34,7 +34,7 @@
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) follows a change from its issue through its branch, its commits, and its pull request to the release that lists it.
 
-## 👟 Quickstart
+## ⌨️ Quickstart
 
 [mise](https://mise.jdx.dev) installs every tool `.mise/config.toml` pins, after [activating it in your shell](https://mise.jdx.dev/installing-mise.html):
 
@@ -96,6 +96,6 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 
 <!-- /results -->
 
-## 🕹️ Attribution
+## ©️ Attribution
 
 *SquiRtL* began as a project for Northeastern University's CS5800 Algorithms course.
