@@ -82,6 +82,28 @@ def test_lint_asks_oxlint_for_annotations_under_github_actions(
     ]
 
 
+def test_lint_exits_1_when_the_line_check_fails_after_oxlint_passes(
+    pytestconfig : Config,
+    tmp_path     : Path
+):
+    """
+    Asserts that `site:lint` exits 1 once the line check fails though Oxlint
+    passes, Oxlint having read `.vitepress` first.
+    """
+    node = tmp_path / "stand-ins/node"
+
+    node.unlink()
+    node.symlink_to("/usr/bin/false")
+
+    result = run(
+        [pytestconfig.rootpath / ".mise/tasks/site/lint"],
+        capture_output = True,
+        text           = True
+    )
+
+    assert (result.returncode, result.stdout.splitlines()[-1]) == (1, ".vitepress")
+
+
 def test_lint_runs_the_line_check_after_oxlint_fails_and_exits_1(
     pytestconfig : Config,
     tmp_path     : Path

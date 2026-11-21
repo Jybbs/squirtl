@@ -96,9 +96,7 @@ describe('lanesOf’s lanes', () => {
     const [x0]  = drawn.sides!.finals
 
     expect(drawn.lanes[1]!.bells.map(bell => [bell.from > x0, bell.from < bell.to, bell.to < 688]))
-      .toStrictEqual([
-        [true, true, true], [true, true, true]
-      ])
+      .toStrictEqual([[true, true, true], [true, true, true]])
   })
 
 })
@@ -117,9 +115,7 @@ describe('lanesOf’s axes', () => {
     const drawn = lanesOf(GROUPS, 390, 0)
 
     expect([drawn.sides, drawn.opened, drawn.folded, drawn.lanes.map(lane => lane.glyphs.length)])
-      .toStrictEqual([
-        null, 1, { curves: 0, finals: 0 }, [2, 2, 2, 2, 2]
-      ])
+      .toStrictEqual([null, 1, { curves: 0, finals: 0 }, [2, 2, 2, 2, 2]])
   })
 
   it('sets the verdicts beside the last evaluation where a stacked figure has the room, and above it where '

@@ -114,9 +114,7 @@ describe('MethodsMemory’s marks', () => {
     const { cell, left, top, width } = fitOf('pallet')
     expect(wrapper.findAll('.memory-stage rect[stroke-dasharray="4 3"]').map(rect =>
       [rect.attributes('x'), rect.attributes('y'), rect.attributes('width')]))
-      .toStrictEqual([
-        [String(left), String(top + cell), String(width)]
-      ])
+      .toStrictEqual([[String(left), String(top + cell), String(width)]])
   })
 })
 

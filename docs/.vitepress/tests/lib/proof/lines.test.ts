@@ -37,7 +37,8 @@ describe('longLines', () => {
     ['a glob alone', `  '**/${'a'.repeat(LINE_LIMIT)}*.ts')`, []],
     ['a regular expression beside a call', `  expect(text).toMatch(/${'a'.repeat(LINE_LIMIT)}/u)`, [1]],
     ['a string holding no glob', `  '${'a'.repeat(LINE_LIMIT)}'`, [1]],
-    ['a comment closing on a slash', `  //${'a'.repeat(LINE_LIMIT)}/`, [1]]
+    ['a comment closing on a slash', `  //${'a'.repeat(LINE_LIMIT)}/`, [1]],
+    ['a block comment closing on a slash', `  /*${'a'.repeat(LINE_LIMIT)}*/`, [1]]
   ] as const)('reads %s past the limit as long or not', ([, text, lines], { checkout }) => {
     const { metaUrl } = checkout({ 'docs/.vitepress/a.ts': `${text}\n` })
 
