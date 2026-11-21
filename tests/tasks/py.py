@@ -132,21 +132,53 @@ def pytest_collection_modifyitems(items):
     """
 '''
 SUITE = {
-    "pyproject.toml"              : '"-p common.plugin"\n',
+    "pyproject.toml"              :
+        '"-p common.plugin"\ntemplate = "squirtl.startup.imports:start"\n',
     "src/squirtl/cli/__init__.py" : 'register("squirtl.cli.train:train")\n',
     "src/squirtl/cli/train.py"    : "",
+    "src/squirtl/docs/regions.py" : "",
     "src/squirtl/emulator/console.py" : "",
     "src/squirtl/emulator/schemas.py" : "",
     "src/squirtl/reward/__init__.py"  : "from squirtl.reward.terms import Term\n",
     "src/squirtl/reward/terms.py"     : "",
-    "src/squirtl/search/__init__.py"  : "",
-    "src/squirtl/search/tree.py"      : "",
-    "tests/cli/watch.py"              : "import squirtl.emulator.console as console\n",
-    "tests/common/console.py"   : "from squirtl.emulator.console import GameBoy\n",
-    "tests/common/plugin.py"    : "from common.terms import each_term\n",
-    "tests/common/terms.py"     : "from squirtl.reward import Term\n",
-    "tests/conftest.py"         : CONFTEST,
-    "tests/docs/commands.py"    : "from squirtl.cli import app\n",
+
+    "src/squirtl/runs/loop.py": "from squirtl.runs.seeds import Seeds\n"
+                                "from squirtl.runs.trainer import train\n",
+
+    "src/squirtl/runs/seeds.py": "",
+
+    "src/squirtl/runs/trainer.py":
+        "def train():\n    from squirtl.runs.loop import run\n",
+
+    "src/squirtl/search/__init__.py" : "",
+    "src/squirtl/search/tree.py"     : "",
+    "src/squirtl/startup/eager.py"   : "",
+
+    "src/squirtl/startup/imports.py":
+        "from squirtl.startup.eager import EAGER\n\n\ndef start():\n    pass\n",
+
+    "tests/cli/watch.py"      : "import squirtl.emulator.console as console\n",
+    "tests/common/console.py" : "from squirtl.emulator.console import GameBoy\n",
+    "tests/common/plugin.py"  : "from common.terms import each_term\n",
+    "tests/common/terms.py"   : "from squirtl.reward import Term\n",
+    "tests/conftest.py"       : CONFTEST,
+    "tests/docs/commands.py"  : "from squirtl.cli import app\n",
+
+    "tests/docs/listed.py": (
+        "import pkgutil\nimport squirtl.docs as listed\n\n"
+        "NAMES = [*pkgutil.walk_packages(listed.__path__)]\n"
+    ),
+    "tests/docs/outputs.py": (
+        "from pkgutil import iter_modules\n\nfrom squirtl import docs\n\n"
+        "NAMES = [module.name for module in iter_modules(docs.__path__)]\n"
+    ),
+
+    "tests/docs/paths.py": "from squirtl import docs\n\nPATHS = [*docs.__path__]\n",
+
+    "tests/docs/stdlib.py": (
+        "import email\nfrom pkgutil import iter_modules\n\nfrom squirtl import docs\n\n"
+        "NAMES = [docs, *iter_modules(email.__path__)]\n"
+    ),
     "tests/emulator/console.py" : "from squirtl.emulator import console\n",
     "tests/reward/conftest.py"  : "from squirtl.emulator.console import GameBoy\n",
     "tests/reward/progress.py"  : "import os\n",
@@ -212,10 +244,14 @@ class TestOverride:
         "    pass\n\n\ndef test_nulls():\n    pass\n"
     ),
 
-    "tests/search/tree.py": "from common.console import set_event\n",
+    "tests/runs/trainer.py" : "from squirtl.runs.trainer import train\n",
+    "tests/search/tree.py"  : "from common.console import set_event\n",
 
     "tests/search/workers.py":
-        '"squirtl.emulator.console.GameBoy.press"\n"squirtl.unknown.name"\n'
+        '"squirtl.emulator.console.GameBoy.press"\n"squirtl.unknown.name"\n',
+
+    "tests/startup/imports.py":
+        "WALK = 'for root in squirtl.__path__: import_module(root)'\n"
 }
 
 
@@ -517,22 +553,37 @@ def reach(
         param(
             "src/squirtl/emulator/console.py",
             [
-                "tests/cli/watch.py", "tests/emulator/console.py",
-                "tests/reward", "tests/runs/handover.py::test_plays",
-                "tests/search/tree.py", "tests/search/workers.py"
+                "tests/cli/watch.py", "tests/emulator/console.py", "tests/reward",
+                "tests/runs/handover.py::test_plays", "tests/search/tree.py",
+                "tests/search/workers.py", "tests/startup/imports.py"
             ],
             id = "module"
         ),
         param(
             "src/squirtl/emulator/schemas.py",
-            ["tests/runs/handover.py::test_patches"],
+            ["tests/runs/handover.py::test_patches", "tests/startup/imports.py"],
             id = "quoted-in-root-fixture"
+        ),
+        param(
+            "src/squirtl/runs/seeds.py",
+            ["tests/runs/trainer.py", "tests/startup/imports.py"],
+            id = "loaded-through-a-function-local-import-and-a-cycle"
+        ),
+        param(
+            "src/squirtl/docs/regions.py",
+            [
+                "tests/docs/listed.py", "tests/docs/outputs.py",
+                "tests/startup/imports.py"
+            ],
+            id = "under-a-walked-package"
         ),
         param("src/squirtl/reward/terms.py", ["tests"], id="reexported-to-plugin"),
         param("tests/common/terms.py", ["tests"], id="plugin-helper"),
         param("tests/common/removed.py", ["tests"], id="removed"),
         param("src/squirtl/search/tree.py", ["tests"], id="read-by-autouse"),
         param("src/squirtl/search/__init__.py", ["tests"], id="package-of-root-import"),
+        param("src/squirtl/startup/imports.py", ["tests"], id="start-file-module"),
+        param("src/squirtl/startup/eager.py", ["tests"], id="loaded-by-start-file"),
         param(
             "tests/common/console.py",
             ["tests/search/tree.py"],
@@ -540,7 +591,7 @@ def reach(
         ),
         param(
             "src/squirtl/cli/train.py",
-            ["tests/docs/commands.py"],
+            ["tests/docs/commands.py", "tests/startup/imports.py"],
             id = "loaded-by-package-init"
         )
     ]
@@ -553,10 +604,13 @@ def test_reach_selects_the_tests_importing_a_changed_module(
     """
     Pins that the `py:affected` reader selects each test module importing
     a changed module directly, through a package `__init__`, a helper, a
-    quoted name, or a package `__init__` under `src/` quoting it, the folder
-    of a subpackage conftest importing it, and the tests requesting a root
-    fixture reading a name the root conftest binds to it, while a removed
-    file, a helper `pyproject.toml` loads as a plugin, a name the autouse
+    quoted name, a package `__init__` under `src/` quoting it, or a chain
+    of package modules, a function-local import and a cycle included,
+    each test module walking a package holding it by computed name, the
+    folder of a subpackage conftest importing it, and the tests requesting
+    a root fixture reading a name the root conftest binds to it, while a
+    removed file, a helper `pyproject.toml` loads as a plugin, a module the
+    start-file callable `pyproject.toml` names loads, a name the autouse
     fixture reads, and a package `__init__` the root conftest loads on the
     way reach every test, and a module under `fixtures/` reaches none.
     """
@@ -664,6 +718,21 @@ def test_reach_prints_each_selection_or_every_test(
     module.main("HEAD", "tests/common/terms.py")
 
     assert capsys.readouterr().out == "tests/search/tree.py\ntests\n"
+
+
+def test_reach_selects_every_test_where_the_root_conftest_walks_a_changed_module(
+    reach: Callable[..., list[str]]
+):
+    """
+    Pins that the `py:affected` reader selects every test where
+    `tests/conftest.py` walks the package holding a changed module through
+    `pkgutil.walk_packages`, since no fixture is bound to what it loads.
+    """
+    assert reach(
+        CONFTEST + "\n\nfrom pkgutil import walk_packages\n\nimport squirtl\n"
+        "\nNAMES = [*walk_packages(squirtl.__path__)]\n",
+        "src/squirtl/docs/regions.py"
+    ) == ["tests"]
 
 
 def test_reach_selects_the_tests_requesting_a_removed_root_fixture(
