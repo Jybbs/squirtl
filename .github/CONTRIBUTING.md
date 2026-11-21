@@ -89,7 +89,7 @@ The `main` ruleset requires `🎒 Brief` alone, on a branch up to date with `mai
 
 ## 🔧 Repository Settings
 
-The protection on `main` and on every tag lives in `.github/rulesets/`, and the repository's features, merge methods, security features, and Actions permissions live in `.github/settings.toml`, one table per REST endpoint beside a `[dependabot]` table keyed by each endpoint it turns on or off. `mise rulesets` sends each ruleset, updating the one GitHub carries under the same name in place, and then every setting, reading the description, the homepage, and the topics from `[project]` in `pyproject.toml`. Both `mise labels` and `mise rulesets` print every command they would send and ask before sending any.
+The protection on `main` and on every tag lives in `.github/rulesets/`, and the repository's features, merge methods, security features, and Actions permissions live in `.github/settings.toml`, one table per REST endpoint beside a `[switches]` table keyed by each endpoint it turns on or off (*Dependabot's alerts, its security updates, and immutable releases*). `mise rulesets` sends each ruleset, updating the one GitHub carries under the same name in place, and then every setting, reading the description, the homepage, and the topics from `[project]` in `pyproject.toml`. Both `mise labels` and `mise rulesets` print every command they would send and ask before sending any.
 
 ---
 

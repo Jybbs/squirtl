@@ -790,9 +790,8 @@ def test_the_settings_send_every_setting_in_the_order_the_endpoints_take(
     """
     Pins that the settings send the repository's own fields with the
     project's description and homepage, then the project's keywords as the
-    topics, then each Dependabot endpoint turned off or on, then the Actions
-    permissions and the workflow token's, each through the method its
-    endpoint takes.
+    topics, then each switch turned off or on, then the Actions permissions
+    and the workflow token's, each through the method its endpoint takes.
     """
     writes = settings(
         homepage = 'Homepage = "https://jybbs.github.io/squirtl/"'
@@ -802,6 +801,7 @@ def test_the_settings_send_every_setting_in_the_order_the_endpoints_take(
         ("repos/{owner}/{repo}", "PATCH"),
         ("repos/{owner}/{repo}/topics", "PUT"),
         ("repos/{owner}/{repo}/automated-security-fixes", "DELETE"),
+        ("repos/{owner}/{repo}/immutable-releases", "PUT"),
         ("repos/{owner}/{repo}/vulnerability-alerts", "PUT"),
         ("repos/{owner}/{repo}/actions/permissions", "PUT"),
         ("repos/{owner}/{repo}/actions/permissions/workflow", "PUT")
@@ -811,6 +811,28 @@ def test_the_settings_send_every_setting_in_the_order_the_endpoints_take(
         "homepage"    : "jybbs.github.io/squirtl"
     }
     assert writes[1].body == {"names": ["dqn", "pyboy"]}
+
+
+@mark.parametrize(
+    ("declared", "method"),
+    [
+        param("true", HTTPMethod.PUT, id="on"),
+        param("false", HTTPMethod.DELETE, id="off")
+    ]
+)
+def test_the_settings_turn_immutable_releases_on_or_off_as_declared(
+    declared : str,
+    method   : HTTPMethod,
+    settings : Callable[..., Settings]
+):
+    """
+    Pins that the settings send `immutable-releases` through `PUT` where the
+    file declares it on and through `DELETE` where it declares it off, with
+    no body either way.
+    """
+    assert Command.api("immutable-releases", method=method) in settings(
+        ("immutable-releases       = true", f"immutable-releases       = {declared}")
+    ).plan.writes
 
 
 def test_the_tasks_read_mise_s_report_even_where_validation_fails(
