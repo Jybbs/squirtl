@@ -132,7 +132,8 @@ def pytest_collection_modifyitems(items):
     """
 '''
 SUITE = {
-    "pyproject.toml"              : '"-p common.plugin"\n',
+    "pyproject.toml"              :
+        '"-p common.plugin"\ntemplate = "squirtl.startup.imports:start"\n',
     "src/squirtl/cli/__init__.py" : 'register("squirtl.cli.train:train")\n',
     "src/squirtl/cli/train.py"    : "",
     "src/squirtl/docs/regions.py" : "",
@@ -151,12 +152,17 @@ SUITE = {
 
     "src/squirtl/search/__init__.py" : "",
     "src/squirtl/search/tree.py"     : "",
-    "tests/cli/watch.py"             : "import squirtl.emulator.console as console\n",
-    "tests/common/console.py"        : "from squirtl.emulator.console import GameBoy\n",
-    "tests/common/plugin.py"         : "from common.terms import each_term\n",
-    "tests/common/terms.py"          : "from squirtl.reward import Term\n",
-    "tests/conftest.py"              : CONFTEST,
-    "tests/docs/commands.py"         : "from squirtl.cli import app\n",
+    "src/squirtl/startup/eager.py"   : "",
+
+    "src/squirtl/startup/imports.py":
+        "from squirtl.startup.eager import EAGER\n\n\ndef start():\n    pass\n",
+
+    "tests/cli/watch.py"      : "import squirtl.emulator.console as console\n",
+    "tests/common/console.py" : "from squirtl.emulator.console import GameBoy\n",
+    "tests/common/plugin.py"  : "from common.terms import each_term\n",
+    "tests/common/terms.py"   : "from squirtl.reward import Term\n",
+    "tests/conftest.py"       : CONFTEST,
+    "tests/docs/commands.py"  : "from squirtl.cli import app\n",
 
     "tests/docs/listed.py": (
         "import pkgutil\nimport squirtl.docs as listed\n\n"
@@ -576,6 +582,8 @@ def reach(
         param("tests/common/removed.py", ["tests"], id="removed"),
         param("src/squirtl/search/tree.py", ["tests"], id="read-by-autouse"),
         param("src/squirtl/search/__init__.py", ["tests"], id="package-of-root-import"),
+        param("src/squirtl/startup/imports.py", ["tests"], id="start-file-module"),
+        param("src/squirtl/startup/eager.py", ["tests"], id="loaded-by-start-file"),
         param(
             "tests/common/console.py",
             ["tests/search/tree.py"],
@@ -597,11 +605,12 @@ def test_reach_selects_the_tests_importing_a_changed_module(
     Pins that the `py:affected` reader selects each test module importing
     a changed module directly, through a package `__init__`, a helper, a
     quoted name, a package `__init__` under `src/` quoting it, or a chain
-    of package modules, a function-local import and a cycle included, each
-    test module walking a package holding it by computed name, the folder
-    of a subpackage conftest importing it, and the tests requesting a root
-    fixture reading a name the root conftest binds to it, while a removed
-    file, a helper `pyproject.toml` loads as a plugin, a name the autouse
+    of package modules, a function-local import and a cycle included,
+    each test module walking a package holding it by computed name, the
+    folder of a subpackage conftest importing it, and the tests requesting
+    a root fixture reading a name the root conftest binds to it, while a
+    removed file, a helper `pyproject.toml` loads as a plugin, a module the
+    start-file callable `pyproject.toml` names loads, a name the autouse
     fixture reads, and a package `__init__` the root conftest loads on the
     way reach every test, and a module under `fixtures/` reaches none.
     """

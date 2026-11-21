@@ -649,11 +649,12 @@ class Suite:
 
         Raises:
             Whole: Where the change removes `changed`, which leaves no
-                   import of it to resolve, where `pyproject.toml` names
-                   a helper loading it, or where `tests/conftest.py` loads
-                   it through a package `__init__`, a quoted name outside
-                   a function, a package it walks, or a name an autouse
-                   fixture or a hook reads.
+                   import of it to resolve, where `pyproject.toml` names a
+                   helper loading it or a start-file callable whose module
+                   loads it, or where `tests/conftest.py` loads it through
+                   a package `__init__`, a quoted name outside a function,
+                   a package it walks, or a name an autouse fixture or a
+                   hook reads.
         """
         if not Path(changed).is_file():
             raise Whole
@@ -661,6 +662,12 @@ class Suite:
         loading  = self.loading(changed)
         manifest = Path("pyproject.toml").read_text(encoding="utf-8")
         paths    = set()
+
+        if (
+            (started := search(r'template\s*=\s*"([\w.]+):', manifest))
+            and located(started[1]) in loading
+        ):
+            raise Whole
 
         for path in self.trees.keys() & loading - {ROOT}:
             if path.startswith("tests/common/"):
