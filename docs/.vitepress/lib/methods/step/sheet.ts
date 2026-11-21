@@ -32,7 +32,8 @@ function paintSheet(canvas: HTMLCanvasElement, images: RoomImages): void {
     episode.facing = frame.facing
     screen.stance  = frame.stance
     screen.draw(source)
-    context.drawImage(source.canvas, crop[0], crop[1], cell, cell, f * PITCH + gap / 2, s * PITCH + gap / 2, cell, cell)
+    const [x, y] = [f * PITCH + gap / 2, s * PITCH + gap / 2]
+    context.drawImage(source.canvas, crop[0], crop[1], cell, cell, x, y, cell, cell)
   }))
 }
 

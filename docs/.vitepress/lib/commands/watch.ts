@@ -33,7 +33,10 @@ export const RUN = {
  * the reset itself with no press, played by the agent's stand-in.
  */
 function recordingOf(player = new Player()): Recorded[] {
-  return [{ press: null, total: 0 }, ...player.steps().map(() => ({ press: player.button, total: player.episode.total }))]
+  return [
+    { press: null, total: 0 },
+    ...player.steps().map(() => ({ press: player.button, total: player.episode.total }))
+  ]
 }
 
 export const RECORDING = recordingOf()

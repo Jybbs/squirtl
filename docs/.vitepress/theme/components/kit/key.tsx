@@ -105,7 +105,9 @@ function figuredParts(entries: readonly KeyEntry[], heads: KeyFigures) {
       <span class={PARTS.chip}><Chip class="w-full" {...chipOf(each)} /></span>,
       ...(each.figures ?? []).map((figure, column) => (
         <span class={[PARTS.figure, COLUMNS[column]]}>
-          {figure ? [<span aria-hidden="true" class={[PARTS.label, PARTS.told]}>{heads[column]}</span>, figure] : null}
+          {figure
+            ? [<span aria-hidden="true" class={[PARTS.label, PARTS.told]}>{heads[column]}</span>, figure]
+            : null}
         </span>
       ))
     ])

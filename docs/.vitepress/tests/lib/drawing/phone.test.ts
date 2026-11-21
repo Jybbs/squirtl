@@ -24,9 +24,11 @@ describe('the phones', () => {
     expect(cell(3, [1, 3], 1)).not.toContain('<svg')
   })
 
-  it('parts the glass into one pane per numeral, a bar of one pixel at each join, with the bolt and the spike on its center axis', () => {
+  it('parts the glass into one pane per numeral, a bar of one pixel at each join, with the bolt and the '
+   + 'spike on its center axis', () => {
     const html  = cell(1, [1, 3], 0)
-    const panes = [...html.matchAll(/class="footnote-pane" x="(\d+)" y="7" width="(\d+)"/gu)].map(match => [Number(match[1]), Number(match[2])])
+    const panes = [...html.matchAll(/class="footnote-pane" x="(\d+)" y="7" width="(\d+)"/gu)]
+      .map(match => [Number(match[1]), Number(match[2])])
 
     expect(panes).toStrictEqual([[5, 11], [17, 11]])
     expect(html).toContain('d="M15 6 ')

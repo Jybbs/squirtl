@@ -4,8 +4,11 @@ import { IDENTITY, hexOf } from '../../../lib/identity/identity.ts'
 import * as seam           from '../../../lib/identity/seam.ts'
 
 describe('FILLED', () => {
-  it('steps through the trail in the order Blue walks it and then every dot still ahead, no dot in ink', () => {
-    const steps = seam.FILLED.filter(dot => dot.kind === 'trail').map(dot => (dot as Extract<typeof dot, { kind: 'trail' }>).step)
+  it('steps through the trail in the order Blue walks it and then every dot still ahead, no dot in '
+   + 'ink', () => {
+    const steps = seam.FILLED
+      .filter(dot => dot.kind === 'trail')
+      .map(dot => (dot as Extract<typeof dot, { kind: 'trail' }>).step)
     const kinds = seam.FILLED.map(dot => dot.kind)
 
     expect(steps).toStrictEqual(steps.toSorted((a, b) => a - b))
@@ -15,12 +18,15 @@ describe('FILLED', () => {
 })
 
 describe('keyOf', () => {
-  it.each(['light', 'dark'] as const)('keys the trail on the %s ground from its oldest third to the dot still ahead', scheme => {
+  it.each(['light', 'dark'] as const)('keys the trail on the %s ground from its oldest third to the dot '
+                                    + 'still ahead', scheme => {
     const { ahead, thirds } = IDENTITY.logo[scheme]
 
-    expect(seam.keyOf(scheme).map(entry => entry.hex)).toStrictEqual([...thirds, ahead].map(token => hexOf(token as never)))
-    expect(seam.keyOf(scheme).map(entry => entry.what))
-      .toStrictEqual(['The first third, oldest', 'The middle third', 'The last third, newest', 'The dot still ahead'])
+    expect(seam.keyOf(scheme).map(entry => entry.hex))
+      .toStrictEqual([...thirds, ahead].map(token => hexOf(token as never)))
+    expect(seam.keyOf(scheme).map(entry => entry.what)).toStrictEqual([
+      'The first third, oldest', 'The middle third', 'The last third, newest', 'The dot still ahead'
+    ])
   })
 })
 

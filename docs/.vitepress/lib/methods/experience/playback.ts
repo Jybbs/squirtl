@@ -41,5 +41,10 @@ export function useExperiencePlayback(box: Ref<HTMLElement | undefined>, label: 
     seek     : update => { at.value = update }
   })
 
-  return { ages, arcs: useArcs(ages, computed(() => !motion.value)), scrub, windows: useWindows(ages, motion) }
+  return {
+    ages    : ages,
+    arcs    : useArcs(ages, computed(() => !motion.value)),
+    scrub   : scrub,
+    windows : useWindows(ages, motion)
+  }
 }

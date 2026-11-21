@@ -51,7 +51,12 @@ export const ADDRESS = {
  * The map numbers pret/pokered's `constants/map_constants.asm` gives the rooms
  * an episode crosses, and the words naming each room.
  */
-export const MAPS: Readonly<Record<rooms.Place, number>> = { bedroom: 0x26, house: 0x25, lab: 0x28, pallet: 0x00 }
+export const MAPS: Readonly<Record<rooms.Place, number>> = {
+  bedroom : 0x26,
+  house   : 0x25,
+  lab     : 0x28,
+  pallet  : 0x00
+}
 
 export const ROOMS: Readonly<Record<rooms.Place, string>> = {
   bedroom : 'the bedroom',
@@ -89,9 +94,12 @@ export const address = (value: number): string => value.toString(16).toUpperCase
  */
 export function bytesOf(place: rooms.Place, at: rooms.Square, flags: ReadonlySet<Flag>): Map<number, number> {
   const bytes = new Map([
-    [ADDRESS.map, MAPS[place]], [ADDRESS.y, at[1]], [ADDRESS.x, at[0]], [ADDRESS.flags, 0], [SECOND, flags.has('followed') ? 1 : 0]
+    [ADDRESS.map, MAPS[place]], [ADDRESS.y, at[1]], [ADDRESS.x, at[0]], [ADDRESS.flags, 0],
+    [SECOND, flags.has('followed') ? 1 : 0]
   ])
-  for (const each of FLAG_BITS) if (flags.has(each.flag)) bytes.set(each.address, bytes.get(each.address)! | 1 << each.bit)
+  for (const each of FLAG_BITS) {
+    if (flags.has(each.flag)) bytes.set(each.address, bytes.get(each.address)! | 1 << each.bit)
+  }
   return bytes
 }
 
@@ -106,8 +114,8 @@ export function traceOf(player = new Player()): Row[] {
     const pay = { goal: 0, milestone: 0, novelty: 0 }
     for (const each of paid) pay[each.term] += each.pay
     rows.push({
-      at, bytes: bytesOf(place, at, flags), chosen, facing, flags: new Set(flags), leader: leader && { ...leader },
-      pay, place, press: player.button, scripted, turned
+      at, bytes: bytesOf(place, at, flags), chosen, facing, flags: new Set(flags),
+      leader: leader && { ...leader }, pay, place, press: player.button, scripted, turned
     })
   }
   snap([], false)
@@ -127,7 +135,9 @@ export const LAST = TRACE.length - 1
  * episode keys a square.
  */
 export const FIRST: ReadonlyMap<string, number> = TRACE.reduce(
-  (first, row, n) => first.has(squareKey(row.place, row.at)) ? first : first.set(squareKey(row.place, row.at), n),
+  (first, row, n) => first.has(squareKey(row.place, row.at))
+    ? first
+    : first.set(squareKey(row.place, row.at), n),
   new Map<string, number>()
 )
 

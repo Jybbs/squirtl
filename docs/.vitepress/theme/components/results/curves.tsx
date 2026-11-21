@@ -40,12 +40,25 @@ function drawCurve(line: Curve, curves: Curves, shown: number, clip: string) {
   const { frame, across } = curves
   return [
     <clipPath id={clip}>
-      <rect height={frame.floor + PLOTTING.gap} width={across * shown + PLOTTING.gap} x={frame.x(0, 1) - PLOTTING.gap} y={0} />
+      <rect
+        height={frame.floor + PLOTTING.gap}
+        width={across * shown + PLOTTING.gap}
+        x={frame.x(0, 1) - PLOTTING.gap}
+        y={0}
+      />
     </clipPath>,
     <g class={HUES[line.group.hue].ink} clip-path={`url(#${clip})`} display={shown > 0 ? undefined : 'none'}>
-      <path class={['fill-none stroke-current', line.dashed ? 'results-dashed' : null]} d={line.d} {...plots.CURVE} />
+      <path
+        class={['fill-none stroke-current', line.dashed ? 'results-dashed' : null]}
+        d={line.d}
+        {...plots.CURVE}
+      />
       {line.points.map(([x, y]) => (
-        <path class={line.dashed ? 'results-open' : 'results-solid'} d={SILHOUETTES[line.group.agent]} transform={`translate(${x} ${y})`} />
+        <path
+          class={line.dashed ? 'results-open' : 'results-solid'}
+          d={SILHOUETTES[line.group.agent]}
+          transform={`translate(${x} ${y})`}
+        />
       ))}
     </g>
   ]
@@ -86,7 +99,8 @@ export const ResultsCurves = defineComponent({
         <div class="grid gap-2">
           <span class={LABEL}>{WORDS.runs}</span>
           <div {...toggles.root.value} aria-label={WORDS.runs} class={PARTS.group}>
-            {groups.map(group => drawToggle(group, toggles.item(group.id), toggles.pressed.value.has(group.id)))}
+            {groups.map(group =>
+              drawToggle(group, toggles.item(group.id), toggles.pressed.value.has(group.id)))}
           </div>
         </div>
         <div class="relative h-results-plot" ref={box}>
@@ -99,7 +113,8 @@ export const ResultsCurves = defineComponent({
               d={`M${curves.value.frame.x(0, 1)},${curves.value.baseline}H${curves.value.frame.end}`}
               {...plots.CURVE}
             />
-            {curves.value.lines.map((line, n) => drawCurve(line, curves.value, traces[n]!.value, `${id}-${n}`))}
+            {curves.value.lines.map((line, n) =>
+              drawCurve(line, curves.value, traces[n]!.value, `${id}-${n}`))}
           </svg>
         </div>
         <Key entries={CURVES} />

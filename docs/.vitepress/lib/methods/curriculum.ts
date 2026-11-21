@@ -108,7 +108,9 @@ function segmentsOf(trace: readonly Row[] = TRACE): Segment[] {
   return trace.flatMap((row, n) => {
     const fresh = [...row.flags].filter(flag => !seen.has(flag))
     for (const flag of fresh) seen.add(flag)
-    return fresh.length > 0 ? [{ end: n - 1, tag: TAGS[fresh.at(-1)!], term: fresh.includes('starter') ? 'goal' : 'milestone' }] : []
+    return fresh.length > 0
+      ? [{ end: n - 1, tag: TAGS[fresh.at(-1)!], term: fresh.includes('starter') ? 'goal' : 'milestone' }]
+      : []
   })
 }
 
@@ -119,7 +121,8 @@ export const SEGMENTS = segmentsOf()
  * batch `batch`, falling with the steps left and rising as training goes on, a
  * made-up model of an agent improving.
  */
-export const odds = (left: number, batch: number): number => clamp(0.5 + (8 + 5 * batch - left) / 10, 0.02, 0.99)
+export const odds = (left: number, batch: number): number =>
+  clamp(0.5 + (8 + 5 * batch - left) / 10, 0.02, 0.99)
 
 /**
  * Plays a seeded run of the curriculum until every segment is solved, each
@@ -133,9 +136,14 @@ export const odds = (left: number, batch: number): number => clamp(0.5 + (8 + 5 
  * Returns:
  *   What each batch shows of each segment.
  */
-export function runOf(curriculum: Curriculum = CURRICULUM, segments: readonly Segment[] = SEGMENTS, seed = 34): Shown[][] {
+export function runOf(
+  curriculum : Curriculum         = CURRICULUM,
+  segments   : readonly Segment[] = SEGMENTS,
+  seed       : number             = 34
+): Shown[][] {
   const random  = seeded(seed)
   const draw    = ([low, high]: readonly [number, number]) => low + random() * (high - low)
+  const stride  = (range: readonly [number, number]) => Math.round(draw(range) * curriculum.window)
   const windows = segments.map(segment => ({ latest: segment.end, solved: false }))
   const batches: Shown[][] = []
 
@@ -151,8 +159,8 @@ export function runOf(curriculum: Curriculum = CURRICULUM, segments: readonly Se
       const share = tries.filter(each => each.won).length / tries.length
       const won   = share >= curriculum.required
       if (window.latest === 0 && share >= curriculum.completion) window.solved = true
-      else if (won) window.latest = Math.max(0, window.latest - Math.round(draw(curriculum.back) * curriculum.window))
-      else window.latest = Math.min(segment.end, window.latest + Math.round(draw(curriculum.forward) * curriculum.window))
+      else if (won) window.latest = Math.max(0, window.latest - stride(curriculum.back))
+      else window.latest = Math.min(segment.end, window.latest + stride(curriculum.forward))
       const miss  = (each: { won: boolean }) => Number(each.won !== won)
       const shown = tries.toSorted((left, right) => miss(left) - miss(right) || left.start - right.start)[0]!
       return { solved: false, start: shown.start }

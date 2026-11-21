@@ -12,7 +12,8 @@ import { CurriculumLane }        from './curriculum/lane.tsx'
  */
 const WORDS = {
   lanes  : 'A lane for each segment, its episode’s screen standing at its start on the way from the bedroom',
-  slider : 'The batches of the run, each segment’s screen standing at its start in its lane, held at the batch it names'
+  slider : 'The batches of the run, each segment’s screen standing at its start in its lane, held at the '
+         + 'batch it names'
 }
 
 /**
@@ -46,16 +47,29 @@ export const MethodsCurriculum = defineComponent({
               />
             ))}
           </ol>
-          <div aria-hidden="true" class="col-start-2 flex h-7 border-t-hairline border-quiet @max-sm:h-curriculum-places">
+          <div
+            aria-hidden="true"
+            class="col-start-2 flex h-7 border-t-hairline border-quiet @max-sm:h-curriculum-places"
+          >
             {curriculum.STRETCHES.map(stretch => (
-              <span class="curriculum-band relative min-w-0 flex-none" style={{ flexBasis: `${100 * (stretch.last - stretch.first + 1) / (curriculum.LAST + 1)}%` }}>
-                <span class={[LABEL, 'curriculum-place absolute font-semibold whitespace-nowrap text-ink']}>{stretch.name}</span>
+              <span
+                class="curriculum-band relative min-w-0 flex-none"
+                style={{ flexBasis: `${100 * (stretch.last - stretch.first + 1) / (curriculum.LAST + 1)}%` }}
+              >
+                <span class={[LABEL, 'curriculum-place absolute font-semibold whitespace-nowrap text-ink']}>
+                  {stretch.name}
+                </span>
               </span>
             ))}
           </div>
         </div>
         <div class="flex items-center gap-3">
-          <span aria-hidden="true" class={[DETAIL, 'w-curriculum-head flex-none whitespace-nowrap text-ink tabular-nums']}>{curriculum.batchName(at.value)}</span>
+          <span
+            aria-hidden="true"
+            class={[DETAIL, 'w-curriculum-head flex-none whitespace-nowrap text-ink tabular-nums']}
+          >
+            {curriculum.batchName(at.value)}
+          </span>
           <Slider at={at.value} class="min-w-0 flex-auto" scrub={scrub} />
         </div>
       </div>

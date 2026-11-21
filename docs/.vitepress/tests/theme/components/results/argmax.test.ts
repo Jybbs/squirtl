@@ -3,8 +3,8 @@ import { type VueWrapper, enableAutoUnmount, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it }           from 'vitest'
 import { nextTick }                                  from 'vue'
 
-import * as pointer from '../../../common/pointer.ts'
-import { held }     from '../../../common/results.ts'
+import * as input from '../../../common/input.ts'
+import { held }   from '../../../common/results.ts'
 
 const { ResultsArgmax } = await import('../../../../theme/components/results/argmax.tsx')
 
@@ -37,29 +37,37 @@ describe('ResultsArgmax', () => {
 
     expect([
       wrapper.find('p').text(),
-      pointer.sliderState(wrapper),
+      input.sliderState(wrapper),
       tiles(wrapper),
       picks(wrapper)
     ]).toStrictEqual([
-      'Sampling and the most likely press differ at 1 of PPO’s 12 evaluations, and at none from 1.00M steps on.',
+        'Sampling and the most likely press differ at 1 of PPO’s 12 evaluations, '
+      + 'and at none from 1.00M steps on.',
       ['2', 'Evaluation 3 of 3, 1.50M steps, No seed differs, so nothing is marked'],
-      [['Seed 230of 30', false], ['Seed 330of 30', false], ['Seed 430of 30', false], ['Seed 530of 30', false]],
+      [
+        ['Seed 230of 30', false], ['Seed 330of 30', false], ['Seed 430of 30', false], ['Seed 530of 30', false]
+      ],
       [['11', '2', '3'], 'repeat(3, minmax(0, 1fr))']
     ])
   })
+})
 
-  it('marks each differing seed with its count at the most likely press once Home steps to the first', async () => {
+describe('ResultsArgmax’s slider', () => {
+  it('marks each differing seed with its count at the most likely press once Home steps to the '
+   + 'first', async () => {
     held.runs     = true
     const wrapper = mount(ResultsArgmax, { attachTo: document.body })
     const thumb   = wrapper.get('[role="slider"]')
 
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'Home' })
+    await input.pressKeys(thumb, 'Home')
     await nextTick()
 
     expect([wrapper.findAll('[data-picked]').map(pick => pick.text()), tiles(wrapper)]).toStrictEqual([
       ['11'],
-      [['Seed 215of 30Likeliest 0', true], ['Seed 38of 30', false], ['Seed 423of 30', false], ['Seed 530of 30', false]]
+      [
+        ['Seed 215of 30Likeliest 0', true], ['Seed 38of 30', false], ['Seed 423of 30', false],
+        ['Seed 530of 30', false]
+      ]
     ])
   })
 
@@ -67,9 +75,9 @@ describe('ResultsArgmax', () => {
     held.runs     = true
     const wrapper = mount(ResultsArgmax, { attachTo: document.body })
 
-    await pointer.press(pointer.controlOf(wrapper, 300), 150)
+    await input.press(input.controlOf(wrapper, 300), 150)
     await nextTick()
 
-    expect(pointer.sliderState(wrapper)[0]).toBe('1')
+    expect(input.sliderState(wrapper)[0]).toBe('1')
   })
 })

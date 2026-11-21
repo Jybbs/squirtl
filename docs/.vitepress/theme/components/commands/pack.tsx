@@ -22,7 +22,9 @@ function drawLines(packing: pack.Packing) {
       <span class={['block wrap-anywhere', written && 'text-ink']}>
         {line.text}
         {line.tar === undefined ? null : [
-          <span class={written ? 'text-forest-text' : undefined}>{written ? line.tar.sha256 : UNWRITTEN}</span>,
+          <span class={written ? 'text-forest-text' : undefined}>
+            {written ? line.tar.sha256 : UNWRITTEN}
+          </span>,
           '"'
         ]}
       </span>
@@ -59,7 +61,8 @@ export const CommandsPack = defineComponent({
           <span class={DETAIL}>{packing.head()}</span>
         </div>
         <pre class={[
-          'overflow-hidden rounded-2 border-ring bg-lift px-3 py-2 font-code text-small leading-normal whitespace-pre-wrap text-quiet',
+          'overflow-hidden rounded-2 border-ring bg-lift px-3 py-2',
+          'font-code text-small leading-normal whitespace-pre-wrap text-quiet',
           packing.done ? 'border-forest-mark' : 'border-rule'
         ]}>
           <code>{drawLines(packing)}</code>

@@ -36,7 +36,14 @@ function drawMark(scheme: Scheme, at: number) {
   return (
     <svg aria-hidden="true" class="block h-auto w-full" viewBox={viewBoxOf(seam.MARK.view)}>
       {seam.MARK.dots.map(dot => (
-        <circle class="identity-dot" cx={dot.x} cy={dot.y} fill={paintOf(dot, scheme)} opacity={seam.FILLED.indexOf(dot) > at ? UNLIT : 1} r={dotRadius} />
+        <circle
+          class="identity-dot"
+          cx={dot.x}
+          cy={dot.y}
+          fill={paintOf(dot, scheme)}
+          opacity={seam.FILLED.indexOf(dot) > at ? UNLIT : 1}
+          r={dotRadius}
+        />
       ))}
       <g innerHTML={blocksOf(seam.MARK, scheme)} shape-rendering="crispEdges" />
     </svg>
@@ -53,14 +60,26 @@ function drawStrip({ strip }: Seam) {
       {SCHEMES.map(scheme => (
         <span
           aria-hidden="true"
-          class="identity-side absolute inset-0 flex items-center px-3 font-code text-label font-medium tracking-caps uppercase"
+          class={[
+            'identity-side absolute inset-0 flex items-center px-3',
+            'font-code text-label font-medium tracking-caps uppercase'
+          ]}
           data-scheme={scheme}
-          style={{ background: GROUNDS[scheme].hex, color: hexOf(IDENTITY.logo[scheme].thirds.at(-1) as Token) }}
+          style={{
+            background : GROUNDS[scheme].hex,
+            color      : hexOf(IDENTITY.logo[scheme].thirds.at(-1) as Token)
+          }}
         >
           {scheme}
         </span>
       ))}
-      <span aria-hidden="true" class="identity-handle absolute inset-y-0 flex items-center justify-center gap-0 bg-primary font-code text-label text-athens-gray">
+      <span
+        aria-hidden="true"
+        class={[
+          'identity-handle absolute inset-y-0 flex items-center justify-center gap-0 bg-primary',
+          'font-code text-label text-athens-gray'
+        ]}
+      >
         <span>◀</span><span>▶</span>
       </span>
     </Slider>
@@ -86,8 +105,15 @@ function drawKeys({ lit }: Seam) {
           <span class={LABEL}>{scheme} ground</span>
           <ol class="identity-key grid gap-1">
             {seam.keyOf(scheme).map(entry => (
-              <li class="identity-entry grid items-center gap-x-2 rounded-1 px-2 py-1" data-on={entry.hex === lit.value[scheme]}>
-                <span aria-hidden="true" class="identity-trail-dot row-span-2 size-4 rounded-full" style={{ background: entry.hex }} />
+              <li
+                class="identity-entry grid items-center gap-x-2 rounded-1 px-2 py-1"
+                data-on={entry.hex === lit.value[scheme]}
+              >
+                <span
+                  aria-hidden="true"
+                  class="identity-trail-dot row-span-2 size-4 rounded-full"
+                  style={{ background: entry.hex }}
+                />
                 <span class="text-small">{entry.what}</span>
                 <span class={DETAIL}>{entry.name} {entry.hex}</span>
               </li>
@@ -118,7 +144,15 @@ export const IdentityLogo = defineComponent({
         </div>
         {drawStrip(state)}
         <div class="relative overflow-hidden rounded-2">
-          {SCHEMES.map(scheme => <div class="identity-ground-mark p-3" data-scheme={scheme} style={{ background: GROUNDS[scheme].hex }}>{drawMark(scheme, state.fill.value)}</div>)}
+          {SCHEMES.map(scheme => (
+            <div
+              class="identity-ground-mark p-3"
+              data-scheme={scheme}
+              style={{ background: GROUNDS[scheme].hex }}
+            >
+              {drawMark(scheme, state.fill.value)}
+            </div>
+          ))}
           <span aria-hidden="true" class="identity-seam-line absolute inset-y-0 bg-primary" />
         </div>
         {drawTrail(state)}

@@ -5,7 +5,7 @@ import { nextTick, ref }                                     from 'vue'
 
 import type * as race from '../../../../lib/front/race.ts'
 import * as browser   from '../../../common/browser.ts'
-import * as pointer   from '../../../common/pointer.ts'
+import * as input     from '../../../common/input.ts'
 
 /**
  * A mounted widget beside the sight a case shows it through.
@@ -54,11 +54,12 @@ describe('StoryRace under reduced motion', () => {
     sight.show(true)
     await nextTick()
 
-    expect(pointer.sliderState(wrapper)).toStrictEqual([
+    expect(input.sliderState(wrapper)).toStrictEqual([
       '120', '10,240 steps: the agent has reached the starter in 30 of 30 episodes and random presses in 8'
     ])
     expect(scores(wrapper)).toStrictEqual([
-      '', 'Reached it', 'Steps to it', 'The agent', 'Reached it30 of 30', 'Steps to it93', 'Random presses', 'Reached it8 of 30', 'Steps to it6,498'
+      '', 'Reached it', 'Steps to it', 'The agent', 'Reached it30 of 30', 'Steps to it93', 'Random presses',
+      'Reached it8 of 30', 'Steps to it6,498'
     ])
     expect(wrapper.text()).toContain('Episodes that have reached the starter')
   })
@@ -80,7 +81,10 @@ describe('StoryRace under reduced motion', () => {
     const { wrapper } = await mounted()
 
     expect(scores(wrapper).slice(3))
-      .toStrictEqual(['The agent', 'Reached it1 of 1', 'Steps to it1', 'Random presses', 'Reached it0 of 1', 'Steps to itNone'])
+      .toStrictEqual([
+        'The agent', 'Reached it1 of 1', 'Steps to it1', 'Random presses', 'Reached it0 of 1',
+        'Steps to itNone'
+      ])
   })
 })
 
@@ -94,11 +98,11 @@ describe('StoryRace playing', () => {
 
     sight.show(true)
     await nextTick()
-    const first = pointer.sliderState(wrapper)[0]
+    const first = input.sliderState(wrapper)[0]
     vi.advanceTimersByTime(50 * 29)
     await nextTick()
 
-    expect([first, pointer.sliderState(wrapper)[0], wrapper.get('.clock-chip + rect + text').text()])
+    expect([first, input.sliderState(wrapper)[0], wrapper.get('.clock-chip + rect + text').text()])
       .toStrictEqual(['1', '30', '10 steps'])
   })
 
@@ -108,11 +112,11 @@ describe('StoryRace playing', () => {
     sight.show(true)
     vi.advanceTimersByTime(50 * 120)
     await nextTick()
-    const rested = pointer.sliderState(wrapper)[0]
+    const rested = input.sliderState(wrapper)[0]
     vi.advanceTimersByTime(5000)
     await nextTick()
 
-    expect([rested, pointer.sliderState(wrapper)[0]]).toStrictEqual(['120', '1'])
+    expect([rested, input.sliderState(wrapper)[0]]).toStrictEqual(['120', '1'])
   })
 })
 
@@ -126,39 +130,37 @@ describe('StoryRace held by a reader', () => {
     const thumb              = wrapper.get('[role="slider"]')
 
     sight.show(true)
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'End' })
-    await thumb.trigger('keydown', { key: 'ArrowLeft' })
+    await input.pressKeys(thumb, 'End', 'ArrowLeft')
     vi.advanceTimersByTime(1000)
     await nextTick()
-    const held = pointer.sliderState(wrapper)[0]
+    const held = input.sliderState(wrapper)[0]
     await thumb.trigger('focusout')
     vi.advanceTimersByTime(50)
     await nextTick()
 
-    expect([held, pointer.sliderState(wrapper)[0]]).toStrictEqual(['119', '120'])
+    expect([held, input.sliderState(wrapper)[0]]).toStrictEqual(['119', '120'])
   })
 
   test('holds the clock still while a mouse moves across the chart', async () => {
     const { sight, wrapper } = await mounted()
-    const control            = pointer.controlOf(wrapper, 120)
+    const control            = input.controlOf(wrapper, 120)
 
     sight.show(true)
     await nextTick()
-    const rested = pointer.sliderState(wrapper)[0]
-    await pointer.sweep(control, [10, 60, 110])
+    const rested = input.sliderState(wrapper)[0]
+    await input.sweep(control, [10, 60, 110])
     vi.advanceTimersByTime(500)
     await nextTick()
 
-    expect(pointer.sliderState(wrapper)[0]).toBe(rested)
+    expect(input.sliderState(wrapper)[0]).toBe(rested)
   })
 
   test('sets the clock at the stop a press on the chart lands on', async () => {
     const { wrapper } = await mounted()
-    const control     = pointer.controlOf(wrapper, 120)
+    const control     = input.controlOf(wrapper, 120)
 
-    await pointer.press(control, 60)
+    await input.press(control, 60)
 
-    expect(pointer.sliderState(wrapper)[0]).toBe('60')
+    expect(input.sliderState(wrapper)[0]).toBe('60')
   })
 })

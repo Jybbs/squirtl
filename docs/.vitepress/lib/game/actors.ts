@@ -105,7 +105,11 @@ function posesOf(frames: readonly Grid[], facing: rooms.Direction): Readonly<Rec
  * in the house, Oak at his table in the lab, the rival, the Poké Balls still on
  * the table, and Oak at `leaderAt` in `stance` while he leads Blue there.
  */
-export function actorsOf(episode: Pick<Episode, 'chosen' | 'leader' | 'place'>, leaderAt?: rooms.Square, stance: Stance = 'standing'): Actor[] {
+export function actorsOf(
+  episode   : Pick<Episode, 'chosen' | 'leader' | 'place'>,
+  leaderAt? : rooms.Square,
+  stance    : Stance = 'standing'
+): Actor[] {
   const leader          = episode.leader?.place === episode.place ? episode.leader : null
   const actors: Actor[] = []
   if (episode.place === 'house') actors.push(PEOPLE.mom)

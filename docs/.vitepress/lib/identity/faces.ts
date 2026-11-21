@@ -49,7 +49,9 @@ const HUNDRED = 100
 function tuplesOf(axes: string): Record<string, string>[] {
   const [names, tuples] = axes.split('@') as [string, string]
   const axis            = names.split(',')
-  return tuples.split(';').map(tuple => Object.fromEntries(tuple.split(',').map((value, n) => [axis[n]!, value])))
+  return tuples
+    .split(';')
+    .map(tuple => Object.fromEntries(tuple.split(',').map((value, n) => [axis[n]!, value])))
 }
 
 /**
@@ -63,7 +65,8 @@ export function weightsOf(axes: string): Weight[] {
     const weights = Array.from({ length: (to - from) / HUNDRED + 1 }, (_, n) => from + n * HUNDRED)
     return { italic: tuple.ital === '1', weights }
   })
-  const upright = [...new Set(loaded.filter(each => !each.italic).flatMap(each => each.weights))].toSorted((a, b) => a - b)
+  const upright = [...new Set(loaded.filter(each => !each.italic).flatMap(each => each.weights))]
+    .toSorted((a, b) => a - b)
   const italic  = loaded.filter(each => each.italic).flatMap(each => each.weights)
 
   return [
@@ -127,9 +130,12 @@ export function copiesOf(role: Role, at: number): Copy[] {
  */
 export function useFaces() {
   const at      = reactive(Object.fromEntries(ROLES.map(role => [role, 0])) as Record<Role, number>)
-  const choices = Object.fromEntries(ROLES.map(role => [role, useChoice(WEIGHTS[role].map(each => each.label), label => {
-    at[role] = WEIGHTS[role].findIndex(each => each.label === label)
-  })])) as Record<Role, ReturnType<typeof useChoice<string>>>
+  const choices = Object.fromEntries(ROLES.map(role => [
+    role,
+    useChoice(WEIGHTS[role].map(each => each.label), label => {
+      at[role] = WEIGHTS[role].findIndex(each => each.label === label)
+    })
+  ])) as Record<Role, ReturnType<typeof useChoice<string>>>
 
   return { at, choices }
 }

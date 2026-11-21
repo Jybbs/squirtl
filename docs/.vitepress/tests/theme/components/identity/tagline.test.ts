@@ -15,7 +15,10 @@ import { FACTS }      from '../../../common/facts.ts'
 const dark = ref(false)
 
 vi.mock('vitepress', () => ({
-  useData: () => ({ isDark: dark, theme: ref({ edition: { host: FACTS.host, version: FACTS.version }, project: FACTS }) })
+  useData: () => ({
+    isDark : dark,
+    theme  : ref({ edition: { host: FACTS.host, version: FACTS.version }, project: FACTS })
+  })
 }))
 
 const { IdentityTagline } = await import('../../../../theme/components/identity/tagline.tsx')
@@ -34,7 +37,8 @@ const top = (wrapper: Awaited<ReturnType<typeof browser.shown>>): string | undef
   wrapper.find('.identity-folder[data-depth="0"]').attributes('aria-label')
 
 describe('IdentityTagline', () => {
-  it('opens on GitHub’s repository page, the byline in its About box beside the host and every keyword', async () => {
+  it('opens on GitHub’s repository page, the byline in its About box beside the host and every '
+   + 'keyword', async () => {
     const wrapper = await browser.shown(IdentityTagline)
     const github  = wrapper.get('.identity-folder[data-depth="0"]')
 
@@ -46,7 +50,8 @@ describe('IdentityTagline', () => {
     expect(wrapper.text()).toBePublishedProse()
   })
 
-  it('draws the front page’s name, tagline, and byline under its host, and the card, in the folders beneath', async () => {
+  it('draws the front page’s name, tagline, and byline under its host, and the card, in the folders '
+   + 'beneath', async () => {
     const wrapper = await browser.shown(IdentityTagline)
     const front   = wrapper.get(`.identity-folder[aria-label="${places.PLACES[1]!.name}"]`)
 
@@ -54,7 +59,11 @@ describe('IdentityTagline', () => {
       front.text(),
       front.findAll('.text-link').map(letter => letter.text()).join(''),
       wrapper.findAll('.identity-card-art').length
-    ]).toStrictEqual([`${places.PLACES[1]!.name}${FACTS.host}${IDENTITY.name}${IDENTITY.tagline}${FACTS.description}`, logoLetters, 1])
+    ]).toStrictEqual([
+      `${places.PLACES[1]!.name}${FACTS.host}${IDENTITY.name}${IDENTITY.tagline}${FACTS.description}`,
+      logoLetters,
+      1
+    ])
   })
 
 })
@@ -91,7 +100,8 @@ describe('IdentityTagline’s folding', () => {
 })
 
 describe('IdentityTagline’s holds', () => {
-  it('holds the place while a mouse rests on the widget or a tab holds focus, a full beat more once each lets go', async () => {
+  it('holds the place while a mouse rests on the widget or a tab holds focus, a full beat more once each '
+   + 'lets go', async () => {
     const wrapper = await browser.shown(IdentityTagline)
     const root    = wrapper.get('.identity-folders')
     const seen    = []

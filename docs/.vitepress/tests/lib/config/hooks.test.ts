@@ -21,7 +21,12 @@ const FRONT = {
 /**
  * The page at a missing address as the default theme hands it to the build.
  */
-const MISSING = { description: 'Not Found', isNotFound: true, relativePath: '404.md', title: '404' } as PageData
+const MISSING = {
+  description  : 'Not Found',
+  isNotFound   : true,
+  relativePath : '404.md',
+  title        : '404'
+} as PageData
 
 /**
  * The context the build hands the front page's head, the fields the head reads.
@@ -49,7 +54,8 @@ describe('pageHooks', () => {
     expect(fs.globSync('**/*.png', { cwd: outDir })).toStrictEqual(['cards/site.png'])
   })
 
-  test('titles and describes the page at a missing address as its own in its head and its built title', () => {
+  test('titles and describes the page at a missing address as its own in its head and its built '
+     + 'title', () => {
     const hooks   = pageHooks(FACTS, import.meta.url)
     const context = { ...CONTEXT, description: 'Not Found', pageData: MISSING, title: '404 | SquiRtL' }
     const own     = { ...MISSING, description: FACTS.description, title: 'Page Not Found' }

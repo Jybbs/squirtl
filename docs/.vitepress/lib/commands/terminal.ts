@@ -96,6 +96,13 @@ export class Training {
   }
 
   /**
+   * The share of the run's steps it has trained, from 0 to 1.
+   */
+  get progress(): number {
+    return this.step / RUN.steps
+  }
+
+  /**
    * Whether the stop file is written and the run has not reached its
    * episode's end.
    */

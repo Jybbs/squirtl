@@ -9,7 +9,7 @@ import { PLAY }               from '../../../../lib/front/learning/walks.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
 import { stopped }            from '../../../common/clock.ts'
-import * as pointer           from '../../../common/pointer.ts'
+import * as input             from '../../../common/input.ts'
 
 const { StoryLearning } = await import('../../../../theme/components/front/learning.tsx')
 
@@ -49,7 +49,7 @@ describe('StoryLearning playing', () => {
 
     sight.show(true)
     await wrapper.vm.$nextTick()
-    const [now, text] = pointer.sliderState(wrapper)
+    const [now, text] = input.sliderState(wrapper)
 
     expect(valuesOf(wrapper)).toStrictEqual(PRESSES.map(String))
     expect(now).toBe('204')
@@ -66,10 +66,11 @@ describe('StoryLearning playing', () => {
     await wrapper.vm.$nextTick()
 
     expect(valuesOf(wrapper)).toStrictEqual(['20', '20', '20', '18'])
-    expect(pointer.sliderState(wrapper)[0]).toBe('20')
+    expect(input.sliderState(wrapper)[0]).toBe('20')
   })
 
-  stopped('ends each loop in the transition into a wild battle, setting the walks off beneath it', async () => {
+  stopped('ends each loop in the transition into a wild battle, setting the walks off beneath '
+        + 'it', async () => {
     browser.preference.value = 'no-preference'
     const { sight, wrapper } = await mounted()
 
@@ -92,12 +93,12 @@ describe('StoryLearning clock', () => {
   stopped('holds the clock still while a mouse moves along the strip', async () => {
     browser.preference.value = 'no-preference'
     const { sight, wrapper } = await mounted()
-    const control            = pointer.controlOf(wrapper, 200)
+    const control            = input.controlOf(wrapper, 200)
 
     sight.show(true)
     await wrapper.vm.$nextTick()
     const rested = valuesOf(wrapper)
-    await pointer.sweep(control, [20, 100, 180])
+    await input.sweep(control, [20, 100, 180])
     vi.advanceTimersByTime(1000)
     await wrapper.vm.$nextTick()
 
@@ -106,9 +107,9 @@ describe('StoryLearning clock', () => {
 
   stopped('sets the clock at the press a press along the strip lands on', async () => {
     const { wrapper } = await mounted()
-    const control     = pointer.controlOf(wrapper, 200)
+    const control     = input.controlOf(wrapper, 200)
 
-    await pointer.press(control, 100)
+    await input.press(control, 100)
 
     expect(valuesOf(wrapper)).toStrictEqual(['102', '102', '50', '18'])
   })
@@ -118,10 +119,9 @@ describe('StoryLearning clock', () => {
     const thumb              = wrapper.get('[role="slider"]')
 
     sight.show(true)
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'Home' })
+    await input.pressKeys(thumb, 'Home')
 
-    expect([valuesOf(wrapper), pointer.sliderState(wrapper)[0]]).toStrictEqual([['0', '0', '0', '0'], '0'])
+    expect([valuesOf(wrapper), input.sliderState(wrapper)[0]]).toStrictEqual([['0', '0', '0', '0'], '0'])
   })
 })
 
@@ -153,7 +153,8 @@ describe('StoryLearning picking', () => {
       .not.toContain(true)
   })
 
-  stopped('picks out a walk while a mouse rests on its button, and keeps it picked once pressed', async () => {
+  stopped('picks out a walk while a mouse rests on its button, and keeps it picked once '
+        + 'pressed', async () => {
     const { wrapper } = await mounted()
     const second      = wrapper.findAll('button')[1]!
 

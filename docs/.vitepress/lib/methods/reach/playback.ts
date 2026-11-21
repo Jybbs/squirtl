@@ -31,8 +31,14 @@ export function useReachPlayback(box: Ref<HTMLElement | undefined>, label: strin
   const still  = computed(() => !motion.value)
   const moment = computed(() => reach.momentAt(clock.value))
   const easing = [...IDENTITY.motion.curve] as [number, number, number, number]
-  const landed = useTransition(() => moment.value.landed, { disabled: still, duration: reach.FRAMES.settle * FRAME, easing })
-  const copied = useTransition(() => moment.value.pass, { disabled: still, duration: reach.FRAMES.copy * FRAME, easing })
+  const landed = useTransition(
+    () => moment.value.landed,
+    { disabled: still, duration: reach.FRAMES.settle * FRAME, easing }
+  )
+  const copied = useTransition(
+    () => moment.value.pass,
+    { disabled: still, duration: reach.FRAMES.copy * FRAME, easing }
+  )
 
   const at = computed({
     get : () => moment.value.pass,

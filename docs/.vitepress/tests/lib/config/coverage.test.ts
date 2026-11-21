@@ -11,7 +11,8 @@ describe('coverageOf', () => {
   test.for([
     [97.1234, '97'],
     [97.5, '98']
-  ] as const)('reads the total %d the suite’s report holds as the whole percent %s', ([total, percent], { checkout }) => {
+  ] as const)('reads the total %d the suite’s report holds as the whole percent '
+            + '%s', ([total, percent], { checkout }) => {
     const report      = { files: {}, totals: { percent_covered: total } }
     const { metaUrl } = checkout({ '.cache/coverage/coverage.json': JSON.stringify(report) })
 
@@ -28,7 +29,8 @@ describe('writeCoverage', () => {
     const { root } = checkout()
     writeCoverage(root, '97')
 
-    expect(JSON.parse(fs.readFileSync(path.join(root, 'coverage.json'), 'utf8'))).toStrictEqual({ percent: '97' })
+    expect(JSON.parse(fs.readFileSync(path.join(root, 'coverage.json'), 'utf8')))
+      .toStrictEqual({ percent: '97' })
   })
 
   test('writes nothing where no report measured a percent', ({ checkout }) => {

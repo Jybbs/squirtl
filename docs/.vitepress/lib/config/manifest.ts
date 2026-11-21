@@ -52,7 +52,8 @@ function required<K extends keyof Kinds>(manifest: unknown, kind: K, ...keys: st
  */
 function keywordsOf(manifest: unknown): string[] {
   const keywords = ((manifest as Table).project as Table | undefined)?.keywords
-  if (!Array.isArray(keywords) || keywords.length === 0 || !keywords.every(each => typeof each === 'string')) {
+  const named    = Array.isArray(keywords) && keywords.every(each => typeof each === 'string')
+  if (!named || keywords.length === 0) {
     throw new Error('pyproject.toml declares no project.keywords')
   }
   return keywords

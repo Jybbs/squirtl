@@ -28,7 +28,9 @@ function pressedOf(groups: readonly Group[]): string[] {
  *   The keys of the groups pressed, the props of the group of toggles, and the
  *   props of each toggle by its group's key.
  */
-export function useToggles(groups: readonly Group[]): Options<string> & { pressed: Ref<ReadonlySet<string>> } {
+export function useToggles(
+  groups : readonly Group[]
+): Options<string> & { pressed: Ref<ReadonlySet<string>> } {
   const keys    = groups.map(group => group.id)
   const pressed = ref<ReadonlySet<string>>(new Set(pressedOf(groups)))
 

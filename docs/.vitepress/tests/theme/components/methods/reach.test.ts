@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it, vi }    from 'vitest'
-import { nextTick }                               from 'vue'
+import { afterEach, describe, expect, it, vi }     from 'vitest'
+import { nextTick }                                from 'vue'
 
 import { FRAME }              from '../../../../lib/game/screen.ts'
 import * as reach             from '../../../../lib/methods/reach.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
 import { stopped }            from '../../../common/clock.ts'
-import * as pointer           from '../../../common/pointer.ts'
+import * as input             from '../../../common/input.ts'
 
 const { MethodsReach } = await import('../../../../theme/components/methods/reach.tsx')
 
@@ -25,18 +25,21 @@ const status = (wrapper: ReturnType<typeof mount>): string => wrapper.get('.reac
  */
 class Shaded extends Recorder {
   getImageData(): ImageData {
-    return { data: new Uint8ClampedArray([255, 255, 255, 255, 170, 170, 170, 255, 85, 85, 85, 255, 0, 0, 0, 255]) } as ImageData
+    return {
+      data: new Uint8ClampedArray([255, 255, 255, 255, 170, 170, 170, 255, 85, 85, 85, 255, 0, 0, 0, 255])
+    } as ImageData
   }
 }
 
 describe('MethodsReach', () => {
-  it('opens before training on four screens under the learners, the key naming Blue, Oak, and the pad', () => {
+  it('opens before training on four screens under the learners, the key naming Blue, Oak, and the '
+   + 'pad', () => {
     drawInto(null)
     const wrapper = mount(MethodsReach)
 
     expect([
       status(wrapper),
-      pointer.sliderState(wrapper),
+      input.sliderState(wrapper),
       wrapper.findAll('figcaption').map(each => each.text()),
       wrapper.findAll('canvas').length
     ]).toStrictEqual([
@@ -60,11 +63,11 @@ describe('MethodsReach', () => {
     const recorder = drawInto(new Recorder())
     const thumb    = mount(MethodsReach).get('[role="slider"]')
 
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'ArrowRight' })
+    await input.pressKeys(thumb, 'ArrowRight')
     await nextTick()
 
-    expect(recorder.marks).toStrictEqual(Array.from({ length: 4 }, () => expect.objectContaining({ height: 9 * 16, width: 3 * 16, x: 0, y: 0 })))
+    expect(recorder.marks).toStrictEqual(Array.from({ length: 4 }, () =>
+      expect.objectContaining({ height: 9 * 16, width: 3 * 16, x: 0, y: 0 })))
   })
 })
 
@@ -74,15 +77,15 @@ describe('MethodsReach’s playback', () => {
     const wrapper = mount(MethodsReach, { attachTo: document.body })
     const thumb   = wrapper.get('[role="slider"]')
 
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'ArrowRight' })
-    await thumb.trigger('keydown', { key: 'ArrowRight' })
+    await input.pressKeys(thumb, 'ArrowRight', 'ArrowRight')
     await nextTick()
 
-    expect([status(wrapper), pointer.sliderState(wrapper)]).toStrictEqual(['Pass 2 of 8', ['2', 'After pass 2 of 8']])
+    expect([status(wrapper), input.sliderState(wrapper)])
+      .toStrictEqual(['Pass 2 of 8', ['2', 'After pass 2 of 8']])
   })
 
-  stopped('plays on the Game Boy’s frame clock once it shows, and stands after the last pass under reduced motion', async () => {
+  stopped('plays on the Game Boy’s frame clock once it shows, and stands after the last pass under reduced '
+        + 'motion', async () => {
     drawInto(null)
     const sight   = browser.stubSight()
     const wrapper = mount(MethodsReach, { attachTo: document.body })

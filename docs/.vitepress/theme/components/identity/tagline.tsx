@@ -23,13 +23,28 @@ export const IdentityTagline = defineComponent({
       <div class="identity-folders @container grid" ref={box} {...listeners}>
         <div {...tabs.root.value} aria-label="The places" class="identity-fan grid">
           {PLACES.map(({ name, place }, n) => {
-            const depth = (n - PLACES.findIndex(each => each.place === at.value) + PLACES.length) % PLACES.length
+            const depth = (n - PLACES.findIndex(each => each.place === at.value) + PLACES.length)
+                        % PLACES.length
             return (
-              <figure aria-label={name} class="identity-folder relative m-0 grid rounded-3 bg-ground" data-depth={depth} style={{ '--tab': n }}>
-                <button {...tabs.item(place)} class="identity-folder-tab focus-ring absolute cursor-pointer rounded-t-2 bg-ground px-3 py-2 text-left font-body text-small text-ink" type="button">
+              <figure
+                aria-label={name}
+                class="identity-folder relative m-0 grid rounded-3 bg-ground"
+                data-depth={depth}
+                style={{ '--tab': n }}
+              >
+                <button
+                  {...tabs.item(place)}
+                  class={[
+                    'identity-folder-tab focus-ring absolute cursor-pointer rounded-t-2 bg-ground px-3 py-2',
+                    'text-left font-body text-small text-ink'
+                  ]}
+                  type="button"
+                >
                   {name}
                 </button>
-                <div class="identity-folder-body overflow-hidden rounded-3" inert={depth !== 0}>{drawPlace(place, theme.value, isDark.value ? 'dark' : 'light')}</div>
+                <div class="identity-folder-body overflow-hidden rounded-3" inert={depth !== 0}>
+                  {drawPlace(place, theme.value, isDark.value ? 'dark' : 'light')}
+                </div>
               </figure>
             )
           })}

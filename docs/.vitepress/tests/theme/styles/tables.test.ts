@@ -62,7 +62,8 @@ describe('tables.css', () => {
     expect(tabled.map(({ name }) => name)).toContain('commands/train.md')
   })
 
-  it.for(tabled)('lays each table of $name across the column inside a block scrolling sideways', async page => {
+  it.for(tabled)('lays each table of $name across the column inside a block scrolling '
+               + 'sideways', async page => {
     await render(page)
 
     const tables = dom.document.querySelectorAll('table')
@@ -74,7 +75,8 @@ describe('tables.css', () => {
     expect([...new Set(computed('table', 'width'))]).toStrictEqual(['100%'])
   })
 
-  it.for(tabled)('keeps each code span set alone in a cell of $name on one line while the cell’s prose wraps', async page => {
+  it.for(tabled)('keeps each code span set alone in a cell of $name on one line while the cell’s prose '
+               + 'wraps', async page => {
     await render(page)
 
     const alone = computed('td > code', 'white-space')

@@ -45,7 +45,8 @@ describe('previewAlt', () => {
 })
 
 describe('previewPath', () => {
-  it.each(SCHEMES)('holds the committed %s preview at the size the preview draws, within the 6 MB guide', scheme => {
+  it.each(SCHEMES)('holds the committed %s preview at the size the preview draws, within the 6 MB '
+                 + 'guide', scheme => {
     const bytes  = fs.readFileSync(preview.previewPath(import.meta.url, scheme))
     const played = movie.previewMovie(import.meta.url, MOMENTS, movie.PREVIEW, scheme)
 
@@ -55,7 +56,8 @@ describe('previewPath', () => {
 })
 
 describe('writePreviews', () => {
-  test('writes the preview in every scheme on its own ground, each looping forever on one palette', ({ checkout }) => {
+  test('writes the preview in every scheme on its own ground, each looping forever on one '
+     + 'palette', ({ checkout }) => {
     const { metaUrl } = checkout()
 
     preview.writePreviews(metaUrl, MOMENTS, QUICK)

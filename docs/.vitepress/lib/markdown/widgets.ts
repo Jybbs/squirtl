@@ -53,13 +53,16 @@ export function sectionWidgets(md: MarkdownRenderer, widgets: readonly Placement
     const opens  = tokens.flatMap((token, i) => token.type === 'heading_open' ? [i] : [])
     const notes  = tokens.findIndex(token => token.type === 'footnote_block_open')
     const last   = notes === -1 ? tokens.length : notes
-    const placed = widgets.filter(({ page }) => page === state.env.relativePath).flatMap(({ heading, name }) => {
-      const at = opens.find(i => tokens[i + 1]?.content === heading)
-      if (at === undefined) return []
-      const end    = opens.find(i => i > at) ?? last
-      const folded = tokens.findIndex((token, i) => i > at && i < end && token.type === 'html_block' && token.content.startsWith('<details'))
-      return [{ end: folded === -1 ? end : folded, name }]
-    })
+    const placed = widgets
+      .filter(({ page }) => page === state.env.relativePath)
+      .flatMap(({ heading, name }) => {
+        const at = opens.find(i => tokens[i + 1]?.content === heading)
+        if (at === undefined) return []
+        const end    = opens.find(i => i > at) ?? last
+        const folded = tokens.findIndex((token, i) =>
+          i > at && i < end && token.type === 'html_block' && token.content.startsWith('<details'))
+        return [{ end: folded === -1 ? end : folded, name }]
+      })
 
     for (const { end, name } of placed.toSorted((left, right) => right.end - left.end)) {
       tokens.splice(end, 0, Object.assign(new state.Token('html_block', '', 0), { content: `<${name} />\n` }))

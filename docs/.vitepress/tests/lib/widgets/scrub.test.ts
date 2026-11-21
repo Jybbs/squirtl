@@ -5,7 +5,7 @@ import { defineComponent, h, ref }               from 'vue'
 
 import type { Ticking } from '../../../lib/widgets/autoplay.ts'
 import { useScrub }     from '../../../lib/widgets/scrub.ts'
-import * as pointer     from '../../common/pointer.ts'
+import * as input       from '../../common/input.ts'
 
 /**
  * Every hold the autoplay takes and the run each autoplay steps through, which
@@ -51,7 +51,7 @@ function scrubbed() {
       ])
     }
   }), { attachTo: document.body })
-  const control = pointer.laidOut(wrapper.get('.control'), 90, 100)
+  const control = input.laidOut(wrapper.get('.control'), 90, 100)
   return { at, control, holds: autoplays.holds, sought, thumb: wrapper.get('[role="slider"]'), wrapper }
 }
 
@@ -85,7 +85,7 @@ describe('useScrub under a pointer and the keys', () => {
   test('holds the position under a mouse crossing the drawing, and the autoplay while it rests', async () => {
     const { control, holds, sought } = scrubbed()
 
-    await pointer.sweep(control, [150])
+    await input.sweep(control, [150])
     await control.trigger('pointerleave', { pointerType: 'mouse' })
 
     expect([sought, holds]).toStrictEqual([[], ['pointer true', 'pointer false']])
@@ -94,7 +94,7 @@ describe('useScrub under a pointer and the keys', () => {
   test('seeks the position a press along the drawing lands on', async () => {
     const { control, sought } = scrubbed()
 
-    await pointer.press(control, 150)
+    await input.press(control, 150)
 
     expect(sought).toStrictEqual([5])
   })
@@ -111,8 +111,7 @@ describe('useScrub under a pointer and the keys', () => {
   test('steps a position with the arrow keys once the thumb has focus, holding the autoplay', async () => {
     const { holds, sought, thumb } = scrubbed()
 
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'ArrowRight' })
+    await input.pressKeys(thumb, 'ArrowRight')
 
     expect([sought, holds[0]]).toStrictEqual([[4], 'keys true'])
   })

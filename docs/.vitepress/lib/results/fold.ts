@@ -50,7 +50,9 @@ function useFold(width: Ref<number>): {
     listeners : each => ({
       onBlur         : () => { focused.value = null },
       onFocus        : () => { focused.value = each },
-      onPointerdown  : event => { if (event.pointerType === 'touch') (event.currentTarget as HTMLElement).focus() },
+      onPointerdown  : event => {
+        if (event.pointerType === 'touch') (event.currentTarget as HTMLElement).focus()
+      },
       onPointerenter : event => { if (fromMouse(event)) hovered.value = each },
       onPointerleave : event => { if (fromMouse(event)) hovered.value = null }
     }),
@@ -91,7 +93,11 @@ function useEntrance(seen: Ref<boolean>, seeds: number, lanes: number): {
  *   The figure laid out, how far it has played in, the groups, the legend,
  *   the listeners each side takes, and the width drawn at.
  */
-export function useComparison(box: Ref<HTMLElement | undefined>, hatch: string, results: Results = COMMITTED) {
+export function useComparison(
+  box     : Ref<HTMLElement | undefined>,
+  hatch   : string,
+  results : Results = COMMITTED
+) {
   const groups   = groupsOf(results)
   const width    = useDrawnWidth(box, 240)
   const seen     = useElementVisibility(box, { once: true })

@@ -10,8 +10,10 @@ import { IDENTITY } from '../../../lib/identity/identity.ts'
 const PARTS = {
   group    : 'grid gap-3',
   parts    : 'grid gap-4 px-4',
-  strip    : 'identity-strip flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2 bg-lift py-2 pr-2 pl-4',
-  swatch   : 'identity-face focus-ring grid cursor-pointer justify-items-center gap-0 rounded-1 bg-ground pt-1 pb-1 text-ink disabled:cursor-default',
+  strip    : 'identity-strip flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2 bg-lift '
+           + 'py-2 pr-2 pl-4',
+  swatch   : 'identity-face focus-ring grid cursor-pointer justify-items-center gap-0 rounded-1 bg-ground '
+           + 'pt-1 pb-1 text-ink disabled:cursor-default',
   swatches : 'flex flex-wrap gap-1'
 }
 
@@ -24,7 +26,11 @@ type Faces = ReturnType<typeof faces.useFaces>
  * The style setting text in `role`'s face at `weight`.
  */
 function styleOf(role: faces.Role, weight: faces.Weight) {
-  return { fontFamily: IDENTITY.faces[role].stack, fontStyle: weight.italic ? 'italic' : 'normal', fontWeight: weight.weight }
+  return {
+    fontFamily : IDENTITY.faces[role].stack,
+    fontStyle  : weight.italic ? 'italic' : 'normal',
+    fontWeight : weight.weight
+  }
 }
 
 /**
@@ -34,7 +40,11 @@ function styleOf(role: faces.Role, weight: faces.Weight) {
 function drawInline(at: number) {
   return (
     <span class="identity-inline inline-grid">
-      {faces.WEIGHTS.code.map((weight, n) => <code aria-hidden={n !== at} data-shown={n === at} style={styleOf('code', weight)}>{faces.WORDS.inline}</code>)}
+      {faces.WEIGHTS.code.map((weight, n) => (
+        <code aria-hidden={n !== at} data-shown={n === at} style={styleOf('code', weight)}>
+          {faces.WORDS.inline}
+        </code>
+      ))}
     </span>
   )
 }
@@ -46,8 +56,18 @@ function drawInline(at: number) {
 function drawPart(role: faces.Role, weight: faces.Weight, code: number): VNode {
   const style = styleOf(role, weight)
   if (role === 'display') return <div class="text-title leading-tight" style={style}>{faces.WORDS.head}</div>
-  if (role === 'body') return <div class="text-body leading-normal" style={style}>{faces.WORDS.lead}{drawInline(code)}{faces.WORDS.tail}</div>
-  return <div class="flex flex-wrap gap-x-5 text-figure tabular-nums" style={style}>{faces.WORDS.figures.map(each => <span>{each}</span>)}</div>
+  if (role === 'body') {
+    return (
+      <div class="text-body leading-normal" style={style}>
+        {faces.WORDS.lead}{drawInline(code)}{faces.WORDS.tail}
+      </div>
+    )
+  }
+  return (
+    <div class="flex flex-wrap gap-x-5 text-figure tabular-nums" style={style}>
+      {faces.WORDS.figures.map(each => <span>{each}</span>)}
+    </div>
+  )
 }
 
 /**
@@ -63,7 +83,9 @@ function drawStack({ at }: Faces, role: faces.Role) {
     <div class="identity-stack grid min-w-0">
       <div aria-hidden="true" class="invisible">{drawPart(role, heaviest, at.code)}</div>
       {faces.copiesOf(role, at[role]).map(({ shown, weight }) => (
-        <div aria-hidden={!shown} class="identity-copy" data-shown={shown}>{drawPart(role, weight, at.code)}</div>
+        <div aria-hidden={!shown} class="identity-copy" data-shown={shown}>
+          {drawPart(role, weight, at.code)}
+        </div>
       ))}
     </div>
   )
@@ -80,7 +102,9 @@ function drawStrip({ choices }: Faces, role: faces.Role) {
   return (
     <div class={PARTS.strip}>
       <div class="identity-name flex min-w-0 flex-wrap items-baseline gap-x-3">
-        <span class="text-say leading-tight font-medium text-ink" style={{ fontFamily: face.stack }}>{face.family}</span>
+        <span class="text-say leading-tight font-medium text-ink" style={{ fontFamily: face.stack }}>
+          {face.family}
+        </span>
         <span class="font-body text-small text-quiet">{face.purpose}</span>
       </div>
       <div {...choice.root.value} aria-label={`${face.family}’s weights`} class={PARTS.swatches}>
@@ -93,7 +117,9 @@ function drawStrip({ choices }: Faces, role: faces.Role) {
             type="button"
           >
             <span aria-hidden="true" class="text-say leading-tight" style={styleOf(role, weight)}>Ag</span>
-            <span class="identity-weight font-code text-label font-medium text-quiet tabular-nums">{weight.label}</span>
+            <span class="identity-weight font-code text-label font-medium text-quiet tabular-nums">
+              {weight.label}
+            </span>
           </button>
         ))}
       </div>

@@ -39,7 +39,8 @@ export function fadedOf(
 ): Faded | null {
   const crop    = part ?? { height: image.naturalHeight, width: image.naturalWidth, x: 0, y: 0 }
   const size    = { height: crop.height, width: crop.width }
-  const context = Object.assign(document.createElement('canvas'), size).getContext('2d', { willReadFrequently: true })
+  const context = Object.assign(document.createElement('canvas'), size)
+    .getContext('2d', { willReadFrequently: true })
   if (!context) return null
   context.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height)
   const pixels = context.getImageData(0, 0, size.width, size.height).data
@@ -56,7 +57,11 @@ export function fadedOf(
     canvas.getContext('2d')?.putImageData(out, 0, 0)
     return canvas
   }
-  return { map: palettes.map(palette => render(palette, false)), over: palettes.map(palette => render(palette, true)), shades }
+  return {
+    map  : palettes.map(palette => render(palette, false)),
+    over : palettes.map(palette => render(palette, true)),
+    shades
+  }
 }
 
 /**
@@ -69,7 +74,8 @@ export function useRoomFades(palettes: readonly string[]): ShallowRef<ReadonlyMa
   onMounted(() => images.whenReady(() => {
     rooms.value = new Map((Object.keys(WORLD) as Place[]).flatMap(place => {
       const { h, pad, w } = WORLD[place]
-      const faded         = fadedOf(images.image(place), palettes, { height: h * SQUARE, width: w * SQUARE, x: pad * SQUARE, y: pad * SQUARE })
+      const crop          = { height: h * SQUARE, width: w * SQUARE, x: pad * SQUARE, y: pad * SQUARE }
+      const faded         = fadedOf(images.image(place), palettes, crop)
       return faded ? [[place, faded] as const] : []
     }))
   }))

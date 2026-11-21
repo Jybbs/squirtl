@@ -23,8 +23,20 @@ export interface Screen {
  * one network, and PPO's odds.
  */
 export const SCREENS: readonly Screen[] = [
-  { group: 'Deep Q-network', name: 'Online', odds: false, says: 'the deep Q-network’s online network’s value of it', series: 'online' },
-  { group: 'Deep Q-network', name: 'Copy', odds: false, says: 'the deep Q-network’s copy’s value of it', series: 'copy' },
+  {
+    group  : 'Deep Q-network',
+    name   : 'Online',
+    odds   : false,
+    says   : 'the deep Q-network’s online network’s value of it',
+    series : 'online'
+  },
+  {
+    group  : 'Deep Q-network',
+    name   : 'Copy',
+    odds   : false,
+    says   : 'the deep Q-network’s copy’s value of it',
+    series : 'copy'
+  },
   { group: 'PQN', name: 'No copy', odds: false, says: 'PQN’s value of it', series: 'pqn' },
   { group: 'PPO', name: 'Odds', odds: true, says: 'PPO’s odds of it', series: 'odds' }
 ]
@@ -32,14 +44,20 @@ export const SCREENS: readonly Screen[] = [
 /**
  * The learners over the screens, each with the screens it spans.
  */
-export const GROUPS = [...new Set(SCREENS.map(each => each.group))].map(group => ({ group, span: SCREENS.filter(each => each.group === group).length }))
+export const GROUPS = [...new Set(SCREENS.map(each => each.group))]
+  .map(group => ({ group, span: SCREENS.filter(each => each.group === group).length }))
 
 /**
  * Draws every screen into `canvases` as training stands at `moment`, the
  * values landed `landed` of the way and the copy `copied` of the way, once
  * Pallet Town's image loads.
  */
-export function useScreens(canvases: Ref<HTMLCanvasElement[]>, moment: Ref<reach.Moment>, landed: Ref<number>, copied: Ref<number>): void {
+export function useScreens(
+  canvases : Ref<HTMLCanvasElement[]>,
+  moment   : Ref<reach.Moment>,
+  landed   : Ref<number>,
+  copied   : Ref<number>
+): void {
   const images = new RoomImages()
   let faded: Faded | null = null
 
@@ -49,7 +67,8 @@ export function useScreens(canvases: Ref<HTMLCanvasElement[]>, moment: Ref<reach
       const screen  = SCREENS[n]!
       if (context) {
         const shared = screen.series === 'copy' ? copied.value : landed.value
-        paintScreen(context, faded, { odds: screen.odds, values: reach.RUN[screen.series] }, shared, moment.value)
+        const series = { odds: screen.odds, values: reach.RUN[screen.series] }
+        paintScreen(context, faded, series, shared, moment.value)
       }
     })
   }

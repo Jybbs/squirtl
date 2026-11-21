@@ -96,7 +96,8 @@ function townImage(place: TownPlacement, scheme: identity.Scheme): string {
   return `<image href="${TOWN.image[scheme]}" x="${left}" y="${top}" width="${width}" `
        + `height="${TOWN.height * SITE.scale}" image-rendering="optimizeSpeed" preserveAspectRatio="none"/>`
        + `<defs><linearGradient id="${id}" x1="0" x2="1">${stops.join('')}</linearGradient></defs>`
-       + `<rect x="${left}" y="0" width="${width + SITE.margin}" height="${cards.CARD.height}" fill="url(#${id})"/>`
+       + `<rect x="${left}" y="0" width="${width + SITE.margin}" height="${cards.CARD.height}" `
+       + `fill="url(#${id})"/>`
 }
 
 /**

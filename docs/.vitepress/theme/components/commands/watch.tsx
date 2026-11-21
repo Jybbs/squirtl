@@ -47,16 +47,28 @@ export const CommandsWatch = defineComponent({
     return () => (
       <div class="@container">
         <div class="watch grid gap-4">
-          <div class="watch-window grid self-start overflow-hidden rounded-2 border-hairline border-rule bg-lift" style={{ opacity: watching.windowAt(t.value) }}>
+          <div
+            class="watch-window grid self-start overflow-hidden rounded-2 border-hairline border-rule bg-lift"
+            style={{ opacity: watching.windowAt(t.value) }}
+          >
             <p class={[LABEL, 'm-0 border-b-hairline border-rule py-2 text-center']}>PyBoy</p>
-            <canvas aria-label={WORDS.screen} class={[GAME_VIEW, 'rounded-none border-0']} height={SCREEN.height} ref={canvas} role="img" width={SCREEN.width} />
+            <canvas
+              aria-label={WORDS.screen}
+              class={[GAME_VIEW, 'rounded-none border-0']}
+              height={SCREEN.height}
+              ref={canvas}
+              role="img"
+              width={SCREEN.width}
+            />
           </div>
           {drawBefore(t.value)}
           {drawAfter(t.value, step.value)}
           <div class="watch-presses grid min-w-0 gap-2">
             <p class="m-0 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
               <span class={LABEL}>{WORDS.presses}</span>
-              <span class={DETAIL}>{`${count(watching.LAST)} bytes · timer_div ${watching.RUN.timerDiv}`}</span>
+              <span class={DETAIL}>
+                {`${count(watching.LAST)} bytes · timer_div ${watching.RUN.timerDiv}`}
+              </span>
             </p>
             <div ref={box}>
               <Slider band={band} parts={PRESSES} scrub={scrub}>{drawPresses(step.value)}</Slider>

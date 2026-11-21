@@ -3,12 +3,13 @@ Pins what the `site` tasks decide from the shell and the checkout they run
 in, meaning the output format `site:lint` chooses for the shell it runs in,
 the ref `site:affected` hands Vitest's `--changed`, each further argument
 the tasks forward after their own flags, and the single-file component
-`site:typecheck` refuses before `tsc` starts.
+`site:typecheck` refuses before `tsc` starts, and that `site:lint` runs its
+line check after Oxlint whatever Oxlint returns.
 
 Each case runs its task from `tmp_path`, where the links under
-`node_modules/.bin/` lead to the stand-in under `fixtures/`, which prints
-each argument it receives on a line of its own, so no case starts Oxlint,
-`tsc`, or Vitest.
+`node_modules/.bin/` and the `node` first on the path lead to the stand-in
+under `fixtures/`, which prints each argument it receives on a line of its
+own, so no case starts Oxlint, `tsc`, Vitest, or Node.
 """
 
 from collections.abc import Callable, Mapping
@@ -18,12 +19,20 @@ from subprocess      import run
 
 
 @fixture(autouse=True)
-def stand_ins(monkeypatch: MonkeyPatch, pytestconfig: Config, tmp_path: Path):
+def stand_ins(
+    install_stand_ins : Callable[..., Path],
+    monkeypatch       : MonkeyPatch,
+    pytestconfig      : Config,
+    tmp_path          : Path
+):
     """
-    Makes `tmp_path` the working directory and links each program a `site`
-    task starts from `node_modules/.bin/` there to the stand-in.
+    Makes `tmp_path` the working directory and links each program a
+    `site` task starts from `node_modules/.bin/` there, and `node`, to the
+    stand-in.
     """
     programs = tmp_path / "node_modules/.bin"
+
+    install_stand_ins("echo.sh", "node")
 
     monkeypatch.chdir(tmp_path)
     programs.mkdir(parents=True)
@@ -65,12 +74,56 @@ def test_lint_asks_oxlint_for_annotations_under_github_actions(
     Pins the argument list `site:lint` hands Oxlint, asking for annotations
     under GitHub Actions and for its default format elsewhere, and
     forwarding `--quiet` after its own flags and ahead of the folder Oxlint
-    reads.
+    reads, before Node runs the line check from standard input.
     """
     assert printed("site/lint", "--quiet") == [
-        "--config", ".vitepress/config/.oxlintrc.json", "--format",
-        output, "--quiet", ".vitepress"
+        "--config", ".vitepress/config/.oxlintrc.json", "--format", output,
+        "--quiet", ".vitepress", "--input-type=module"
     ]
+
+
+def test_lint_exits_1_when_the_line_check_fails_after_oxlint_passes(
+    pytestconfig : Config,
+    tmp_path     : Path
+):
+    """
+    Asserts that `site:lint` exits 1 once the line check fails though Oxlint
+    passes, Oxlint having read `.vitepress` first.
+    """
+    node = tmp_path / "stand-ins/node"
+
+    node.unlink()
+    node.symlink_to("/usr/bin/false")
+
+    result = run(
+        [pytestconfig.rootpath / ".mise/tasks/site/lint"],
+        capture_output = True,
+        text           = True
+    )
+
+    assert (result.returncode, result.stdout.splitlines()[-1]) == (1, ".vitepress")
+
+
+def test_lint_runs_the_line_check_after_oxlint_fails_and_exits_1(
+    pytestconfig : Config,
+    tmp_path     : Path
+):
+    """
+    Asserts that `site:lint` still starts the line check once Oxlint exits
+    1, and exits 1 itself though the check passes.
+    """
+    oxlint = tmp_path / "node_modules/.bin/oxlint"
+
+    oxlint.unlink()
+    oxlint.symlink_to("/usr/bin/false")
+
+    result = run(
+        [pytestconfig.rootpath / ".mise/tasks/site/lint"],
+        capture_output = True,
+        text           = True
+    )
+
+    assert (result.returncode, result.stdout) == (1, "--input-type=module\n")
 
 
 @mark.usefixtures("clone")

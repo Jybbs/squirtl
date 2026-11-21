@@ -70,7 +70,8 @@ export const xOf = (age: number): number => LINE.right - age / MEMORY.capacity *
 export function arcOf(age: number): string {
   const x    = xOf(age)
   const lift = 12 + age / MEMORY.capacity * 90
-  return `M${LINE.right} ${LINE.top} Q${round((x + LINE.right) / 2)} ${round(LINE.lane - lift)} ${round(x)} ${LINE.lane}`
+  return `M${LINE.right} ${LINE.top} `
+       + `Q${round((x + LINE.right) / 2)} ${round(LINE.lane - lift)} ${round(x)} ${LINE.lane}`
 }
 
 /**
@@ -79,7 +80,8 @@ export function arcOf(age: number): string {
  */
 export function agesOf(k: number): number[] {
   const random = seeded(k * 31 + 11)
-  return Array.from({ length: MEMORY.batch }, () => Math.floor(random() * MEMORY.capacity)).toSorted((a, b) => a - b)
+  return Array.from({ length: MEMORY.batch }, () => Math.floor(random() * MEMORY.capacity))
+    .toSorted((a, b) => a - b)
 }
 
 /**
@@ -87,7 +89,11 @@ export function agesOf(k: number): number[] {
  */
 export function figuresOf(ages: readonly number[]): { median: number, newest: number, oldest: number } {
   const middle = (ages.length - 1) / 2
-  return { median: Math.round((ages[Math.floor(middle)]! + ages[Math.ceil(middle)]!) / 2), newest: ages[0]!, oldest: ages.at(-1)! }
+  return {
+    median : Math.round((ages[Math.floor(middle)]! + ages[Math.ceil(middle)]!) / 2),
+    newest : ages[0]!,
+    oldest : ages.at(-1)!
+  }
 }
 
 /**
@@ -107,7 +113,10 @@ export function walkOf(seed: number): Shown[] {
  * The walks the windows show, one from each of the first seeds, standing in
  * for the environments the steps came from.
  */
-export const WALKS: readonly Shown[][] = Array.from({ length: SETTINGS.agent.environments }, (_, i) => walkOf(i + 1))
+export const WALKS: readonly Shown[][] = Array.from(
+  { length: SETTINGS.agent.environments },
+  (_, i) => walkOf(i + 1)
+)
 
 /**
  * Reads the step the window of read `i`, `age` steps ago, shows.

@@ -1,13 +1,22 @@
 #!/usr/bin/env -S bash -euo pipefail
 #MISE depends     = ["site:install"]
-#MISE description = "Lint the site's TypeScript with Oxlint, as annotations under GitHub Actions"
+#MISE description = "Lint the site's TypeScript with Oxlint, as annotations under GitHub Actions, and fail on a line past 110 characters"
 #MISE dir         = "docs"
 
 format=default
 [[ -z "${GITHUB_ACTIONS:-}" ]] || format=github
+status=0
 
 node_modules/.bin/oxlint \
   --config .vitepress/config/.oxlintrc.json \
   --format "$format" \
   "$@" \
-  .vitepress
+  .vitepress \
+  || status=$?
+
+node --input-type=module <<'NODE' || status=$?
+import { lintLines } from "./.vitepress/lib/proof/lines.ts"
+lintLines(import.meta.url)
+NODE
+
+exit "$status"

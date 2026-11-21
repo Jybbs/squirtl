@@ -38,7 +38,8 @@ function measured() {
 enableAutoUnmount(afterEach)
 
 describe('climbOf', () => {
-  it('runs the course from the floor at the first step to the starter two thirds of the way up, a step at a time', () => {
+  it('runs the course from the floor at the first step to the starter two thirds of the way up, a step at a '
+   + 'time', () => {
     expect([PLOT.heads[0], PLOT.heads.at(-1), PLOT.heads.length]).toStrictEqual([[48, 298], [369, 99.8], 182])
     expect(PLOT.course).toMatch(/^M48,298H49\.8V298H51\.5V297\.9.*H369V99\.8$/u)
   })
@@ -68,7 +69,8 @@ describe('climbOf', () => {
   ])('labels the steps at %i pixels, leaving out a label the axis’s title would meet', (width, labels) => {
     const plot = climb.climbOf(TRACE, width, 300)
 
-    expect(plot.steps.map(label => [label.anchor, label.text])).toStrictEqual(labels.map(text => ['middle', text]))
+    expect(plot.steps.map(label => [label.anchor, label.text]))
+      .toStrictEqual(labels.map(text => ['middle', text]))
     expect(plot.title).toStrictEqual({ anchor: 'end', text: 'Step', x: width - 32, y: 320 })
   })
 

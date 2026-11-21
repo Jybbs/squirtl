@@ -3,9 +3,63 @@ import { type PropType, defineComponent } from 'vue'
 import { termMark }            from '../../../../lib/game/actors.ts'
 import type { RoomImages }     from '../../../../lib/game/images.ts'
 import { type Segment, along } from '../../../../lib/methods/curriculum.ts'
-import { useLane }             from '../../../../lib/methods/curriculum/lanes.ts'
+import { type Parts, useLane } from '../../../../lib/methods/curriculum/lanes.ts'
 import { LENS, type Lane }     from '../../../../lib/methods/curriculum/screens.ts'
 import { LABEL }               from '../../kit/widget.ts'
+
+/**
+ * Draws the goal's mark and words at the head of a lane.
+ */
+function drawGoal(segment: Segment) {
+  return (
+    <div class="flex min-w-0 items-center gap-2">
+      <span
+        aria-hidden="true"
+        class="grid size-mark flex-none place-items-center *:size-full"
+        innerHTML={termMark(segment.term)}
+      />
+      <span class="min-w-0 text-small leading-snug font-medium text-ink @max-sm:hidden">
+        {segment.tag}
+      </span>
+    </div>
+  )
+}
+
+/**
+ * Draws the screen a lane glides along its track, the canvas showing the
+ * episode of the batch at its start under the gray the recording lays over it.
+ */
+function drawScreen({ canvas, screen }: Pick<Parts, 'canvas' | 'screen'>, tag: string) {
+  return (
+    <div
+      class={[
+        'curriculum-glide relative w-curriculum-screen justify-self-start',
+        '@max-sm:w-curriculum-screen-narrow'
+      ]}
+      ref={screen}
+    >
+      <div class="curriculum-glass relative isolate rounded-1 bg-quiet p-1">
+        <div class="relative overflow-hidden rounded-swatch">
+          <canvas
+            aria-label={`${tag}, an episode of the batch standing at its start on the way`}
+            class="pixelated block h-auto w-full"
+            height={LENS.height}
+            ref={canvas}
+            role="img"
+            width={LENS.width}
+          />
+          <span
+            aria-hidden="true"
+            class={[
+              'curriculum-gray pointer-events-none absolute inset-0',
+              'backdrop-grayscale backdrop-brightness-112 backdrop-contrast-72'
+            ]}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /**
  * One segment's lane: the goal's mark and words, then a track from the bedroom
@@ -30,11 +84,11 @@ export const CurriculumLane = defineComponent({
     const { after, before, canvas, far, screen, track } = useLane(props)
 
     return () => (
-      <li class="curriculum-lane col-span-full grid grid-cols-subgrid items-center" data-phase={props.lane.phase}>
-        <div class="flex min-w-0 items-center gap-2">
-          <span aria-hidden="true" class="grid size-mark flex-none place-items-center *:size-full" innerHTML={termMark(props.segment.term)} />
-          <span class="min-w-0 text-small leading-snug font-medium text-ink @max-sm:hidden">{props.segment.tag}</span>
-        </div>
+      <li
+        class="curriculum-lane col-span-full grid grid-cols-subgrid items-center"
+        data-phase={props.lane.phase}
+      >
+        {drawGoal(props.segment)}
         <div class="relative grid items-center" ref={track}>
           <span aria-hidden="true" class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2">
             <span class="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t-ring border-rule" />
@@ -47,22 +101,15 @@ export const CurriculumLane = defineComponent({
             innerHTML={termMark(props.segment.term)}
             style={{ left: `${100 * along(props.segment.end + 1)}%` }}
           />
-          <div class="curriculum-glide relative w-curriculum-screen justify-self-start @max-sm:w-curriculum-screen-narrow" ref={screen}>
-            <div class="curriculum-glass relative isolate rounded-1 bg-quiet p-1">
-              <div class="relative overflow-hidden rounded-swatch">
-                <canvas
-                  aria-label={`${props.segment.tag}, an episode of the batch standing at its start on the way`}
-                  class="pixelated block h-auto w-full"
-                  height={LENS.height}
-                  ref={canvas}
-                  role="img"
-                  width={LENS.width}
-                />
-                <span aria-hidden="true" class="curriculum-gray pointer-events-none absolute inset-0 backdrop-grayscale backdrop-brightness-112 backdrop-contrast-72" />
-              </div>
-            </div>
-          </div>
-          <span class={[LABEL, 'curriculum-glide absolute bottom-0 left-0 font-semibold whitespace-nowrap text-denim-text tabular-nums @max-sm:hidden']} ref={far}>
+          {drawScreen({ canvas, screen }, props.segment.tag)}
+          <span
+            class={[
+              LABEL,
+              'curriculum-glide absolute bottom-0 left-0 font-semibold whitespace-nowrap text-denim-text',
+              'tabular-nums @max-sm:hidden'
+            ]}
+            ref={far}
+          >
             {props.far}
           </span>
         </div>
