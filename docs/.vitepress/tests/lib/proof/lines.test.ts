@@ -16,13 +16,15 @@ describe('longLines', () => {
       'docs/.vitepress/theme/b.tsx' : `ok\n${comment(LINE_LIMIT + 3)}\n`,
       'docs/node_modules/c/d.ts'    : `${comment(LINE_LIMIT + 1)}\n`,
       'docs/pages/e.md'             : `${comment(LINE_LIMIT + 1)}\n`,
-      'docs/pages/f.ts'             : `${comment(LINE_LIMIT + 2)}\n`
+      'docs/pages/f.ts'             : `${comment(LINE_LIMIT + 2)}\n`,
+      'docs/pages/g.tsx'            : `${comment(LINE_LIMIT + 4)}\n`
     })
 
     expect(longLines(metaUrl)).toStrictEqual([
       { file: 'docs/.vitepress/lib/a.ts', length: LINE_LIMIT + 1, line: 2 },
       { file: 'docs/.vitepress/theme/b.tsx', length: LINE_LIMIT + 3, line: 2 },
-      { file: 'docs/pages/f.ts', length: LINE_LIMIT + 2, line: 1 }
+      { file: 'docs/pages/f.ts', length: LINE_LIMIT + 2, line: 1 },
+      { file: 'docs/pages/g.tsx', length: LINE_LIMIT + 4, line: 1 }
     ])
   })
 

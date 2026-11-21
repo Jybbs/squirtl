@@ -26,8 +26,9 @@ describe('GROUNDS', () => {
 })
 
 describe('hueOfToken', () => {
-  it.each([['primary', 'denim'], ['ground', null]] as const)('finds the hue whose color %s is as '
-                                                           + '%s', (token, hue) => {
+  it.each([
+    ['primary', 'denim'], ['ground', null]
+  ] as const)('finds the hue whose color %s is as %s', (token, hue) => {
     expect(palette.hueOfToken(token)).toBe(hue)
   })
 })

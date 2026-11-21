@@ -185,8 +185,9 @@ describe('snapFootnotes across the page', () => {
 })
 
 describe('watchFootnotes', () => {
-  it.each(['a change of the layout', 'a font arriving', 'a change of device pixel ratio'])('snaps on '
-                                                                                         + '%s', name => {
+  it.each([
+    'a change of the layout', 'a font arriving', 'a change of device pixel ratio'
+  ])('snaps on %s', name => {
     const view  = document.defaultView!
     const fonts = new EventTarget()
     const fired = new Map<string, () => void>([
