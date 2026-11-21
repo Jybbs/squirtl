@@ -6,9 +6,9 @@ the test modules `py:affected` selects from the files a branch changes,
 each further argument forwarded after the flags and ahead of the operands,
 and the folders `py:lint` and `py:format` name as the formatter's operands,
 beside the tests the reader in `reach.py` selects for a changed module,
-helper, or root conftest, the verdict `py:combine` reaches from the parts it
-combines, and the snapshots the plugin `py:snapshots` loads leaves syrupy to
-fail on.
+helper, or root conftest, the verdict `py:combine` reaches from the parts
+it combines, and the unused snapshots syrupy still fails on once the plugin
+`py:snapshots` loads skips every test.
 
 The reader's and `py:combine`'s cases import each script through
 `load_task`, the reader's running in a checkout holding the files `SUITE`
@@ -19,15 +19,15 @@ whereas the plugin's cases start pytest in an interpreter of their own over
 a module written under `tmp_path`.
 """
 
-from collections.abc     import Callable, Mapping
-from coverage            import CoverageData
-from coverage.exceptions import CoverageWarning
-from json                import loads
-from pathlib             import Path
-from pytest              import CaptureFixture, Config, MonkeyPatch, fixture, mark, param, warns
-from subprocess          import run
-from sys                 import executable
-from types               import ModuleType
+from collections.abc import Callable, Mapping
+from coverage        import CoverageData
+from json            import loads
+from pathlib         import Path
+from pytest          import CaptureFixture, Config, MonkeyPatch, fixture, mark, param
+from shutil          import copyfile
+from subprocess      import run
+from sys             import executable
+from types           import ModuleType
 
 BASE = {
     ".mise/bin/pytest"    : "",
@@ -666,19 +666,21 @@ def test_combine_stops_on_a_part_it_cannot_read(
 ):
     """
     Asserts that `py:combine` returns the failing status of the combine and
-    writes no report where the one part it finds holds no coverage data,
-    which coverage.py warns of before it fails.
+    writes no report where the one part it finds is a folder rather than
+    a data file, even though a data file covering every line sits where a
+    report would read.
     """
-    part = tmp_path / ".cache/coverage/parts/1/data"
+    source = tmp_path / "module.py"
 
     monkeypatch.chdir(tmp_path)
-    part.parent.mkdir(parents=True)
-    part.write_text("no data")
+    source.write_text("a = 1\n")
+    (tmp_path / "parts/1/data").mkdir(parents=True)
 
-    with warns(CoverageWarning, match="Couldn't use data file"):
-        status = load_task(".mise/tasks/py/combine.py").combine(part.parents[1])
+    recorded = CoverageData()
+    recorded.add_lines({str(source): [1]})
+    recorded.write()
 
-    assert status == 1
+    assert load_task(".mise/tasks/py/combine.py").combine(tmp_path / "parts") == 1
     assert not (tmp_path / "htmlcov").exists()
 
 
@@ -702,47 +704,40 @@ def test_reach_prints_each_selection_or_every_test(
 
 
 @mark.parametrize(
-    ("parts", "local", "status", "percent"),
+    ("files", "status", "percent"),
     [
-        param({"1": [1, 2], "2": [3, 4]}, None, 0, 100, id="combined"),
-        param({"1": [1, 2], "2": [3]}, None, 2, 75, id="below"),
-        param({}, [1, 2, 3, 4], 0, 100, id="local")
+        param({"parts/1/data": [1, 2], "parts/2/data": [3, 4]}, 0, 100, id="combined"),
+        param({"parts/1/data": [1, 2], "parts/2/data": [3]}, 2, 75, id="below"),
+        param({"data": [1, 2, 3, 4]}, 0, 100, id="local")
     ]
 )
 def test_combine_reports_the_combined_data_and_gates_its_total(
-    load_task   : Callable[[str], ModuleType],
-    local       : list[int] | None,
-    monkeypatch : MonkeyPatch,
-    parts       : dict[str, list[int]],
-    percent     : int,
-    status      : int,
-    tmp_path    : Path
+    files        : dict[str, list[int]],
+    load_task    : Callable[[str], ModuleType],
+    monkeypatch  : MonkeyPatch,
+    percent      : int,
+    pytestconfig : Config,
+    status       : int,
+    tmp_path     : Path
 ):
     """
     Pins that `py:combine` combines every machine's data file under
     `.cache/coverage/parts/` before it writes the JSON report and gates the
     total, so the lines each machine ran add up, exits 2 where the combined
-    total falls below `fail_under`, and reports on the data file a local run
-    wrote where no part exists.
+    total falls below the `fail_under` that `pyproject.toml` sets, and
+    reports on the data file a local run wrote where no part exists.
     """
-    source = tmp_path / "module.py"
+    source = tmp_path / "src/squirtl/module.py"
     data   = tmp_path / ".cache/coverage"
 
     monkeypatch.chdir(tmp_path)
+    source.parent.mkdir(parents=True)
     source.write_text("a = 1\nb = 2\nc = 3\nd = 4\n")
-    (tmp_path / "pyproject.toml").write_text(
-        '[tool.coverage.html]\ndirectory = ".cache/coverage/html"\n\n'
-        '[tool.coverage.json]\noutput = ".cache/coverage/coverage.json"\n\n'
-        "[tool.coverage.report]\nfail_under = 95\n\n"
-        '[tool.coverage.run]\ndata_file = ".cache/coverage/data"\n'
-    )
+    copyfile(pytestconfig.rootpath / "pyproject.toml", tmp_path / "pyproject.toml")
 
-    for path, lines in [
-        *((data / "parts" / name / "data", lines) for name, lines in parts.items()),
-        *([(data / "data", local)] if local else [])
-    ]:
-        path.parent.mkdir(exist_ok=True, parents=True)
-        recorded = CoverageData(basename=str(path))
+    for name, lines in files.items():
+        (data / name).parent.mkdir(exist_ok=True, parents=True)
+        recorded = CoverageData(basename=str(data / name))
         recorded.add_lines({str(source): lines})
         recorded.write()
 
@@ -780,6 +775,7 @@ def test_snapshots_fails_on_a_snapshot_no_collected_test_bears(
     for name in snapshots:
         (fixtures / f"{name}.txt").write_text("kept")
 
+    # The bare `env` drops `PYTEST_XDIST_WORKER`, under which syrupy skips its report.
     finished = run(
         [
             executable, "-m", "pytest", "-p", "common.skipped", "--rootdir",

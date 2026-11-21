@@ -6,13 +6,13 @@
 # requires-python = ">=3.15"
 # ///
 """
-Combines the coverage data of a split run of the suite, as the `py:combine`
-task the combining job of `🕹️ CI` runs once every machine's data file sits
-at `.cache/coverage/parts/<machine>/data`. It then writes the HTML report,
-the JSON report, and the terminal table from the combined data, which the
-`[tool.coverage]` tables in `pyproject.toml` place and gate. Where no part
-exists, as after `py:split` on a laptop, it reports on the data that run
-wrote.
+Combines the coverage data of a split run of the suite as the `py:combine`
+task, which the combining job of `🕹️ CI` runs once each machine's data file
+sits at `.cache/coverage/parts/<machine>/data`. It then writes the HTML
+report, the JSON report, and the terminal table from the combined data,
+where the `[tool.coverage]` tables in `pyproject.toml` set each report's
+path and the gate. Where no part exists, as after `py:split` on a laptop, it
+reports on the data that run wrote.
 """
 
 from coverage.cmdline import main
