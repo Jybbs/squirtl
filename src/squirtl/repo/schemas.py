@@ -1879,7 +1879,7 @@ class Settings(TomlFile):
 
     switches: Switches
     """
-    The endpoints each setting turns on or off.
+    The endpoints turned on or off.
     """
 
     workflow: WorkflowPermissions

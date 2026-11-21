@@ -268,6 +268,8 @@ def test_a_ruleset_refuses_a_key_or_a_value_github_does_not_take(
         param(('"enabled" }', '"on" }'), id="unknown-feature-status"),
         param(('"PR_TITLE"', '"TITLE"'), id="unknown-squash-title"),
         param(('"read"', '"none"'), id="unknown-token-permission"),
+        param(("immutable-releases       = true\n", ""), id="missing-switch"),
+        param(("immutable-releases", "immutable_releases"), id="switch-by-field-name"),
         param(
             ("[workflow]", '[project]\ndescription = "x"\n\n[workflow]'),
             id = "project-table"
@@ -826,13 +828,18 @@ def test_the_settings_turn_immutable_releases_on_or_off_as_declared(
     settings : Callable[..., Settings]
 ):
     """
-    Pins that the settings send `immutable-releases` through `PUT` where the
-    file declares it on and through `DELETE` where it declares it off, with
-    no body either way.
+    Pins that the settings send `immutable-releases` once, through `PUT`
+    where the file declares it on and through `DELETE` where it declares it
+    off, with no body either way.
     """
-    assert Command.api("immutable-releases", method=method) in settings(
+    writes = settings(
         ("immutable-releases       = true", f"immutable-releases       = {declared}")
     ).plan.writes
+
+    assert [
+        write for write in writes
+        if write.arguments[1] == "repos/{owner}/{repo}/immutable-releases"
+    ] == [Command.api("immutable-releases", method=method)]
 
 
 def test_the_tasks_read_mise_s_report_even_where_validation_fails(
