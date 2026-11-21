@@ -265,38 +265,6 @@ class DataFile(Record, ABC):
         return cls.from_path(cls.file)
 
 
-class Dependabot(Record):
-    """
-    The `[dependabot]` table, keyed by the endpoint each setting turns on
-    through `PUT` or off through `DELETE`.
-    """
-
-    automated_security_fixes: bool = Field(alias="automated-security-fixes")
-    """
-    Whether Dependabot opens a pull request for each vulnerable dependency.
-    """
-
-    vulnerability_alerts: bool = Field(alias="vulnerability-alerts")
-    """
-    Whether Dependabot raises an alert for each vulnerable dependency.
-    """
-
-    @property
-    def commands(self) -> tuple[Command, ...]:
-        """
-        Builds the command for each endpoint, a `PUT` turning on a setting
-        that is true and a `DELETE` turning off one that is false, in the
-        order the fields sit in.
-        """
-        return tuple(
-            Command.api(
-                endpoint,
-                method = HTTPMethod.PUT if enabled else HTTPMethod.DELETE
-            )
-            for endpoint, enabled in self.model_dump(by_alias=True).items()
-        )
-
-
 class Endpoint(Record):
     """
     The base of a table sent whole as the body of the `PUT` to `path` under
@@ -632,6 +600,44 @@ class Severity(StrEnum):
 
     ERROR   = auto()
     WARNING = auto()
+
+
+class Switches(Record):
+    """
+    The `[switches]` table, keyed by the endpoint each setting turns on
+    through `PUT` or off through `DELETE`.
+    """
+
+    automated_security_fixes: bool = Field(alias="automated-security-fixes")
+    """
+    Whether Dependabot opens a pull request for each vulnerable dependency.
+    """
+
+    immutable_releases: bool = Field(alias="immutable-releases")
+    """
+    Whether GitHub locks the tag and the assets of each release published
+    afterward.
+    """
+
+    vulnerability_alerts: bool = Field(alias="vulnerability-alerts")
+    """
+    Whether Dependabot raises an alert for each vulnerable dependency.
+    """
+
+    @property
+    def commands(self) -> tuple[Command, ...]:
+        """
+        Builds the command for each endpoint, a `PUT` turning on a setting
+        that is true and a `DELETE` turning off one that is false, in the
+        order the fields sit in.
+        """
+        return tuple(
+            Command.api(
+                endpoint,
+                method = HTTPMethod.PUT if enabled else HTTPMethod.DELETE
+            )
+            for endpoint, enabled in self.model_dump(by_alias=True).items()
+        )
 
 
 class Repository(Record):
@@ -1853,8 +1859,8 @@ class Scripts(Record):
 
 class Settings(TomlFile):
     """
-    The repository settings `file` declares, one table per endpoint keyed by
-    the REST field names and a `[dependabot]` table keyed by each endpoint
+    The repository settings `file` declares, one table per endpoint keyed
+    by the REST field names and a `[switches]` table keyed by each endpoint
     it turns on or off, beside the description, the homepage, and the topics
     `project` reads from `pyproject.toml`.
     """
@@ -1866,14 +1872,14 @@ class Settings(TomlFile):
     The Actions permissions.
     """
 
-    dependabot: Dependabot
-    """
-    The Dependabot endpoints.
-    """
-
     repository: Repository
     """
     The repository's own fields.
+    """
+
+    switches: Switches
+    """
+    The endpoints turned on or off.
     """
 
     workflow: WorkflowPermissions
@@ -1889,8 +1895,7 @@ class Settings(TomlFile):
         - The repository's own fields, with the description the project
           declares and its homepage where it declares one
         - The topics, which replace every topic the repository carries
-        - Each Dependabot endpoint, turned on through `PUT` or off through
-          `DELETE`
+        - Each switch, turned on through `PUT` or off through `DELETE`
         - The Actions permissions, then the workflow token's
         """
         return Plan(
@@ -1901,7 +1906,7 @@ class Settings(TomlFile):
                     method = HTTPMethod.PATCH
                 ),
                 self.project.topics,
-                *self.dependabot.commands,
+                *self.switches.commands,
                 self.actions.command, self.workflow.command
             )
         )

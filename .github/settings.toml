@@ -3,10 +3,6 @@ allowed_actions      = "all"
 enabled              = true
 sha_pinning_required = true
 
-[dependabot]
-automated-security-fixes = false
-vulnerability-alerts     = true
-
 [repository]
 allow_auto_merge            = false
 allow_merge_commit          = false
@@ -24,6 +20,11 @@ squash_merge_commit_title   = "PR_TITLE"
 [repository.security_and_analysis]
 secret_scanning                 = { status = "enabled" }
 secret_scanning_push_protection = { status = "enabled" }
+
+[switches]
+automated-security-fixes = false
+immutable-releases       = true
+vulnerability-alerts     = true
 
 [workflow]
 can_approve_pull_request_reviews = false

@@ -3,6 +3,7 @@ gh api 'repos/{owner}/{repo}/rulesets/9' --method PUT --input - <<< '{"bypass_ac
 gh api 'repos/{owner}/{repo}' --method PATCH --input - <<< '{"allow_auto_merge": false, "allow_merge_commit": false, "allow_rebase_merge": false, "allow_squash_merge": true, "allow_update_branch": true, "delete_branch_on_merge": true, "has_discussions": false, "has_issues": true, "has_projects": false, "has_wiki": false, "security_and_analysis": {"secret_scanning": {"status": "enabled"}, "secret_scanning_push_protection": {"status": "enabled"}}, "squash_merge_commit_message": "PR_BODY", "squash_merge_commit_title": "PR_TITLE", "description": "Trains an agent to play Pokémon Blue from the screen, through PyBoy and PyTorch.", "homepage": "squirtl.fyi"}'
 gh api 'repos/{owner}/{repo}/topics' --method PUT --input - <<< '{"names": ["deep-learning", "deep-reinforcement-learning", "dqn", "gameboy", "gymnasium", "machine-learning", "pokemon", "pyboy", "python", "pytorch", "q-learning", "reinforcement-learning"]}'
 gh api 'repos/{owner}/{repo}/automated-security-fixes' --method DELETE
+gh api 'repos/{owner}/{repo}/immutable-releases' --method PUT
 gh api 'repos/{owner}/{repo}/vulnerability-alerts' --method PUT
 gh api 'repos/{owner}/{repo}/actions/permissions' --method PUT --input - <<< '{"allowed_actions": "all", "enabled": true, "sha_pinning_required": true}'
 gh api 'repos/{owner}/{repo}/actions/permissions/workflow' --method PUT --input - <<< '{"can_approve_pull_request_reviews": false, "default_workflow_permissions": "read"}'
