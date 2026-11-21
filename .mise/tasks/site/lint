@@ -15,8 +15,8 @@ node_modules/.bin/oxlint \
   || status=$?
 
 node --input-type=module <<'NODE' || status=$?
-import { longLines, proveLines } from "./.vitepress/lib/proof/lines.ts"
-process.exitCode = proveLines(longLines(import.meta.url))
+import { lintLines } from "./.vitepress/lib/proof/lines.ts"
+lintLines(import.meta.url)
 NODE
 
 exit "$status"

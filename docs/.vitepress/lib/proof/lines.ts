@@ -61,3 +61,12 @@ export function proveLines(lines: readonly LongLine[]): number {
   }
   return lines.length > 0 ? 1 : 0
 }
+
+/**
+ * Sets the exit status of the process to what `proveLines` returns for the
+ * long lines of the checkout holding the module at `metaUrl`, the one call
+ * `site:lint` makes.
+ */
+export function lintLines(metaUrl: string): void {
+  process.exitCode = proveLines(longLines(metaUrl))
+}

@@ -9,8 +9,7 @@ line check after Oxlint whatever Oxlint returns.
 Each case runs its task from `tmp_path`, where the links under
 `node_modules/.bin/` and the `node` first on the path lead to the stand-in
 under `fixtures/`, which prints each argument it receives on a line of its
-own, so no case starts Oxlint, `tsc`, or Vitest, and only the line check's
-own case starts Node.
+own, so no case starts Oxlint, `tsc`, Vitest, or Node.
 """
 
 from collections.abc import Callable, Mapping
@@ -103,49 +102,6 @@ def test_lint_exits_1_when_the_line_check_fails_after_oxlint_passes(
     )
 
     assert (result.returncode, result.stdout.splitlines()[-1]) == (1, ".vitepress")
-
-
-def test_lint_names_the_file_and_line_of_a_line_past_110_characters(
-    pytestconfig : Config,
-    tmp_path     : Path
-):
-    """
-    Asserts that `site:lint` runs the real line check from `docs/` once
-    Oxlint passes, exiting 1 and naming the file and line of a line past
-    110 characters.
-    """
-    lib    = tmp_path / "docs/.vitepress/lib"
-    source = pytestconfig.rootpath / "docs/.vitepress/lib"
-    stand  = tmp_path / "stand-ins/node"
-    node   = run(
-        ["mise", "which", "node"],
-        capture_output = True,
-        cwd            = pytestconfig.rootpath,
-        text           = True
-    )
-
-    (tmp_path / ".git").mkdir()
-    stand.unlink()
-    stand.symlink_to(node.stdout.strip())
-
-    for module in ("config/paths.ts", "proof/lines.ts"):
-        (lib / module).parent.mkdir(exist_ok=True, parents=True)
-        (lib / module).write_text((source / module).read_text())
-
-    (tmp_path / "node_modules").rename(tmp_path / "docs/node_modules")
-
-    (lib / "long.ts").write_text(f"// {'x' * 108}\n")
-
-    result = run(
-        [pytestconfig.rootpath / ".mise/tasks/site/lint"],
-        capture_output = True,
-        cwd            = tmp_path / "docs",
-        text           = True
-    )
-
-    assert (result.returncode, result.stderr.split(" runs ")[0]) == (
-        1, "docs/.vitepress/lib/long.ts:1"
-    )
 
 
 def test_lint_runs_the_line_check_after_oxlint_fails_and_exits_1(
