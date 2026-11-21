@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import * as experience from '../../../lib/methods/experience.ts'
 
 describe('agesOf', () => {
-  it('reads a batch of ages from replay memory, newest first, the same for one update and another for the next', () => {
+  it('reads a batch of ages from replay memory, newest first, the same for one update and another for the '
+   + 'next', () => {
     const ages = experience.agesOf(3)
 
     expect(ages).toHaveLength(experience.MEMORY.batch)
@@ -48,11 +49,17 @@ describe('the windows', () => {
   it('shows a step of the walk the read draws from, its age wrapping round the walk', () => {
     const walk = experience.WALKS[1]!
 
-    expect([experience.shownOf(walk.length + 2, 9), experience.walkOf(2)[2]]).toStrictEqual([walk[2], walk[2]])
+    expect([experience.shownOf(walk.length + 2, 9), experience.walkOf(2)[2]])
+      .toStrictEqual([walk[2], walk[2]])
   })
 
   it('sits under where its arc lands, kept inside the strip and alternating between two rows', () => {
-    expect([experience.windowAt(0, 0), experience.windowAt(experience.MEMORY.capacity, 1), experience.windowAt(50_000, 2)])
-      .toStrictEqual([{ left: (640 - 48) / 640, top: 0 }, { left: 0, top: 0.5 }, { left: (320 - 24) / 640, top: 0 }])
+    expect([
+      experience.windowAt(0, 0),
+      experience.windowAt(experience.MEMORY.capacity, 1),
+      experience.windowAt(50_000, 2)
+    ]).toStrictEqual([
+      { left: (640 - 48) / 640, top: 0 }, { left: 0, top: 0.5 }, { left: (320 - 24) / 640, top: 0 }
+    ])
   })
 })

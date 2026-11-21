@@ -26,7 +26,8 @@ describe('GROUNDS', () => {
 })
 
 describe('hueOfToken', () => {
-  it.each([['primary', 'denim'], ['ground', null]] as const)('finds the hue whose color %s is as %s', (token, hue) => {
+  it.each([['primary', 'denim'], ['ground', null]] as const)('finds the hue whose color %s is as '
+                                                           + '%s', (token, hue) => {
     expect(palette.hueOfToken(token)).toBe(hue)
   })
 })
@@ -54,7 +55,8 @@ describe('levelOf', () => {
 
 describe('inkOn', () => {
   it('chooses whichever ground stands farther from the fill', () => {
-    expect([palette.inkOn('#000000'), palette.inkOn('#ffffff')]).toStrictEqual([palette.GROUNDS.light.hex, palette.GROUNDS.dark.hex])
+    expect([palette.inkOn('#000000'), palette.inkOn('#ffffff')])
+      .toStrictEqual([palette.GROUNDS.light.hex, palette.GROUNDS.dark.hex])
   })
 })
 
@@ -81,11 +83,16 @@ describe('blueFills', () => {
 
 describe('shownOf', () => {
   it('shows the color itself where no step is picked', () => {
-    expect(palette.shownOf(named('primary'), null)).toStrictEqual({ hex: IDENTITY.colors.primary.hex, name: IDENTITY.colors.primary.name, what: 'primary' })
+    expect(palette.shownOf(named('primary'), null)).toStrictEqual({
+      hex  : IDENTITY.colors.primary.hex,
+      name : IDENTITY.colors.primary.name,
+      what : 'primary'
+    })
   })
 
   it('shows the color itself where its hue carries no ramp, whatever step is picked', () => {
-    expect(palette.shownOf(named('ground'), 'light-0')).toMatchObject({ hex: IDENTITY.neutrals.ground.hex, what: 'ground' })
+    expect(palette.shownOf(named('ground'), 'light-0'))
+      .toMatchObject({ hex: IDENTITY.neutrals.ground.hex, what: 'ground' })
   })
 
   it('shows the step picked, named for the color and the step, on its ground', () => {
@@ -99,6 +106,8 @@ describe('shownOf', () => {
 
 describe('STEPS', () => {
   it('names five steps on each ground, the light ground first', () => {
-    expect(palette.STEPS).toStrictEqual(['light-0', 'light-1', 'light-2', 'light-3', 'light-4', 'dark-0', 'dark-1', 'dark-2', 'dark-3', 'dark-4'])
+    expect(palette.STEPS).toStrictEqual([
+      'light-0', 'light-1', 'light-2', 'light-3', 'light-4', 'dark-0', 'dark-1', 'dark-2', 'dark-3', 'dark-4'
+    ])
   })
 })

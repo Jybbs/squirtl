@@ -39,7 +39,9 @@ function boxAt(selector: string, left: number, top: number) {
 
 beforeEach(() => {
   document.body.innerHTML = PAGE
-  for (const element of document.querySelectorAll('[href]')) element.addEventListener('click', event => event.preventDefault())
+  for (const element of document.querySelectorAll('[href]')) {
+    element.addEventListener('click', event => event.preventDefault())
+  }
 })
 
 describe('followFootnotes', () => {
@@ -101,7 +103,8 @@ describe('followFootnotes through a repeated marker and an encoded label', () =>
   })
 
   it('decodes the address of a label outside ASCII', () => {
-    document.body.innerHTML = '<sup class="footnote-ref"><a href="#footnote-m%C3%BCller" id="footnote-ref-a"></a></sup><ol><li id="footnote-müller"></li></ol>'
+    document.body.innerHTML = '<sup class="footnote-ref"><a href="#footnote-m%C3%BCller" '
+                            + 'id="footnote-ref-a"></a></sup><ol><li id="footnote-müller"></li></ol>'
     document.querySelector('a')!.addEventListener('click', event => event.preventDefault())
     followFootnotes(document)
     document.querySelector('a')!.click()
@@ -182,17 +185,21 @@ describe('snapFootnotes across the page', () => {
 })
 
 describe('watchFootnotes', () => {
-  it.each(['a change of the layout', 'a font arriving', 'a change of device pixel ratio'])('snaps on %s', name => {
+  it.each(['a change of the layout', 'a font arriving', 'a change of device pixel ratio'])('snaps on '
+                                                                                         + '%s', name => {
     const view  = document.defaultView!
     const fonts = new EventTarget()
-    const fired = new Map<string, () => void>([['a font arriving', () => fonts.dispatchEvent(new Event('loadingdone'))]])
+    const fired = new Map<string, () => void>([
+      ['a font arriving', () => fonts.dispatchEvent(new Event('loadingdone'))]
+    ])
 
     vi.spyOn(view, 'ResizeObserver').mockImplementation(function observer(callback) {
       fired.set('a change of the layout', () => callback([], {} as ResizeObserver))
       return { observe: vi.fn<() => void>() } as unknown as ResizeObserver
     })
     vi.spyOn(view, 'matchMedia').mockReturnValue({
-      addEventListener: (_: string, listener: () => void) => fired.set('a change of device pixel ratio', listener)
+      addEventListener: (_: string, listener: () => void) =>
+        fired.set('a change of device pixel ratio', listener)
     } as unknown as MediaQueryList)
     Object.defineProperty(document, 'fonts', { configurable: true, value: fonts })
 

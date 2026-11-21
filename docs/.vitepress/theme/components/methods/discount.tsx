@@ -41,13 +41,27 @@ function drawLane(plot: discount.WeightPlot) {
       <g class={ROLES[player].stroke}>
         <path class="fill-none" d={group.leader} stroke-width={discount.STROKES.axis} />
         {group.tiles.map(({ arrival, x }) => [
-          <rect class="fill-athens-gray" height={tile} rx="3" stroke-width={discount.STROKES.line} width={tile} x={x - tile / 2} y={lane} />,
+          <rect
+            class="fill-athens-gray"
+            height={tile}
+            rx="3"
+            stroke-width={discount.STROKES.line}
+            width={tile}
+            x={x - tile / 2}
+            y={lane}
+          />,
           <svg height="16" innerHTML={marks[arrival.term]} width="16" x={x - 8} y={lane + 3} />
         ])}
       </g>
     ))),
     ...plot.dots.map(dot => (
-      <circle class={[TERM_FILL[dot.term], ROLES[dot.player].stroke]} cx={dot.x} cy={dot.y} r="4.5" stroke-width={discount.STROKES.line} />
+      <circle
+        class={[TERM_FILL[dot.term], ROLES[dot.player].stroke]}
+        cx={dot.x}
+        cy={dot.y}
+        r="4.5"
+        stroke-width={discount.STROKES.line}
+      />
     ))
   ]
 }
@@ -68,7 +82,11 @@ function drawFigures(at: number) {
           value={fixed(discount.weightOf(at, episode.starter), 4)}
         />
       ))}
-      <Chip class="ml-auto" name={at === discount.DISCOUNT ? 'The setting' : 'Discount'} value={discount.spelled(at)} />
+      <Chip
+        class="ml-auto"
+        name={at === discount.DISCOUNT ? 'The setting' : 'Discount'}
+        value={discount.spelled(at)}
+      />
     </div>
   )
 }
@@ -95,15 +113,32 @@ export const MethodsDiscount = defineComponent({
         <div class="@container grid gap-3">
           {drawFigures(set.value)}
           <div class="relative" ref={box}>
-            <svg aria-hidden="true" class="block h-auto w-full overflow-visible" viewBox={`0 0 ${width.value} ${height}`}>
+            <svg
+              aria-hidden="true"
+              class="block h-auto w-full overflow-visible"
+              viewBox={`0 0 ${width.value} ${height}`}
+            >
               {plots.drawAxis(grid)}
               {labels.map(label => plots.drawLabel(label))}
-              {plots.drawLabel({ anchor: 'end', text: WORDS.ahead, x: width.value - room.right, y: floor + 42 }, plots.TITLE)}
-              {plots.drawLabel({ anchor: 'start', text: WORDS.weight, x: room.left - 36, y: room.top - 16 }, plots.TITLE)}
-              {stops.map(x => <path class="stroke-quiet" d={`M${x},${half.y - 5}V${half.y + 5}`} stroke-width={discount.STROKES.axis} />)}
+              {([
+                { anchor: 'end', text: WORDS.ahead, x: width.value - room.right, y: floor + 42 },
+                { anchor: 'start', text: WORDS.weight, x: room.left - 36, y: room.top - 16 }
+              ] as const).map(title => plots.drawLabel(title, plots.TITLE))}
+              {stops.map(x => (
+                <path
+                  class="stroke-quiet"
+                  d={`M${x},${half.y - 5}V${half.y + 5}`}
+                  stroke-width={discount.STROKES.axis}
+                />
+              ))}
               <path class={['fill-none', ROLES.agent.stroke]} d={curve} {...plots.CURVE} />
               {drawLane(plot.value)}
-              <path class="stroke-quiet" d={`M${half.x},${half.y}V${floor}`} stroke-dasharray="3 3" stroke-width={discount.STROKES.reference} />
+              <path
+                class="stroke-quiet"
+                d={`M${half.x},${half.y}V${floor}`}
+                stroke-dasharray="3 3"
+                stroke-width={discount.STROKES.reference}
+              />
               <circle class="fill-ground stroke-rule" cx={half.x} cy={half.y} r="11" />
               <circle class={ROLES.agent.fill} cx={half.x} cy={half.y} r="6" />
               {plots.drawLabel(half.label, plots.TITLE)}

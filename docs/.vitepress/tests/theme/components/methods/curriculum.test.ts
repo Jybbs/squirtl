@@ -8,7 +8,7 @@ import { placeOf }            from '../../../../lib/methods/curriculum/lanes.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
 import { stopped }            from '../../../common/clock.ts'
-import * as pointer           from '../../../common/pointer.ts'
+import * as input             from '../../../common/input.ts'
 
 vi.mock('../../../../lib/widgets/still.ts', async original => {
   const { still } = await original<typeof import('../../../../lib/widgets/still.ts')>()
@@ -24,13 +24,16 @@ enableAutoUnmount(afterEach)
  * Reads each lane's phase and the words beside its screen.
  */
 const lanes = (wrapper: ReturnType<typeof mount>): string[][] =>
-  wrapper.findAll('.curriculum-lane').map(lane => [lane.attributes('data-phase')!, lane.findAll('span').at(-1)!.text()])
+  wrapper.findAll('.curriculum-lane').map(lane =>
+    [lane.attributes('data-phase')!, lane.findAll('span').at(-1)!.text()])
 
 /**
  * Reads where each lane's screen stands along its track.
  */
 const screens = (wrapper: ReturnType<typeof mount>): string[] =>
-  wrapper.findAll<HTMLElement>('.curriculum-lane .curriculum-glide.relative').map(each => each.element.style.transform)
+  wrapper
+    .findAll<HTMLElement>('.curriculum-lane .curriculum-glide.relative')
+    .map(each => each.element.style.transform)
 
 /**
  * Lays a lane out on a track 600 pixels wide, as a case reports it, with the
@@ -44,16 +47,19 @@ describe('MethodsCurriculum', () => {
     const wrapper = mount(MethodsCurriculum)
     const last    = curriculum.BATCHES - 1
 
-    expect(lanes(wrapper)).toStrictEqual(curriculum.SEGMENTS.map((_, k) => ['agent', curriculum.farOf(last, k)]))
-    expect(wrapper.findAll('.curriculum-place').map(each => each.text())).toStrictEqual(curriculum.STRETCHES.map(each => each.name))
-    expect(pointer.sliderState(wrapper)).toStrictEqual([String(last), curriculum.describe(last)])
+    expect(lanes(wrapper))
+      .toStrictEqual(curriculum.SEGMENTS.map((_, k) => ['agent', curriculum.farOf(last, k)]))
+    expect(wrapper.findAll('.curriculum-place').map(each => each.text()))
+      .toStrictEqual(curriculum.STRETCHES.map(each => each.name))
+    expect(input.sliderState(wrapper)).toStrictEqual([String(last), curriculum.describe(last)])
     expect(wrapper.text()).toBePublishedProse()
   })
 
 })
 
 describe('MethodsCurriculum’s lanes', () => {
-  it('lands each screen where its lane lays it out, at once on its first layout and on every new width', async () => {
+  it('lands each screen where its lane lays it out, at once on its first layout and on every new '
+   + 'width', async () => {
     drawInto(null)
     const resize  = browser.stubSize()
     const wrapper = mount(MethodsCurriculum, { attachTo: document.body })
@@ -63,8 +69,10 @@ describe('MethodsCurriculum’s lanes', () => {
     resize(600, 80)
     await flushPromises()
 
-    expect(screens(wrapper)).toStrictEqual(curriculum.SEGMENTS.map(each => `translateX(${at(0, each.end).screen}px)`))
-    expect(wrapper.findAll<HTMLElement>('.curriculum-glide.bg-denim-mark').map(each => each.element.style.width))
+    expect(screens(wrapper))
+      .toStrictEqual(curriculum.SEGMENTS.map(each => `translateX(${at(0, each.end).screen}px)`))
+    expect(wrapper.findAll<HTMLElement>('.curriculum-glide.bg-denim-mark').map(each =>
+      each.element.style.width))
       .toStrictEqual(curriculum.SEGMENTS.map(each => `${Number(at(0, each.end).reach.toFixed(6))}px`))
     expect(vi.mocked(still)).toHaveBeenCalledTimes(curriculum.SEGMENTS.length)
   })
@@ -79,12 +87,13 @@ describe('MethodsCurriculum’s lanes', () => {
     vi.mocked(still).mockClear()
     const thumb   = wrapper.get('[role="slider"]')
 
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'Home' })
+    await input.pressKeys(thumb, 'Home')
     await flushPromises()
 
-    expect(screens(wrapper)).toStrictEqual(curriculum.RUN[0]!.map((shown, k) => `translateX(${at(shown.start, curriculum.SEGMENTS[k]!.end).screen}px)`))
-    expect([vi.mocked(still).mock.calls.length, lanes(wrapper).map(([phase]) => phase)]).toStrictEqual([0, curriculum.SEGMENTS.map(() => 'agent')])
+    expect(screens(wrapper)).toStrictEqual(curriculum.RUN[0]!.map((shown, k) =>
+      `translateX(${at(shown.start, curriculum.SEGMENTS[k]!.end).screen}px)`))
+    expect([vi.mocked(still).mock.calls.length, lanes(wrapper).map(([phase]) => phase)])
+      .toStrictEqual([0, curriculum.SEGMENTS.map(() => 'agent')])
   })
 
   it('draws every lane’s screen once the rooms load', async () => {
@@ -98,7 +107,8 @@ describe('MethodsCurriculum’s lanes', () => {
 })
 
 describe('MethodsCurriculum’s playback', () => {
-  stopped('replays the recording in gray to every start once it shows, then hands each screen to the agent', async () => {
+  stopped('replays the recording in gray to every start once it shows, then hands each screen to the '
+        + 'agent', async () => {
     drawInto(null)
     const sight   = browser.stubSight()
     const wrapper = mount(MethodsCurriculum, { attachTo: document.body })
@@ -112,8 +122,10 @@ describe('MethodsCurriculum’s playback', () => {
     vi.advanceTimersByTime(curriculum.TIMING.replay)
     await nextTick()
 
-    expect([pointer.sliderState(wrapper)[0], replaying, lanes(wrapper).map(([phase]) => phase)])
-      .toStrictEqual(['0', curriculum.SEGMENTS.map(() => 'recording'), curriculum.SEGMENTS.map(() => 'agent')])
+    expect([input.sliderState(wrapper)[0], replaying, lanes(wrapper).map(([phase]) => phase)])
+      .toStrictEqual([
+        '0', curriculum.SEGMENTS.map(() => 'recording'), curriculum.SEGMENTS.map(() => 'agent')
+      ])
   })
 
   stopped('stands on the last batch under reduced motion', async () => {
@@ -128,7 +140,7 @@ describe('MethodsCurriculum’s playback', () => {
     browser.preference.value = 'reduce'
     await nextTick()
 
-    expect([pointer.sliderState(wrapper)[0], lanes(wrapper).map(([phase]) => phase)])
+    expect([input.sliderState(wrapper)[0], lanes(wrapper).map(([phase]) => phase)])
       .toStrictEqual([String(curriculum.BATCHES - 1), curriculum.SEGMENTS.map(() => 'agent')])
   })
 })

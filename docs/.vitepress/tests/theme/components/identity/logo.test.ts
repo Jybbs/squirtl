@@ -5,7 +5,7 @@ import { nextTick }                                        from 'vue'
 
 import * as seam    from '../../../../lib/identity/seam.ts'
 import * as browser from '../../../common/browser.ts'
-import * as pointer from '../../../common/pointer.ts'
+import * as input   from '../../../common/input.ts'
 
 const { IdentityLogo } = await import('../../../../theme/components/identity/logo.tsx')
 
@@ -53,15 +53,18 @@ describe('IdentityLogo’s playback', () => {
     expect([held, seamOf(wrapper)]).toStrictEqual(['50%', `${seam.NUDGE[2]}%`])
   })
 
-  it('lights the trail a dot a beat on each ground from the first, the key ringing the oldest third', async () => {
+  it('lights the trail a dot a beat on each ground from the first, the key ringing the oldest '
+   + 'third', async () => {
     const wrapper = await browser.shown(IdentityLogo)
-    const lit     = () => wrapper.findAll('.identity-dot').filter(dot => dot.attributes('opacity') === '1').length
+    const lit     = () =>
+      wrapper.findAll('.identity-dot').filter(dot => dot.attributes('opacity') === '1').length
 
     const first = lit()
     vi.advanceTimersByTime(seam.TEMPO.fill)
     await nextTick()
 
-    expect([lit() - first, ringed(wrapper)]).toStrictEqual([2, ['The first third, oldest', 'The first third, oldest']])
+    expect([lit() - first, ringed(wrapper)])
+      .toStrictEqual([2, ['The first third, oldest', 'The first third, oldest']])
   })
 
   it('starts the trail over from its first dot once it has rested after the last', async () => {
@@ -81,7 +84,8 @@ describe('IdentityLogo’s playback', () => {
 })
 
 describe('IdentityLogo’s stillness and keys', () => {
-  it('stands the seam where it settles and the trail whole under reduced motion, the key ringing the dot still ahead', async () => {
+  it('stands the seam where it settles and the trail whole under reduced motion, the key ringing the dot '
+   + 'still ahead', async () => {
     browser.preference.value = 'reduce'
     const wrapper            = await browser.shown(IdentityLogo)
 
@@ -94,10 +98,9 @@ describe('IdentityLogo’s stillness and keys', () => {
     const wrapper            = await browser.shown(IdentityLogo)
     const thumb              = wrapper.findAll('[role="slider"]')[0]!
 
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'ArrowRight' })
+    await input.pressKeys(thumb, 'ArrowRight')
     await nextTick()
 
-    expect([seamOf(wrapper), pointer.sliderState(wrapper)]).toStrictEqual(['51%', ['51', seam.seamWords(51)]])
+    expect([seamOf(wrapper), input.sliderState(wrapper)]).toStrictEqual(['51%', ['51', seam.seamWords(51)]])
   })
 })

@@ -9,7 +9,10 @@ const BREAKS = [
   [/[a-z]; [a-z]/u, 'a semicolon joining two clauses'],
   [/\bnamely\b/iu, 'the connective "namely"'],
   [/\bfootgun\b/iu, 'the word "footgun"'],
-  [/\b(?:colour|behaviour|centre|grey|labell?ed|modelling|normalise|organise|whilst|amongst)\b/iu, 'a British spelling']
+  [
+    /\b(?:colour|behaviour|centre|grey|labell?ed|modelling|normalise|organise|whilst|amongst)\b/iu,
+    'a British spelling'
+  ]
 ] as const
 
 expect.extend({

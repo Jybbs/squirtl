@@ -131,7 +131,10 @@ export const marks = Object.fromEntries(terms.map(term => [term, termMark(term)]
  */
 function paidChip(traced: Traced, at: number): ChipContent {
   const lead    = traced.paid.toSorted((left, right) => right.pay - left.pay)[0]?.term
-  const resting = at === 0 ? PAID.waking : traced.led ? PAID.following : traced.speaking ? PAID.speaking : PAID.nothing
+  const resting = at === 0 ? PAID.waking
+                : traced.led ? PAID.following
+                : traced.speaking ? PAID.speaking
+                : PAID.nothing
   return {
     mark  : lead ? marks[lead] : '',
     name  : lead ? PAID[lead] : resting,

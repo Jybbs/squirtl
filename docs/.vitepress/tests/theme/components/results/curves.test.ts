@@ -23,13 +23,15 @@ const FAKED: FakeTimersConfig = {
  * Reads each toggle's name and whether it is pressed.
  */
 const toggles = (wrapper: VueWrapper) =>
-  wrapper.findAll('button').map(button => [button.find('span:nth-child(2)').text(), button.attributes('aria-pressed')])
+  wrapper.findAll('button').map(button =>
+    [button.find('span:nth-child(2)').text(), button.attributes('aria-pressed')])
 
 /**
  * Reads how far each group's curve has traced out, as the width its clip
  * opens across.
  */
-const traces = (wrapper: VueWrapper) => wrapper.findAll('clipPath rect').map(rect => Number(rect.attributes('width')))
+const traces = (wrapper: VueWrapper) =>
+  wrapper.findAll('clipPath rect').map(rect => Number(rect.attributes('width')))
 
 describe('ResultsCurves', () => {
   it('draws nothing until a run is committed', () => {
@@ -54,7 +56,8 @@ describe('ResultsCurves', () => {
     expect(wrapper.text()).toBePublishedProse()
   })
 
-  it('moves focus along the toggles on the arrow keys, to either end on Home and End, and wraps past the last', async () => {
+  it('moves focus along the toggles on the arrow keys, to either end on Home and End, and wraps past the '
+   + 'last', async () => {
     held.runs     = true
     const wrapper = mount(ResultsCurves, { attachTo: document.body })
     const buttons = wrapper.findAll<HTMLButtonElement>('button')
@@ -68,7 +71,10 @@ describe('ResultsCurves', () => {
     buttons[0]!.element.focus()
     await buttons[0]!.trigger('focus')
 
-    expect([await press('ArrowRight'), await press('ArrowRight'), await press('End'), await press('ArrowRight'), await press('ArrowLeft'), await press('Home')])
+    expect([
+      await press('ArrowRight'), await press('ArrowRight'), await press('End'), await press('ArrowRight'),
+      await press('ArrowLeft'), await press('Home')
+    ])
       .toStrictEqual([1, 2, 4, 0, 4, 0])
   })
 
@@ -116,7 +122,8 @@ describe('ResultsCurves’s traces', () => {
 })
 
 describe('ResultsCurves’s releases', () => {
-  it('draws a released curve back and traces a newly pressed one out at once, waiting on no earlier press', async () => {
+  it('draws a released curve back and traces a newly pressed one out at once, waiting on no earlier '
+   + 'press', async () => {
     held.runs = true
     vi.useFakeTimers(FAKED)
     const sight   = browser.stubSight()

@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it, vi }    from 'vitest'
-import { nextTick }                               from 'vue'
+import { afterEach, describe, expect, it, vi }     from 'vitest'
+import { nextTick }                                from 'vue'
 
 import * as experience        from '../../../../lib/methods/experience.ts'
 import { count }              from '../../../../lib/widgets/numbers.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
 import { stopped }            from '../../../common/clock.ts'
-import * as pointer           from '../../../common/pointer.ts'
+import * as input             from '../../../common/input.ts'
 
 const { MethodsExperience } = await import('../../../../theme/components/methods/experience.tsx')
 
@@ -26,7 +26,9 @@ const chips = (wrapper: ReturnType<typeof mount>): string[] =>
  */
 function chipsOf(k: number): string[] {
   const { median, newest, oldest } = experience.figuresOf(experience.agesOf(k))
-  return [`Median agesteps${count(median)}`, `Newest readsteps${count(newest)}`, `Oldest readsteps${count(oldest)}`]
+  return [
+    `Median agesteps${count(median)}`, `Newest readsteps${count(newest)}`, `Oldest readsteps${count(oldest)}`
+  ]
 }
 
 describe('MethodsExperience', () => {
@@ -35,7 +37,7 @@ describe('MethodsExperience', () => {
     const wrapper = mount(MethodsExperience)
 
     expect([
-      pointer.sliderState(wrapper),
+      input.sliderState(wrapper),
       chips(wrapper),
       wrapper.findAll('path').length,
       wrapper.findAll('.experience-window').length,
@@ -66,11 +68,10 @@ describe('MethodsExperience’s playback', () => {
     const wrapper = mount(MethodsExperience, { attachTo: document.body })
     const thumb   = wrapper.get('[role="slider"]')
 
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'ArrowRight' })
+    await input.pressKeys(thumb, 'ArrowRight')
     await flushPromises()
 
-    expect([pointer.sliderState(wrapper), chips(wrapper), wrapper.findAll('path')[0]!.attributes('d')])
+    expect([input.sliderState(wrapper), chips(wrapper), wrapper.findAll('path')[0]!.attributes('d')])
       .toStrictEqual([['1', 'Update 2'], chipsOf(1), experience.arcOf(experience.agesOf(1)[0]!)])
     browser.preference.value = 'no-preference'
   })

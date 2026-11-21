@@ -205,7 +205,11 @@ export function verdictOf(estimate: Estimate): Verdict {
  * beats a run of random presses on mean return, then `random`, the share
  * random presses reach across every seed.
  */
-export function figuresOf(groups: readonly Group[], random: Estimate, pressed: ReadonlySet<string>): KeyEntry[] {
+export function figuresOf(
+  groups  : readonly Group[],
+  random  : Estimate,
+  pressed : ReadonlySet<string>
+): KeyEntry[] {
   return [
     ...groups.map(group => ({
       figures : [spelled(group.comparison.reached), spelled(group.comparison.beats)] as const,

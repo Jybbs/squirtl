@@ -104,8 +104,11 @@ export function useLane(showing: Showing): Parts {
   }
 
   const place = () => {
-    const [after, before, far, screen] = [parts.after.value!, parts.before.value!, parts.far.value!, parts.screen.value!]
-    const at    = placeOf({ far: far.offsetWidth, screen: screen.offsetWidth, track: width.value }, showing.start, showing.segment.end, side)
+    const [after, before, far, screen] = [
+      parts.after.value!, parts.before.value!, parts.far.value!, parts.screen.value!
+    ]
+    const sizes = { far: far.offsetWidth, screen: screen.offsetWidth, track: width.value }
+    const at    = placeOf(sizes, showing.start, showing.segment.end, side)
     const apply = () => {
       before.style.width     = `${at.at}px`
       after.style.transform  = `translateX(${at.at}px)`

@@ -77,7 +77,7 @@ Every pull request that is not a draft runs the checks below in the `🕹️ CI`
 | `☂️ Coverage` | `mise run site:coverage` | A site test fails, or the site's coverage falls below the **95%** that `fail_under` sets on statements, branches, functions, or lines |
 | `🍂 Cruft` | `mise cruft` | knip reports an unused file, export, or dependency in the docs site, or an import cycle |
 | `⛓️ Links` | `mise links` | A link, an asset, or a heading fragment in the built site, the README, or this guide names nothing the checkout holds, checked with no network |
-| `🧶 Lint` | `mise run site:lint` | Oxlint reports a finding in the site's TypeScript, each one an annotation on the line it concerns |
+| `🧶 Lint` | `mise run site:lint` | Oxlint reports a finding in the site's TypeScript, each one an annotation on the line it concerns, or a line of it runs past 110 characters, named by its file and line |
 | `💾 Press` | `mise press` | VitePress fails to build a page, or a link between pages leads nowhere |
 | `🎨 Proof` | `mise proof` | The site's CSS sets a length, a color, or an easing curve no theme variable supplies |
 | `🚩 Types` | `mise typecheck` | `tsc` reports a type error in the site's TypeScript, or a `.vue` file appears beside the `.tsx` modules every component is written as |

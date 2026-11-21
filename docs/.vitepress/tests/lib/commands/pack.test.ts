@@ -45,9 +45,10 @@ describe('Packing', () => {
   it('reads the runs before it writes a tar', () => {
     const packing = new pack.Packing()
 
-    expect([packing.head(), packing.log(), packing.first, pack.ORDER.some(tar => packing.packed(tar))]).toStrictEqual([
-      `0 of ${pack.ORDER.length} tars written`, 'Reading the runs docs/runs/ lists', 0, false
-    ])
+    expect([packing.head(), packing.log(), packing.first, pack.ORDER.some(tar => packing.packed(tar))])
+      .toStrictEqual([
+        `0 of ${pack.ORDER.length} tars written`, 'Reading the runs docs/runs/ lists', 0, false
+      ])
   })
 
   it('writes a tar a beat, the lines shown following the digest filled last', () => {

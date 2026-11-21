@@ -74,7 +74,8 @@ describe('Walks setting a press', () => {
     expect(walks.oak).toBe(oak)
   })
 
-  it('turns a Blue on his square in the stance his gait reaches through the press that only turns him', () => {
+  it('turns a Blue on his square in the stance his gait reaches through the press that only turns '
+   + 'him', () => {
     const fifty = moments.at(-1)!
     const turn  = fifty.steps.slice(1).findIndex((step, n) => step.facing !== fifty.steps[n]!.facing) + 1
     const walks = new Walks([fifty])
@@ -157,8 +158,10 @@ describe('Walks encountering a wild battle', () => {
     const covered = vi.fn<() => void>()
     walks.encounter(covered)
     const { black, circle, end, flash, flashStep } = battlePhases
-    const times                                    = [3 * flashStep + 1, flash + 260, circle + 1, black + 150, end + 1]
-    let elapsed                                    = 0
+    const times                                    = [
+      3 * flashStep + 1, flash + 260, circle + 1, black + 150, end + 1
+    ]
+    let elapsed = 0
 
     const phases = times.map(t => {
       walks.advance(t - elapsed)

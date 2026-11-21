@@ -41,7 +41,11 @@ export function useBand(scrub: Scrub, pick: (event: PointerEvent) => void): Band
  * pointer `event` lands on, the nearest edge cell where the pointer has been
  * dragged past an edge.
  */
-export function cellAt(event: PointerEvent, columns: number, rows: number): readonly [column: number, row: number] {
+export function cellAt(
+  event   : PointerEvent,
+  columns : number,
+  rows    : number
+): readonly [column: number, row: number] {
   const { height, left, top, width } = (event.currentTarget as HTMLElement).getBoundingClientRect()
   return [
     clamp(Math.floor((event.clientX - left) / width * columns), 0, columns - 1),

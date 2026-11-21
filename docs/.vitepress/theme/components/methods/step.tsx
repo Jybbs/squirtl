@@ -17,8 +17,10 @@ import { DETAIL }                         from '../kit/widget.ts'
 const MARKS = {
   bar   : '<svg viewBox="0 0 16 16"><rect x="1" y="6" width="14" height="4" fill="currentColor"/></svg>',
   dot   : '<svg viewBox="0 0 16 16"><rect x="6" y="6" width="4" height="4" fill="currentColor"/></svg>',
-  drawn : '<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
-  run   : '<svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" fill="currentColor" opacity="0.4"/></svg>'
+  drawn : '<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="none" '
+        + 'stroke="currentColor" stroke-width="2"/></svg>',
+  run   : '<svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" fill="currentColor" '
+        + 'opacity="0.4"/></svg>'
 }
 
 /**
@@ -37,49 +39,21 @@ const KEY = [
  * for its slider.
  */
 const WORDS = {
-  sheet  : 'The frames of ten steps, a row a step and a column a frame, the seventeenth of each row the one PyBoy draws',
+  sheet  : 'The frames of ten steps, a row a step and a column a frame, the seventeenth of each row the one '
+         + 'PyBoy draws',
   slider : 'The frame the sheet stands at, a row a step and a column a frame'
 }
 
 /**
- * Draws the marks over the sheet standing at `at`: a veil over each frame
- * fading it to its strength, the bar over the frames each press holds, the dot
- * on the frame the game reads the pad on, the ring round each frame PyBoy draws
- * once the position has passed it, and the square drawn round the frame it
- * stands on.
+ * Draws the marks over the sheet standing at `at`, each step's row through
+ * `drawRow` and the square drawn round the frame it stands on.
  */
 function drawMarks(at: number) {
   const { cell, gap } = step.SHEET
   const now           = step.cellOf(at)
-  const fade          = 'motion-safe:transition-opacity'
   return (
     <svg aria-hidden="true" class="absolute inset-0 block size-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
-      {step.STEPS.map((each, s) => {
-        const y = s * PITCH + gap / 2
-        return [
-          ...each.frames.map((_, f) => (
-            <rect
-              class={['fill-ground', fade]}
-              height={cell}
-              style={{ opacity: 1 - step.strengthOf(at, s * step.FRAMES + f) }}
-              width={cell}
-              x={f * PITCH + gap / 2}
-              y={y}
-            />
-          )),
-          <rect
-            class={['fill-none', ROLES.agent.stroke, fade]}
-            height={cell - 2}
-            stroke-width="2"
-            style={{ opacity: s * step.FRAMES + step.FRAMES - 1 <= at ? 1 : 0 }}
-            width={cell - 2}
-            x={(step.FRAMES - 1) * PITCH + gap / 2 + 1}
-            y={y + 1}
-          />,
-          each.press === null ? null : <rect class={ROLES.agent.fill} height="3" width={step.HOLD * PITCH - gap} x={gap / 2} y={y} />,
-          <rect class="fill-ink" height="3" width="3" x={(each.read - 1) * PITCH + gap / 2 + cell - 5} y={y + cell - 5} />
-        ]
-      })}
+      {step.STEPS.map((each, s) => drawRow(at, each, s))}
       {now.f === step.FRAMES ? null : (
         <rect
           class="fill-none stroke-ink"
@@ -95,14 +69,65 @@ function drawMarks(at: number) {
 }
 
 /**
+ * Draws the marks over the row of `each`, the `s`th step, with the sheet
+ * standing at `at`: a veil over each frame fading it to its strength, the bar
+ * over the frames its press holds, the dot on the frame the game reads the pad
+ * on, and the ring round the frame PyBoy draws once the position has passed it.
+ */
+function drawRow(at: number, each: step.SheetStep, s: number) {
+  const { cell, gap } = step.SHEET
+  const fade          = 'motion-safe:transition-opacity'
+  const y             = s * PITCH + gap / 2
+  return [
+    ...each.frames.map((_, f) => (
+      <rect
+        class={['fill-ground', fade]}
+        height={cell}
+        style={{ opacity: 1 - step.strengthOf(at, s * step.FRAMES + f) }}
+        width={cell}
+        x={f * PITCH + gap / 2}
+        y={y}
+      />
+    )),
+    <rect
+      class={['fill-none', ROLES.agent.stroke, fade]}
+      height={cell - 2}
+      stroke-width="2"
+      style={{ opacity: s * step.FRAMES + step.FRAMES - 1 <= at ? 1 : 0 }}
+      width={cell - 2}
+      x={(step.FRAMES - 1) * PITCH + gap / 2 + 1}
+      y={y + 1}
+    />,
+    each.press === null
+      ? null
+      : <rect class={ROLES.agent.fill} height="3" width={step.HOLD * PITCH - gap} x={gap / 2} y={y} />,
+    <rect
+      class="fill-ink"
+      height="3"
+      width="3"
+      x={(each.read - 1) * PITCH + gap / 2 + cell - 5}
+      y={y + cell - 5}
+    />
+  ]
+}
+
+/**
  * Draws the frame numbers over the sheet's columns, the last, which PyBoy
  * draws, in the agent's Denim.
  */
 function drawHead() {
   return (
-    <div aria-hidden="true" class="step-head grid" style={{ gridTemplateColumns: `repeat(${step.FRAMES}, minmax(0, 1fr))` }}>
+    <div
+      aria-hidden="true"
+      class="step-head grid"
+      style={{ gridTemplateColumns: `repeat(${step.FRAMES}, minmax(0, 1fr))` }}
+    >
       {Array.from({ length: step.FRAMES }, (_, f) => (
-        <span class={[DETAIL, 'step-number text-center', f + 1 === step.FRAMES ? 'font-bold text-denim-text' : '']}>{f + 1}</span>
+        <span class={[
+          DETAIL, 'step-number text-center', f + 1 === step.FRAMES ? 'font-bold text-denim-text' : ''
+        ]}>
+          {f + 1}
+        </span>
       ))}
     </div>
   )
@@ -114,10 +139,17 @@ function drawHead() {
  */
 function drawLabels() {
   return (
-    <div class="step-labels grid" style={{ gridTemplateRows: `repeat(${step.STEPS.length}, minmax(0, 1fr))` }}>
+    <div
+      class="step-labels grid"
+      style={{ gridTemplateRows: `repeat(${step.STEPS.length}, minmax(0, 1fr))` }}
+    >
       {step.STEPS.map(each => (
         <span class="grid min-h-0 place-items-center text-denim-mark" title={pressName(each.press)}>
-          <span aria-hidden="true" class="step-pad grid aspect-square place-items-center rounded-full bg-athens-gray" innerHTML={padMark(each.press)} />
+          <span
+            aria-hidden="true"
+            class="step-pad grid aspect-square place-items-center rounded-full bg-athens-gray"
+            innerHTML={padMark(each.press)}
+          />
           <span class="visually-hidden">{pressName(each.press)}</span>
         </span>
       ))}
@@ -147,13 +179,22 @@ export const MethodsStep = defineComponent({
           {drawHead()}
           {drawLabels()}
           <div class="step-cells relative" ref={box}>
-            <canvas aria-label={WORDS.sheet} class="pixelated block h-auto w-full" height={HEIGHT} ref={canvas} role="img" width={WIDTH} />
+            <canvas
+              aria-label={WORDS.sheet}
+              class="pixelated block h-auto w-full"
+              height={HEIGHT}
+              ref={canvas}
+              role="img"
+              width={WIDTH}
+            />
             {drawMarks(at.value)}
             <Slider band={band} parts={OVER} scrub={scrub} />
           </div>
         </div>
         <div class="grid gap-3">
-          <span class={[DETAIL, 'step-status text-ink']}>{`Step ${where.value.s + 1} of ${step.STEPS.length} · frame ${where.value.f} of ${step.FRAMES}`}</span>
+          <span class={[DETAIL, 'step-status text-ink']}>
+            {`Step ${where.value.s + 1} of ${step.STEPS.length} · frame ${where.value.f} of ${step.FRAMES}`}
+          </span>
           <div class="step-key grid grid-cols-1 gap-2 @lg:grid-cols-2">
             {KEY.map(each => <Chip class="w-full" {...each} />)}
           </div>

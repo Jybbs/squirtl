@@ -9,7 +9,7 @@ import * as moments           from '../../../../lib/methods/search/moments.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
 import { stopped }            from '../../../common/clock.ts'
-import * as pointer           from '../../../common/pointer.ts'
+import * as input             from '../../../common/input.ts'
 
 const { MethodsSearch } = await import('../../../../theme/components/methods/search.tsx')
 
@@ -61,8 +61,7 @@ function states(wrapper: Wrapper): string[] {
  */
 async function step(wrapper: Wrapper, key: string): Promise<void> {
   const thumb = wrapper.get('[role="slider"]')
-  await thumb.trigger('focusin')
-  await thumb.trigger('keydown', { key })
+  await input.pressKeys(thumb, key)
   await wrapper.vm.$nextTick()
 }
 
@@ -80,7 +79,7 @@ describe('MethodsSearch', () => {
       `Saved states${last.saved}`,
       `Presses spent${last.spent.toLocaleString('en-US')}`
     ])
-    expect(pointer.sliderState(wrapper)).toStrictEqual([String(search.LAST), moments.describe(search.LAST)])
+    expect(input.sliderState(wrapper)).toStrictEqual([String(search.LAST), moments.describe(search.LAST)])
     expect(wrapper.text()).toBePublishedProse()
   })
 
@@ -123,13 +122,13 @@ describe('MethodsSearch’s slider', () => {
   it('moves nothing under a pointer pressing and sweeping across the copies', async () => {
     drawInto(null)
     const wrapper = mount(MethodsSearch, { attachTo: document.body })
-    const copies  = pointer.laidOut(wrapper.get('ol'), 600)
-    const before  = pointer.sliderState(wrapper)
+    const copies  = input.laidOut(wrapper.get('ol'), 600)
+    const before  = input.sliderState(wrapper)
 
-    await pointer.press(copies, 60)
-    await pointer.sweep(copies, [120, 300, 540])
+    await input.press(copies, 60)
+    await input.sweep(copies, [120, 300, 540])
 
-    expect(pointer.sliderState(wrapper)).toStrictEqual(before)
+    expect(input.sliderState(wrapper)).toStrictEqual(before)
   })
 })
 
@@ -177,13 +176,14 @@ describe('MethodsSearch’s key', () => {
 })
 
 describe('MethodsSearch’s playback', () => {
-  stopped('plays the first iteration press by press once shown, then moves copies to their winners', async () => {
+  stopped('plays the first iteration press by press once shown, then moves copies to their '
+        + 'winners', async () => {
     const wrapper = await playing()
 
     const pressing = await after(wrapper, moments.TIMING.press * 2)
     const moved    = await after(wrapper, moments.ROLLING + moments.TIMING.move)
 
-    expect([pointer.sliderState(wrapper)[0], pressing, moved]).toStrictEqual([
+    expect([input.sliderState(wrapper)[0], pressing, moved]).toStrictEqual([
       '0', pressing.map(() => ''), moments.shownOf(0, moments.MOVED).flat().map(each => each.state)
     ])
   })
@@ -195,17 +195,18 @@ describe('MethodsSearch’s playback', () => {
     await after(wrapper, moved)
     const pressing = await after(wrapper, moments.ITERATION - moved + moments.TIMING.press / 2)
 
-    expect([pointer.sliderState(wrapper)[0], pressing]).toStrictEqual(['1', pressing.map(() => '')])
+    expect([input.sliderState(wrapper)[0], pressing]).toStrictEqual(['1', pressing.map(() => '')])
   })
 
-  stopped('rests on the demonstration after the last iteration, then starts again from the first', async () => {
+  stopped('rests on the demonstration after the last iteration, then starts again from the '
+        + 'first', async () => {
     const wrapper = await playing()
 
     await after(wrapper, search.LAST * moments.ITERATION)
-    const resting = pointer.sliderState(wrapper)[0]
+    const resting = input.sliderState(wrapper)[0]
     await after(wrapper, REST)
 
-    expect([resting, pointer.sliderState(wrapper)[0]]).toStrictEqual([String(search.LAST), '0'])
+    expect([resting, input.sliderState(wrapper)[0]]).toStrictEqual([String(search.LAST), '0'])
   })
 
   stopped('stands on the demonstration under reduced motion', async () => {
@@ -215,6 +216,6 @@ describe('MethodsSearch’s playback', () => {
     browser.preference.value = 'reduce'
     await wrapper.vm.$nextTick()
 
-    expect(pointer.sliderState(wrapper)[0]).toBe(String(search.LAST))
+    expect(input.sliderState(wrapper)[0]).toBe(String(search.LAST))
   })
 })

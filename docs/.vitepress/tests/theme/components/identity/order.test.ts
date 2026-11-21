@@ -21,10 +21,11 @@ describe('IdentityOrder', () => {
     browser.preference.value = 'reduce'
     const wrapper            = await browser.shown(IdentityOrder)
 
-    expect([offsets(wrapper), wrapper.findAll('.identity-switch').map(each => each.attributes('aria-label'))]).toStrictEqual([
-      order.RUNS.map(() => '0'),
-      order.RUNS.map(run => `${order.tagOf(run)}, ${order.ROLE_WORDS[run.role].toLowerCase()}`)
-    ])
+    expect([offsets(wrapper), wrapper.findAll('.identity-switch').map(each => each.attributes('aria-label'))])
+      .toStrictEqual([
+        order.RUNS.map(() => '0'),
+        order.RUNS.map(run => `${order.tagOf(run)}, ${order.ROLE_WORDS[run.role].toLowerCase()}`)
+      ])
     expect(wrapper.text()).toBePublishedProse()
   })
 

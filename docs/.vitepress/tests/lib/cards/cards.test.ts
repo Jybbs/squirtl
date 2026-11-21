@@ -20,7 +20,8 @@ describe('codeWidth', () => {
     ['1,024', 30, 0, 5 * 30 * IDENTITY.faces.code.advance],
     ['SQUIRTL', 24, 0.08, 7 * 24 * (IDENTITY.faces.code.advance + 0.08)],
     ['', 24, 0.08, 0]
-  ])('measures %j at %i, tracked by %d of the size, from the code face’s advance', (text, size, track, width) => {
+  ])('measures %j at %i, tracked by %d of the size, from the code face’s '
+   + 'advance', (text, size, track, width) => {
     expect(cards.codeWidth(text, size, track)).toBe(width)
   })
 

@@ -44,7 +44,11 @@ function optionsOf<Value extends string>(context: () => Omit<toggleGroup.Props, 
  * Returns:
  *   The props of the group, and the props of each option by its value.
  */
-export function useChoice<Value extends string>(values: readonly Value[], chosen: (value: Value) => void, pressed: Ref<Value> = ref(values[0]!) as Ref<Value>): Options<Value> {
+export function useChoice<Value extends string>(
+  values  : readonly Value[],
+  chosen  : (value: Value) => void,
+  pressed : Ref<Value> = ref(values[0]!) as Ref<Value>
+): Options<Value> {
   return optionsOf(() => ({
     deselectable  : false,
     onValueChange : ({ value }: toggleGroup.ValueChangeDetails) => {
@@ -65,7 +69,10 @@ export function useChoice<Value extends string>(values: readonly Value[], chosen
  * Returns:
  *   The props of the group, and the props of each option by its value.
  */
-export function usePick<Value extends string>(values: readonly Value[], picked: Ref<Value | null>): Options<Value> {
+export function usePick<Value extends string>(
+  values : readonly Value[],
+  picked : Ref<Value | null>
+): Options<Value> {
   return optionsOf(() => ({
     deselectable  : true,
     onValueChange : ({ value }: toggleGroup.ValueChangeDetails) => {

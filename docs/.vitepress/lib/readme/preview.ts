@@ -25,7 +25,8 @@ export function previewAlt(moments: readonly Moment[] = walksOf()): string {
   return `Blue walks from his door in Pallet Town to its north edge with the table as it stood after `
        + `${listed(moments.map(moment => moment.episodes))} episodes of training, every walk on one clock, `
        + `the walk after ${count(last.episodes)} episodes arriving in ${pressesOf(last)} and the walk after `
-       + `${count(first.episodes)} in ${pressesOf(first)}, before a wild encounter’s flash starts the loop again.`
+       + `${count(first.episodes)} in ${pressesOf(first)}, before a wild encounter’s flash starts the loop `
+       + 'again.'
 }
 
 /**

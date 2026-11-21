@@ -123,7 +123,8 @@ export class Packing {
   log(): string {
     const { current } = this
 
-    return this.done ? `Wrote manifest.json beside ${count(ORDER.length)} tars, and squirtl pack prints dist/runs`
+    return this.done
+      ? `Wrote manifest.json beside ${count(ORDER.length)} tars, and squirtl pack prints dist/runs`
       : current === null ? 'Reading the runs docs/runs/ lists'
       : `Wrote dist/runs/${current.asset}`
   }

@@ -109,7 +109,10 @@ export const ResultsArgmax = defineComponent({
         <div class="grid gap-2">
           <span class={LABEL}>{WORDS.picks}</span>
           <Slider parts={AROUND} scrub={scrub}>
-            <div class={PARTS.picks} style={{ gridTemplateColumns: `repeat(${laid.steps.length}, minmax(0, 1fr))` }}>
+            <div
+              class={PARTS.picks}
+              style={{ gridTemplateColumns: `repeat(${laid.steps.length}, minmax(0, 1fr))` }}
+            >
               {laid.differing.map((differing, n) => (
                 <span class={PARTS.pick} data-picked={n === at.value ? '' : undefined}>
                   <span class={DETAIL}>{n + 1}</span>

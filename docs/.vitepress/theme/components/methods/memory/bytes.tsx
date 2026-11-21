@@ -29,9 +29,24 @@ export const MemoryBytes = defineComponent({
   setup: props => () => {
     const { bytes } = TRACE[props.frame.row]!
     const rows      = [
-      { name: 'wCurMap', reads: `${address(ADDRESS.map)} · ${ROOMS[PLACES.get(props.frame.map)!]}`, term: 'novelty', value: byte(props.frame.map) },
-      { name: 'wXCoord', reads: `${address(ADDRESS.x)} · the column`, term: 'novelty', value: byte(props.square[0]) },
-      { name: 'wYCoord', reads: `${address(ADDRESS.y)} · the row`, term: 'novelty', value: byte(props.square[1]) },
+      {
+        name  : 'wCurMap',
+        reads : `${address(ADDRESS.map)} · ${ROOMS[PLACES.get(props.frame.map)!]}`,
+        term  : 'novelty',
+        value : byte(props.frame.map)
+      },
+      {
+        name  : 'wXCoord',
+        reads : `${address(ADDRESS.x)} · the column`,
+        term  : 'novelty',
+        value : byte(props.square[0])
+      },
+      {
+        name  : 'wYCoord',
+        reads : `${address(ADDRESS.y)} · the row`,
+        term  : 'novelty',
+        value : byte(props.square[1])
+      },
       {
         name  : 'wEventFlags',
         reads : `${address(ADDRESS.flags)} and ${address(SECOND)}`,

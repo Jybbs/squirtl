@@ -12,7 +12,8 @@ const CELL_WIDE = 18
  * Writes one drawing from its size and its shapes.
  */
 function svg(width: number, height: number, body: string, name = ''): string {
-  return `<svg class="${name}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">${body}</svg>`
+  return `<svg class="${name}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" `
+       + `aria-hidden="true">${body}</svg>`
 }
 
 /**
@@ -22,14 +23,16 @@ function lens(x: number, y: number, ring: number, glass: number, shine = 0): str
   const highlight = shine
     ? `<circle class="footnote-shine" cx="${x - glass * 0.35}" cy="${y - glass * 0.35}" r="${shine}"/>`
     : ''
-  return `<circle class="footnote-ring" cx="${x}" cy="${y}" r="${ring}"/><circle class="footnote-lens" cx="${x}" cy="${y}" r="${glass}"/>${highlight}`
+  return `<circle class="footnote-ring" cx="${x}" cy="${y}" r="${ring}"/>`
+       + `<circle class="footnote-lens" cx="${x}" cy="${y}" r="${glass}"/>${highlight}`
 }
 
 /**
  * Writes the lightning-bolt antenna, its left edge at `x`.
  */
 function bolt(x: number): string {
-  return `<path class="footnote-bolt" d="M${x + 2} 6 ${x + 3} 3.5 ${x + 1} 3.5 ${x + 6} 0 ${x + 5} 2.5 ${x + 7} 2.5 ${x + 4} 6Z"/>`
+  return `<path class="footnote-bolt" d="M${x + 2} 6 ${x + 3} 3.5 ${x + 1} 3.5 ${x + 6} 0 `
+       + `${x + 5} 2.5 ${x + 7} 2.5 ${x + 4} 6Z"/>`
 }
 
 /**
@@ -56,28 +59,60 @@ function screen(number: number): string {
 /**
  * The lens every marker holds on its phone's corner, drawn over the numeral.
  */
-const CORNER = svg(8, 8, `<circle class="footnote-shell" cx="4" cy="4" r="4"/>${lens(4, 4, 3, 2)}`, 'footnote-art-corner')
+const CORNER = svg(
+  8,
+  8,
+  `<circle class="footnote-shell" cx="4" cy="4" r="4"/>${lens(4, 4, 3, 2)}`,
+  'footnote-art-corner'
+)
 
 /**
  * The arrow a way back draws, a hook turning back.
  */
-export const BACK_ARROW = svg(16, 16, '<path d="M6.500 2.500 2 7l4.500 4.500M2.800 7H10a4 4 0 0 1 4 4v2.500" fill="none" stroke="currentColor" stroke-linecap="square" stroke-width="2.200"/>')
+export const BACK_ARROW = svg(
+  16,
+  16,
+    '<path d="M6.500 2.500 2 7l4.500 4.500M2.800 7H10a4 4 0 0 1 4 4v2.500" fill="none" stroke="currentColor" '
+  + 'stroke-linecap="square" stroke-width="2.200"/>'
+)
+
+/**
+ * The bolt above the list.
+ */
+const BOLT = '<path class="footnote-bolt" d="M20 46 27 26 14 26 48 0 39 19 54 19 32 46Z"/>'
+
+/**
+ * The camera on the phone's corner, its two lenses side by side.
+ */
+const CAMERA = `<rect class="footnote-shell" width="68" height="34" rx="17"/>${lens(17, 17, 13, 10, 3)}`
+             + '<circle class="footnote-ring" cx="49" cy="17" r="10"/>'
+             + '<circle class="footnote-camera-two" cx="49" cy="17" r="6.500"/>'
+
+/**
+ * The spike beneath the list.
+ */
+const FOOT = '<path class="footnote-shell" d="M0 0H40L30 10H25L20 26 15 10H10Z"/>'
 
 /**
  * The drawings around the list: the camera on the phone's corner, the bolt
  * above it, and the spike beneath it.
  */
 export const PHONE_ART = [
-  `<span class="footnote-phone-camera">${svg(68, 34, `<rect class="footnote-shell" width="68" height="34" rx="17"/>${lens(17, 17, 13, 10, 3)}<circle class="footnote-ring" cx="49" cy="17" r="10"/><circle class="footnote-camera-two" cx="49" cy="17" r="6.500"/>`)}</span>`,
-  `<span class="footnote-phone-bolt">${svg(64, 46, '<path class="footnote-bolt" d="M20 46 27 26 14 26 48 0 39 19 54 19 32 46Z"/>')}</span>`,
-  `<span class="footnote-phone-foot">${svg(40, 26, '<path class="footnote-shell" d="M0 0H40L30 10H25L20 26 15 10H10Z"/>')}</span>`
+  `<span class="footnote-phone-camera">${svg(68, 34, CAMERA)}</span>`,
+  `<span class="footnote-phone-bolt">${svg(64, 46, BOLT)}</span>`,
+  `<span class="footnote-phone-foot">${svg(40, 26, FOOT)}</span>`
 ].join('')
 
 /**
  * Writes the larger phone opening a definition, holding its number.
  */
 export function opener(number: number): string {
-  const phone = svg(36, 54, `<rect class="footnote-shell" x="4" y="10" width="30" height="36" rx="6"/><path class="footnote-bolt" d="M18 12 20 6 15 6 26 0 23.500 4.500 28 4.500 22 12Z"/><path class="footnote-shell" d="M13 45H25L19 54Z"/><rect class="footnote-pane" x="7.500" y="13.500" width="23" height="29" rx="3"/><circle class="footnote-shell" cx="9" cy="13" r="8.500"/>${lens(9, 13, 6.5, 4.8, 1.4)}`)
+  const body = '<rect class="footnote-shell" x="4" y="10" width="30" height="36" rx="6"/>'
+             + '<path class="footnote-bolt" d="M18 12 20 6 15 6 26 0 23.500 4.500 28 4.500 22 12Z"/>'
+             + '<path class="footnote-shell" d="M13 45H25L19 54Z"/>'
+             + '<rect class="footnote-pane" x="7.500" y="13.500" width="23" height="29" rx="3"/>'
+             + `<circle class="footnote-shell" cx="9" cy="13" r="8.500"/>${lens(9, 13, 6.5, 4.8, 1.4)}`
+  const phone = svg(36, 54, body)
   return `<span class="footnote-opener">${phone}${numeral(number)}</span>`
 }
 
@@ -85,7 +120,12 @@ export function opener(number: number): string {
  * Writes a lone marker, the phone upright with its number on the glass.
  */
 export function lone(number: number): string {
-  const phone = svg(16, 25, `<rect class="footnote-shell" x="3" y="5" width="13" height="17" rx="3"/>${bolt(6)}${spike(6)}`, 'footnote-art-phone')
+  const phone = svg(
+    16,
+    25,
+    `<rect class="footnote-shell" x="3" y="5" width="13" height="17" rx="3"/>${bolt(6)}${spike(6)}`,
+    'footnote-art-phone'
+  )
   return `<span class="footnote-tile footnote-lead footnote-alone">${phone}${screen(number)}${CORNER}</span>`
 }
 
@@ -104,7 +144,13 @@ function slab(numbers: readonly number[]): string {
     return pane
   })
   const axis = width / 2 - 0.5
-  return svg(width + 3, 25, `<rect class="footnote-shell" x="3" y="5" width="${width}" height="17" rx="3"/>${panes.join('')}${bolt(axis)}${spike(axis)}`, 'footnote-art-phone')
+  return svg(
+    width + 3,
+    25,
+      `<rect class="footnote-shell" x="3" y="5" width="${width}" height="17" rx="3"/>`
+    + `${panes.join('')}${bolt(axis)}${spike(axis)}`,
+    'footnote-art-phone'
+  )
 }
 
 /**
@@ -121,5 +167,6 @@ export function cell(number: number, numbers: readonly number[], position: numbe
     last ? 'footnote-last' : '',
     number > 9 ? 'footnote-wide' : ''
   ].filter(Boolean).join(' ')
-  return `<span class="${classes}">${first ? slab(numbers) : ''}${screen(number)}${first ? CORNER : ''}</span>`
+  return `<span class="${classes}">${first ? slab(numbers) : ''}${screen(number)}`
+       + `${first ? CORNER : ''}</span>`
 }

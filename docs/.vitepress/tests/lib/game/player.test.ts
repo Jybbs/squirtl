@@ -130,7 +130,9 @@ describe('autoPress', () => {
     led.press('up')
 
     expect([
-      player.autoPress(led, () => 0), player.autoPress(speaking, () => 0), player.autoPress(placed('lab', [7, 4], 'up', 0), () => 0.99)
+      player.autoPress(led, () => 0),
+      player.autoPress(speaking, () => 0),
+      player.autoPress(placed('lab', [7, 4], 'up', 0), () => 0.99)
     ]).toStrictEqual(['b', 'b', 'b'])
   })
 })

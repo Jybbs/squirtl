@@ -118,7 +118,7 @@ describe('ResultsAggregate’s columns under a mouse', () => {
     expect(runGroupsOf(wrapper)[first]!.classes()).toContain('pointer-events-auto')
   })
 
-  it('opens the column a mouse rests on over the one pressed, and the pressed one once it leaves', async () => {
+  it('opens the column a mouse rests on over a pressed one, and the pressed one once it leaves', async () => {
     const wrapper = await mounted()
     const open    = () => runGroupsOf(wrapper).findIndex(run => run.classes('pointer-events-auto')) / 5
     await columnsOf(wrapper)[3]!.trigger('click')

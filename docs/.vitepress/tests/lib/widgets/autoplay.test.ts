@@ -121,7 +121,8 @@ describe('useAutoplay holding and ending', () => {
 })
 
 describe('useAutoplay under reduced motion', () => {
-  test('shows the end once before the widget first shows, and never again as it leaves and returns', async () => {
+  test('shows the end once before the widget first shows, and never again as it leaves and '
+     + 'returns', async () => {
     browser.preference.value = 'reduce'
     const { log, sight }     = await played(2)
     const mounted            = [...log]

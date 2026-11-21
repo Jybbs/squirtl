@@ -15,7 +15,8 @@ const PARTS = {
   body   : 'grid gap-2 p-4 font-code text-small leading-snug text-ink',
   fill   : 'absolute inset-0 origin-left bg-denim-mark motion-safe:transition-transform',
   name   : 'font-medium',
-  prompt : 'flex items-center gap-2 rounded-1 text-left enabled:cursor-pointer enabled:hover:bg-ground focus-ring',
+  prompt : 'flex items-center gap-2 rounded-1 text-left enabled:cursor-pointer enabled:hover:bg-ground '
+         + 'focus-ring',
   row    : 'flex flex-wrap gap-x-3 motion-safe:transition-opacity',
   sigil  : 'text-quiet select-none',
   tick   : 'absolute inset-y-0 border-l-hairline border-rule',
@@ -39,9 +40,13 @@ function drawFiles(run: terminal.Training) {
     <ol class={LIST}>
       {run.files().map((file, n) => (
         <li class={[PARTS.row, !file.there && 'opacity-45']}>
-          <span aria-hidden="true" class={PARTS.sigil}>{n === terminal.FILES.length - 1 ? '└──' : '├──'}</span>
+          <span aria-hidden="true" class={PARTS.sigil}>
+            {n === terminal.FILES.length - 1 ? '└──' : '├──'}
+          </span>
           <span class={PARTS.name}>{terminal.FILES[n]!.name}</span>
-          <span>{file.state}<span class={[LABEL, 'ml-3 normal-case']}># {terminal.FILES[n]!.when}</span></span>
+          <span>
+            {file.state}<span class={[LABEL, 'ml-3 normal-case']}># {terminal.FILES[n]!.when}</span>
+          </span>
         </li>
       ))}
     </ol>
@@ -78,7 +83,7 @@ export const CommandsTerminal = defineComponent({
       <div class={PARTS.window} ref={root}>
         <div class={PARTS.top}>
           <div aria-hidden="true" class={PARTS.bar}>
-            <span class={PARTS.fill} style={{ transform: `scaleX(${(run.step / terminal.RUN.steps).toFixed(4)})` }} />
+            <span class={PARTS.fill} style={{ transform: `scaleX(${run.progress.toFixed(4)})` }} />
             {TICKS.map(left => <span class={PARTS.tick} style={{ left }} />)}
           </div>
           <p class={DETAIL} role="status">{run.status()}</p>

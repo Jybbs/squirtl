@@ -109,7 +109,14 @@ function runOf(): Run {
   const n     = PRESSES
   const paid  = (k: number) => k === n - 1 ? 1 : 0
   const fill  = (value: number) => Array.from({ length: n }, () => value)
-  const run   = { copied: [false], copy: [fill(0)], critic: [fill(0)], odds: [fill(1 / ACTIONS)], online: [fill(0)], pqn: [fill(0)] }
+  const run   = {
+    copied : [false],
+    copy   : [fill(0)],
+    critic : [fill(0)],
+    odds   : [fill(1 / ACTIONS)],
+    online : [fill(0)],
+    pqn    : [fill(0)]
+  }
   for (let p = 1; p <= PASSES; p++) {
     const copied                  = (p - 1) % COPY_EVERY === 0
     const [online, pqn, critic]   = [run.online[p - 1]!, run.pqn[p - 1]!, run.critic[p - 1]!]
@@ -118,11 +125,14 @@ function runOf(): Run {
     const returns: number[]       = []
     const advantage: number[]     = []
     for (let k = n - 1; k >= 0; k--) {
-      const ahead = k === n - 1 ? 0 : (1 - LEARNING.lambda) * Math.max(pqn[k + 1]!, NOISE[k + 1]!) + LEARNING.lambda * returns[k + 1]!
+      const ahead = k === n - 1
+        ? 0
+        : (1 - LEARNING.lambda) * Math.max(pqn[k + 1]!, NOISE[k + 1]!) + LEARNING.lambda * returns[k + 1]!
       returns[k]  = paid(k) + LEARNING.discount * ahead
     }
     for (let carry = 0, k = n - 1; k >= 0; k--) {
-      carry        = paid(k) + LEARNING.discount * (critic[k + 1] ?? 0) - critic[k]! + LEARNING.discount * LEARNING.gae * carry
+      carry        = paid(k) + LEARNING.discount * (critic[k + 1] ?? 0) - critic[k]!
+                   + LEARNING.discount * LEARNING.gae * carry
       advantage[k] = carry
     }
     run.copied.push(copied)
@@ -141,8 +151,12 @@ export const RUN = runOf()
  * Blue's walk up the column frame by frame as pret/pokered moves him, each
  * press's frames through his gait.
  */
-export const STRIDE: readonly Stride[] = stepsOf(Array.from({ length: PRESSES }, () => 'up'), { at: WALK[0]!, facing: 'up' })
-  .flatMap((step, n) => step.frames.map(frame => ({ stance: frame.stance, y: WALK[n]![1] * SQUARE - frame.pixels })))
+export const STRIDE: readonly Stride[] = stepsOf(
+  Array.from({ length: PRESSES }, () => 'up'),
+  { at: WALK[0]!, facing: 'up' }
+)
+  .flatMap((step, n) =>
+    step.frames.map(frame => ({ stance: frame.stance, y: WALK[n]![1] * SQUARE - frame.pixels })))
 
 /**
  * The loop's lengths in Game Boy frames: each fade palette's hold, as
@@ -172,10 +186,18 @@ export const LINE = (() => {
  */
 export function momentAt(clock: number): Moment {
   const moment: Moment = { bubble: false, fade: 0, landed: 0, pass: 0, walk: -1, where: 'start' }
-  if (clock < LINE.start) return { ...moment, fade: clock < 3 * FRAMES.fade ? 2 - Math.floor(clock / FRAMES.fade) : 0 }
+  if (clock < LINE.start) {
+    return { ...moment, fade: clock < 3 * FRAMES.fade ? 2 - Math.floor(clock / FRAMES.fade) : 0 }
+  }
   if (clock >= LINE.end) {
     const out = clock - LINE.end - FRAMES.end
-    return { ...moment, fade: out >= 0 ? 1 + Math.floor(out / FRAMES.fade) : 0, landed: PASSES, pass: PASSES, where: 'end' }
+    return {
+      ...moment,
+      fade   : out >= 0 ? 1 + Math.floor(out / FRAMES.fade) : 0,
+      landed : PASSES,
+      pass   : PASSES,
+      where  : 'end'
+    }
   }
   const into  = clock - LINE.start
   const local = into % LINE.pass
@@ -188,7 +210,9 @@ export function momentAt(clock: number): Moment {
  * Reads the frame of the loop that holds pass `pass` landed, Blue at the north
  * edge under the shock bubble, or before training, Blue on his first square.
  */
-export const clockOf = (pass: number): number => pass ? LINE.start + (pass - 1) * LINE.pass + STRIDE.length : 3 * FRAMES.fade
+export const clockOf = (pass: number): number => pass
+  ? LINE.start + (pass - 1) * LINE.pass + STRIDE.length
+  : 3 * FRAMES.fade
 
 /**
  * Reads the value `series` holds at pressed square `k` a share of the way

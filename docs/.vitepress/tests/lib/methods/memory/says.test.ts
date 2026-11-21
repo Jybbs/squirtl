@@ -5,7 +5,8 @@ import * as says from '../../../../lib/methods/memory/says.ts'
 
 describe('the sentences', () => {
   it('names the position the episode starts on with no payment', () => {
-    expect(says.textOf(says.partsOf(says.SAYS[0]!, false))).toBe('Step 0 stands on (26, 03, 06) in the bedroom.')
+    expect(says.textOf(says.partsOf(says.SAYS[0]!, false)))
+      .toBe('Step 0 stands on (26, 03, 06) in the bedroom.')
   })
 
   it('names each flag set with its bit and byte, and the starter ending the episode', () => {
@@ -15,7 +16,8 @@ describe('the sentences', () => {
   })
 
   it('pays nothing for a press that only turns Blue', () => {
-    expect(says.textOf(says.partsOf(says.SAYS[1]!, false))).toBe('Step 1 turns Blue to face right on (26, 03, 06) without a step, paying nothing.')
+    expect(says.textOf(says.partsOf(says.SAYS[1]!, false)))
+      .toBe('Step 1 turns Blue to face right on (26, 03, 06) without a step, paying nothing.')
   })
 
   it('names a square reached before as paying nothing for the position', () => {
@@ -28,10 +30,13 @@ describe('the sentences', () => {
     expect([
       says.textOf(says.partsOf(says.pointedSay('bedroom', [3, 6], 0), true)),
       says.pointedSay('pallet', [0, 0], 0).term
-    ]).toStrictEqual(['(26, 03, 06) is reached by step 0, so stepping onto it again pays nothing.', 'novelty'])
+    ]).toStrictEqual([
+      '(26, 03, 06) is reached by step 0, so stepping onto it again pays nothing.', 'novelty'
+    ])
   })
 
   it('lays the longest sentence under every one shown', () => {
-    expect(says.SAYS.filter(say => says.textOf(says.partsOf(say, false)).length > says.LONGEST.length)).toStrictEqual([])
+    expect(says.SAYS.filter(say => says.textOf(says.partsOf(say, false)).length > says.LONGEST.length))
+      .toStrictEqual([])
   })
 })

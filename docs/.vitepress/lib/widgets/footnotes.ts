@@ -18,13 +18,19 @@ function offset(written: string): number {
  */
 export function followFootnotes(root: Document) {
   const clear = () => {
-    for (const element of root.querySelectorAll('.footnote-hit, .footnote-left')) element.classList.remove('footnote-hit', 'footnote-left')
-    for (const arrow of root.querySelectorAll('.footnote-backref[aria-current]')) arrow.removeAttribute('aria-current')
+    for (const element of root.querySelectorAll('.footnote-hit, .footnote-left')) {
+      element.classList.remove('footnote-hit', 'footnote-left')
+    }
+    for (const arrow of root.querySelectorAll('.footnote-backref[aria-current]')) {
+      arrow.removeAttribute('aria-current')
+    }
   }
 
   root.addEventListener('click', event => {
-    const link   = (event.target as Element).closest<HTMLAnchorElement>('.footnote-ref a[href], .footnote-backref')
-    const target = link && root.querySelector<HTMLElement>(`#${CSS.escape(decodeURIComponent(link.hash.slice(1)))}`)
+    const links  = '.footnote-ref a[href], .footnote-backref'
+    const link   = (event.target as Element).closest<HTMLAnchorElement>(links)
+    const target = link
+      && root.querySelector<HTMLElement>(`#${CSS.escape(decodeURIComponent(link.hash.slice(1)))}`)
     if (!target) return
 
     clear()
@@ -34,7 +40,9 @@ export function followFootnotes(root: Document) {
     if (marker) {
       target.classList.add('footnote-hit')
       marker.classList.add('footnote-left')
-      target.querySelector(`.footnote-backref[href="#${CSS.escape(link.id)}"]`)?.setAttribute('aria-current', 'location')
+      target
+        .querySelector(`.footnote-backref[href="#${CSS.escape(link.id)}"]`)
+        ?.setAttribute('aria-current', 'location')
     } else {
       target.closest('sup.footnote-ref')!.classList.add('footnote-hit')
       link.closest('.footnote-item')!.classList.add('footnote-left')
