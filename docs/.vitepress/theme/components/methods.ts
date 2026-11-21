@@ -10,5 +10,6 @@ import { MethodsStep }       from './methods/step.tsx'
  * The widgets a page of the Methods section closes a part on.
  */
 export const METHODS = [
-  MethodsCurriculum, MethodsDiscount, MethodsExperience, MethodsMemory, MethodsReach, MethodsSearch, MethodsStep
+  MethodsCurriculum, MethodsDiscount, MethodsExperience, MethodsMemory, MethodsReach, MethodsSearch,
+  MethodsStep
 ] as const

@@ -14,7 +14,10 @@ export const ResultsLegend = defineComponent({
   props : { rows: { required: true, type: Array as PropType<readonly LegendRow[]> } },
   setup : props => () => (
     <div class="results-legend grid gap-x-4 gap-y-1">
-      {props.rows.map(row => [<span class={[LABEL, 'pt-1.5']}>{row.head}</span>, <Key entries={row.entries} />])}
+      {props.rows.map(row => [
+        <span class={[LABEL, 'pt-1.5']}>{row.head}</span>,
+        <Key entries={row.entries} />
+      ])}
     </div>
   )
 })

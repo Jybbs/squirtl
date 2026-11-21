@@ -185,8 +185,9 @@ export class Fetching {
 
     return [...digests[source]].map((digit, i) => ({
       agreement : i >= this.compared ? 'open'
-                : digests.download[i] === digests.manifest[i] && digests.github[i] === digests.manifest[i] ? 'agree'
-                : 'differ',
+                : digests.download[i] === digests.manifest[i] && digests.github[i] === digests.manifest[i]
+                  ? 'agree'
+                  : 'differ',
       digit     : shown ? digit : '·'
     }))
   }

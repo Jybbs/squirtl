@@ -57,7 +57,11 @@ describe('Slider', () => {
     const wrapper = slid(at)
     const fill    = wrapper.get<HTMLElement>("[data-part='control'] span:last-child")
 
-    expect([wrapper.classes(), fill.element.style.width, wrapper.get<HTMLElement>('[role="slider"]').element.style.left])
+    expect([
+      wrapper.classes(),
+      fill.element.style.width,
+      wrapper.get<HTMLElement>('[role="slider"]').element.style.left
+    ])
       .toStrictEqual([['relative'], share, share])
   })
 
@@ -66,7 +70,10 @@ describe('Slider', () => {
     const control = wrapper.get("[data-part='control']")
     const thumb   = wrapper.get<HTMLElement>('[role="slider"]')
 
-    expect([wrapper.classes(), control.findAll('span').length, control.classes(), thumb.classes(), thumb.element.style.left])
+    expect([
+      wrapper.classes(), control.findAll('span').length, control.classes(), thumb.classes(),
+      thumb.element.style.left
+    ])
       .toStrictEqual([
         String(OVER.root).split(' '),
         0,

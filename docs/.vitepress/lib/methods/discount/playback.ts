@@ -23,7 +23,8 @@ export interface DiscountPlayback {
  */
 function describe(stop: number): string {
   const at = discount.discountAt(stop)
-  return `Discount ${discount.spelled(at)}, half its weight at ${count(Math.round(discount.halfLife(at)))} steps`
+  return `Discount ${discount.spelled(at)}, `
+       + `half its weight at ${count(Math.round(discount.halfLife(at)))} steps`
 }
 
 /**

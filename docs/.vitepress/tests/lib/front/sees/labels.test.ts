@@ -36,7 +36,8 @@ describe('frameNamesOf', () => {
 })
 
 describe('pastOf', () => {
-  it('names each flag past the default goal beside its index, in the order the network reads the flags', () => {
+  it('names each flag past the default goal beside its index, in the order the network reads the '
+   + 'flags', () => {
     expect(labels.pastOf()).toStrictEqual([
       { index: 0x23, name: 'Battled the rival' },
       { index: 0x39, name: 'Got Oak’s parcel' },

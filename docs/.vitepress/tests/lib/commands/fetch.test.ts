@@ -36,9 +36,8 @@ describe('Fetching', () => {
   it('compares the three digests a digit a beat once its tar has arrived', () => {
     const fetching = played(fetch.BEATS.download + 3)
 
-    expect([fetching.verdict(), fetching.digits('manifest').map(digit => digit.agreement).slice(0, 4)]).toStrictEqual([
-      'Comparing the three digests', ['agree', 'agree', 'agree', 'open']
-    ])
+    expect([fetching.verdict(), fetching.digits('manifest').map(digit => digit.agreement).slice(0, 4)])
+      .toStrictEqual(['Comparing the three digests', ['agree', 'agree', 'agree', 'open']])
   })
 
   it('fetches every run it matches where the release is as packed', () => {
@@ -73,9 +72,8 @@ describe('Fetching at the altered tar', () => {
     const fetching                       = played(SPAN * fetch.MATCHED.length, true)
     const { download, github, manifest } = fetching.digests()
 
-    expect([fetching.done, fetching.failed, fetching.marks(), download === github, download === manifest]).toStrictEqual([
-      true, true, ['done', 'done', 'fail', 'never', 'never'], true, false
-    ])
+    expect([fetching.done, fetching.failed, fetching.marks(), download === github, download === manifest])
+      .toStrictEqual([true, true, ['done', 'done', 'fail', 'never', 'never'], true, false])
     expect([fetching.verdict(), fetch.LONGEST]).toStrictEqual(Array.from({ length: 2 }, () =>
       `The tar of ${fetch.ALTERED.name} in the release 0.2.0 has the SHA-256 digest ${download}, `
       + `where its asset carries sha256:${github} and the manifest records ${manifest}`))

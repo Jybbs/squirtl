@@ -13,7 +13,8 @@ describe('still', () => {
       during = nodes.map(node => node.style.transition)
     })
 
-    expect([during, nodes.map(node => node.style.transition), nodes[0]!.style.width]).toStrictEqual([['none', 'none'], ['', ''], '10px'])
+    expect([during, nodes.map(node => node.style.transition), nodes[0]!.style.width])
+      .toStrictEqual([['none', 'none'], ['', ''], '10px'])
   })
 
   it('runs over no nodes', () => {

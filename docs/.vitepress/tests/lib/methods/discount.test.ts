@@ -9,8 +9,10 @@ const PLOT = discount.plotOf(discount.DISCOUNT, 640)
 
 describe('the discount', () => {
   it('counts half at about 231 steps at the setting, which the slider starts on', () => {
-    expect([Math.round(discount.halfLife(discount.DISCOUNT)), discount.discountAt(discount.stopOf(discount.DISCOUNT))])
-      .toStrictEqual([231, discount.DISCOUNT])
+    expect([
+      Math.round(discount.halfLife(discount.DISCOUNT)),
+      discount.discountAt(discount.stopOf(discount.DISCOUNT))
+    ]).toStrictEqual([231, discount.DISCOUNT])
   })
 
   it.each([
@@ -21,7 +23,8 @@ describe('the discount', () => {
   })
 
   it('catches each named discount as the half point passes it', () => {
-    expect(discount.NAMED.map(named => discount.discountAt(discount.stopOf(named) + 1))).toStrictEqual([...discount.NAMED])
+    expect(discount.NAMED.map(named => discount.discountAt(discount.stopOf(named) + 1)))
+      .toStrictEqual([...discount.NAMED])
   })
 
   it.each([
@@ -44,13 +47,15 @@ describe('EPISODES', () => {
   })
 
   it('names an episode that never reaches the starter as such', () => {
-    expect(discount.weighed('A wander', 'random', Infinity, 1000).told).toBe('A wander never reaching the starter')
+    expect(discount.weighed('A wander', 'random', Infinity, 1000).told)
+      .toBe('A wander never reaching the starter')
   })
 })
 
 describe('plotOf', () => {
   it('labels the weights up the side and each power of ten along the bottom', () => {
-    expect(PLOT.labels.map(label => label.text)).toStrictEqual(['0.0', '0.5', '1.0', '1', '10', '100', '1,000', '10,000'])
+    expect(PLOT.labels.map(label => label.text))
+      .toStrictEqual(['0.0', '0.5', '1.0', '1', '10', '100', '1,000', '10,000'])
   })
 
   it('sets the half point on the curve with its label to its right while room remains', () => {
@@ -77,14 +82,18 @@ describe('plotOf', () => {
   })
 
   it('groups the tiles of payments under eight pixels apart under one leader, combed beneath them', () => {
-    expect(PLOT.lanes.map(lane => lane.groups.map(group => group.tiles.length))).toStrictEqual([[1, 2, 1], [4]])
+    expect(PLOT.lanes.map(lane => lane.groups.map(group => group.tiles.length)))
+      .toStrictEqual([[1, 2, 1], [4]])
     expect(PLOT.lanes[0]!.groups[1]!.leader).toMatch(/^M[\d.]+,33H[\d.]+(M[\d.]+,28V33){2}M[\d.]+,33L/u)
   })
 
   it('keeps each row of tiles a pitch apart and inside the chart', () => {
-    const [walk, wander] = PLOT.lanes.map(lane => lane.groups.flatMap(group => group.tiles.map(tile => tile.x)))
+    const [walk, wander] = PLOT.lanes.map(lane =>
+      lane.groups.flatMap(group => group.tiles.map(tile => tile.x)))
 
-    expect([wander![0]! - walk!.at(-1)! >= discount.WEIGHING.pitch, wander!.at(-1)! <= 640 - discount.WEIGHING.box.right])
-      .toStrictEqual([true, true])
+    expect([
+      wander![0]! - walk!.at(-1)! >= discount.WEIGHING.pitch,
+      wander!.at(-1)! <= 640 - discount.WEIGHING.box.right
+    ]).toStrictEqual([true, true])
   })
 })

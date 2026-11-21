@@ -12,7 +12,8 @@ function played(beats: number): terminal.Training {
 }
 
 describe('ENDINGS', () => {
-  it('runs each episode to the step limit until a third of the run has passed, then mostly reaches the starter', () => {
+  it('runs each episode to the step limit until a third of the run has passed, then mostly reaches the '
+   + 'starter', () => {
     const early = terminal.ENDINGS.filter(each => each.end <= terminal.RUN.steps / 3)
 
     expect(early.filter(each => each.reached)).toStrictEqual([])
@@ -35,10 +36,8 @@ describe('dueAt', () => {
 
 describe('Training', () => {
   it('starts with only its record written', () => {
-    expect([new terminal.Training().files().map(file => file.there), new terminal.Training().status()]).toStrictEqual([
-      [true, false, false, false, false, false],
-      'Step 0 of 2,500,000, episode 1'
-    ])
+    expect([new terminal.Training().files().map(file => file.there), new terminal.Training().status()])
+      .toStrictEqual([[true, false, false, false, false, false], 'Step 0 of 2,500,000, episode 1'])
   })
 
   it('writes its checkpoints, its evaluations, and the baseline as it trains', () => {
@@ -56,8 +55,14 @@ describe('Training', () => {
     const run = played(200)
 
     expect([run.ended, run.status(), run.files()[2]!.state]).toStrictEqual([
-      true, `Ended at step 2,500,000 after ${terminal.ENDINGS.length} episodes, with a checkpoint`, 'At the end, step 2,500,000'
+      true,
+      `Ended at step 2,500,000 after ${terminal.ENDINGS.length} episodes, with a checkpoint`,
+      'At the end, step 2,500,000'
     ])
+  })
+
+  it('reads the share of its steps trained as none at the start and all once it has ended', () => {
+    expect([new terminal.Training().progress, played(200).progress]).toStrictEqual([0, 1])
   })
 
 })
@@ -71,7 +76,9 @@ describe('Training once the stop file is written', () => {
     run.stop()
     run.advance()
     expect([run.stopAt, run.status(), run.files()[5]]).toStrictEqual([
-      60000, 'Stopped at the end of episode 6, step 61,440, with a checkpoint', { state: 'Written', there: true }
+      60000,
+      'Stopped at the end of episode 6, step 61,440, with a checkpoint',
+      { state: 'Written', there: true }
     ])
   })
 

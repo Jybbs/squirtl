@@ -32,11 +32,22 @@ export const MemorySays = defineComponent({
   },
 
   setup: props => {
-    const say = computed(() => props.pointed ? pointedSay(props.frame.place, props.pointed, props.frame.row) : SAYS[props.frame.row]!)
+    const say = computed(() => props.pointed
+      ? pointedSay(props.frame.place, props.pointed, props.frame.row)
+      : SAYS[props.frame.row]!)
     return () => (
-      <p aria-live="off" class="memory-says m-0 grid rounded-2 border-hairline border-rule bg-lift px-4 py-3 font-code text-small leading-relaxed font-medium tracking-caps text-ink uppercase">
+      <p
+        aria-live="off"
+        class={[
+          'memory-says m-0 grid rounded-2 border-hairline border-rule bg-lift px-4 py-3',
+          'font-code text-small leading-relaxed font-medium tracking-caps text-ink uppercase'
+        ]}
+      >
         <span aria-hidden="true" class="invisible">{LONGEST}</span>
-        <span>{partsOf(say.value, props.pointed !== null).map(([words, role]) => role ? <span class={ROLES[role]}>{words}</span> : words)}</span>
+        <span>
+          {partsOf(say.value, props.pointed !== null).map(([words, role]) =>
+            role ? <span class={ROLES[role]}>{words}</span> : words)}
+        </span>
       </p>
     )
   }

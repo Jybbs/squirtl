@@ -43,21 +43,25 @@ describe('ResultsComparison', () => {
     expect(mount(ResultsComparison).html()).toBe('')
   })
 
-  it('draws a lane a group, reading each lane’s verdict as its interval of the odds against random presses falls', async () => {
+  it('draws a lane a group, reading each lane’s verdict as its interval of the odds against random presses '
+   + 'falls', async () => {
     const wrapper = await mounted()
     const side    = wrapper.find('[aria-label^="Last evaluation"]')
 
     await side.trigger('focus')
 
-    expect(wrapper.find('svg').text().match(/VS (?:RANDOM|BEDROOM)(?:BEATS|BELOW|NOT CLEAR|WORSE|BETTER)/gu)).toStrictEqual([
-      'VS RANDOMBELOW', 'VS RANDOMBEATS', 'VS RANDOMBEATS', 'VS BEDROOMNOT CLEAR', 'VS RANDOMNOT CLEAR', 'VS RANDOMNOT CLEAR', 'VS BEDROOMWORSE'
-    ])
+    expect(wrapper.find('svg').text().match(/VS (?:RANDOM|BEDROOM)(?:BEATS|BELOW|NOT CLEAR|WORSE|BETTER)/gu))
+      .toStrictEqual([
+        'VS RANDOMBELOW', 'VS RANDOMBEATS', 'VS RANDOMBEATS', 'VS BEDROOMNOT CLEAR', 'VS RANDOMNOT CLEAR',
+        'VS RANDOMNOT CLEAR', 'VS BEDROOMWORSE'
+      ])
   })
 
   it('stands every seed’s row whole at once under reduced motion', async () => {
     const wrapper = await mounted()
 
-    expect(wrapper.find('svg').findAll('clipPath rect').filter(rect => Number(rect.attributes('width')) <= 0)).toStrictEqual([])
+    expect(wrapper.find('svg').findAll('clipPath rect').filter(rect => Number(rect.attributes('width')) <= 0))
+      .toStrictEqual([])
   })
 
   it('draws a whisker for each verdict whose odds carry an interval', async () => {
@@ -94,7 +98,8 @@ describe('ResultsComparison’s fold', () => {
     ])
   })
 
-  it('widens the side a mouse rests on over the side holding focus, and focuses a side on a touch', async () => {
+  it('widens the side a mouse rests on over the side holding focus, and focuses a side on a '
+   + 'touch', async () => {
     const wrapper = await mounted()
     const curves  = wrapper.find<HTMLElement>('[aria-label^="Learning curves"]')
     const finals  = wrapper.find<HTMLElement>('[aria-label^="Last evaluation"]')
@@ -107,7 +112,8 @@ describe('ResultsComparison’s fold', () => {
     await curves.trigger('pointerleave', { pointerType: 'mouse' })
     await flushPromises()
 
-    expect([document.activeElement === finals.element, hovered, sides(wrapper)]).toStrictEqual([true, ['1', '0'], ['0', '1']])
+    expect([document.activeElement === finals.element, hovered, sides(wrapper)])
+      .toStrictEqual([true, ['1', '0'], ['0', '1']])
   })
 
 })
@@ -143,7 +149,8 @@ describe('ResultsComparison’s layout', () => {
   it('stacks the curves above the last evaluation in a narrow box, with no side to widen', async () => {
     const wrapper = await mounted(390, 'no-preference')
 
-    expect([wrapper.findAll('[role="group"]').length, wrapper.find('svg').text().includes('VS BEDROOM')]).toStrictEqual([0, true])
+    expect([wrapper.findAll('[role="group"]').length, wrapper.find('svg').text().includes('VS BEDROOM')])
+      .toStrictEqual([0, true])
   })
 
   it('decodes each mark under what it marks in the legend', async () => {

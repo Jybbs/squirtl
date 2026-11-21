@@ -9,7 +9,7 @@ import { count, stepText }    from '../../../../lib/widgets/numbers.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
 import { stopped }            from '../../../common/clock.ts'
-import * as pointer           from '../../../common/pointer.ts'
+import * as input             from '../../../common/input.ts'
 
 const { StorySees } = await import('../../../../theme/components/front/sees.tsx')
 
@@ -77,7 +77,8 @@ async function mounted(): Promise<{ pixels: Pixels, sight: browser.Sight, wrappe
 enableAutoUnmount(afterEach)
 
 describe('StorySees at rest', () => {
-  stopped('draws the first step once the rooms load, each gray frame and the grid put as pixels', async () => {
+  stopped('draws the first step once the rooms load, each gray frame and the grid put as '
+        + 'pixels', async () => {
     const { pixels, wrapper } = await mounted()
 
     expect(shownStep(wrapper)).toBe(stepAt(0))
@@ -118,14 +119,16 @@ describe('StorySees at rest', () => {
     sight.show(true)
     await flushPromises()
 
-    expect([shownStep(wrapper), flagValues(wrapper)]).toStrictEqual([stepAt(last), ['1', '1', '1', '1', '0', '0', '0']])
+    expect([shownStep(wrapper), flagValues(wrapper)])
+      .toStrictEqual([stepAt(last), ['1', '1', '1', '1', '0', '0', '0']])
     expect(['bg-amethyst-1', 'bg-heath-1'].map(tint => wrapper.findAll(`.sees-flags .${tint}`).length))
       .toStrictEqual([1, 3])
   })
 })
 
 describe('StorySees past the goal', () => {
-  stopped('sets the flags past the goal after a rule naming them, as quiet chips the episode never sets', async () => {
+  stopped('sets the flags past the goal after a rule naming them, as quiet chips the episode never '
+        + 'sets', async () => {
     const { wrapper } = await mounted()
     const past        = wrapper.findAll('.sees-flags .py-chip-quiet-block')
 
@@ -153,9 +156,7 @@ describe('StorySees playing', () => {
     const { sight, wrapper } = await mounted()
     const thumb              = wrapper.get('[role="slider"]')
 
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'End' })
-    await thumb.trigger('keydown', { key: 'ArrowLeft' })
+    await input.pressKeys(thumb, 'End', 'ArrowLeft')
     await thumb.trigger('focusout')
     sight.show(true)
     vi.advanceTimersByTime(SEES_TEMPO.beat + SEES_TEMPO.rest - 1)
@@ -169,12 +170,13 @@ describe('StorySees playing', () => {
 })
 
 describe('StorySees held by a reader', () => {
-  stopped('drops the frames in while a resting mouse holds the step, and plays on once it leaves', async () => {
+  stopped('drops the frames in while a resting mouse holds the step, and plays on once it '
+        + 'leaves', async () => {
     const { sight, wrapper } = await mounted()
-    const control            = pointer.controlOf(wrapper, last)
+    const control            = input.controlOf(wrapper, last)
 
     sight.show(true)
-    await pointer.sweep(control, [20, 100, 140])
+    await input.sweep(control, [20, 100, 140])
     vi.advanceTimersByTime(SEES_TEMPO.beat * 4)
     await wrapper.vm.$nextTick()
     const held = shownStep(wrapper)
@@ -187,21 +189,20 @@ describe('StorySees held by a reader', () => {
 
   stopped('seeks the step a press on the frames lands on', async () => {
     const { wrapper } = await mounted()
-    const control     = pointer.controlOf(wrapper, last)
+    const control     = input.controlOf(wrapper, last)
 
-    await pointer.press(control, 100)
+    await input.press(control, 100)
 
-    expect(pointer.sliderState(wrapper)[0]).toBe('100')
+    expect(input.sliderState(wrapper)[0]).toBe('100')
   })
 
   stopped('steps the observation with the arrow keys once the frames have focus', async () => {
     const { wrapper } = await mounted()
     const thumb       = wrapper.get('[role="slider"]')
 
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'ArrowRight' })
+    await input.pressKeys(thumb, 'ArrowRight')
 
-    expect([shownStep(wrapper), pointer.sliderState(wrapper)[1]]).toStrictEqual([stepAt(1), stepAt(1)])
+    expect([shownStep(wrapper), input.sliderState(wrapper)[1]]).toStrictEqual([stepAt(1), stepAt(1)])
   })
 })
 

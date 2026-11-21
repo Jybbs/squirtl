@@ -77,7 +77,7 @@ Every pull request that is not a draft runs the checks below in the `🕹️ CI`
 | `☂️ Coverage` | `mise run site:coverage` | A site test fails, or the site's coverage falls below the **95%** that `fail_under` sets on statements, branches, functions, or lines |
 | `🍂 Cruft` | `mise cruft` | knip reports an unused file, export, or dependency in the docs site, or an import cycle |
 | `⛓️ Links` | `mise links` | A link, an asset, or a heading fragment in the built site, the README, or this guide names nothing the checkout holds, checked with no network |
-| `🧶 Lint` | `mise run site:lint` | Oxlint reports a finding in the site's TypeScript, each one an annotation on the line it concerns |
+| `🧶 Lint` | `mise run site:lint` | Oxlint reports a finding in the site's TypeScript, each one an annotation on the line it concerns, or a line of it runs past **110** characters without a regular expression or a glob standing alone on it, named by its file and line |
 | `💾 Press` | `mise press` | VitePress fails to build a page, or a link between pages leads nowhere |
 | `🎨 Proof` | `mise proof` | The site's CSS sets a length, a color, or an easing curve no theme variable supplies |
 | `🚩 Types` | `mise typecheck` | `tsc` reports a type error in the site's TypeScript, or a `.vue` file appears beside the `.tsx` modules every component is written as |
@@ -89,7 +89,7 @@ The `main` ruleset requires `🎒 Brief` alone, on a branch up to date with `mai
 
 ## 🔧 Repository Settings
 
-The protection on `main` and on every tag lives in `.github/rulesets/`, and the repository's features, merge methods, security features, and Actions permissions live in `.github/settings.toml`, one table per REST endpoint beside a `[dependabot]` table keyed by each endpoint it turns on or off. `mise rulesets` sends each ruleset, updating the one GitHub carries under the same name in place, and then every setting, reading the description, the homepage, and the topics from `[project]` in `pyproject.toml`. Both `mise labels` and `mise rulesets` print every command they would send and ask before sending any.
+The protection on `main` and on every tag lives in `.github/rulesets/`, and the repository's features, merge methods, security features, and Actions permissions live in `.github/settings.toml`, one table per REST endpoint beside a `[switches]` table keyed by each endpoint it turns on or off (*Dependabot's alerts, its security updates, and immutable releases*). `mise rulesets` sends each ruleset, updating the one GitHub carries under the same name in place, and then every setting, reading the description, the homepage, and the topics from `[project]` in `pyproject.toml`. Both `mise labels` and `mise rulesets` print every command they would send and ask before sending any.
 
 ---
 

@@ -9,7 +9,8 @@ describe('weightsOf', () => {
   })
 
   it('reads a range of the weight axis as every hundred across it, the other axes passed over', () => {
-    expect(faces.weightsOf('opsz,wght@7..72,400..600').map(each => each.weight)).toStrictEqual([400, 500, 600])
+    expect(faces.weightsOf('opsz,wght@7..72,400..600').map(each => each.weight))
+      .toStrictEqual([400, 500, 600])
   })
 
   it('reads the italic once, at its lightest weight, after every upright weight', () => {
@@ -23,7 +24,9 @@ describe('weightsOf', () => {
 
 describe('WEIGHTS', () => {
   it('reads each role’s weights from the axes its face loads', () => {
-    expect(faces.WEIGHTS).toStrictEqual(Object.fromEntries(faces.ROLES.map(role => [role, faces.weightsOf(IDENTITY.faces[role].axes)])))
+    expect(faces.WEIGHTS)
+      .toStrictEqual(Object.fromEntries(faces.ROLES.map(role =>
+        [role, faces.weightsOf(IDENTITY.faces[role].axes)])))
   })
 
   it('gives every face at least one weight', () => {
@@ -50,10 +53,12 @@ describe('copiesOf', () => {
   })
 
   it('shows a gliding face’s italic alone once the italic is picked', () => {
-    expect(faces.copiesOf('body', faces.WEIGHTS.body.length - 1).map(copy => copy.shown)).toStrictEqual([false, true])
+    expect(faces.copiesOf('body', faces.WEIGHTS.body.length - 1).map(copy => copy.shown))
+      .toStrictEqual([false, true])
   })
 
   it('stacks a copy of any other face at each weight it loads, the one picked shown', () => {
-    expect(faces.copiesOf('code', 1)).toStrictEqual(faces.WEIGHTS.code.map((weight, n) => ({ shown: n === 1, weight })))
+    expect(faces.copiesOf('code', 1))
+      .toStrictEqual(faces.WEIGHTS.code.map((weight, n) => ({ shown: n === 1, weight })))
   })
 })

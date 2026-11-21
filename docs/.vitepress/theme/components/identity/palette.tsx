@@ -20,7 +20,8 @@ const PARTS = {
   meter   : 'identity-meter grid items-center gap-2',
   step    : 'identity-step focus-ring h-6 cursor-pointer rounded-1 font-code text-label font-medium',
   steps   : 'identity-steps grid gap-1',
-  verdict : 'identity-verdict rounded-2 px-2 py-1 text-center font-code text-label font-medium tracking-caps uppercase',
+  verdict : 'identity-verdict rounded-2 px-2 py-1 text-center font-code text-label font-medium '
+          + 'tracking-caps uppercase',
   words   : 'identity-words absolute right-2 bottom-2 left-2 grid gap-0 text-left whitespace-nowrap'
 }
 
@@ -53,7 +54,9 @@ function drawMeter(hex: string, ground: { hex: string, name: string }) {
       <span class={LABEL}>On {ground.name}</span>
       <span class="identity-track relative h-2 rounded-2">
         <span class="identity-fill block h-full rounded-2 bg-ink" style={{ width: along(ratio) }} />
-        {[3, 4.5].map(tick => <span aria-hidden="true" class="identity-tick absolute bg-quiet" style={{ left: along(tick) }} />)}
+        {[3, 4.5].map(tick => (
+          <span aria-hidden="true" class="identity-tick absolute bg-quiet" style={{ left: along(tick) }} />
+        ))}
       </span>
       <span class="text-right font-code text-small font-medium tabular-nums">{fixed(ratio, 2)}:1</span>
       <span class={PARTS.verdict} data-level={level}>{VERDICTS[level]}</span>
@@ -65,9 +68,20 @@ function drawMeter(hex: string, ground: { hex: string, name: string }) {
  * Draws Blue in `hue`'s ramp on `scheme`'s ground.
  */
 function drawBlue(hue: Hue, scheme: Scheme) {
-  const markup = spriteMarkup(IDENTITY.sprites.player.frames[0]!, { fills: palette.blueFills(hue, scheme), size: 1, x: 0, y: 0 })
+  const markup = spriteMarkup(
+    IDENTITY.sprites.player.frames[0]!,
+    { fills: palette.blueFills(hue, scheme), size: 1, x: 0, y: 0 }
+  )
 
-  return <svg aria-hidden="true" class="size-6" innerHTML={markup} shape-rendering="crispEdges" viewBox="0 0 16 16" />
+  return (
+    <svg
+      aria-hidden="true"
+      class="size-6"
+      innerHTML={markup}
+      shape-rendering="crispEdges"
+      viewBox="0 0 16 16"
+    />
+  )
 }
 
 /**
@@ -82,7 +96,13 @@ function drawBands({ bands, color }: Palette) {
           <span class={LABEL}>{title}</span>
           <div class={PARTS.bands}>
             {palette.NAMED.filter(each => each.table === table).map(each => (
-              <button {...bands.item(each.token)} aria-label={`${each.name}, ${each.hex}`} class={PARTS.band} style={{ background: each.hex, color: palette.inkOn(each.hex) }} type="button">
+              <button
+                {...bands.item(each.token)}
+                aria-label={`${each.name}, ${each.hex}`}
+                class={PARTS.band}
+                style={{ background: each.hex, color: palette.inkOn(each.hex) }}
+                type="button"
+              >
                 <span class={PARTS.words}>
                   <span class="font-display text-small font-medium">{each.name}</span>
                   <span class="font-code text-label font-medium">{each.hex}</span>
@@ -131,7 +151,11 @@ function drawGround({ color, steps }: Palette, hue: Hue, scheme: Scheme) {
 function drawRamp(state: Palette) {
   const { color, hue, steps } = state
   if (hue.value === null) {
-    return <span class="self-center text-small text-quiet">{color.value.name} carries no ramp, so it stands alone in both schemes.</span>
+    return (
+      <span class="self-center text-small text-quiet">
+        {color.value.name} carries no ramp, so it stands alone in both schemes.
+      </span>
+    )
   }
 
   return (
@@ -149,10 +173,14 @@ function drawCard(shown: palette.Shown) {
     <div aria-live="polite" class={PARTS.card}>
       <span aria-hidden="true" class="identity-swatch rounded-1" style={{ background: shown.hex }} />
       <div class="grid min-w-0 gap-1">
-        <div class="flex flex-wrap items-baseline gap-x-2 font-semibold">{shown.name} <span class="font-code text-small text-quiet">{shown.what}</span></div>
+        <div class="flex flex-wrap items-baseline gap-x-2 font-semibold">
+          {shown.name} <span class="font-code text-small text-quiet">{shown.what}</span>
+        </div>
         <span class="font-code text-small tabular-nums">{shown.hex}</span>
       </div>
-      <div class="identity-meters grid gap-2">{palette.SCHEMES.map(scheme => drawMeter(shown.hex, palette.GROUNDS[scheme]))}</div>
+      <div class="identity-meters grid gap-2">
+        {palette.SCHEMES.map(scheme => drawMeter(shown.hex, palette.GROUNDS[scheme]))}
+      </div>
     </div>
   )
 }

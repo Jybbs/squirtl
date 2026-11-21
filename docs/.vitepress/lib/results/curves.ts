@@ -70,7 +70,8 @@ export function curvesOf(groups: readonly Group[], random: number, height: numbe
   const frame  = frameOf({ ...PLOTTING.box, top: PLOTTING.box.top + PLOTTING.title }, height, width)
   const means  = groups.map(group => meansOf(group))
   const last   = Math.max(...means.flatMap(scores => scores.map(score => score.step)))
-  const point  = (score: Omit<Score, 'argmax'>) => [frame.x(score.step, last), frame.y(score.reached, 1)] as const
+  const point  = (score: Omit<Score, 'argmax'>) =>
+    [frame.x(score.step, last), frame.y(score.reached, 1)] as const
   const left   = frame.x(0, 1)
   const steps  = multiplesOf(PLOTTING.every, last)
   const middle = round((left + frame.end) / 2)
@@ -112,7 +113,11 @@ export function curvesOf(groups: readonly Group[], random: number, height: numbe
  * holds, then trace out a beat apart, and every line stands whole at once
  * under reduced motion.
  */
-function useTraces(groups: readonly Group[], pressed: Ref<ReadonlySet<string>>, seen: Ref<boolean>): ComputedRef<number>[] {
+function useTraces(
+  groups  : readonly Group[],
+  pressed : Ref<ReadonlySet<string>>,
+  seen    : Ref<boolean>
+): ComputedRef<number>[] {
   const motion = useMotion()
   const first  = ref(true)
   const order  = [...pressed.value]

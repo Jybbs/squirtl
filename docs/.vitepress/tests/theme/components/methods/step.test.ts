@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it, vi }    from 'vitest'
-import { nextTick }                               from 'vue'
+import { afterEach, describe, expect, it, vi }     from 'vitest'
+import { nextTick }                                from 'vue'
 
 import * as step              from '../../../../lib/methods/step.ts'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
 import { stopped }            from '../../../common/clock.ts'
-import * as pointer           from '../../../common/pointer.ts'
+import * as input             from '../../../common/input.ts'
 
 const { MethodsStep } = await import('../../../../theme/components/methods/step.tsx')
 
@@ -23,13 +23,21 @@ describe('MethodsStep', () => {
     drawInto(null)
     const wrapper = mount(MethodsStep)
 
-    expect([status(wrapper), pointer.sliderState(wrapper)]).toStrictEqual([
+    expect([status(wrapper), input.sliderState(wrapper)]).toStrictEqual([
       'Step 10 of 10 · frame 17 of 17', ['169', 'Step 10, Left, frame 17 of 17']
     ])
     expect(wrapper.findAllComponents({ name: 'Chip' }).map(chip => chip.text()))
       .toStrictEqual(['Heldframes1–2', 'Readframe1 or 2', 'Not drawnframes1–16', 'Returnedframe17'])
-    expect(wrapper.findAll('.visually-hidden').map(each => each.text())).toStrictEqual(step.STEPS.map(each =>
-      ({ a: 'A', down: 'Down', left: 'Left', null: 'No press', right: 'Right', up: 'Up' })[String(each.press)]))
+    const names: Record<string, string> = {
+      a     : 'A',
+      down  : 'Down',
+      left  : 'Left',
+      null  : 'No press',
+      right : 'Right',
+      up    : 'Up'
+    }
+    expect(wrapper.findAll('.visually-hidden').map(each => each.text()))
+      .toStrictEqual(step.STEPS.map(each => names[String(each.press)]))
     expect(wrapper.text()).toBePublishedProse()
   })
 
@@ -47,10 +55,17 @@ describe('MethodsStep’s slider', () => {
     drawInto(null)
     const wrapper = mount(MethodsStep, { attachTo: document.body })
     const control = wrapper.get("[data-part='control']")
-    vi.spyOn(control.element, 'getBoundingClientRect').mockReturnValue({ height: 100, left: 0, top: 0, width: 170 } as DOMRect)
+    vi.spyOn(control.element, 'getBoundingClientRect')
+      .mockReturnValue({ height: 100, left: 0, top: 0, width: 170 } as DOMRect)
     control.element.setPointerCapture = () => {}
 
-    await control.trigger('pointerdown', { button: 0, clientX: 25, clientY: 35, pointerId: 1, pointerType: 'mouse' })
+    await control.trigger('pointerdown', {
+      button      : 0,
+      clientX     : 25,
+      clientY     : 35,
+      pointerId   : 1,
+      pointerType : 'mouse'
+    })
     await control.trigger('pointermove', { buttons: 1, clientX: 165, clientY: 35, pointerType: 'mouse' })
     await control.trigger('pointermove', { buttons: 0, clientX: 5, clientY: 5, pointerType: 'mouse' })
 
@@ -62,8 +77,7 @@ describe('MethodsStep’s slider', () => {
     const wrapper = mount(MethodsStep, { attachTo: document.body })
     const thumb   = wrapper.get('[role="slider"]')
 
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'PageDown' })
+    await input.pressKeys(thumb, 'PageDown')
     await nextTick()
 
     expect(status(wrapper)).toBe('Step 10 of 10 · frame 1 of 17')
@@ -87,10 +101,13 @@ describe('MethodsStep’s playback', () => {
     await nextTick()
 
     expect([first, held, status(wrapper)])
-      .toStrictEqual(['Step 1 of 10 · frame 1 of 17', 'Step 1 of 10 · frame 1 of 17', 'Step 1 of 10 · frame 2 of 17'])
+      .toStrictEqual([
+        'Step 1 of 10 · frame 1 of 17', 'Step 1 of 10 · frame 1 of 17', 'Step 1 of 10 · frame 2 of 17'
+      ])
   })
 
-  stopped('rests on the frame PyBoy draws before the next step, and stands on the last frame under reduced motion', async () => {
+  stopped('rests on the frame PyBoy draws before the next step, and stands on the last frame under reduced '
+        + 'motion', async () => {
     drawInto(null)
     const sight   = browser.stubSight()
     const wrapper = mount(MethodsStep, { attachTo: document.body })
@@ -103,6 +120,7 @@ describe('MethodsStep’s playback', () => {
     browser.preference.value = 'reduce'
     await nextTick()
 
-    expect([rested, status(wrapper)]).toStrictEqual(['Step 1 of 10 · frame 17 of 17', 'Step 10 of 10 · frame 17 of 17'])
+    expect([rested, status(wrapper)])
+      .toStrictEqual(['Step 1 of 10 · frame 17 of 17', 'Step 10 of 10 · frame 17 of 17'])
   })
 })

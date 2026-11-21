@@ -21,7 +21,8 @@ export interface WatchPlayback {
  * band laid out in as many columns as its grid template names.
  */
 function byteAt(event: PointerEvent): number {
-  const columns       = getComputedStyle(event.currentTarget as HTMLElement).gridTemplateColumns.split(' ').length
+  const style         = getComputedStyle(event.currentTarget as HTMLElement)
+  const columns       = style.gridTemplateColumns.split(' ').length
   const [column, row] = cellAt(event, columns, Math.ceil(watching.LAST / columns))
   return Math.min(row * columns + column + 1, watching.LAST)
 }

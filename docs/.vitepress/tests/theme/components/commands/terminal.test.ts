@@ -26,7 +26,8 @@ describe('CommandsTerminal', () => {
     ])
   })
 
-  it('runs squirtl stop as the prompt is pressed, hiding it until the run ends, then trains again', async () => {
+  it('runs squirtl stop as the prompt is pressed, hiding it until the run ends, then trains '
+   + 'again', async () => {
     const wrapper = await browser.shown(CommandsTerminal)
 
     await wrapper.get('button').trigger('click')

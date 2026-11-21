@@ -59,5 +59,6 @@ export function tallyOf(at: number, height: number, scheme: Scheme, tally: Tally
          })
   })
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${tally.width}" height="${height}">`
-       + `<rect width="${tally.width}" height="${height}" fill="${IDENTITY.github[scheme]}"/>${counts.join('')}</svg>`
+       + `<rect width="${tally.width}" height="${height}" fill="${IDENTITY.github[scheme]}"/>`
+       + `${counts.join('')}</svg>`
 }

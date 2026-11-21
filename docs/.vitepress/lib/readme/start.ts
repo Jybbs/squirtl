@@ -91,7 +91,8 @@ export function drawStartCard(card: StartCard, scheme: identity.Scheme, start: S
   const ballFills                           = [
     dark ? steps.pale : identity.hexOf('ground-lift'), shades[dark ? 3 : 2]!, mark, identity.hexOf('dark')
   ]
-  const cell     = Math.min(...START_CARDS.map(each => fitCell(each.word, Number.POSITIVE_INFINITY, word.room)))
+  const fits     = START_CARDS.map(each => fitCell(each.word, Number.POSITIVE_INFINITY, word.room))
+  const cell     = Math.min(...fits)
   const dots     = trailOf(card.rise, trail)
   const [end]    = dots.splice(-1) as [[number, number]]
   const sprite   = identity.IDENTITY.sprites.ball.frames[0]!

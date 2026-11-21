@@ -19,7 +19,8 @@ const card = (wrapper: ReturnType<typeof mount>): string[] =>
  * Finds the band of the color `token` names.
  */
 const band = (wrapper: ReturnType<typeof mount>, token: string) =>
-  wrapper.get(`[aria-label="${palette.NAMED.find(each => each.token === token)!.name}, ${palette.NAMED.find(each => each.token === token)!.hex}"]`)
+  wrapper.get(`[aria-label="${palette.NAMED.find(each => each.token === token)!.name}, `
+            + `${palette.NAMED.find(each => each.token === token)!.hex}"]`)
 
 describe('IdentityPalette', () => {
   it('opens on the first color, its ramp on both grounds, its card measuring it on each', () => {
@@ -42,10 +43,13 @@ describe('IdentityPalette', () => {
     await band(wrapper, 'ground').trigger('click')
 
     expect([wrapper.findAll('.identity-ground').length, wrapper.get('.identity-ramp').text()])
-      .toStrictEqual([0, `${IDENTITY.neutrals.ground.name} carries no ramp, so it stands alone in both schemes.`])
+      .toStrictEqual([
+        0, `${IDENTITY.neutrals.ground.name} carries no ramp, so it stands alone in both schemes.`
+      ])
   })
 
-  it('shows the step a reader picks on its ground, clears it on a second press, and clears it on another color', async () => {
+  it('shows the step a reader picks on its ground, clears it on a second press, and clears it on another '
+   + 'color', async () => {
     const wrapper = mount(IdentityPalette, { attachTo: document.body })
     const step    = () => wrapper.findAll('.identity-step')[9]!
 
@@ -72,6 +76,7 @@ describe('IdentityPalette’s card', () => {
     const hex     = palette.NAMED[0]!.hex
 
     expect(wrapper.findAll('.identity-verdict').map(each => each.attributes('data-level')))
-      .toStrictEqual(palette.SCHEMES.map(scheme => palette.levelOf(contrast(hex, palette.GROUNDS[scheme].hex))))
+      .toStrictEqual(palette.SCHEMES.map(scheme =>
+        palette.levelOf(contrast(hex, palette.GROUNDS[scheme].hex))))
   })
 })

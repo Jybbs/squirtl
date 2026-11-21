@@ -32,20 +32,27 @@ describe('DEMONSTRATION', () => {
 })
 
 describe('SEARCHES', () => {
-  it('names each search docs/runs/ commits, its tar listing the agent, curriculum, and seed its record holds', () => {
+  it('names each search docs/runs/ commits, its tar listing the agent, curriculum, and seed its record '
+   + 'holds', () => {
     const tars = release.SEARCHES.map(name => release.DEMONSTRATIONS.find(tar => tar.name === name))
 
     expect(
       COMMITTED
         .filter(({ run }) => run.searches)
-        .map(({ name, run }) => [name, run.settings.agent.algorithm, run.settings.curriculum.demonstration !== null, run.settings.seed])
+        .map(({ name, run }) => [
+          name,
+          run.settings.agent.algorithm,
+          run.settings.curriculum.demonstration !== null,
+          run.settings.seed
+        ])
     ).toStrictEqual(tars.map(tar => [tar?.name, tar?.agent, tar?.curriculum, tar?.seed]))
   })
 })
 
 describe('DEMONSTRATIONS', () => {
   it('lists the followed run and each search in the order of its name', () => {
-    expect(release.DEMONSTRATIONS.map(tar => tar.name)).toStrictEqual([release.DEMONSTRATION, ...release.SEARCHES].toSorted())
+    expect(release.DEMONSTRATIONS.map(tar => tar.name))
+      .toStrictEqual([release.DEMONSTRATION, ...release.SEARCHES].toSorted())
   })
 })
 
@@ -59,7 +66,8 @@ describe('RUNS', () => {
   })
 
   it('records a digest of sixty-four hexadecimal digits for every tar', () => {
-    expect([...release.RUNS, ...release.DEMONSTRATIONS].filter(run => !/^[0-9a-f]{64}$/u.test(run.sha256))).toStrictEqual([])
+    expect([...release.RUNS, ...release.DEMONSTRATIONS].filter(run => !/^[0-9a-f]{64}$/u.test(run.sha256)))
+      .toStrictEqual([])
   })
 })
 

@@ -28,7 +28,8 @@ describe('finalsWidth', () => {
     [null, 247],
     ['finals', 428],
     ['curves', lanes.LANES.tab]
-  ] as const)('gives the last evaluation of a figure 688 pixels wide, %s widened, %d pixels', (side, width) => {
+  ] as const)('gives the last evaluation of a figure 688 pixels wide, %s widened, %d '
+            + 'pixels', (side, width) => {
     expect(lanes.finalsWidth(688, side)).toBe(width)
   })
 })
@@ -44,7 +45,8 @@ describe('oddsLine', () => {
   ] as const)('reads odds against %s across %j as %s, worded %s', (against, interval, verdict, word) => {
     const line = lanes.oddsLine({ interval, runs: [2, 2], value: 0.5 }, against, 10, 20)
 
-    expect([line.label.text, line.verdict, line.word.text]).toStrictEqual([`VS ${against.toUpperCase()}`, verdict, word])
+    expect([line.label.text, line.verdict, line.word.text])
+      .toStrictEqual([`VS ${against.toUpperCase()}`, verdict, word])
   })
 })
 

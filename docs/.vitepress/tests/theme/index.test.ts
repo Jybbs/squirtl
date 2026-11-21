@@ -33,7 +33,8 @@ describe('the theme', () => {
   it('registers every widget a section’s page places', () => {
     const { app } = enhanced({ isNotFound: false })
 
-    expect(WIDGETS.filter(placement => !app.component(placement.name)).map(placement => placement.name)).toStrictEqual([])
+    expect(WIDGETS.filter(placement => !app.component(placement.name)).map(placement => placement.name))
+      .toStrictEqual([])
   })
 
   it('titles a missing address as its own page and describes it by the site’s byline', () => {
@@ -41,12 +42,14 @@ describe('the theme', () => {
 
     router.onAfterRouteChange!()
 
-    expect(router.route.data).toStrictEqual({ description: 'Plays.', isNotFound: true, title: 'Page Not Found' })
+    expect(router.route.data)
+      .toStrictEqual({ description: 'Plays.', isNotFound: true, title: 'Page Not Found' })
   })
 
   it('follows a footnote’s jump in the document', () => {
     enhanced({ isNotFound: false })
-    document.body.innerHTML = '<sup class="footnote-ref"><a href="#footnote-a" id="footnote-ref-a"></a></sup><ol><li id="footnote-a"></li></ol>'
+    document.body.innerHTML = '<sup class="footnote-ref"><a href="#footnote-a" id="footnote-ref-a"></a></sup>'
+                            + '<ol><li id="footnote-a"></li></ol>'
     document.querySelector('a')!.addEventListener('click', event => event.preventDefault())
     document.querySelector('a')!.click()
 

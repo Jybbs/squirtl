@@ -90,13 +90,17 @@ function takeawayOf(seeds: readonly Seeded[], episodes: number, steps: readonly 
   }
 
   const last = millions(steps.at(-1)!)
-  const head = `Sampling and the most likely press differ at ${differ.length} of PPO’s ${counts.length} evaluations, `
-             + (matched === -1 ? 'and still at the last.' : `and at none from ${millions(steps[matched]!)} steps on.`)
+  const from = matched === -1 ? '' : millions(steps[matched]!)
+  const head = `Sampling and the most likely press differ at ${differ.length} of PPO’s ${counts.length} `
+             + 'evaluations, '
+             + (matched === -1 ? 'and still at the last.' : `and at none from ${from} steps on.`)
 
   return {
     head : head,
     says : `The most likely press reaches the goal in fewer episodes at ${fewer} of the ${differ.length}`
-         + (matched === -1 ? '.' : `, and at the last evaluation, ${last} steps, every seed’s two counts match.`)
+         + (matched === -1
+           ? '.'
+           : `, and at the last evaluation, ${last} steps, every seed’s two counts match.`)
   }
 }
 
@@ -146,7 +150,8 @@ export function differingText(argmax: Argmax, n: number): string {
   const differing = argmax.differing[n]!
   return differing === 0
     ? 'No seed differs, so nothing is marked'
-    : `${differing} of ${argmax.seeds} seeds ${differing === 1 ? 'differs' : 'differ'}, each marked with its count at the most likely press`
+    : `${differing} of ${argmax.seeds} seeds ${differing === 1 ? 'differs' : 'differ'}, `
+    + 'each marked with its count at the most likely press'
 }
 
 /**

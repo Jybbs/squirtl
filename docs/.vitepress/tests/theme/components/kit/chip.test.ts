@@ -30,11 +30,14 @@ describe('Chip', () => {
   it.each([
     [false, ['py-chip-block', 'text-ink', 'text-body']],
     [true, ['py-chip-quiet-block', 'text-quiet', 'text-small']]
-  ])('draws a chip whose quiet is %s at its size, its name and value in their gray', (quiet, [height, ink, size]) => {
+  ])('draws a chip whose quiet is %s at its size, its name and value in their '
+   + 'gray', (quiet, [height, ink, size]) => {
     const chip = mount(Chip, { props: { name: 'Steps', quiet, value: '0' } })
 
     expect([chip.classes(), chip.get('.tracking-caps').classes(), chip.get('.ml-auto').classes()])
-      .toStrictEqual([expect.arrayContaining([height]), expect.arrayContaining([ink]), expect.arrayContaining([ink, size])])
+      .toStrictEqual([
+        expect.arrayContaining([height]), expect.arrayContaining([ink]), expect.arrayContaining([ink, size])
+      ])
   })
 
   it('sets a swatch where it carries no mark, and leaves out a note and a value it is given none of', () => {

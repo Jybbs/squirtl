@@ -39,7 +39,8 @@ describe('curvesOf', () => {
 
   it('labels the shares and the steps in millions, titling each axis with its variable and unit', () => {
     expect([...curves.labels, ...curves.titles].map(label => label.text)).toStrictEqual([
-      '0%', '25%', '50%', '75%', '100%', '0', '0.5', '1', '1.5', 'Environment steps (millions)', 'Episodes reaching the goal (%)'
+      '0%', '25%', '50%', '75%', '100%', '0', '0.5', '1', '1.5', 'Environment steps (millions)',
+      'Episodes reaching the goal (%)'
     ])
   })
 })
@@ -47,7 +48,12 @@ describe('curvesOf', () => {
 describe('useCurves', () => {
   it('draws the runs it is handed in place of the committed ones', () => {
     let drawn: readonly results.Group[] = []
-    mount(defineComponent({ setup: () => { drawn = useCurves(ref(), FIXTURE as unknown as results.Results).groups; return () => null } }))
+    mount(defineComponent({
+      setup: () => {
+        drawn = useCurves(ref(), FIXTURE as unknown as results.Results).groups
+        return () => null
+      }
+    }))
 
     expect(drawn).toStrictEqual(GROUPS)
   })

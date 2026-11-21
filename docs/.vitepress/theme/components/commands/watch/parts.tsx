@@ -9,15 +9,18 @@ import { DETAIL, LABEL } from '../../kit/widget.ts'
  */
 const CHECKS = {
   pass : {
-    mark  : '<svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    mark  : '<svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" '
+          + 'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     value : 'matches'
   },
   run : {
-    mark  : '<svg viewBox="0 0 16 16"><path d="M3 8h2M7 8h2M11 8h2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
+    mark  : '<svg viewBox="0 0 16 16"><path d="M3 8h2M7 8h2M11 8h2" fill="none" stroke="currentColor" '
+          + 'stroke-width="2.6" stroke-linecap="round"/></svg>',
     value : 'comparing'
   },
   wait : {
-    mark  : '<svg viewBox="0 0 16 16"><path d="M8 3a5 5 0 1 1 0 10a5 5 0 1 1 0-10z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+    mark  : '<svg viewBox="0 0 16 16"><path d="M8 3a5 5 0 1 1 0 10a5 5 0 1 1 0-10z" fill="none" '
+          + 'stroke="currentColor" stroke-width="1.6"/></svg>',
     value : 'waiting'
   }
 } as const
@@ -36,7 +39,12 @@ const WORDS = {
  * Draws a check's chip named `name` where it stands at `check`.
  */
 const drawCheck = (name: string, check: watching.Check) => (
-  <Chip class={['watch-status w-full', `watch-${check}`]} mark={CHECKS[check].mark} name={name} value={CHECKS[check].value} />
+  <Chip
+    class={['watch-status w-full', `watch-${check}`]}
+    mark={CHECKS[check].mark}
+    name={name}
+    value={CHECKS[check].value}
+  />
 )
 
 /**
@@ -52,7 +60,10 @@ function drawDigest(label: string, digits: { matched: boolean, revealed: number 
           <span class="whitespace-nowrap">
             {[...line].map((digit, column) => {
               const shown = row * line.length + column < digits.revealed
-              return <span class={shown ? (digits.matched ? 'font-bold text-ink' : 'text-quiet') : 'text-quiet opacity-15'}>{digit}</span>
+              const look  = shown
+                ? digits.matched ? 'font-bold text-ink' : 'text-quiet'
+                : 'text-quiet opacity-15'
+              return <span class={look}>{digit}</span>
             })}
           </span>
         ))}
@@ -70,7 +81,11 @@ export function drawPresses(step: number) {
   return watching.RECORDING.slice(1).map((each, n) => (
     <span
       aria-hidden="true"
-      class={['watch-press grid aspect-square place-items-center rounded-1 border-ring', n + 1 === step ? 'border-denim-mark' : 'border-transparent', n + 1 <= step ? 'text-ink' : 'text-quiet opacity-40']}
+      class={[
+        'watch-press grid aspect-square place-items-center rounded-1 border-ring',
+        n + 1 === step ? 'border-denim-mark' : 'border-transparent',
+        n + 1 <= step ? 'text-ink' : 'text-quiet opacity-40'
+      ]}
       innerHTML={padMark(each.press)}
     />
   ))
@@ -106,7 +121,12 @@ export function drawAfter(t: number, step: number) {
       <p class={[LABEL, 'm-0']}>{WORDS.after}</p>
       {drawCheck('Return', watching.endingAt(t))}
       <Chip class="watch-figure w-full" name="Recorded" value={recorded} />
-      <Chip class="watch-figure w-full" name="Reached" role="agent" value={watching.returned(watching.RECORDING[step]!.total)} />
+      <Chip
+        class="watch-figure w-full"
+        name="Reached"
+        role="agent"
+        value={watching.returned(watching.RECORDING[step]!.total)}
+      />
       <p class={[DETAIL, 'm-0 text-ink', watching.loggedAt(t) ? '' : 'invisible']}>
         {`The playback reached the return of ${recorded} the run recorded`}
       </p>

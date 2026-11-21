@@ -11,7 +11,11 @@ import * as watching          from '../watch.ts'
  * once the rooms load, the ground alone until the intro checks the digest,
  * then the episode played to the step under the veil the reset lifts.
  */
-export function useWatchScreen(canvas: Ref<HTMLCanvasElement | undefined>, t: Ref<number>, step: Ref<number>): void {
+export function useWatchScreen(
+  canvas : Ref<HTMLCanvasElement | undefined>,
+  t      : Ref<number>,
+  step   : Ref<number>
+): void {
   const images = new RoomImages()
   const player = new Player()
   const screen = new GameScreen(player.episode, images)

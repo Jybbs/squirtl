@@ -141,7 +141,9 @@ export function weighed(name: string, player: Weighed['player'], wander: number,
     }
   }
   const starter = arrivals.find(each => each.term === 'goal')?.ahead ?? Infinity
-  const reach   = starter === Infinity ? 'never reaching the starter' : `to the starter in ${count(starter)} steps`
+  const reach   = starter === Infinity
+    ? 'never reaching the starter'
+    : `to the starter in ${count(starter)} steps`
   return { arrivals, name, player, starter, steps: episode.steps, told: `${name} ${reach}` }
 }
 
@@ -186,7 +188,8 @@ export function plotOf(discount: number, width: number, episodes: readonly Weigh
       }
     },
     labels : [
-      ...[0, 0.5, 1].map(weight => ({ anchor: 'end', text: fixed(weight, 1), x: box.left - 8, y: y(weight) + 4 }) as const),
+      ...[0, 0.5, 1].map(weight =>
+        ({ anchor: 'end', text: fixed(weight, 1), x: box.left - 8, y: y(weight) + 4 }) as const),
       ...WEIGHING.ahead.map((ahead, n) => ({
         anchor : n === 0 ? 'start' : n === WEIGHING.ahead.length - 1 ? 'end' : 'middle',
         text   : count(ahead),
@@ -196,7 +199,8 @@ export function plotOf(discount: number, width: number, episodes: readonly Weigh
     ],
     lanes : lanesOf(episodes, x, width).map(({ groups, player }) => ({
       player : player,
-      groups : groups.map(({ ahead, tiles, x: middle }) => ({ leader: leaderOf(tiles, middle, x(ahead), y(discount ** ahead) - 6), tiles }))
+      groups : groups.map(({ ahead, tiles, x: middle }) =>
+        ({ leader: leaderOf(tiles, middle, x(ahead), y(discount ** ahead) - 6), tiles }))
     })),
     stops : NAMED.map(each => x(halfLife(each))),
     width : width
@@ -211,7 +215,9 @@ export function plotOf(discount: number, width: number, episodes: readonly Weigh
 function leaderOf(tiles: TileGroup['tiles'], middle: number, x: number, y: number): string {
   const below = WEIGHING.lane + WEIGHING.tile
   const comb  = below + 5
-  const teeth = tiles.length > 1 ? `M${tiles[0]!.x},${comb}H${tiles.at(-1)!.x}${tiles.map(each => `M${each.x},${below}V${comb}`).join('')}` : ''
+  const teeth = tiles.length > 1
+    ? `M${tiles[0]!.x},${comb}H${tiles.at(-1)!.x}${tiles.map(each => `M${each.x},${below}V${comb}`).join('')}`
+    : ''
   return `${teeth}M${middle},${tiles.length > 1 ? comb : below}L${x},${round(y)}`
 }
 
@@ -229,7 +235,9 @@ function lanesOf(episodes: readonly Weighed[], x: (ahead: number) => number, wid
     return { episode, left: mean - span / 2, span }
   })
 
-  rows.forEach((row, n) => { if (n > 0) row.left = Math.max(row.left, rows[n - 1]!.left + rows[n - 1]!.span + pitch) })
+  rows.forEach((row, n) => {
+    if (n > 0) row.left = Math.max(row.left, rows[n - 1]!.left + rows[n - 1]!.span + pitch)
+  })
   let limit = width - box.right
   for (const row of rows.toReversed()) {
     row.left = Math.min(row.left, limit - row.span)

@@ -29,16 +29,19 @@ describe('the phases', () => {
   })
 
   it('fades the window in, holds it, and fades it out before it closes', () => {
-    expect([open / 2, play, hold + 200, close].map(at => watching.windowAt(at))).toStrictEqual([0.5, 1, 0.5, 0])
+    expect([open / 2, play, hold + 200, close].map(at => watching.windowAt(at)))
+      .toStrictEqual([0.5, 1, 0.5, 0])
   })
 
   it('lifts the veil over the reset, and logs the return once its check matches', () => {
-    expect([watching.veilAt(digest), watching.veilAt(reset), watching.loggedAt(play), watching.loggedAt(play + 500)])
-      .toStrictEqual([1, 0, false, true])
+    expect([
+      watching.veilAt(digest), watching.veilAt(reset), watching.loggedAt(play), watching.loggedAt(play + 500)
+    ]).toStrictEqual([1, 0, false, true])
   })
 
   it('reads the step a time reaches and the time that stands on a step', () => {
-    expect([watching.stepAt(0), watching.stepAt(watching.timeOf(40)), watching.stepAt(close)]).toStrictEqual([0, 40, 181])
+    expect([watching.stepAt(0), watching.stepAt(watching.timeOf(40)), watching.stepAt(close)])
+      .toStrictEqual([0, 40, 181])
   })
 
   it('splits the digest into four lines of sixteen and names each press', () => {

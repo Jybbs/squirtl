@@ -9,7 +9,7 @@ import { IDENTITY }           from '../../../../lib/identity/identity.ts'
 import { Chip }               from '../../../../theme/components/kit/chip.tsx'
 import * as browser           from '../../../common/browser.ts'
 import { Recorder, drawInto } from '../../../common/canvas.ts'
-import * as pointer           from '../../../common/pointer.ts'
+import * as input             from '../../../common/input.ts'
 
 /**
  * A mounted widget beside the canvas recorder its screen draws into, the sight
@@ -82,7 +82,7 @@ describe('StoryReward under reduced motion', () => {
     sight.show(true)
     await nextTick()
 
-    expect(pointer.sliderState(wrapper)).toStrictEqual(['181', 'Step 181 of 181, the return 0.66500'])
+    expect(input.sliderState(wrapper)).toStrictEqual(['181', 'Step 181 of 181, the return 0.66500'])
     expect(wrapper.text()).toContain('0.66500Step 181 of 181')
     expect(chips(wrapper).slice(0, 4)).toStrictEqual([
       ['The starter', null, '+0.35000'],
@@ -102,8 +102,7 @@ describe('StoryReward under reduced motion', () => {
     await nextTick()
     const dimmed = () => wrapper.findAll('g.opacity-45').length
     const ended  = dimmed()
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'Home' })
+    await input.pressKeys(thumb, 'Home')
 
     expect([before, ended, dimmed()]).toStrictEqual([0, 0, 4])
     expect(wrapper.get(DRAWING).attributes('viewBox')).toBe('0 0 401 298')
@@ -197,11 +196,11 @@ describe('StoryReward playing', () => {
 
     sight.show(true)
     await nextTick()
-    const first = pointer.sliderState(wrapper)[0]
+    const first = input.sliderState(wrapper)[0]
     vi.advanceTimersByTime(TEMPO.beat)
     await nextTick()
 
-    expect([first, pointer.sliderState(wrapper)[0]]).toStrictEqual(['1', '2'])
+    expect([first, input.sliderState(wrapper)[0]]).toStrictEqual(['1', '2'])
   })
 
   test('rests on the starter, then plays the episode again from the bedroom', async () => {
@@ -210,11 +209,11 @@ describe('StoryReward playing', () => {
     sight.show(true)
     vi.advanceTimersByTime(23_800)
     await nextTick()
-    const ended = pointer.sliderState(wrapper)[0]
+    const ended = input.sliderState(wrapper)[0]
     vi.advanceTimersByTime(TEMPO.rest + 100)
     await nextTick()
 
-    expect([ended, pointer.sliderState(wrapper)[0]]).toStrictEqual(['181', '1'])
+    expect([ended, input.sliderState(wrapper)[0]]).toStrictEqual(['181', '1'])
   })
 
   test('ends every timer once it unmounts', async () => {
@@ -242,29 +241,29 @@ describe('StoryReward held by a reader', () => {
     [174, ['A milestone', null, '+0.10000']]
   ])('seeks step %i under a press along the climb, holding the episode there', async (step, paid) => {
     const { sight, wrapper } = await mounted()
-    const control            = pointer.controlOf(wrapper, 181)
+    const control            = input.controlOf(wrapper, 181)
     sight.show(true)
 
     await control.trigger('pointerenter', { pointerType: 'mouse' })
-    await pointer.press(control, step)
+    await input.press(control, step)
     vi.advanceTimersByTime(1000)
     await nextTick()
 
-    expect([pointer.sliderState(wrapper)[0], chips(wrapper)[0]]).toStrictEqual([String(step), paid])
+    expect([input.sliderState(wrapper)[0], chips(wrapper)[0]]).toStrictEqual([String(step), paid])
   })
 
   test('holds the episode still while a mouse moves across the climb', async () => {
     const { sight, wrapper } = await mounted()
-    const control            = pointer.controlOf(wrapper, 181)
+    const control            = input.controlOf(wrapper, 181)
     sight.show(true)
     await nextTick()
 
-    const rested = pointer.sliderState(wrapper)[0]
-    await pointer.sweep(control, [20, 80, 140])
+    const rested = input.sliderState(wrapper)[0]
+    await input.sweep(control, [20, 80, 140])
     vi.advanceTimersByTime(1000)
     await nextTick()
 
-    expect(pointer.sliderState(wrapper)[0]).toBe(rested)
+    expect(input.sliderState(wrapper)[0]).toBe(rested)
   })
 })
 
@@ -278,17 +277,15 @@ describe('StoryReward stepped by the keys', () => {
     const thumb              = wrapper.get('[role="slider"]')
     sight.show(true)
 
-    await thumb.trigger('focusin')
-    await thumb.trigger('keydown', { key: 'End' })
-    await thumb.trigger('keydown', { key: 'ArrowLeft' })
+    await input.pressKeys(thumb, 'End', 'ArrowLeft')
     vi.advanceTimersByTime(1000)
     await nextTick()
-    const held = pointer.sliderState(wrapper)
+    const held = input.sliderState(wrapper)
     await thumb.trigger('focusout')
     vi.advanceTimersByTime(200)
     await nextTick()
 
-    expect([held, pointer.sliderState(wrapper)[0]])
+    expect([held, input.sliderState(wrapper)[0]])
       .toStrictEqual([['180', 'Step 180 of 181, the return 0.31500'], '181'])
   })
 })

@@ -16,7 +16,8 @@ const PARTS = {
   bar     : 'relative h-1 overflow-hidden rounded-1 bg-rule',
   digits  : 'flex flex-wrap gap-x-2 font-code text-small leading-normal tabular-nums',
   fill    : 'absolute inset-0 origin-left bg-forest-mark motion-safe:transition-transform',
-  option  : 'fetch-option rounded-1 border-hairline border-rule px-3 py-1 text-small text-quiet enabled:cursor-pointer focus-ring',
+  option  : 'fetch-option rounded-1 border-hairline border-rule px-3 py-1 text-small text-quiet '
+          + 'enabled:cursor-pointer focus-ring',
   options : 'flex flex-wrap gap-2',
   run     : 'flex items-center gap-2 font-code text-small tabular-nums',
   runs    : [LIST, 'fetch-runs flex flex-wrap gap-x-4 gap-y-1'],
@@ -162,12 +163,16 @@ export const CommandsFetch = defineComponent({
           {drawRuns(fetching)}
           {drawRun(fetching)}
         </div>
-        <div class={[PARTS.verdict, fetching.failed ? 'border-critical text-ink' : 'border-forest-mark text-quiet']}>
+        <div class={[
+          PARTS.verdict, fetching.failed ? 'border-critical text-ink' : 'border-forest-mark text-quiet'
+        ]}>
           <span aria-hidden="true" class="invisible">{fetch.LONGEST}</span>
           <span role="status">{fetching.verdict()}</span>
         </div>
         <div {...choice.root.value} aria-label="The release" class={PARTS.options}>
-          {RELEASES.map(release => <button {...choice.item(release)} class={PARTS.option}>{NAMES[release]}</button>)}
+          {RELEASES.map(release => (
+            <button {...choice.item(release)} class={PARTS.option}>{NAMES[release]}</button>
+          ))}
         </div>
       </div>
     )

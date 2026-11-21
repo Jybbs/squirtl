@@ -23,12 +23,14 @@ describe('STEPS', () => {
   })
 
   it('scrolls a walk two pixels a pass from the read, a square by the last frame', () => {
-    expect(step.STEPS[1]!.frames.map(frame => frame.pixels)).toStrictEqual([0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14, 16])
+    expect(step.STEPS[1]!.frames.map(frame => frame.pixels))
+      .toStrictEqual([0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14, 16])
   })
 
   it('turns Blue in place on the pass after the read of a step that only turns him', () => {
     expect(step.STEPS[2]!.frames.map(frame => [frame.facing, frame.stance]).slice(0, 5)).toStrictEqual([
-      ['right', 'standing'], ['right', 'standing'], ['right', 'standing'], ['up', 'standing'], ['up', 'standing']
+      ['right', 'standing'], ['right', 'standing'], ['right', 'standing'],
+      ['up', 'standing'], ['up', 'standing']
     ])
   })
 
@@ -52,7 +54,8 @@ describe('the sheet', () => {
   })
 
   it('describes a position by its step, its press, and its frame', () => {
-    expect([step.describe(0), step.describe(119)]).toStrictEqual(['Step 1, Right, frame 1 of 17', 'Step 8, No press, frame 1 of 17'])
+    expect([step.describe(0), step.describe(119)])
+      .toStrictEqual(['Step 1, Right, frame 1 of 17', 'Step 8, No press, frame 1 of 17'])
   })
 
   it.each([

@@ -183,7 +183,8 @@ export function shadeOf(share: number): Cell['shade'] {
  */
 export function finalsWidth(width: number, side: Side | null): number {
   const room = width - LANES.label
-  return side === 'finals' ? room - LANES.tab - LANES.gap : side === 'curves' ? LANES.tab : Math.round(room * LANES.rest)
+  if (side === 'finals') return room - LANES.tab - LANES.gap
+  return side === 'curves' ? LANES.tab : Math.round(room * LANES.rest)
 }
 
 /**

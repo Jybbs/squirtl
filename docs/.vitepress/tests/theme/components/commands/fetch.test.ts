@@ -25,7 +25,8 @@ describe('CommandsFetch', () => {
     expect(wrapper.get('[role="status"]').text()).toBe(`Downloading ${fetch.MATCHED[0]!.asset}`)
   })
 
-  it('offers the release as packed and one with an altered tar as a group of radios, the first checked', async () => {
+  it('offers the release as packed and one with an altered tar as a group of radios, the first '
+   + 'checked', async () => {
     const wrapper = await browser.shown(CommandsFetch)
     const radios  = wrapper.findAll('[role="radio"]')
 

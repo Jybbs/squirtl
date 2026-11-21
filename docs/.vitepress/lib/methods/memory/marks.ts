@@ -73,7 +73,8 @@ export const SITES: readonly Site[] = [
  */
 function shapeOf(rows: readonly string[]): Shape {
   const off = (SQUARE - rows.length) / 2
-  return rows.flatMap((row, y) => [...row.matchAll(/X+/gu)].map(run => [off + run.index, off + y, run[0].length] as const))
+  return rows.flatMap((row, y) =>
+    [...row.matchAll(/X+/gu)].map(run => [off + run.index, off + y, run[0].length] as const))
 }
 
 /**
@@ -82,11 +83,17 @@ function shapeOf(rows: readonly string[]): Shape {
  */
 export const SHAPES = {
   dot6   : shapeOf(['.XXXX.', 'XXXXXX', 'XXXXXX', 'XXXXXX', 'XXXXXX', '.XXXX.']),
-  dot8   : shapeOf(['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XXXXXXXX', 'XXXXXXXX', 'XXXXXXXX', '.XXXXXX.', '..XXXX..']),
-  dot10  : shapeOf(['...XXXX...', '.XXXXXXXX.', '.XXXXXXXX.', 'XXXXXXXXXX', 'XXXXXXXXXX', 'XXXXXXXXXX', 'XXXXXXXXXX', '.XXXXXXXX.', '.XXXXXXXX.', '...XXXX...']),
+  dot8   : shapeOf([
+    '..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XXXXXXXX', 'XXXXXXXX', 'XXXXXXXX', '.XXXXXX.', '..XXXX..'
+  ]),
+  dot10  : shapeOf([
+    '...XXXX...', '.XXXXXXXX.', '.XXXXXXXX.', 'XXXXXXXXXX', 'XXXXXXXXXX', 'XXXXXXXXXX', 'XXXXXXXXXX',
+    '.XXXXXXXX.', '.XXXXXXXX.', '...XXXX...'
+  ]),
   ring14 : shapeOf([
-    '.....XXXX.....', '...XX....XX...', '..X........X..', '.X..........X.', '.X..........X.', 'X............X', 'X............X',
-    'X............X', 'X............X', '.X..........X.', '.X..........X.', '..X........X..', '...XX....XX...', '.....XXXX.....'
+    '.....XXXX.....', '...XX....XX...', '..X........X..', '.X..........X.', '.X..........X.',
+    'X............X', 'X............X', 'X............X', 'X............X', '.X..........X.',
+    '.X..........X.', '..X........X..', '...XX....XX...', '.....XXXX.....'
   ])
 } as const
 
@@ -105,26 +112,38 @@ export function fitOf(place: rooms.Place): Fit {
   const cell                 = Math.min(PLATE.area / cols, PLATE.area / rows)
   const width                = cols * cell
   const height               = rows * cell
-  return { cell, cols, height, left: PLATE.left + (PLATE.area - width) / 2, rows, top: PLATE.top + (PLATE.area - height) / 2, width }
+  return {
+    cell   : cell,
+    cols   : cols,
+    height : height,
+    left   : PLATE.left + (PLATE.area - width) / 2,
+    rows   : rows,
+    top    : PLATE.top + (PLATE.area - height) / 2,
+    width  : width
+  }
 }
 
 /**
  * Draws `shape` as SVG rectangles in the current color.
  */
 const shapeSvg = (shape: Shape): string =>
-  shape.map(([x, y, width]) => `<rect x="${x}" y="${y}" width="${width}" height="1" fill="currentColor"/>`).join('')
+  shape
+    .map(([x, y, width]) => `<rect x="${x}" y="${y}" width="${width}" height="1" fill="currentColor"/>`)
+    .join('')
 
 /**
  * Draws a key mark on the game's lightest shade, as the map draws a square in
  * either scheme.
  */
 const tileSvg = (inner: string): string =>
-  `<svg viewBox="0 0 16 16" shape-rendering="crispEdges"><rect width="16" height="16" fill="${spriteShades[0]}"/>${inner}</svg>`
+    '<svg viewBox="0 0 16 16" shape-rendering="crispEdges">'
+  + `<rect width="16" height="16" fill="${spriteShades[0]}"/>${inner}</svg>`
 
 /**
  * Draws a flag's site in a key, dashed as the map draws it until it is set.
  */
-const siteSvg = '<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/></svg>'
+const siteSvg = '<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="none" '
+              + 'stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/></svg>'
 
 /**
  * The key's entries, each the mark the map draws: a square reached, the newest,
@@ -135,7 +154,8 @@ export const KEY = [
   {
     mark : tileSvg(shapeSvg(SHAPES.dot6)),
     name : 'A square reached',
-    note : `Each square the episode has stood on, its dot popping in as it is first reached and lightening as the steps since go by, the first step onto it paying ${fixed(SETTINGS.reward.novelty, 5)}`,
+    note : 'Each square the episode has stood on, its dot popping in as it is first reached and lightening '
+         + `as the steps since go by, the first step onto it paying ${fixed(SETTINGS.reward.novelty, 5)}`,
     role : 'novelty'
   },
   {
@@ -144,12 +164,25 @@ export const KEY = [
     note : 'The square the episode reached last, its dot ringed until it reaches the next',
     role : 'novelty'
   },
-  { mark: siteSvg, name: 'A milestone flag', note: 'Where the game sets a milestone’s flag, dashed until it is set and filled once it is', role: 'milestone' },
-  { mark: siteSvg, name: 'The starter flag', note: 'Where the game sets the starter’s flag, which ends the episode', role: 'goal' },
   {
-    mark : '<svg viewBox="0 0 16 16"><path d="M8 -1V2M-1 8H2" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3"/><rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+    mark : siteSvg,
+    name : 'A milestone flag',
+    note : 'Where the game sets a milestone’s flag, dashed until it is set and filled once it is',
+    role : 'milestone'
+  },
+  {
+    mark : siteSvg,
+    name : 'The starter flag',
+    note : 'Where the game sets the starter’s flag, which ends the episode',
+    role : 'goal'
+  },
+  {
+    mark : '<svg viewBox="0 0 16 16"><path d="M8 -1V2M-1 8H2" stroke="currentColor" stroke-width="1.5" '
+         + 'stroke-dasharray="3 3"/><rect x="2" y="2" width="12" height="12" fill="none" '
+         + 'stroke="currentColor" stroke-width="2"/></svg>',
     name : 'The bytes’ square',
-    note : 'The square wXCoord and wYCoord name, its numbers at the map’s edges, gliding to each square the bytes name next',
+    note : 'The square wXCoord and wYCoord name, its numbers at the map’s edges, gliding to each square the '
+         + 'bytes name next',
     role : 'agent'
   }
 ] as const

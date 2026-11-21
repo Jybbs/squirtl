@@ -7,7 +7,8 @@ import { LIFT, SQUARE, paintSprite } from '../../game/screen.ts'
 import { hueHex, roleHue }           from '../../identity/identity.ts'
 import { NEWEST }                    from '../memory.ts'
 import * as marks                    from './marks.ts'
-import { FADE, type Frame, REACHED } from './play.ts'
+import { FADE, type Frame }          from './play.ts'
+import { REACHED }                   from './reached.ts'
 
 /**
  * The novelty term's hue every square reached is marked in.
@@ -67,10 +68,13 @@ function paintSquares(context: CanvasRenderingContext2D, frame: Frame, lit: numb
 function paintPeople(context: CanvasRenderingContext2D, frame: Frame): void {
   if (frame.fade === FADE.length - 1) return
   const fills  = spriteFills(FADE[frame.fade]!)
-  const leader = frame.leader && { at: frame.leader.at as rooms.Square, facing: frame.leader.facing, place: frame.place }
+  const leader = frame.leader
+    && { at: frame.leader.at as rooms.Square, facing: frame.leader.facing, place: frame.place }
   const sprite = (pose: ReturnType<typeof frameFor>, at: readonly [number, number]) =>
     paintSprite(context, pose, Math.round(at[0] * SQUARE), Math.round(at[1] * SQUARE) - LIFT, fills)
-  for (const actor of actorsOf({ chosen: frame.chosen, leader, place: frame.place }, leader?.at, frame.leader?.stance)) {
+  const room   = { chosen: frame.chosen, leader, place: frame.place }
+  const actors = actorsOf(room, leader?.at, frame.leader?.stance)
+  for (const actor of actors) {
     sprite(frameFor(actor.name, actor.facing, actor.stance), actor.at)
   }
   sprite(frameFor('player', frame.facing, frame.stance), frame.at)
@@ -82,7 +86,12 @@ function paintPeople(context: CanvasRenderingContext2D, frame: Frame): void {
  * reached as the key's entry `lit` picks them out, and the people, or the
  * ground alone until the room's image loads.
  */
-export function paintMap(context: CanvasRenderingContext2D, faded: readonly CanvasImageSource[] | undefined, frame: Frame, lit: number | null): void {
+export function paintMap(
+  context : CanvasRenderingContext2D,
+  faded   : readonly CanvasImageSource[] | undefined,
+  frame   : Frame,
+  lit     : number | null
+): void {
   const { cols, rows }          = marks.fitOf(frame.place)
   context.imageSmoothingEnabled = false
   if (!faded) {
