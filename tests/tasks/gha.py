@@ -71,6 +71,22 @@ def job(result: str, outputs: dict[str, str] | None = None) -> dict:
     return {"outputs": outputs or {}, "result": result}
 
 
+def refreshing(fp: FakeProcess, release_id: int):
+    """
+    Answers the two `gh api` calls refreshing the draft whose id is
+    `release_id`, the notes GitHub generates for it and the edit writing
+    them.
+    """
+    fp.register(
+        ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
+        stdout = dumps({"body": GENERATED})
+    )
+    fp.register(
+        ["gh", "api", f"repos/{{owner}}/{{repo}}/releases/{release_id}", fp.any()],
+        stdout = dumps({"html_url": UNTAGGED})
+    )
+
+
 def release(
     tag_name   : str,
     *,
@@ -792,8 +808,8 @@ def test_running_the_task_refreshes_the_draft_whatever_runs_it_attaches(
     Pins that running the task refreshes the draft and passes whether it
     attaches every run `docs/runs/` commits beside the manifest, some of
     them, or none, sending GitHub only the listing, the notes, and the edit.
-    The listing answers with each field the task asks for, as `--jq` selects
-    them, out of the release GitHub holds with its assets.
+    The listing returns each field the task's `--jq` filter names, taken
+    from the release GitHub holds with its assets.
     """
     held   = release("0.2.0") | {"assets": assets}
     listed = {field.name: held[field.name] for field in fields(cut.Release)}
@@ -809,14 +825,7 @@ def test_running_the_task_refreshes_the_draft_whatever_runs_it_attaches(
         ["gh", "api", "repos/{owner}/{repo}/releases", fp.any()],
         stdout = f"{dumps(listed)}\n"
     )
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
-        stdout = dumps({"body": GENERATED})
-    )
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/1", fp.any()],
-        stdout = dumps({"html_url": UNTAGGED})
-    )
+    refreshing(fp, 1)
     run_path(str(pytestconfig.rootpath / ".mise/tasks/gha/cut.py"), run_name="__main__")
 
     assert [call[2] for call in fp.calls] == [
@@ -852,14 +861,7 @@ def test_running_the_task_reads_the_manifest_version_and_every_release(
             ]
         )
     )
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/generate-notes", fp.any()],
-        stdout = dumps({"body": GENERATED})
-    )
-    fp.register(
-        ["gh", "api", "repos/{owner}/{repo}/releases/2", fp.any()],
-        stdout = dumps({"html_url": UNTAGGED})
-    )
+    refreshing(fp, 2)
 
     script = run_path(
         str(pytestconfig.rootpath / ".mise/tasks/gha/cut.py"),

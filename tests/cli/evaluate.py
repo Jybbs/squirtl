@@ -9,8 +9,9 @@ Pins what `squirtl evaluate` does, covering:
   its checkpoint or its cartridge, and a damaged checkpoint, each exiting 1,
   and a damaged member of replay memory, which it never reads
 - A run of PQN or PPO, whose network it builds from the agent the run names
-- The runs of a release, fetched under the default selection, and a run
-  recording another digest than its cartridge's intro leaves, which exits 1
+- The runs of a release, fetched under the default selection, and a
+  release attaching no manifest and a run recording another digest than
+  its cartridge's intro leaves, each exiting 1
 - A search, which trains no agent and exits 1 naming the commands reading
   one
 """
@@ -18,6 +19,8 @@ Pins what `squirtl evaluate` does, covering:
 from collections.abc   import Callable
 from common.cli        import Invoker
 from common.evaluation import EvaluatorStandIn
+from common.releases   import ADDRESS, GitHub
+from json              import dumps
 from os                import truncate
 from pathlib           import Path
 from pytest            import MonkeyPatch, mark, param
@@ -105,6 +108,27 @@ def test_runs_against_another_agent_take_a_column_and_a_comparison(
 
     assert "| **Measure** | **Agent** | **Baseline** | **Against** |" in output
     assert "The agent beats the runs against it with a probability of" in output
+
+
+def test_a_release_attaching_no_manifest_exits_1_before_any_evaluation(
+    evaluators : list[EvaluatorStandIn],
+    github     : GitHub,
+    invoke     : Invoker
+):
+    """
+    Asserts that evaluating a release attaching no manifest exits 1, logging
+    that it attaches none, and starts no evaluator.
+    """
+    github.served[f"{ADDRESS}/tags/0.1.0"] = dumps(
+        {"published_at": "2026-10-01T00:00:00Z", "tag_name": "0.1.0"}
+    ).encode()
+    invocation = invoke(["evaluate", "--release", "0.1.0"])
+
+    assert (
+        invocation.code,
+        "attaches no manifest.json" in invocation.log,
+        evaluators
+    ) == (1, True, [])
 
 
 def test_a_release_evaluates_each_seed_of_the_recommended_runs_agent_and_start(

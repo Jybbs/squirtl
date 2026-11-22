@@ -10,12 +10,14 @@ Pins what `squirtl watch` does, covering:
   and a directory holding no run, each exiting 1
 - An episode of a run of PQN or PPO played back to its unscaled return
 - The recommended run of a release, fetched and played back, and a
-  selection naming no one run, which exits 1
+  selection naming no one run and a release attaching no manifest, each
+  exiting 1
 - The path a search found, played back to the return it recorded
 """
 
 from collections.abc import Callable
 from common.cli      import Invoker
+from common.releases import ADDRESS, GitHub
 from json            import dumps, loads
 from numpy           import ndarray
 from pathlib         import Path
@@ -176,20 +178,26 @@ def test_a_playback_with_nothing_to_play_exits_1_before_the_window_opens(
     assert ("holds no episode 3" in invocation.log) is bool(argv)
 
 
-def test_an_episode_of_pqn_or_ppo_plays_back_to_the_return_the_run_recorded(
+def test_a_release_attaching_no_manifest_exits_1_before_the_window_opens(
+    github  : GitHub,
     invoke  : Invoker,
-    rolled  : Path,
     windows : list[str]
 ):
     """
-    Asserts that playing back the last episode of a run of either agent,
-    which `NormalizeReward` leaves unscaled on its line, exits zero on
-    reaching the return the run recorded.
+    Asserts that watching a release attaching no manifest exits 1, logging
+    that it attaches none, before any emulator boots.
     """
-    invocation = invoke(["watch", str(rolled)])
+    github.served[f"{ADDRESS}/tags/0.1.0"] = dumps(
+        {"published_at": "2026-10-01T00:00:00Z", "tag_name": "0.1.0"}
+    ).encode()
+    windows.clear()
+    invocation = invoke(["watch", "--release", "0.1.0"])
 
-    assert invocation.code == 0
-    assert "the run recorded" in invocation.log
+    assert (
+        invocation.code,
+        "attaches no manifest.json" in invocation.log,
+        windows
+    ) == (1, True, [])
 
 
 @mark.usefixtures("windows")
@@ -249,6 +257,22 @@ def test_a_selection_naming_no_one_run_exits_1_before_the_window_opens(
     invocation = invoke(["watch", *argv])
 
     assert (invocation.code, reason in invocation.log, windows) == (1, True, [])
+
+
+def test_an_episode_of_pqn_or_ppo_plays_back_to_the_return_the_run_recorded(
+    invoke  : Invoker,
+    rolled  : Path,
+    windows : list[str]
+):
+    """
+    Asserts that playing back the last episode of a run of either agent,
+    which `NormalizeReward` leaves unscaled on its line, exits zero on
+    reaching the return the run recorded.
+    """
+    invocation = invoke(["watch", str(rolled)])
+
+    assert invocation.code == 0
+    assert "the run recorded" in invocation.log
 
 
 @mark.usefixtures("windows")
