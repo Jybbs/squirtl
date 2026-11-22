@@ -55,7 +55,7 @@ squirtl evaluate data/runs/<run>
 
 `squirtl train` prints the run's directory under `data/runs/` once it ends, and `squirtl evaluate` prints its measures as Markdown beside the random baseline's under the same seeds.
 
-Each release attaches every run the **[Results](https://squirtl.fyi/results/)** section measures, each recording the cartridge at `data/rom.gb`. `squirtl fetch` unpacks a release's runs under `data/runs/`, and `--release` plays or measures them in place of a run directory, fetching any run that is missing:
+A release may attach the runs the **[Results](https://squirtl.fyi/results/)** section measures, each recording the cartridge at `data/rom.gb`. On a release that attaches them, `squirtl fetch` unpacks its runs under `data/runs/`, and `--release` plays or measures them in place of a run directory, fetching any run that is missing:
 
 ```bash
 squirtl watch --release 0.2.0
