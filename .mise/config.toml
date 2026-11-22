@@ -14,7 +14,7 @@ timeout     = "10s"
 
 [doctor.checks.lockfile]
 description = "`uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` resolve what their manifests declare, every tool the project pins installs from `.mise/mise.lock`, and no advisory names a pinned tool beyond one `AUDIT_IGNORE` lists while no release fixes it"
-hint        = "Run `mise lockfile` to print what drifted, then `mise relock` to re-resolve every lockfile against its manifest. Where it names an advisory, lift the tool in `[tools]` to the fixed version it prints, deleting the advisory from `AUDIT_IGNORE` where the line asks."
+hint        = "Run `mise lockfile` to print what drifted, then `mise relock` to re-resolve every lockfile against its manifest. Where it names an advisory, lift the tool in `[tools]` to the fixed version it prints, deleting the advisory from `AUDIT_IGNORE` where the line names it."
 run         = "mise run lock:check"
 timeout     = "60s"
 

@@ -165,7 +165,7 @@ def advisory(*fixed: str) -> dict[str, object]:
         "tool"     : "python",
         "url"      : "https://osv.dev/vulnerability/CVE-2026-0001",
         "version"  : "3.15.2",
-        "aliases"  : []
+        "aliases"  : ["GHSA-0000-0000-0001"]
     }
 
 
@@ -310,25 +310,26 @@ def test_a_lockfile_in_step_with_its_pins_passes(
     assert result.stdout.splitlines() == ["[]"] * 4
 
 
-def test_relock_re_resolves_every_lockfile(
-    calls        : Callable[[], list[str]],
-    pytestconfig : Config,
-    scripts      : str,
-    tmp_path     : Path
+def test_each_advisory_in_one_report_is_judged_on_its_own(
+    audited: Callable[..., CompletedProcess[str]]
 ):
     """
-    Pins that `lock:sync` re-resolves `.mise/mise.lock`, then `uv.lock`,
-    then the lockfile beside each task script declaring its own
-    dependencies, the two uv calls lifting the `UV_LOCKED` the `[env]` block
-    sets, then `docs/bun.lock`, which Bun writes without installing.
+    Pins that the task prints only the advisory `AUDIT_IGNORE` leaves out
+    where the report also holds one the list passes, and still exits 1.
     """
-    run([pytestconfig.rootpath / ".mise/tasks/lock/sync"], check=True, cwd=tmp_path)
+    result = audited(
+        advisory(),
+        {
+            **advisory(),
+            "id"      : "CVE-2026-0002",
+            "tool"    : "node",
+            "aliases" : []
+        },
+        ignored = "CVE-2026-0001"
+    )
 
-    assert calls() == [
-        "mise lock", "uv lock --no-locked",
-        f"uv lock --no-locked --script {scripts}",
-        "bun install --cwd docs --lockfile-only"
-    ]
+    assert result.returncode == 1
+    assert result.stderr == "CVE-2026-0002 affects node 3.15.2: A stand-in advisory\n"
 
 
 @mark.parametrize(
@@ -336,15 +337,33 @@ def test_relock_re_resolves_every_lockfile(
     [
         param(advisory(), "CVE-2026-0001", 0, "", id="ignored-with-no-fix"),
         param(
+            advisory(),
+            "GHSA-0000-0000-0001",
+            0,
+            "",
+            id = "ignored-by-alias-with-no-fix"
+        ),
+        param(
             advisory("3.15.3", "3.16.0"),
             "CVE-2026-0001",
             1,
             (
-                "CVE-2026-0001 is fixed in 3.15.3, 3.16.0, so delete it from "
-                "AUDIT_IGNORE in .mise/config.toml and lift python 3.15.2 to a "
-                "fixed version\n"
+                "CVE-2026-0001 is fixed in 3.15.3, 3.16.0, so delete "
+                "CVE-2026-0001 from AUDIT_IGNORE in .mise/config.toml and lift "
+                "python 3.15.2 to a fixed version\n"
             ),
             id = "ignored-with-a-fix"
+        ),
+        param(
+            advisory("3.15.3"),
+            "GHSA-0000-0000-0001",
+            1,
+            (
+                "CVE-2026-0001 is fixed in 3.15.3, so delete GHSA-0000-0000-0001 "
+                "from AUDIT_IGNORE in .mise/config.toml and lift python 3.15.2 "
+                "to a fixed version\n"
+            ),
+            id = "ignored-by-alias-with-a-fix"
         ),
         param(
             advisory(),
@@ -373,15 +392,36 @@ def test_an_ignored_advisory_passes_only_while_no_release_fixes_it(
     printed : str
 ):
     """
-    Pins that the task passes an advisory `AUDIT_IGNORE` lists while it
-    names no fixed version, and fails on a listed one naming a fix, saying
-    which advisory, tool, and versions, and on any advisory the list leaves
-    out.
+    Pins that the task passes an advisory `AUDIT_IGNORE` lists by its id
+    or an alias while it names no fixed version, and fails on a listed one
+    naming a fix, saying which advisory, tool, and versions, and on any
+    advisory the list leaves out.
     """
     result = audited(found, ignored=ignored)
 
     assert result.returncode == code
     assert result.stderr == printed
+
+
+def test_relock_re_resolves_every_lockfile(
+    calls        : Callable[[], list[str]],
+    pytestconfig : Config,
+    scripts      : str,
+    tmp_path     : Path
+):
+    """
+    Pins that `lock:sync` re-resolves `.mise/mise.lock`, then `uv.lock`,
+    then the lockfile beside each task script declaring its own
+    dependencies, the two uv calls lifting the `UV_LOCKED` the `[env]` block
+    sets, then `docs/bun.lock`, which Bun writes without installing.
+    """
+    run([pytestconfig.rootpath / ".mise/tasks/lock/sync"], check=True, cwd=tmp_path)
+
+    assert calls() == [
+        "mise lock", "uv lock --no-locked",
+        f"uv lock --no-locked --script {scripts}",
+        "bun install --cwd docs --lockfile-only"
+    ]
 
 
 def test_the_audit_reads_only_the_tools_the_project_pins(

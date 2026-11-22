@@ -4,11 +4,11 @@
 Looks up each tool `[tools]` in `.mise/config.toml` pins through `mise
 audit`, as the last step of `lock:check`, so a tool a reader's global mise
 config adds stays out of the result. `Audit` reads each advisory the audit
-reports as an `Advisory` and passes one `AUDIT_IGNORE` lists only while
-it names no fixed version. The task prints a line per failing advisory to
-standard error and exits 1 where any advisory fails or where `mise audit`
-itself fails, as it does without the network or on a pin that resolves to
-no version.
+reports as an `Advisory` and passes one `AUDIT_IGNORE` lists, by its id or
+an alias, only while it names no fixed version. The task prints a line per
+failing advisory to standard error and exits 1 where any advisory fails or
+where `mise audit` itself fails, as it does without the network or on a pin
+that resolves to no version.
 """
 
 from dataclasses import dataclass, fields
@@ -25,9 +25,11 @@ from typing      import Self
 class Advisory:
     """
     One advisory against a tool version, holding the fields `mise audit
-    --json` lists it under, `fixed` being every version that fixes it.
+    --json` lists it under, `aliases` being the other ids it is published
+    under and `fixed` every version that fixes it.
     """
 
+    aliases : list[str]
     fixed   : list[str]
     id      : str
     summary : str
@@ -41,15 +43,19 @@ class Advisory:
         Returns:
             A line naming the advisory, the tool, and its version, beside the
             versions to lift to once a release fixes it, or `None` where
-            `ignored` lists the advisory and no release fixes it yet.
+            `ignored` lists the advisory or one of its aliases and no release
+            fixes it yet.
         """
-        if self.id not in ignored:
-            lift = f", fixed in {', '.join(self.fixed)}" if self.fixed else ""
+        fixes  = ", ".join(self.fixed)
+        listed = " ".join(sorted(ignored.intersection([self.id, *self.aliases])))
+
+        if not listed:
+            lift = f", fixed in {fixes}" if fixes else ""
             return f"{self.id} affects {self.tool} {self.version}{lift}: {self.summary}"
 
-        if self.fixed:
+        if fixes:
             return (
-                f"{self.id} is fixed in {', '.join(self.fixed)}, so delete it from "
+                f"{self.id} is fixed in {fixes}, so delete {listed} from "
                 f"AUDIT_IGNORE in .mise/config.toml and lift {self.tool} "
                 f"{self.version} to a fixed version"
             )
