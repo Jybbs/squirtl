@@ -216,6 +216,7 @@ def test_a_sampled_policy_draws_each_action_from_its_spaces_generator():
     assert set(peaked.act(frames, spaces()).tolist()) == {6}
 
 
+@starts_processes
 @mark.parametrize(
     ("algorithm", "played"),
     [
@@ -269,6 +270,7 @@ def test_each_agent_plays_its_network_as_it_trains(
     ) == ((2.0, 1.0) if algorithm.sampled else (1.0, None)) + (None,)
 
 
+@starts_processes
 def test_a_worker_plays_on_through_an_interrupt(evaluator: Callable[..., Evaluator]):
     """
     Asserts that the interrupt signal reaching each worker process, as a
@@ -282,6 +284,7 @@ def test_a_worker_plays_on_through_an_interrupt(evaluator: Callable[..., Evaluat
         assert len(started.baseline().outcomes) == 2
 
 
+@starts_processes
 def test_an_evaluation_refuses_weights_another_agents_network_holds(
     evaluator: Callable[..., Evaluator]
 ):
@@ -304,6 +307,7 @@ def test_an_evaluation_refuses_weights_another_agents_network_holds(
             started.evaluate(Weights(online=online, step=9))
 
 
+@starts_processes
 @mark.filterwarnings("ignore:.*pending call to .step")
 def test_an_interrupt_partway_through_a_step_ends_each_worker(
     evaluator: Callable[..., Evaluator]
@@ -370,6 +374,7 @@ def test_an_evaluation_runs_no_more_environments_than_its_episodes(
     assert evaluator(environments=8, episodes=2).envs.num_envs == 2
 
 
+@starts_processes
 @mark.parametrize(
     "algorithm",
     [

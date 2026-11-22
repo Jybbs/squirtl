@@ -1,7 +1,8 @@
 """
 Defines the fixtures the tests of `squirtl.cli` request:
 
-- `invoke`, which calls the app and reads back its `Invocation`
+- `invoke`, which calls the app and reads back its `Invocation`, stepping
+  each run's environments in the process running the test
 - `accepted`, under which a cartridge passes the check of its digest
 - `quick`, the flags of a short run on the CPU evaluating two episodes,
   `trained`, a run `squirtl train` takes through under them, and
@@ -60,10 +61,11 @@ def accepted(monkeypatch: MonkeyPatch):
 
 
 @fixture
-def invoke(capsys: CaptureFixture[str]) -> Invoker:
+def invoke(capsys: CaptureFixture[str], in_process: None) -> Invoker:
     """
     Builds a caller that passes `argv` to the app and records the status it
-    exits with beside what it prints and what it logs.
+    exits with beside what it prints and what it logs, the environments of
+    each run and each evaluation stepping in the process running the test.
     """
 
     def call(argv: list[str]) -> Invocation:

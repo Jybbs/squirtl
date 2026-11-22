@@ -18,16 +18,17 @@ Pins the loop of one search, covering:
   down whether or not the block raised, and a real one running a search
 """
 
-from collections.abc import Callable
-from common.search   import PoolStandIn, assert_same_checkpoint, finish, iterations, lines, stop_at_thirty
-from common.search   import terminate_at_twenty
-from itertools       import pairwise
-from math            import fsum
-from multiprocessing import get_context
-from pathlib         import Path
-from pytest          import MonkeyPatch, approx, mark, raises
-from re              import findall
-from signal          import SIGINT, SIGTERM, Signals, getsignal, raise_signal
+from collections.abc  import Callable
+from common.processes import starts_processes
+from common.search    import PoolStandIn, assert_same_checkpoint, finish, iterations, lines, stop_at_thirty
+from common.search    import terminate_at_twenty
+from itertools        import pairwise
+from math             import fsum
+from multiprocessing  import get_context
+from pathlib          import Path
+from pytest           import MonkeyPatch, approx, mark, raises
+from re               import findall
+from signal           import SIGINT, SIGTERM, Signals, getsignal, raise_signal
 
 from squirtl.emulator.schemas  import Cartridge
 from squirtl.reward.schemas    import RewardSettings
@@ -286,6 +287,7 @@ def test_a_search_shuts_its_pool_down_whether_or_not_it_raised(
     assert pools[-1].shutdowns == [True]
 
 
+@starts_processes
 @mark.usefixtures("clone", "rom")
 def test_a_search_over_a_real_pool_reaches_the_lines_of_one_in_the_process(
     actual   : Callable[..., Searcher],
@@ -308,6 +310,7 @@ def test_a_search_over_a_real_pool_reaches_the_lines_of_one_in_the_process(
     assert lines(real) == lines(twin)
 
 
+@starts_processes
 @mark.slow
 @mark.usefixtures("clone")
 def test_a_termination_signal_to_the_runs_group_ends_it_at_its_iterations_end(

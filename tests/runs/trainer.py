@@ -514,15 +514,16 @@ def test_a_rollout_takes_the_steps_of_the_settings_of_its_own_agent(
         assert run.tally.counts.tolist() == [1, 1]
 
 
+@starts_processes
 def test_a_rollout_run_ending_unraised_lets_each_worker_close_its_environment(
-    rolling: Callable[..., Trainer]
+    forked: Callable[..., Trainer]
 ):
     """
     Asserts that a run ending with nothing raised closes the environments
     through their workers, each of which exits 0 rather than being
     terminated.
     """
-    with rolling(Algorithm.PQN, steps=8) as trainer:
+    with forked(Algorithm.PQN, steps=8) as trainer:
         list(trainer)
 
     assert {process.exitcode for process in trainer.env.unwrapped.processes} == {0}
@@ -594,8 +595,9 @@ def test_an_evaluation_logs_how_often_each_policy_reached_the_goal(
     } <= set(logged)
 
 
+@starts_processes
 def test_a_rollout_run_makes_the_environments_its_settings_name(
-    rolling: Callable[..., Trainer]
+    forked: Callable[..., Trainer]
 ):
     """
     Asserts that a run of PQN or PPO makes as many environments as
@@ -604,7 +606,7 @@ def test_a_rollout_run_makes_the_environments_its_settings_name(
     step, and normalizes rewards at the run's discount rather than at
     `NormalizeReward`'s own.
     """
-    with rolling(Algorithm.PPO, agent={"discount": 0.9, "max_concurrency": 1}) as run:
+    with forked(Algorithm.PPO, agent={"discount": 0.9, "max_concurrency": 1}) as run:
         vector = run.env.unwrapped
 
         assert (
@@ -652,9 +654,10 @@ def test_a_rollout_run_resuming_a_checkpoint_of_another_agent_is_refused(
         )
 
 
+@starts_processes
 @mark.filterwarnings("ignore:.*pending call to .step")
 def test_a_second_interrupt_partway_through_a_step_ends_each_worker(
-    rolling: Callable[..., Trainer]
+    forked: Callable[..., Trainer]
 ):
     """
     Asserts that an interrupt raised once a step has read some of the
@@ -664,7 +667,7 @@ def test_a_second_interrupt_partway_through_a_step_ends_each_worker(
     """
     handler = signal(SIGALRM, lambda *_: fail("Closing blocked on a pipe already read"))
 
-    with raises(KeyboardInterrupt), rolling(Algorithm.PQN) as trainer:
+    with raises(KeyboardInterrupt), forked(Algorithm.PQN) as trainer:
         vector = trainer.env.unwrapped
 
         raise_signal(SIGINT)
@@ -1222,15 +1225,16 @@ def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
     ).step is None
 
 
+@starts_processes
 def test_an_interrupt_reaching_each_worker_leaves_the_rollout_stepping(
-    rolling: Callable[..., Trainer]
+    forked: Callable[..., Trainer]
 ):
     """
     Asserts that each environment's worker ignores the interrupt a terminal
     sends the whole process group, so the rollout runs on to the step where
     the trainer decides whether to stop.
     """
-    with rolling(Algorithm.PQN, steps=8) as trainer:
+    with forked(Algorithm.PQN, steps=8) as trainer:
         for process in trainer.env.unwrapped.processes:
             kill(process.pid, SIGINT)
 

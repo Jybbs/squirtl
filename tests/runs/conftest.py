@@ -2,11 +2,12 @@
 Defines the fixtures the tests of `squirtl.runs` request, meaning the
 stand-in records a test reading no clone builds on, the record of one
 episode, a writer of a run's episodes, a run holding a demonstration, the
-settings of a short run beside factories of trainers starting one, each
-rollout trainer's workers forking from a forkserver that preloads the
-environment's modules, a reader of each run that never stopped, played once
-a session, a factory of searchers on the fake game of `game` beside one on
-real worker processes, and the messages loguru logs during a test.
+settings of a short run beside factories of trainers starting one, their
+environments stepping in the process running the test unless a case requests
+their workers forking from a forkserver that preloads the environment's
+modules, a reader of each run that never stopped, played once a session, a
+factory of searchers on the fake game of `game` beside one on real worker
+processes, and the messages loguru logs during a test.
 """
 
 from collections.abc import Callable, Hashable, Iterator, Mapping
@@ -133,24 +134,19 @@ def pytest_configure():
 
 @fixture
 def trainer(
-    cartridge   : Cartridge,
-    monkeypatch : MonkeyPatch,
-    short       : RunSettings
+    cartridge  : Cartridge,
+    in_process : None,
+    short      : RunSettings
 ) -> Callable[..., Trainer]:
     """
     Builds a factory starting a run of `short`, any keyword a field of
     `RunSettings` to set in its place, and returning a trainer of that run
     on `cartridge`, each run started a second after the one before unless
-    `started` names its instant. Each worker of a rollout trainer forks from
-    the forkserver, whose context stands in for the `multiprocessing` module
-    `AsyncVectorEnv` reads its context from.
+    `started` names its instant. The environments of a rollout trainer and
+    of each evaluation step one after the other in the process running the
+    test, as `in_process` makes them.
     """
     seconds = count()
-
-    monkeypatch.setattr(
-        "gymnasium.vector.async_vector_env.multiprocessing",
-        get_context("forkserver")
-    )
 
     def build(
         resumes   : Run | None      = None,
@@ -306,6 +302,25 @@ def rolling(trainer: Callable[..., Trainer]) -> Callable[..., Trainer]:
         )
 
     return build
+
+
+@fixture
+def forked(
+    monkeypatch : MonkeyPatch,
+    pooled      : None,
+    rolling     : Callable[..., Trainer]
+) -> Callable[..., Trainer]:
+    """
+    Builds the factory `rolling` builds, its environments each stepping in
+    a worker forked from the forkserver, whose context stands in for the
+    `multiprocessing` module `AsyncVectorEnv` reads its context from.
+    """
+    monkeypatch.setattr(
+        "gymnasium.vector.async_vector_env.multiprocessing",
+        get_context("forkserver")
+    )
+
+    return rolling
 
 
 @fixture

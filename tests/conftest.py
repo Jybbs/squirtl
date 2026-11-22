@@ -9,9 +9,11 @@ the environment, so none needs the user's own ROM, `clone` serves every
 test starting a run, which reads the clone it runs in, `git` every test
 committing to one, `outside` every test reading a working directory no
 clone holds, `evaluators` every test of a run's evaluation that starts no
-worker process, `github` every test reading a release, `pools` and `game`
-every test of a search that starts none, and `played` every test reading or
-changing a run it need not play again.
+worker process, `in_process` every test stepping a run's environments in its
+own process and `pooled` every one putting them back in worker processes,
+`github` every test reading a release, `pools` and `game` every test of a
+search that starts none, and `played` every test reading or changing a run
+it need not play again.
 """
 
 from collections.abc   import Callable, Hashable, Iterable, Iterator, Mapping
@@ -20,6 +22,9 @@ from common.evaluation import EvaluatorStandIn
 from common.releases   import GitHub
 from common.runs       import Played
 from common.search     import PoolStandIn
+from gymnasium         import make_vec
+from gymnasium.envs.registration import EnvSpec
+from gymnasium.vector            import VectorEnv
 from io                import StringIO
 from numpy             import ndarray
 from os                import devnull
@@ -38,6 +43,7 @@ CLEARED = (
     "GITHUB_STEP_SUMMARY", "LINES", "NO_COLOR", "TTY_COMPATIBLE",
     "TTY_INTERACTIVE", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"
 )
+VECTORIZED = "squirtl.evaluation.evaluator", "squirtl.runs.trainer"
 
 
 @fixture
@@ -326,6 +332,46 @@ def evaluators(monkeypatch: MonkeyPatch) -> list[EvaluatorStandIn]:
     monkeypatch.setattr("squirtl.runs.benchmark.Evaluator", build)
 
     return built
+
+
+@fixture
+def in_process(monkeypatch: MonkeyPatch):
+    """
+    Makes the environments of every rollout trainer and every evaluation
+    step one after the other in the process running the test, rather than in
+    a worker process apiece, so a case starts no pool of its own.
+    """
+
+    def make(
+        specification      : EnvSpec,
+        *,
+        num_envs           : int,
+        vector_kwargs      : Mapping[str, object],
+        vectorization_mode : str
+    ) -> VectorEnv:
+        """
+        Makes the environments `gymnasium.make_vec` would, under the
+        autoreset mode `vector_kwargs` names, as a `SyncVectorEnv`.
+        """
+        return make_vec(
+            specification,
+            num_envs,
+            vector_kwargs      = {"autoreset_mode": vector_kwargs["autoreset_mode"]},
+            vectorization_mode = "sync"
+        )
+
+    for module in VECTORIZED:
+        monkeypatch.setattr(f"{module}.make_vec", make)
+
+
+@fixture
+def pooled(in_process: None, monkeypatch: MonkeyPatch):
+    """
+    Puts `gymnasium.make_vec` back where `in_process` replaced it, so the
+    environments of a case requesting both step in worker processes.
+    """
+    for module in VECTORIZED:
+        monkeypatch.setattr(f"{module}.make_vec", make_vec)
 
 
 @fixture

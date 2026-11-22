@@ -19,6 +19,7 @@ Pins what `squirtl evaluate` does, covering:
 from collections.abc   import Callable
 from common.cli        import Invoker
 from common.evaluation import EvaluatorStandIn
+from common.processes  import starts_processes
 from common.releases   import ADDRESS, GitHub
 from json              import dumps
 from os                import truncate
@@ -172,6 +173,8 @@ def test_a_run_holding_a_damaged_checkpoint_exits_1_naming_it(
     )
 
 
+@starts_processes
+@mark.usefixtures("pooled")
 def test_a_run_of_pqn_or_ppo_plays_its_evaluation_across_worker_processes(
     invoke : Invoker,
     rolled : Path
