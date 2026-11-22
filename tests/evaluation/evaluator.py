@@ -15,6 +15,7 @@ Pins how `Evaluator` plays an evaluation's episodes, covering:
 
 from collections.abc   import Callable
 from common.evaluation import outcome
+from common.processes  import starts_processes
 from gymnasium         import Env
 from gymnasium.spaces  import Box, Dict, Discrete
 from gymnasium.vector  import AutoresetMode, SyncVectorEnv

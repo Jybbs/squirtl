@@ -348,6 +348,7 @@ def test_a_termination_signal_to_the_runs_group_ends_it_at_its_iterations_end(
     assert line.presses < run.settings.steps
 
 
+@mark.slow
 def test_a_search_stopped_halfway_and_resumed_ends_as_one_that_never_stopped(
     searcher: Callable[..., Searcher]
 ):

@@ -18,6 +18,7 @@ Pins the worker each rollout runs in, covering:
 
 from collections.abc    import Callable
 from common.console     import set_event
+from common.processes   import starts_processes
 from concurrent.futures import ProcessPoolExecutor
 from gymnasium          import Env
 from gymnasium.envs.registration import EnvSpec

@@ -44,6 +44,7 @@ from collections.abc   import Callable
 from common.agents     import each_agent
 from common.console    import set_event, stand
 from common.evaluation import EvaluatorStandIn, played
+from common.processes  import starts_processes
 from common.runs       import Played, Unbroken
 from datetime          import UTC, datetime
 from functools         import partial
@@ -418,6 +419,7 @@ def test_each_finished_episode_writes_a_line_and_the_cut_one_none(
     ] == [(6, False, 6)] * 3
 
 
+@mark.slow
 def test_a_resume_whose_demonstration_ends_elsewhere_is_refused_before_any_directory(
     demonstrated : Path,
     played       : Played,
@@ -973,6 +975,7 @@ def test_a_rollout_checkpoint_holds_where_each_environment_stands(
     ] == [(2, 1, len(algorithm.measures.model_fields))] * 2
 
 
+@mark.slow
 @each_agent
 @mark.parametrize(
     ("limit", "played", "stopped_at"),
@@ -1020,6 +1023,7 @@ def test_a_rollout_run_stopped_and_resumed_ends_as_a_run_that_never_stopped(
     )
 
 
+@mark.slow
 @each_agent
 def test_a_rollout_run_stopped_before_its_first_step_resumes_as_one_never_stopped(
     algorithm : Algorithm,
@@ -1312,6 +1316,7 @@ def test_ppos_episode_logs_no_epsilon_beside_its_measures(
     assert measures in [message[-len(measures):] for message in logged]
 
 
+@mark.slow
 @each_agent
 def test_a_rollout_run_along_a_demonstration_starts_each_episode_from_a_window(
     algorithm    : Algorithm,
@@ -1363,6 +1368,7 @@ def test_a_rollout_run_along_a_demonstration_starts_each_episode_from_a_window(
         ]
 
 
+@mark.slow
 @each_agent
 def test_a_rollout_run_follows_a_demonstration_past_max_episode_steps(
     algorithm    : Algorithm,
@@ -1398,6 +1404,7 @@ def test_a_rollout_run_follows_a_demonstration_past_max_episode_steps(
     ]
 
 
+@mark.slow
 @each_agent
 def test_a_rollout_run_has_its_curriculum_take_in_each_episode_it_records(
     algorithm    : Algorithm,
