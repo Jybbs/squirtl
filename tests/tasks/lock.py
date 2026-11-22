@@ -1,16 +1,15 @@
 """
 Pins what the `lock:check` task decides and prints from what `uv lock
---check`, `mise lock`, the locked dry-run install, and Bun's frozen dry-run
-install report, that `.mise/mise.lock` comes back byte for byte, mode
-included, whichever way the task exits, and which lockfiles `lock:sync`
-re-resolves.
+--check`, `mise lock --check`, the dry run of `mise lock`, the locked
+dry-run install, and Bun's frozen dry-run install report, and which
+lockfiles `lock:sync` re-resolves.
 
-Each case runs its task from `tmp_path`, which holds a placeholder
-`.mise/mise.lock` wherever the case reaches `mise lock` and placeholder task
-scripts wherever it reaches their lockfiles, with `TMPDIR` at the `scratch`
-directory inside it. The stand-in under `fixtures/` answers for `bun`,
-`mise`, and `uv` in every case, writing each call it receives to a file and
-answering as the case sets, so no case reaches the network.
+Each case runs its task from `tmp_path`, which holds placeholder task
+scripts wherever the case reaches their lockfiles. The stand-in under
+`fixtures/` answers for `bun`, `mise`, and `uv` in every case, writing each
+call it receives to a file and printing the `[]` the dry run of `mise lock`
+prints on a lockfile naming no tool the config dropped, unless the case sets
+another answer, so no case reaches the network.
 """
 
 from collections.abc import Callable
@@ -19,6 +18,8 @@ from pytest          import Config, MonkeyPatch, fixture, mark, param
 from subprocess      import CompletedProcess, run
 
 BUN     = "bun install --cwd docs --dry-run --frozen-lockfile"
+CHECK   = "mise lock --check"
+DRY_RUN = "mise lock --dry-run --json --quiet"
 INSTALL = "mise install --dry-run --force"
 
 
@@ -33,12 +34,11 @@ def calls(stand_ins: Path) -> Callable[[], list[str]]:
 @fixture
 def checked(
     pytestconfig : Config,
-    scratch      : Path,
     tmp_path     : Path
 ) -> Callable[[], CompletedProcess[str]]:
     """
     Builds a runner of the worktree's `lock:check` task that starts it from
-    `tmp_path`, capturing what it prints, with `TMPDIR` at `scratch`.
+    `tmp_path`, capturing what it prints.
     """
     task = pytestconfig.rootpath / ".mise/tasks/lock/check"
 
@@ -65,36 +65,6 @@ def scripts(tmp_path: Path) -> str:
     return ".mise/tasks/gha/brief.py"
 
 
-@fixture
-def lockfile(tmp_path: Path) -> Path:
-    """
-    Writes a placeholder `.mise/mise.lock` into `tmp_path` at mode `0o644`,
-    which `mktemp` never gives a file, so a restore that loses the mode
-    reads differently.
-    """
-    placeholder = tmp_path / ".mise/mise.lock"
-
-    placeholder.parent.mkdir()
-    placeholder.write_text("pins\n", encoding="utf-8")
-    placeholder.chmod(0o644)
-
-    return placeholder
-
-
-@fixture
-def scratch(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
-    """
-    Makes the empty directory `mktemp` writes the snapshot into and points
-    `TMPDIR` at it, so a case reads what the task leaves there.
-    """
-    directory = tmp_path / "scratch"
-
-    directory.mkdir()
-    monkeypatch.setenv("TMPDIR", str(directory))
-
-    return directory
-
-
 @fixture(autouse=True)
 def stand_ins(
     install_stand_ins : Callable[..., Path],
@@ -103,15 +73,12 @@ def stand_ins(
     tmp_path          : Path
 ) -> Path:
     """
-    Puts the stand-in ahead of the real `bun`, `mise`, and `uv` on the
-    path for every case, under each of their names, so no case reaches
-    any of them, and sets the `MISE_PROJECT_ROOT` both tasks source
-    `.mise/lib/lock.sh` through.
+    Puts the stand-in ahead of the real `bun`, `mise`, and `uv` on the path
+    for every case, under each of their names, so no case reaches any of
+    them, has it print `[]` to every call, and sets the `MISE_PROJECT_ROOT`
+    both tasks source `.mise/lib/lock.sh` through.
 
-    The stand-in appends a line to `.mise/mise.lock` where its call matches
-    the shell pattern `REWRITING` holds, prints `REPORT` to standard error
-    when it answers `mise lock` unless `MISE_QUIET` or `MISE_LOG_LEVEL`
-    quiets it, and exits 1 where its call matches the pattern `FAILING`
+    The stand-in exits 1 where its call matches the shell pattern `FAILING`
     holds.
 
     Returns:
@@ -120,6 +87,7 @@ def stand_ins(
     received = tmp_path / "calls"
 
     install_stand_ins("stand-in.sh", "bun", "mise", "uv")
+    monkeypatch.setenv("ANSWER", "[]")
     monkeypatch.setenv("CALLS", str(received))
     monkeypatch.setenv("MISE_PROJECT_ROOT", str(pytestconfig.rootpath))
 
@@ -131,13 +99,23 @@ def stand_ins(
     [
         param("uv lock --check", ["uv lock --check"], id="lagging-uv-lock"),
         param(
+            CHECK,
+            ["uv lock --check", CHECK],
+            id = "request-missing-from-the-lockfile"
+        ),
+        param(
+            DRY_RUN,
+            ["uv lock --check", CHECK, DRY_RUN],
+            id = "unresolvable-dry-run"
+        ),
+        param(
             "*mise install*",
-            ["uv lock --check", "mise lock", INSTALL],
+            ["uv lock --check", CHECK, DRY_RUN, INSTALL],
             id = "tool-missing-from-the-lockfile"
         ),
         param(
             "bun install*",
-            ["uv lock --check", "mise lock", INSTALL, BUN],
+            ["uv lock --check", CHECK, DRY_RUN, INSTALL, BUN],
             id = "lagging-bun-lockfile"
         )
     ]
@@ -146,16 +124,18 @@ def test_a_failing_step_fails_the_task_running_no_step_after_it(
     calls       : Callable[[], list[str]],
     checked     : Callable[[], CompletedProcess[str]],
     failing     : str,
-    lockfile    : Path,
     monkeypatch : MonkeyPatch,
     reached     : list[str]
 ):
     """
     Pins that the task exits 1 once a step exits 1, as `uv lock --check`
-    does on a `uv.lock` lagging `pyproject.toml`, the locked dry-run install
-    does on a pinned tool with no entry the running platform installs
-    from, and Bun's frozen dry-run install, the last step, does on a
-    `docs/bun.lock` lagging `docs/package.json`, and runs no step after it.
+    does on a `uv.lock` lagging `pyproject.toml`, `mise lock --check` does
+    on a request `.mise/mise.lock` holds no version for, the dry run of
+    `mise lock` does where it cannot resolve a tool, the locked dry-run
+    install does on a pinned tool with no entry the running platform
+    installs from, and Bun's frozen dry-run install, the last step, does on
+    a `docs/bun.lock` lagging `docs/package.json`, and runs no step after
+    it.
     """
     monkeypatch.setenv("FAILING", failing)
 
@@ -163,113 +143,48 @@ def test_a_failing_step_fails_the_task_running_no_step_after_it(
     assert calls() == reached
 
 
-@mark.parametrize(
-    ("failing", "printed"),
-    [
-        param("", "+rewritten", id="rewritten"),
-        param("mise lock", "mise ERROR could not write the lockfile", id="failing")
-    ]
-)
-def test_a_lockfile_mise_lock_rewrites_comes_back_whole(
+def test_a_locked_tool_the_config_dropped_fails_the_task(
+    calls       : Callable[[], list[str]],
     checked     : Callable[[], CompletedProcess[str]],
-    failing     : str,
-    lockfile    : Path,
-    monkeypatch : MonkeyPatch,
-    printed     : str
+    monkeypatch : MonkeyPatch
 ):
     """
-    Pins that the task exits 1 and puts `.mise/mise.lock` back byte for
-    byte, mode included, when `mise lock` rewrites it, printing the diff
-    where `mise lock` then exits 0 and what `mise lock` reported where it
-    exits 1, as it does where it cannot finish.
-    """
-    contents, mode = lockfile.read_bytes(), lockfile.stat().st_mode
-
-    monkeypatch.setenv("FAILING", failing)
-    monkeypatch.setenv("REPORT", "mise ERROR could not write the lockfile")
-    monkeypatch.setenv("REWRITING", "mise lock")
-
-    result = checked()
-
-    assert result.returncode == 1
-    assert printed in result.stderr
-    assert (lockfile.read_bytes(), lockfile.stat().st_mode) == (contents, mode)
-
-
-@mark.parametrize(
-    "shell",
-    [
-        param({}, id="plain"),
-        param({"MISE_QUIET": "1"}, id="quiet"),
-        param({"MISE_LOG_LEVEL": "error"}, id="errors-only")
-    ],
-    indirect = True
-)
-def test_an_unresolved_platform_fails_the_task(
-    checked     : Callable[[], CompletedProcess[str]],
-    lockfile    : Path,
-    monkeypatch : MonkeyPatch,
-    shell       : dict[str, str]
-):
-    """
-    Pins that the task exits 1 and prints the report when `mise lock`
-    names a platform it failed to resolve, which `mise lock` reports while
-    exiting 0 and leaving the platform's entry as it was, as it does with no
-    network. The report holds even where the shell running the task quiets
-    `mise` or narrows its log to errors, which would hide that warning.
+    Pins that the task exits 1 and prints the dry run's report when the dry
+    run of `mise lock` lists a change, as it lists a tool `.mise/mise.lock`
+    holds and `.mise/config.toml` no longer declares with no new versions,
+    which `mise lock --check` passes, and runs no step after it.
     """
     report = (
-        "mise WARN  failed to resolve python for windows-x64: error sending "
-        "request (version 3.14.6, and 6 more platform(s))"
+        '[{"name": "jq", "backend": "aqua:jqlang/jq", "old_versions": ["1.8.1"],'
+        ' "new_versions": []}]'
     )
-    monkeypatch.setenv("REPORT", report)
+    monkeypatch.setenv("ANSWER", report)
 
     result = checked()
 
     assert result.returncode == 1
     assert report in result.stderr
+    assert calls() == ["uv lock --check", CHECK, DRY_RUN]
 
 
 def test_a_lockfile_in_step_with_its_pins_passes(
-    calls    : Callable[[], list[str]],
-    checked  : Callable[[], CompletedProcess[str]],
-    lockfile : Path,
-    scratch  : Path
-):
-    """
-    Pins that the task exits 0 once `uv lock --check` passes, `mise lock`
-    leaves `.mise/mise.lock` as it found it, the dry-run install finds every
-    tool the project pins in it, and Bun finds `docs/bun.lock` current,
-    running the four in that order, leaving the file in place with its
-    contents and inode unchanged, and leaving no snapshot behind.
-    """
-    contents, inode = lockfile.read_bytes(), lockfile.stat().st_ino
-
-    assert checked().returncode == 0
-    assert calls() == ["uv lock --check", "mise lock", INSTALL, BUN]
-    assert (lockfile.read_bytes(), lockfile.stat().st_ino) == (contents, inode)
-    assert list(scratch.iterdir()) == []
-
-
-def test_a_missing_lockfile_leaves_no_snapshot(
     calls   : Callable[[], list[str]],
-    checked : Callable[[], CompletedProcess[str]],
-    scratch : Path
+    checked : Callable[[], CompletedProcess[str]]
 ):
     """
-    Pins that the task exits 1 without running `mise lock` when no
-    `.mise/mise.lock` exists to copy, and removes the empty snapshot
-    `mktemp` made before the copy failed.
+    Pins that the task exits 0 once `uv lock --check` and `mise lock
+    --check` pass, the dry run of `mise lock` lists no change, the dry-run
+    install finds every tool the project pins, and Bun finds `docs/bun.lock`
+    current, running the five in that order.
     """
-    assert checked().returncode == 1
-    assert calls() == ["uv lock --check"]
-    assert list(scratch.iterdir()) == []
+    assert checked().returncode == 0
+    assert calls() == ["uv lock --check", CHECK, DRY_RUN, INSTALL, BUN]
 
 
 @mark.parametrize(
     ("failing", "code", "reached"),
     [
-        param("", 0, ["mise lock", INSTALL, BUN], id="current"),
+        param("", 0, [CHECK, DRY_RUN, INSTALL, BUN], id="current"),
         param("uv lock --check --script*", 1, [], id="stale")
     ]
 )
@@ -278,7 +193,6 @@ def test_each_task_script_lockfile_is_checked_before_mise_lock(
     checked     : Callable[[], CompletedProcess[str]],
     code        : int,
     failing     : str,
-    lockfile    : Path,
     monkeypatch : MonkeyPatch,
     reached     : list[str],
     scripts     : str
@@ -286,8 +200,8 @@ def test_each_task_script_lockfile_is_checked_before_mise_lock(
     """
     Pins that the task checks the lockfile beside each task script declaring
     its own dependencies, and no other script, between `uv lock --check`
-    and `mise lock`, and exits 1 without running `mise lock` once one lags
-    its script.
+    and `mise lock --check`, and exits 1 without running `mise lock --check`
+    once one lags its script.
     """
     monkeypatch.setenv("FAILING", failing)
 
@@ -297,23 +211,6 @@ def test_each_task_script_lockfile_is_checked_before_mise_lock(
         f"uv lock --check --script {scripts}",
         *reached
     ]
-
-
-def test_an_unwritable_scratch_stops_the_task_before_mise_lock(
-    calls    : Callable[[], list[str]],
-    checked  : Callable[[], CompletedProcess[str]],
-    lockfile : Path,
-    scratch  : Path
-):
-    """
-    Pins that the task exits 1 without running `mise lock` when `mktemp`
-    cannot write the snapshot into the `TMPDIR` that `scratch` sets, even
-    with `.mise/mise.lock` in place to copy.
-    """
-    scratch.chmod(0o555)
-
-    assert checked().returncode == 1
-    assert calls() == ["uv lock --check"]
 
 
 def test_relock_re_resolves_every_lockfile(
