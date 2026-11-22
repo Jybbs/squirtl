@@ -1,8 +1,9 @@
 """
 Pins what the `lock:check` task decides and prints from what `uv lock
 --check`, `mise lock --check`, the dry run of `mise lock`, the locked
-dry-run install, and Bun's frozen dry-run install report, and which
-lockfiles `lock:sync` re-resolves.
+dry-run install, Bun's frozen dry-run install, and `lock:advisories` report,
+which lockfiles `lock:sync` re-resolves, and which advisories `mise audit`
+reports that `lock:advisories` passes.
 
 Each case runs its task from `tmp_path`, which holds placeholder task
 scripts wherever the case reaches their lockfiles. The stand-in under
@@ -13,15 +14,17 @@ another answer, so no case reaches the network.
 """
 
 from collections.abc import Callable
+from json            import dumps
 from pathlib         import Path
 from pytest          import Config, MonkeyPatch, fixture, mark, param
 from subprocess      import CompletedProcess, run
 
-BUN     = "bun install --cwd docs --dry-run --frozen-lockfile"
-CHECK   = "mise lock --check"
-DRY_RUN = "mise lock --dry-run --json --quiet"
-INSTALL = "mise install --dry-run --force"
-UV      = "uv lock --check"
+ADVISORIES = "mise run lock:advisories"
+BUN        = "bun install --cwd docs --dry-run --frozen-lockfile"
+CHECK      = "mise lock --check"
+DRY_RUN    = "mise lock --dry-run --json --quiet"
+INSTALL    = "mise install --dry-run --force"
+UV         = "uv lock --check"
 
 
 @fixture
@@ -118,6 +121,11 @@ def stand_ins(
             "bun install*",
             [UV, CHECK, DRY_RUN, INSTALL, BUN],
             id = "lagging-bun-lockfile"
+        ),
+        param(
+            ADVISORIES,
+            [UV, CHECK, DRY_RUN, INSTALL, BUN, ADVISORIES],
+            id = "advisory-against-a-pinned-tool"
         )
     ]
 )
@@ -134,9 +142,9 @@ def test_a_failing_step_fails_the_task_running_no_step_after_it(
     on a request `.mise/mise.lock` holds no version for, the dry run of
     `mise lock` does where it cannot resolve a tool, the locked dry-run
     install does on a pinned tool with no entry the running platform
-    installs from, and Bun's frozen dry-run install, the last step, does on
-    a `docs/bun.lock` lagging `docs/package.json`, and runs no step after
-    it.
+    installs from, Bun's frozen dry-run install does on a `docs/bun.lock`
+    lagging `docs/package.json`, and `lock:advisories`, the last step, does
+    on an advisory against a pinned tool, and runs no step after it.
     """
     monkeypatch.setenv("FAILING", failing)
 
@@ -144,53 +152,44 @@ def test_a_failing_step_fails_the_task_running_no_step_after_it(
     assert calls() == reached
 
 
-def test_a_locked_tool_the_config_dropped_fails_the_task(
-    calls       : Callable[[], list[str]],
-    checked     : Callable[[], CompletedProcess[str]],
+def advisory(*fixed: str) -> dict[str, object]:
+    """
+    Builds an advisory against `python` 3.15.2 as `mise audit --json` lists
+    it, fixed in each of `fixed`.
+    """
+    return {
+        "id"       : "CVE-2026-0001",
+        "fixed"    : list(fixed),
+        "severity" : None,
+        "summary"  : "A stand-in advisory",
+        "tool"     : "python",
+        "url"      : "https://osv.dev/vulnerability/CVE-2026-0001",
+        "version"  : "3.15.2",
+        "aliases"  : []
+    }
+
+
+def test_a_failed_audit_stops_the_task(
+    audited     : Callable[..., CompletedProcess[str]],
     monkeypatch : MonkeyPatch
 ):
     """
-    Pins that the task exits 1, prints the dry run's report, and runs
-    no step after it when the dry run of `mise lock` lists a change,
-    as it lists with no new versions a tool `.mise/mise.lock` holds and
-    `.mise/config.toml` no longer declares, which `mise lock --check`
-    passes.
+    Pins that the task exits 1 where `mise audit` fails printing no report,
+    as it does without the network, rather than reading an empty report as
+    a pass.
     """
-    report = (
-        '[{"name": "jq", "backend": "aqua:jqlang/jq", "old_versions": ["1.8.1"],'
-        ' "new_versions": []}]'
-    )
-    monkeypatch.setenv("ANSWER", report)
+    monkeypatch.setenv("FAILING", "mise audit*")
 
-    result = checked()
+    result = audited()
 
     assert result.returncode == 1
-    assert report in result.stderr
-    assert calls() == [UV, CHECK, DRY_RUN]
-
-
-def test_a_lockfile_in_step_with_its_pins_passes(
-    calls   : Callable[[], list[str]],
-    checked : Callable[[], CompletedProcess[str]]
-):
-    """
-    Pins that the task exits 0 once `uv lock --check` and `mise lock
-    --check` pass, the dry run of `mise lock` lists no change, the dry-run
-    install finds every tool the project pins, and Bun finds `docs/bun.lock`
-    current, running the five in that order and printing what each step but
-    the two runs of `mise lock` answers.
-    """
-    result = checked()
-
-    assert result.returncode == 0
-    assert calls() == [UV, CHECK, DRY_RUN, INSTALL, BUN]
-    assert result.stdout.splitlines() == ["[]"] * 3
+    assert result.stderr == "mise audit printed no report\n"
 
 
 @mark.parametrize(
     ("failing", "code", "reached"),
     [
-        param("", 0, [CHECK, DRY_RUN, INSTALL, BUN], id="current"),
+        param("", 0, [CHECK, DRY_RUN, INSTALL, BUN, ADVISORIES], id="current"),
         param(f"{UV} --script*", 1, [], id="stale")
     ]
 )
@@ -219,6 +218,98 @@ def test_each_task_script_lockfile_is_checked_before_mise_lock(
     ]
 
 
+def test_a_locked_tool_the_config_dropped_fails_the_task(
+    calls       : Callable[[], list[str]],
+    checked     : Callable[[], CompletedProcess[str]],
+    monkeypatch : MonkeyPatch
+):
+    """
+    Pins that the task exits 1, prints the dry run's report, and runs
+    no step after it when the dry run of `mise lock` lists a change,
+    as it lists with no new versions a tool `.mise/mise.lock` holds and
+    `.mise/config.toml` no longer declares, which `mise lock --check`
+    passes.
+    """
+    report = (
+        '[{"name": "jq", "backend": "aqua:jqlang/jq", "old_versions": ["1.8.1"],'
+        ' "new_versions": []}]'
+    )
+    monkeypatch.setenv("ANSWER", report)
+
+    result = checked()
+
+    assert result.returncode == 1
+    assert report in result.stderr
+    assert calls() == [UV, CHECK, DRY_RUN]
+
+
+@fixture
+def audited(
+    monkeypatch  : MonkeyPatch,
+    pytestconfig : Config,
+    tmp_path     : Path
+) -> Callable[..., CompletedProcess[str]]:
+    """
+    Builds a runner of the worktree's `lock:advisories` task over a project
+    under `tmp_path` pinning `node` and `python`, whose stand-in `mise
+    audit` reports each advisory the runner receives.
+
+    Returns:
+        A function taking the advisories as the mappings `mise audit
+        --json` lists, and the ids `AUDIT_IGNORE` lists as keywords, which
+        returns what the task printed.
+    """
+    config = tmp_path / ".mise/config.toml"
+
+    config.parent.mkdir()
+    config.write_text(
+        '[tools]\nnode = "26.13.1"\npython = "3.15.2"\n',
+        encoding = "utf-8"
+    )
+    monkeypatch.setenv("MISE_PROJECT_ROOT", str(tmp_path))
+
+    def audit(
+        *advisories : dict[str, object],
+        ignored     : str = ""
+    ) -> CompletedProcess[str]:
+        """
+        Starts the task with `advisories` as the audit's report and
+        `ignored` as `AUDIT_IGNORE`.
+        """
+        monkeypatch.setenv(
+            "ANSWER",
+            dumps({"vulnerabilities": advisories, "unchecked": []})
+        )
+        monkeypatch.setenv("AUDIT_IGNORE", ignored)
+
+        return run(
+            [pytestconfig.rootpath / ".mise/tasks/lock/advisories.py"],
+            capture_output = True,
+            cwd            = tmp_path,
+            text           = True
+        )
+
+    return audit
+
+
+def test_a_lockfile_in_step_with_its_pins_passes(
+    calls   : Callable[[], list[str]],
+    checked : Callable[[], CompletedProcess[str]]
+):
+    """
+    Pins that the task exits 0 once `uv lock --check` and `mise lock
+    --check` pass, the dry run of `mise lock` lists no change, the dry-run
+    install finds every tool the project pins, Bun finds `docs/bun.lock`
+    current, and `lock:advisories` passes, running the six in that order and
+    printing what each step but the two runs of `mise lock` answers.
+    """
+    result = checked()
+
+    assert result.returncode == 0
+    assert calls() == [UV, CHECK, DRY_RUN, INSTALL, BUN, ADVISORIES]
+    assert result.stdout.splitlines() == ["[]"] * 4
+
+
 def test_relock_re_resolves_every_lockfile(
     calls        : Callable[[], list[str]],
     pytestconfig : Config,
@@ -238,3 +329,72 @@ def test_relock_re_resolves_every_lockfile(
         f"uv lock --no-locked --script {scripts}",
         "bun install --cwd docs --lockfile-only"
     ]
+
+
+@mark.parametrize(
+    ("found", "ignored", "code", "printed"),
+    [
+        param(advisory(), "CVE-2026-0001", 0, "", id="ignored-with-no-fix"),
+        param(
+            advisory("3.15.3", "3.16.0"),
+            "CVE-2026-0001",
+            1,
+            (
+                "CVE-2026-0001 is fixed in 3.15.3, 3.16.0, so delete it from "
+                "AUDIT_IGNORE in .mise/config.toml and lift python 3.15.2 to a "
+                "fixed version\n"
+            ),
+            id = "ignored-with-a-fix"
+        ),
+        param(
+            advisory(),
+            "CVE-2026-0002",
+            1,
+            "CVE-2026-0001 affects python 3.15.2: A stand-in advisory\n",
+            id = "unlisted-with-no-fix"
+        ),
+        param(
+            advisory("3.15.3"),
+            "",
+            1,
+            (
+                "CVE-2026-0001 affects python 3.15.2, fixed in 3.15.3: "
+                "A stand-in advisory\n"
+            ),
+            id = "unlisted-with-a-fix"
+        )
+    ]
+)
+def test_an_ignored_advisory_passes_only_while_no_release_fixes_it(
+    audited : Callable[..., CompletedProcess[str]],
+    code    : int,
+    found   : dict[str, object],
+    ignored : str,
+    printed : str
+):
+    """
+    Pins that the task passes an advisory `AUDIT_IGNORE` lists while it
+    names no fixed version, and fails on a listed one naming a fix, saying
+    which advisory, tool, and versions, and on any advisory the list leaves
+    out.
+    """
+    result = audited(found, ignored=ignored)
+
+    assert result.returncode == code
+    assert result.stderr == printed
+
+
+def test_the_audit_reads_only_the_tools_the_project_pins(
+    audited : Callable[..., CompletedProcess[str]],
+    calls   : Callable[[], list[str]]
+):
+    """
+    Pins that the task names each tool `[tools]` in `.mise/config.toml` pins
+    to `mise audit`, so a tool a global mise config adds stays out of the
+    report, and passes where the audit reports no advisory.
+    """
+    result = audited()
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert calls() == ["mise audit --json --quiet node python"]

@@ -1,6 +1,6 @@
 #!/usr/bin/env -S bash -euo pipefail
 #MISE alias       = "lockfile"
-#MISE description = "Verify `uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` against their manifests, and that every tool the project pins installs from `.mise/mise.lock`"
+#MISE description = "Verify `uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` against their manifests, that every tool the project pins installs from `.mise/mise.lock`, and that no advisory names a pinned tool beyond one `AUDIT_IGNORE` lists while no release fixes it"
 
 source "$MISE_PROJECT_ROOT/.mise/lib/lock.sh"
 
@@ -11,3 +11,4 @@ stale=$(mise lock --dry-run --json --quiet)
 [[ "$stale" == "[]" ]] || { echo "$stale" >&2; exit 1; }
 mise install --dry-run --force
 bun install --cwd docs --dry-run --frozen-lockfile
+mise run lock:advisories

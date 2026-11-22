@@ -1,4 +1,4 @@
-min_version = "2026.11.10"
+min_version = "2026.11.12"
 
 [doctor.checks.cartridge]
 description = "A file sits at `data/rom.gb`, the place a run reads the user's own ROM of Pokémon Blue from"
@@ -13,8 +13,8 @@ run         = "cc --version"
 timeout     = "10s"
 
 [doctor.checks.lockfile]
-description = "`uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` resolve what their manifests declare, and every tool the project pins installs from `.mise/mise.lock`"
-hint        = "Run `mise lockfile` to print what drifted, then `mise relock` to re-resolve every lockfile against its manifest."
+description = "`uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` resolve what their manifests declare, every tool the project pins installs from `.mise/mise.lock`, and no advisory names a pinned tool beyond one `AUDIT_IGNORE` lists while no release fixes it"
+hint        = "Run `mise lockfile` to print what drifted, then `mise relock` to re-resolve every lockfile against its manifest. Where it names an advisory, lift the tool in `[tools]` to the fixed version it prints, deleting the advisory from `AUDIT_IGNORE` where the line asks."
 run         = "mise run lock:check"
 timeout     = "60s"
 
@@ -25,6 +25,7 @@ run         = 'test ! -L .venv && test ! -e .venv || test .venv/bin/python -ef "
 timeout     = "10s"
 
 [env]
+AUDIT_IGNORE              = "CVE-2026-124249"
 BUN_INSTALL_CACHE_DIR     = "{{config_root}}/.cache/bun"
 NPM_CONFIG_IGNORE_SCRIPTS = "1"
 PROSE_CACHE_DIR           = "{{config_root}}/.cache/prose"
