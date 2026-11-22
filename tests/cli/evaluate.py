@@ -9,8 +9,8 @@ Pins what `squirtl evaluate` does, covering:
   its checkpoint or its cartridge, and a damaged checkpoint, each exiting 1,
   and a damaged member of replay memory, which it never reads
 - A run of PQN or PPO, whose network it builds from the agent the run names
-- The runs of a release, fetched under the default selection, and a
-  release attaching no manifest and a run recording another digest than
+- The runs of a release, fetched under the default selection
+- A release attaching no manifest, and a run recording another digest than
   its cartridge's intro leaves, each exiting 1
 - A search, which trains no agent and exits 1 naming the commands reading
   one

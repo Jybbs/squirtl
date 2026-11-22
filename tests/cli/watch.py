@@ -9,8 +9,8 @@ Pins what `squirtl watch` does, covering:
   another state than the run recorded, an episode the run never recorded,
   and a directory holding no run, each exiting 1
 - An episode of a run of PQN or PPO played back to its unscaled return
-- The recommended run of a release, fetched and played back, and a
-  selection naming no one run and a release attaching no manifest, each
+- The recommended run of a release, fetched and played back
+- A selection naming no one run, and a release attaching no manifest, each
   exiting 1
 - The path a search found, played back to the return it recorded
 """
@@ -190,7 +190,6 @@ def test_a_release_attaching_no_manifest_exits_1_before_the_window_opens(
     github.served[f"{ADDRESS}/tags/0.1.0"] = dumps(
         {"published_at": "2026-10-01T00:00:00Z", "tag_name": "0.1.0"}
     ).encode()
-    windows.clear()
     invocation = invoke(["watch", "--release", "0.1.0"])
 
     assert (
