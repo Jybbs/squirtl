@@ -177,10 +177,14 @@ def test_a_lockfile_in_step_with_its_pins_passes(
     Pins that the task exits 0 once `uv lock --check` and `mise lock
     --check` pass, the dry run of `mise lock` lists no change, the dry-run
     install finds every tool the project pins, and Bun finds `docs/bun.lock`
-    current, running the five in that order.
+    current, running the five in that order and printing what each step but
+    the two runs of `mise lock` answers.
     """
-    assert checked().returncode == 0
+    result = checked()
+
+    assert result.returncode == 0
     assert calls() == [UV, CHECK, DRY_RUN, INSTALL, BUN]
+    assert result.stdout.splitlines() == ["[]"] * 3
 
 
 @mark.parametrize(
