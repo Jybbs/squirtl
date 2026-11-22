@@ -21,6 +21,7 @@ BUN     = "bun install --cwd docs --dry-run --frozen-lockfile"
 CHECK   = "mise lock --check"
 DRY_RUN = "mise lock --dry-run --json --quiet"
 INSTALL = "mise install --dry-run --force"
+UV      = "uv lock --check"
 
 
 @fixture
@@ -75,8 +76,8 @@ def stand_ins(
     """
     Puts the stand-in ahead of the real `bun`, `mise`, and `uv` on the path
     for every case, under each of their names, so no case reaches any of
-    them, has it print `[]` to every call, and sets the `MISE_PROJECT_ROOT`
-    both tasks source `.mise/lib/lock.sh` through.
+    them, sets the stand-in to answer each call with `[]`, and sets the
+    `MISE_PROJECT_ROOT` both tasks source `.mise/lib/lock.sh` through.
 
     The stand-in exits 1 where its call matches the shell pattern `FAILING`
     holds.
@@ -97,25 +98,25 @@ def stand_ins(
 @mark.parametrize(
     ("failing", "reached"),
     [
-        param("uv lock --check", ["uv lock --check"], id="lagging-uv-lock"),
+        param(UV, [UV], id="lagging-uv-lock"),
         param(
             CHECK,
-            ["uv lock --check", CHECK],
+            [UV, CHECK],
             id = "request-missing-from-the-lockfile"
         ),
         param(
             DRY_RUN,
-            ["uv lock --check", CHECK, DRY_RUN],
+            [UV, CHECK, DRY_RUN],
             id = "unresolvable-dry-run"
         ),
         param(
             "*mise install*",
-            ["uv lock --check", CHECK, DRY_RUN, INSTALL],
+            [UV, CHECK, DRY_RUN, INSTALL],
             id = "tool-missing-from-the-lockfile"
         ),
         param(
             "bun install*",
-            ["uv lock --check", CHECK, DRY_RUN, INSTALL, BUN],
+            [UV, CHECK, DRY_RUN, INSTALL, BUN],
             id = "lagging-bun-lockfile"
         )
     ]
@@ -149,10 +150,11 @@ def test_a_locked_tool_the_config_dropped_fails_the_task(
     monkeypatch : MonkeyPatch
 ):
     """
-    Pins that the task exits 1 and prints the dry run's report when the dry
-    run of `mise lock` lists a change, as it lists a tool `.mise/mise.lock`
-    holds and `.mise/config.toml` no longer declares with no new versions,
-    which `mise lock --check` passes, and runs no step after it.
+    Pins that the task exits 1, prints the dry run's report, and runs
+    no step after it when the dry run of `mise lock` lists a change,
+    as it lists with no new versions a tool `.mise/mise.lock` holds and
+    `.mise/config.toml` no longer declares, which `mise lock --check`
+    passes.
     """
     report = (
         '[{"name": "jq", "backend": "aqua:jqlang/jq", "old_versions": ["1.8.1"],'
@@ -164,7 +166,7 @@ def test_a_locked_tool_the_config_dropped_fails_the_task(
 
     assert result.returncode == 1
     assert report in result.stderr
-    assert calls() == ["uv lock --check", CHECK, DRY_RUN]
+    assert calls() == [UV, CHECK, DRY_RUN]
 
 
 def test_a_lockfile_in_step_with_its_pins_passes(
@@ -178,14 +180,14 @@ def test_a_lockfile_in_step_with_its_pins_passes(
     current, running the five in that order.
     """
     assert checked().returncode == 0
-    assert calls() == ["uv lock --check", CHECK, DRY_RUN, INSTALL, BUN]
+    assert calls() == [UV, CHECK, DRY_RUN, INSTALL, BUN]
 
 
 @mark.parametrize(
     ("failing", "code", "reached"),
     [
         param("", 0, [CHECK, DRY_RUN, INSTALL, BUN], id="current"),
-        param("uv lock --check --script*", 1, [], id="stale")
+        param(f"{UV} --script*", 1, [], id="stale")
     ]
 )
 def test_each_task_script_lockfile_is_checked_before_mise_lock(
@@ -207,8 +209,8 @@ def test_each_task_script_lockfile_is_checked_before_mise_lock(
 
     assert checked().returncode == code
     assert calls() == [
-        "uv lock --check",
-        f"uv lock --check --script {scripts}",
+        UV,
+        f"{UV} --script {scripts}",
         *reached
     ]
 
