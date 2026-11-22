@@ -7,9 +7,9 @@ A changed module reaches each test module and each subpackage conftest
 folder loading it, by an import or by walking the package holding it by
 computed name. An import counts through any chain among the package's
 modules and the suite's, function-local imports, package `__init__` files,
-helpers, and quoted dotted `squirtl` names included. `tests/conftest.py`
+helpers, and quoted dotted `squirtl` names included. `tests/py/conftest.py`
 passes a change on only to the tests requesting a fixture that reads what
-changed, and the script prints `tests` alone where a change reaches every
+changed, and the script prints `tests/py` alone where a change reaches every
 test.
 """
 
@@ -33,7 +33,7 @@ from typing          import Self
 DOTTED  = compile(r"squirtl(?:\.\w+)+")
 LOADERS = compile(r"\b(?:import_module|iter_modules|walk_packages)\b")
 PATHS   = compile(r"\b([A-Za-z_][\w.]*)\.__path__\b")
-ROOT    = "tests/conftest.py"
+ROOT    = "tests/py/conftest.py"
 
 
 class Fixture(StrEnum):
@@ -48,7 +48,7 @@ class Fixture(StrEnum):
 class Whole(Exception):
     """
     Raised where a change reaches every test, which `Suite.select` returns
-    as the one argument `tests`.
+    as the one argument `tests/py`.
     """
 
 
@@ -201,12 +201,12 @@ def requests(test: AsyncFunctionDef | FunctionDef) -> tuple[set[str], set[str]]:
 def source(dotted: str) -> Path:
     """
     Finds the path a module or package named `dotted` sits at without its
-    suffix, under `src/` for the package and under `tests/` for every other
-    name, since `[tool.pytest].pythonpath` names `tests`.
+    suffix, under `src/` for the package and under `tests/py/` for every
+    other name, since `[tool.pytest].pythonpath` names `tests/py`.
     """
     parts = dotted.split(".")
 
-    return Path("src" if parts[0] == "squirtl" else "tests", *parts)
+    return Path("src" if parts[0] == "squirtl" else "tests/py", *parts)
 
 
 def undocumented(node: Module | stmt) -> Module | stmt:
@@ -222,7 +222,7 @@ def undocumented(node: Module | stmt) -> Module | stmt:
 @dataclass(frozen=True)
 class Conftest:
     """
-    The module `tests/conftest.py` holds, as parsed from one side of a
+    The module `tests/py/conftest.py` holds, as parsed from one side of a
     change to it or from the working tree.
     """
 
@@ -397,7 +397,7 @@ def bindings(nodes: Iterable[AST]) -> Iterator[Binding]:
     Yields each file an import statement among `nodes` loads, and the module
     each dotted `squirtl` name quoted in a string names, read as the longest
     prefix naming a module, leaving out each relative import and each import
-    of a module neither `src/` nor `tests/` holds.
+    of a module neither `src/` nor `tests/py/` holds.
     """
     for node in nodes:
         match node:
@@ -435,12 +435,12 @@ def closure(
     """
     Resolves each fixture in `requested`, and each autouse fixture of every
     level, through `levels`, the fixtures each scope defines from the test's
-    own outward to `tests/conftest.py`, where pytest takes the nearest
+    own outward to `tests/py/conftest.py`, where pytest takes the nearest
     definition and a fixture requesting its own name takes the next one out.
 
     Returns:
-        The fixtures of `tests/conftest.py` the test reaches, with each name
-        no level defines, which a fixture `tests/conftest.py` removed leaves.
+        The fixtures of `tests/py/conftest.py` the test reaches, with each name
+        no level defines, which a fixture `tests/py/conftest.py` removed leaves.
     """
     stack = [(name, 0) for name in requested] + [
         (name, index)
@@ -532,8 +532,8 @@ def kind(function: stmt) -> Fixture | None:
 @dataclass(frozen=True)
 class Suite:
     """
-    Every module under `tests/` outside a `fixtures/` folder, each parsed,
-    keyed by its path from the worktree root.
+    Every module under `tests/py/` outside a `fixtures/` folder, each
+    parsed, keyed by its path from the worktree root.
     """
 
     trees: dict[str, Module]
@@ -541,8 +541,8 @@ class Suite:
     @cached_property
     def imports(self) -> dict[str, set[Binding]]:
         """
-        Reads each file every module under `tests/` and `src/` loads, by an
-        import or by walking a package, keyed by the module's path.
+        Reads each file every module under `tests/py/` and `src/` loads, by
+        an import or by walking a package, keyed by the module's path.
         """
         trees = {
             path.as_posix(): parse(path.read_text(encoding="utf-8"))
@@ -572,11 +572,11 @@ class Suite:
         """
         Reads the fixtures each scope a test module at `path` sees defines,
         the module itself first and then each conftest from its folder
-        outward, `tests/conftest.py` last.
+        outward, `tests/py/conftest.py` last.
         """
         conftests = ((folder / "conftest.py").as_posix() for folder in Path(
             path
-        ).parents[:-1])
+        ).parents[:-2])
 
         return [
             defined(self.trees[path].body),
@@ -622,7 +622,7 @@ class Suite:
 
     def edited(self, base: str) -> set[str]:
         """
-        Finds the fixtures of `tests/conftest.py` the change since `base`
+        Finds the fixtures of `tests/py/conftest.py` the change since `base`
         touches, reading both sides of it so a fixture the change removes
         counts beside one it adds or edits.
 
@@ -641,20 +641,20 @@ class Suite:
         """
         Finds what loading the changed file `changed` reaches, meaning
         each test module loading it, the folder of each subpackage conftest
-        loading it, and each fixture of `tests/conftest.py` reading a name
-        that conftest binds to it.
+        loading it, and each fixture of `tests/py/conftest.py` reading a
+        name that conftest binds to it.
 
         Returns:
             The modules and folders, beside the fixtures.
 
         Raises:
             Whole: Where the change removes `changed`, which leaves no
-                   import of it to resolve, where `pyproject.toml` names a
-                   helper loading it or a start-file callable whose module
-                   loads it, or where `tests/conftest.py` loads it through
-                   a package `__init__`, a quoted name outside a function,
-                   a package it walks, or a name an autouse fixture or a
-                   hook reads.
+                   import of it to resolve, where `pyproject.toml` names
+                   a helper loading it or a start-file callable whose
+                   module loads it, or where `tests/py/conftest.py` loads
+                   it through a package `__init__`, a quoted name outside
+                   a function, a package it walks, or a name an autouse
+                   fixture or a hook reads.
         """
         if not Path(changed).is_file():
             raise Whole
@@ -670,9 +670,9 @@ class Suite:
             raise Whole
 
         for path in self.trees.keys() & loading - {ROOT}:
-            if path.startswith("tests/common/"):
+            if path.startswith("tests/py/common/"):
                 dotted = (
-                    path.removeprefix("tests/")
+                    path.removeprefix("tests/py/")
                         .removesuffix(".py")
                         .replace("/", ".")
                 )
@@ -707,22 +707,22 @@ class Suite:
     @classmethod
     def read(cls) -> Self:
         """
-        Parses each module under `tests/`, skipping the `fixtures/` folders
-        `[tool.pytest].norecursedirs` names, whose files are inputs.
+        Parses each module under `tests/py/`, skipping the `fixtures/`
+        folders `[tool.pytest].norecursedirs` names, whose files are inputs.
         """
         return cls(
             {
                 path.as_posix(): parse(path.read_text(encoding="utf-8"))
-                for path in sorted(Path("tests").rglob("*.py"))
+                for path in sorted(Path("tests/py").rglob("*.py"))
                 if "fixtures" not in path.parts
             }
         )
 
     def read_from_root(self, loading: set[str]) -> set[str]:
         """
-        Finds the fixtures of `tests/conftest.py` reading a name it binds to
-        a module in `loading`, the files loading a changed one, or defining
-        a function whose body quotes a name of one.
+        Finds the fixtures of `tests/py/conftest.py` reading a name it
+        binds to a module in `loading`, the files loading a changed one, or
+        defining a function whose body quotes a name of one.
 
         Raises:
             Whole: Where the conftest loads one through a package
@@ -764,7 +764,7 @@ class Suite:
         selected.
 
         Returns:
-            The test modules, folders, and node IDs, sorted, or `tests`
+            The test modules, folders, and node IDs, sorted, or `tests/py`
             alone where a change reaches every test.
         """
         paths, fixtures = set(), set()
@@ -778,7 +778,7 @@ class Suite:
                     paths      |= found
                     fixtures   |= read
         except Whole:
-            return ["tests"]
+            return ["tests/py"]
 
         nodes = {node for node, reached in self.tests() if reached & fixtures}
 
@@ -791,10 +791,10 @@ class Suite:
     def tests(self) -> Iterator[tuple[str, set[str]]]:
         """
         Yields the node ID of each test function the suite collects, beside
-        the fixtures of `tests/conftest.py` it reaches.
+        the fixtures of `tests/py/conftest.py` it reaches.
         """
         for path, tree in self.trees.items():
-            if path.startswith("tests/common/") or path.endswith("conftest.py"):
+            if path.startswith("tests/py/common/") or path.endswith("conftest.py"):
                 continue
 
             yield from self.collected(

@@ -2,17 +2,19 @@ import vueJsx                           from '@vitejs/plugin-vue-jsx'
 import { configDefaults, defineConfig } from 'vitest/config'
 
 import { projectFacts }                 from '../lib/config/manifest.ts'
-import { cacheDir }                     from '../lib/config/paths.ts'
+import { cacheDir, repoRoot }           from '../lib/config/paths.ts'
 
 const { gate } = projectFacts(import.meta.url)
 
 export default defineConfig({
   cacheDir : cacheDir(import.meta.url, 'vitest'),
   plugins  : [vueJsx()],
+  server   : { fs: { allow: [repoRoot(import.meta.url)] } },
   test     : {
     css                 : { include: [/\?raw$/u] },
+    dir                 : '../tests/site',
     expect              : { requireAssertions: true },
-    include             : ['.vitepress/tests/**/*.test.ts'],
+    include             : ['**/*.test.ts'],
     pool                : 'threads',
     resolveSnapshotPath : (testPath, extension) => testPath + extension,
     restoreMocks        : true,
@@ -39,8 +41,7 @@ export default defineConfig({
              : ['default'],
 
     setupFiles: [
-      '.vitepress/tests/common/browser.ts', '.vitepress/tests/common/clock.ts',
-      '.vitepress/tests/common/matchers.ts'
+      '../tests/site/common/browser.ts', '../tests/site/common/clock.ts', '../tests/site/common/matchers.ts'
     ]
   }
 })

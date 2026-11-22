@@ -709,7 +709,7 @@ class Layout(Check):
     # meaning the task tests, the command line's smoke test, and the
     # isolation tests.
     unmirrored: ClassVar[tuple[str, ...]] = (
-        "tests/cli/app.py", "tests/isolation.py", "tests/tasks/**"
+        "tests/py/cli/app.py", "tests/py/isolation.py", "tests/py/tasks/**"
     )
 
     manifest : Manifest

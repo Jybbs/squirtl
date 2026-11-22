@@ -7,7 +7,7 @@
 node_modules/.bin/vitest run \
   --config .vitepress/config/vitest.ts \
   --update=all \
-  .vitepress/tests/lib/config/marks.test.ts
+  ../tests/site/lib/config/marks.test.ts
 
 node --input-type=module <<'NODE'
 import { writePreviews } from "./.vitepress/lib/readme/preview.ts"

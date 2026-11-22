@@ -6,7 +6,7 @@ importers() {
   local imported=() path
   while IFS= read -r path; do
     case "$path" in
-      src/*.py | tests/common/*.py | tests/conftest.py)
+      src/*.py | tests/py/common/*.py | tests/py/conftest.py)
         imported+=("$path") ;;
       *)
         echo "$path" ;;
@@ -21,7 +21,7 @@ naming() {
     --exclude-dir fixtures \
     --include '*.py' \
     -lFr \
-    -- "$1" tests \
+    -- "$1" tests/py \
     || true
 }
 
@@ -32,28 +32,28 @@ reach() {
       "")
         ;;
       pyproject.toml | uv.lock | .mise/config.toml | .mise/mise.lock)
-        echo tests ;;
+        echo tests/py ;;
       src/squirtl/cli/__init__.py)
-        printf '%s\n' tests/cli/app.py "$path" ;;
+        printf '%s\n' tests/py/cli/app.py "$path" ;;
       src/squirtl/*.py)
-        printf '%s\n' "tests/${path#src/squirtl/}" "$path" ;;
-      tests/*/fixtures/*/*)
+        printf '%s\n' "tests/py/${path#src/squirtl/}" "$path" ;;
+      tests/py/*/fixtures/*/*)
         rest=${path#*/fixtures/}
         echo "${path%%/fixtures/*}/${rest%%/*}.py" ;;
-      tests/conftest.py)
-        if (( $# )); then echo tests; else echo "$path"; fi ;;
-      tests/*/conftest.py)
+      tests/py/conftest.py)
+        if (( $# )); then echo tests/py; else echo "$path"; fi ;;
+      tests/py/*/conftest.py)
         echo "${path%/*}" ;;
-      tests/*.py)
+      tests/py/*.py)
         echo "$path" ;;
       .mise/tasks/*/*)
         rest=${path#.mise/tasks/}
-        echo "tests/tasks/${rest%%/*}.py" ;;
+        echo "tests/py/tasks/${rest%%/*}.py" ;;
       .mise/bin/*)
-        echo tests/tasks/bin.py ;;
+        echo tests/py/tasks/bin.py ;;
       src/squirtl/*/*)
         rest=${path#src/squirtl/}
-        echo "tests/${rest%%/*}"
+        echo "tests/py/${rest%%/*}"
         naming "$path" | reach named ;;
       *)
         naming "$path" | reach named ;;
