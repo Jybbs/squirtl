@@ -34,7 +34,7 @@ const WHOLE = /^\s*(?:\/(?![*/]).*\/[dgimsuvy]*|(['"`])[^'"`]*\*[^'"`]*\1)[),]*$
  */
 export function longLines(metaUrl: string): LongLine[] {
   const root    = repoRoot(metaUrl)
-  const pattern = ['{docs,tests/site}/**/*.{ts,tsx}', 'docs/.vitepress/**/*.{ts,tsx}']
+  const pattern = '{docs,docs/.vitepress,tests/site}/**/*.{ts,tsx}'
   return fs.globSync(pattern, { cwd: root, exclude: ['docs/node_modules/**'] })
     .toSorted()
     .flatMap(file => fs.readFileSync(path.join(root, file), 'utf8')

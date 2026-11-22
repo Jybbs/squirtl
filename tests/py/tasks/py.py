@@ -780,6 +780,19 @@ def test_reach_prints_each_selection_or_every_test(
     assert capsys.readouterr().out == "tests/py/search/tree.py\ntests/py\n"
 
 
+def test_reach_reads_the_folder_pytest_collects(
+    load_task    : Callable[[str], ModuleType],
+    pytestconfig : Config
+):
+    """
+    Pins that the suite folder the `py:affected` reader parses is the one
+    `[tool.pytest].testpaths` names.
+    """
+    assert pytestconfig.getini("testpaths") == [load_task(
+        ".mise/tasks/py/reach.py"
+    ).SUITE]
+
+
 def test_reach_selects_every_test_where_the_root_conftest_walks_a_changed_module(
     reach: Callable[..., list[str]]
 ):

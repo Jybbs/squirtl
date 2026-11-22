@@ -33,7 +33,8 @@ from typing          import Self
 DOTTED  = compile(r"squirtl(?:\.\w+)+")
 LOADERS = compile(r"\b(?:import_module|iter_modules|walk_packages)\b")
 PATHS   = compile(r"\b([A-Za-z_][\w.]*)\.__path__\b")
-ROOT    = "tests/py/conftest.py"
+SUITE   = "tests/py"
+ROOT    = f"{SUITE}/conftest.py"
 
 
 class Fixture(StrEnum):
@@ -206,7 +207,7 @@ def source(dotted: str) -> Path:
     """
     parts = dotted.split(".")
 
-    return Path("src" if parts[0] == "squirtl" else "tests/py", *parts)
+    return Path("src" if parts[0] == "squirtl" else SUITE, *parts)
 
 
 def undocumented(node: Module | stmt) -> Module | stmt:
@@ -670,9 +671,9 @@ class Suite:
             raise Whole
 
         for path in self.trees.keys() & loading - {ROOT}:
-            if path.startswith("tests/py/common/"):
+            if path.startswith(f"{SUITE}/common/"):
                 dotted = (
-                    path.removeprefix("tests/py/")
+                    path.removeprefix(f"{SUITE}/")
                         .removesuffix(".py")
                         .replace("/", ".")
                 )
@@ -713,7 +714,7 @@ class Suite:
         return cls(
             {
                 path.as_posix(): parse(path.read_text(encoding="utf-8"))
-                for path in sorted(Path("tests/py").rglob("*.py"))
+                for path in sorted(Path(SUITE).rglob("*.py"))
                 if "fixtures" not in path.parts
             }
         )
@@ -778,7 +779,7 @@ class Suite:
                     paths      |= found
                     fixtures   |= read
         except Whole:
-            return ["tests/py"]
+            return [SUITE]
 
         nodes = {node for node, reached in self.tests() if reached & fixtures}
 
@@ -794,7 +795,7 @@ class Suite:
         the fixtures of `tests/py/conftest.py` it reaches.
         """
         for path, tree in self.trees.items():
-            if path.startswith("tests/py/common/") or path.endswith("conftest.py"):
+            if path.startswith(f"{SUITE}/common/") or path.endswith("conftest.py"):
                 continue
 
             yield from self.collected(

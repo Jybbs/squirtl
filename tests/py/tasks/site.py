@@ -24,7 +24,6 @@ from subprocess      import run
 def stand_ins(
     install_stand_ins : Callable[..., Path],
     monkeypatch       : MonkeyPatch,
-    pytestconfig      : Config,
     tmp_path          : Path
 ):
     """
@@ -43,7 +42,7 @@ def stand_ins(
     ):
         (tmp_path / program).parent.mkdir(exist_ok=True, parents=True)
         (tmp_path / program).symlink_to(
-            pytestconfig.rootpath / "tests/py/tasks/fixtures/echo.sh"
+            Path(__file__).with_name("fixtures") / "echo.sh"
         )
 
 
@@ -87,26 +86,21 @@ def test_lint_asks_oxlint_for_annotations_under_github_actions(
 
 
 def test_install_links_the_site_suite_to_the_sites_packages(
-    pytestconfig : Config,
-    tmp_path     : Path
+    monkeypatch : MonkeyPatch,
+    printed     : Callable[..., list[str]],
+    tmp_path    : Path
 ):
     """
     Pins that `site:install`, run from `docs/`, installs from the lockfile,
     prunes, and links `tests/site/node_modules` to `docs/node_modules`, so a
     site test resolves each package from the site's own install.
     """
-    (tmp_path / "tests/site").mkdir(parents=True)
-
-    result = run(
-        [pytestconfig.rootpath / ".mise/tasks/site/install"],
-        capture_output = True,
-        check          = True,
-        cwd            = tmp_path / "docs",
-        text           = True
-    )
     link = tmp_path / "tests/site/node_modules"
 
-    assert result.stdout.splitlines() == ["install", "--frozen-lockfile", "prune"]
+    link.parent.mkdir(parents=True)
+    monkeypatch.chdir(tmp_path / "docs")
+
+    assert printed("site/install") == ["install", "--frozen-lockfile", "prune"]
     assert (link.readlink(), link.resolve()) == (
         Path("../../docs/node_modules"),
         (tmp_path / "docs/node_modules").resolve()

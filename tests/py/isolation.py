@@ -25,7 +25,7 @@ def test_a_network_test_gets_the_mark_that_opens_the_socket(request: FixtureRequ
     lets that test open a connection.
     """
     conftest = request.config.pluginmanager.get_plugin(
-        str(request.config.rootpath / "tests/py/conftest.py")
+        str(Path(__file__).with_name("conftest.py"))
     )
 
     request.node.add_marker(mark.network)

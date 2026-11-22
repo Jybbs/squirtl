@@ -45,16 +45,12 @@ def confine_mise(monkeypatch: MonkeyPatch) -> Callable[[Path, Path], None]:
 
 
 @fixture
-def install_stand_ins(
-    monkeypatch  : MonkeyPatch,
-    pytestconfig : Config,
-    tmp_path     : Path
-) -> Callable[..., Path]:
+def install_stand_ins(monkeypatch: MonkeyPatch, tmp_path: Path) -> Callable[..., Path]:
     """
-    Builds an installer that links each program name it receives to
-    one script under `tests/py/tasks/fixtures/`, inside `tmp_path /
-    "stand-ins"`, and puts that directory first on the path until the test
-    ends.
+    Builds an installer that links each program name it receives to one
+    script in the `fixtures/` folder beside this conftest, inside `tmp_path
+    / "stand-ins"`, and puts that directory first on the path until the
+    test ends.
 
     Returns:
         A function taking the script's name and then the program names,
@@ -70,9 +66,9 @@ def install_stand_ins(
         directory.mkdir()
 
         for program in programs:
-            (directory / program).symlink_to(
-                pytestconfig.rootpath / "tests/py/tasks/fixtures" / script
-            )
+            (
+                directory / program
+            ).symlink_to(Path(__file__).with_name("fixtures") / script)
 
         monkeypatch.setenv("PATH", str(directory), prepend=pathsep)
 
