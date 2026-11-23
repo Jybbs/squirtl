@@ -53,12 +53,12 @@ def concurrently[T, R](items: Iterable[T], work: Callable[[T], R]) -> list[R]:
         return list(pool.map(work, items))
 
 
-def parsed[T](shape: TypeForm[T], *command: str, cwd: Path | None = None) -> T:
+def parsed[T](shape: TypeForm[T], *command: str) -> T:
     """
-    Runs `command`, in `cwd` where it names a folder, and validates what it
-    prints to standard output as JSON against `shape`.
+    Runs `command` and validates what it prints to standard output as JSON
+    against `shape`.
     """
-    return TypeAdapter(shape).validate_json(check_output(command, cwd=cwd))
+    return TypeAdapter(shape).validate_json(check_output(command))
 
 
 class Checkout(Record):
@@ -797,11 +797,10 @@ class RequirementLifts(Manager):
 
 class SiteLifts(Manager):
     """
-    The packages `docs/package.json` pins for the site and the Wrangler
-    release `🕹️ Pages` deploys through, read through `bun outdated`, which
-    draws a table naming the latest release past each pin, and `bun info`,
-    which dates each release and names the dist-tags a prerelease pin
-    follows.
+    The packages `package.json` pins for the site and the Wrangler release
+    `🕹️ Pages` deploys through, read through `bun outdated`, which draws a
+    table naming the latest release past each pin, and `bun info`, which
+    dates each release and names the dist-tags a prerelease pin follows.
     """
 
     deployer: ClassVar[str] = "wrangler"
@@ -815,11 +814,6 @@ class SiteLifts(Manager):
     """
 
     ecosystem: ClassVar[str | None] = "npm"
-
-    folder: ClassVar[Path] = SiteManifest.file.parent
-    """
-    The folder `bun` runs in, holding the site's manifest and lockfile.
-    """
 
     @classmethod
     def dated(cls, lift: Lift) -> Lift:
@@ -859,7 +853,7 @@ class SiteLifts(Manager):
         """
         Reads `field` of the package `name` through `bun info`, as `shape`.
         """
-        return parsed(shape, "bun", "info", name, field, "--json", cwd=cls.folder)
+        return parsed(shape, "bun", "info", name, field, "--json")
 
     @classmethod
     def read(cls) -> Self:
@@ -876,7 +870,7 @@ class SiteLifts(Manager):
             for row in finditer(
                 r"(?m)^\| (?P<name>[@\w]\S*)(?: \(\w+\))? +\| \S+ +\| \S+ +\| "
                 r"(?P<latest>\d\S*) +\|$",
-                check_output(["bun", "outdated"], cwd=cls.folder, text=True)
+                check_output(["bun", "outdated"], text=True)
             )
         }
         found = chain(
@@ -920,8 +914,8 @@ class SiteLifts(Manager):
 
     def write(self, checkout: Checkout):
         """
-        Pins each newest site package in `docs/package.json` and resolves it
-        into `docs/bun.lock` through `bun add`, which installs nothing under
+        Pins each newest site package in `package.json` and resolves it
+        into `bun.lock` through `bun add`, which installs nothing under
         `--lockfile-only`, and writes each newest Wrangler release into the
         deploy step pinning it.
         """
@@ -935,8 +929,6 @@ class SiteLifts(Manager):
             checkout.run(
                 "bun",
                 "add",
-                "--cwd",
-                str(self.folder),
                 "--dev",
                 "--exact",
                 "--lockfile-only",

@@ -9,15 +9,15 @@ import { test }    from '../../common/checkout.ts'
 const comment = (length: number): string => `//${'x'.repeat(length - 2)}`
 
 describe('longLines', () => {
-  test('reads each TypeScript and TSX line past the limit under docs, outside node_modules, and '
-     + 'under the site tests', ({ checkout }) => {
+  test('reads each TypeScript and TSX line past the limit under docs and '
+     + 'under the site tests, outside node_modules', ({ checkout }) => {
     const { metaUrl } = checkout({
       'docs/.vitepress/lib/a.ts'    : `${comment(lines.LINE_LIMIT)}\n${comment(lines.LINE_LIMIT + 1)}\n`,
       'docs/.vitepress/theme/b.tsx' : `ok\n${comment(lines.LINE_LIMIT + 3)}\n`,
-      'docs/node_modules/c/d.ts'    : `${comment(lines.LINE_LIMIT + 1)}\n`,
       'docs/pages/e.md'             : `${comment(lines.LINE_LIMIT + 1)}\n`,
       'docs/pages/f.ts'             : `${comment(lines.LINE_LIMIT + 2)}\n`,
       'docs/pages/g.tsx'            : `${comment(lines.LINE_LIMIT + 4)}\n`,
+      'node_modules/c/d.ts'         : `${comment(lines.LINE_LIMIT + 1)}\n`,
       'tests/py/h.ts'               : `${comment(lines.LINE_LIMIT + 1)}\n`,
       'tests/site/i.test.ts'        : `${comment(lines.LINE_LIMIT + 5)}\n`
     })

@@ -10,7 +10,7 @@ import * as vite  from '../../../../docs/.vitepress/lib/config/vite.ts'
  * The folder the default theme's sheets sit in once the site's packages are
  * installed.
  */
-const STYLES = '/docs/node_modules/vitepress/dist/client/theme-default/styles'
+const STYLES = '/node_modules/vitepress/dist/client/theme-default/styles'
 
 describe('THEME_SHEETS', () => {
   it.each([
@@ -32,7 +32,7 @@ describe('THEME_SHEETS', () => {
   it.each([
     '/docs/.vitepress/theme/styles/site.css',
     '/docs/.vitepress/theme/styles/methods/memory.css',
-    '/docs/node_modules/vitepress/dist/client/theme-default/components/VPDoc.vue',
+    '/node_modules/vitepress/dist/client/theme-default/components/VPDoc.vue',
     `${STYLES}/components/vp-doc.css.map`
   ])('leaves %s out', id => {
     expect(vite.THEME_SHEETS.test(id)).toBe(false)

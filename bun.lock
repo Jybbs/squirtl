@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "squirtl-docs",
+      "name": "squirtl",
       "devDependencies": {
         "@resvg/resvg-js": "2.6.2",
         "@tailwindcss/node": "4.3.5",

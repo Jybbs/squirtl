@@ -1,8 +1,9 @@
 import vueJsx                           from '@vitejs/plugin-vue-jsx'
+import path                             from 'node:path'
 import { configDefaults, defineConfig } from 'vitest/config'
 
 import { projectFacts }                 from '../lib/config/manifest.ts'
-import { cacheDir, repoRoot }           from '../lib/config/paths.ts'
+import { cacheDir, docsDir, repoRoot }  from '../lib/config/paths.ts'
 
 const { gate } = projectFacts(import.meta.url)
 
@@ -12,12 +13,13 @@ export default defineConfig({
   server   : { fs: { allow: [repoRoot(import.meta.url)] } },
   test     : {
     css                 : { include: [/\?raw$/u] },
-    dir                 : '../tests/site',
+    dir                 : path.join(repoRoot(import.meta.url), 'tests', 'site'),
     expect              : { requireAssertions: true },
     include             : ['**/*.test.ts'],
     pool                : 'threads',
     resolveSnapshotPath : (testPath, extension) => testPath + extension,
     restoreMocks        : true,
+    root                : docsDir(import.meta.url),
     sequence            : { shuffle: true },
     unstubEnvs          : true,
     unstubGlobals       : true,
@@ -32,7 +34,7 @@ export default defineConfig({
     },
 
     forceRerunTriggers: [
-      ...configDefaults.forceRerunTriggers, '**/.vitepress/lib/rendered/theme.css', '**/docs/bun.lock',
+      ...configDefaults.forceRerunTriggers, '**/.vitepress/lib/rendered/theme.css', '**/bun.lock',
       '**/pyproject.toml'
     ],
 

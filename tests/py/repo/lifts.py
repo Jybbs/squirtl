@@ -1292,13 +1292,12 @@ def test_a_site_package_named_for_the_deployer_takes_the_manifests_route(
     """
     fp.register(
         [
-            "bun", "add", "--cwd", "docs",
-            "--dev", "--exact", "--lockfile-only", "wrangler@4.200.0"
+            "bun", "add", "--dev", "--exact", "--lockfile-only", "wrangler@4.200.0"
         ]
     )
 
     SiteLifts(
-        lifts = (lift_of("wrangler 4.151.3 4.200.0", home=Path("docs/package.json")),)
+        lifts = (lift_of("wrangler 4.151.3 4.200.0", home=Path("package.json")),)
     ).write(Checkout(root=tmp_path))
 
     assert fp.call_count(["bun", "add", fp.any()]) == 1
@@ -1430,17 +1429,17 @@ def test_a_site_write_pins_each_package_and_the_deploy_step(
     checkout({str(path): WORKFLOW})
     fp.register(
         [
-            "bun", "add", "--cwd", "docs", "--dev",
-            "--exact", "--lockfile-only", "oxlint@1.2.0", "vitepress@2.0.0-alpha.21"
+            "bun", "add", "--dev", "--exact",
+            "--lockfile-only", "oxlint@1.2.0", "vitepress@2.0.0-alpha.21"
         ]
     )
 
     SiteLifts(
         lifts = (
-            lift_of("oxlint 1.0.0 1.2.0", home=Path("docs/package.json")),
+            lift_of("oxlint 1.0.0 1.2.0", home=Path("package.json")),
             lift_of(
                 pin  = "vitepress 2.0.0-alpha.20 2.0.0-alpha.21",
-                home = Path("docs/package.json")
+                home = Path("package.json")
             ),
             lift_of("wrangler 4.151.3 4.200.0", home=path)
         )
@@ -2693,7 +2692,7 @@ def test_the_site_lags_the_latest_release_bun_draws_for_each_pin(
     checkout(
         {
             ".github/workflows/pages.yml" : WORKFLOW,
-            "docs/package.json"           : SITE
+            "package.json"                : SITE
         }
     )
     fp.register(
@@ -2737,9 +2736,9 @@ def test_the_site_lags_the_latest_release_bun_draws_for_each_pin(
     lifts = SiteLifts.read().lifts
 
     assert [(lift.home, lift.name, lift.current, lift.newest) for lift in lifts] == [
-        (Path("docs/package.json"), "@types/node", "26.6.5", "26.7.0"),
-        (Path("docs/package.json"), "oxlint", "1.0.0", "1.2.0"),
-        (Path("docs/package.json"), "vitepress", "2.0.0-alpha.20", "2.0.0-alpha.21"),
+        (Path("package.json"), "@types/node", "26.6.5", "26.7.0"),
+        (Path("package.json"), "oxlint", "1.0.0", "1.2.0"),
+        (Path("package.json"), "vitepress", "2.0.0-alpha.20", "2.0.0-alpha.21"),
         (Path(".github/workflows/pages.yml"), "wrangler", "4.151.3", "4.200.0")
     ]
     assert {lift.released for lift in lifts} == {datetime(2026, 10, 1, tzinfo=UTC)}

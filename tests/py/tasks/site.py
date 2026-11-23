@@ -3,15 +3,14 @@ Pins what the `site` tasks decide from the shell and the checkout they run
 in, meaning the output format `site:lint` chooses for the shell it runs in,
 the ref `site:affected` hands Vitest's `--changed`, each further argument
 the tasks forward after their own flags, and the single-file component
-`site:typecheck` refuses before `tsc` starts, that `site:lint` runs its
-line check after Oxlint whatever Oxlint returns, and the link `site:install`
-makes from the site's suite to the site's packages.
+`site:typecheck` refuses before `tsc` starts, that `site:lint` runs its line
+check after Oxlint whatever Oxlint returns, and the steps `site:install`
+runs.
 
 Each case runs its task from `tmp_path`, where the links under
-`node_modules/.bin/` and `docs/node_modules/.bin/`, and the `node` first on
-the path, lead to the stand-in under `fixtures/`, which prints each argument
-it receives on a line of its own, so no case starts Bun, Oxlint, `tsc`,
-Vitest, or Node.
+`node_modules/.bin/`, and the `bun` and `node` first on the path, lead to
+the stand-in under `fixtures/`, which prints each argument it receives on a
+line of its own, so no case starts Bun, Oxlint, `tsc`, Vitest, or Node.
 """
 
 from collections.abc import Callable, Mapping
@@ -27,21 +26,17 @@ def stand_ins(
     tmp_path          : Path
 ):
     """
-    Makes `tmp_path` the working directory and links each program
-    a `site` task starts there to the stand-in, Oxlint under
-    `docs/node_modules/.bin/` for `site:lint`, which runs from the root of
-    the checkout, `tsc` and Vitest under `node_modules/.bin/` for the tasks
-    running from `docs/`, and `bun` and `node` first on the path.
+    Makes `tmp_path`, the root of the checkout every `site` task starts
+    its packages from, the working directory, and links Oxlint, `tsc`, and
+    Vitest under `node_modules/.bin/` there to the stand-in, and `bun` and
+    `node` first on the path.
     """
     install_stand_ins("echo.sh", "bun", "node")
     monkeypatch.chdir(tmp_path)
+    (tmp_path / "node_modules/.bin").mkdir(parents=True)
 
-    for program in (
-        "docs/node_modules/.bin/oxlint", "node_modules/.bin/tsc",
-        "node_modules/.bin/vitest"
-    ):
-        (tmp_path / program).parent.mkdir(exist_ok=True, parents=True)
-        (tmp_path / program).symlink_to(
+    for program in ("oxlint", "tsc", "vitest"):
+        (tmp_path / "node_modules/.bin" / program).symlink_to(
             Path(__file__).with_name("fixtures") / "echo.sh"
         )
 
@@ -56,7 +51,7 @@ def test_affected_asks_vitest_for_the_files_changed_since_main(
     """
     assert printed("site/affected", "--reporter=dot") == [
         "run", "--changed", "origin/main",
-        "--config", ".vitepress/config/vitest.ts", "--reporter=dot"
+        "--config", "docs/.vitepress/config/vitest.ts", "--reporter=dot"
     ]
 
 
@@ -85,26 +80,14 @@ def test_lint_asks_oxlint_for_annotations_under_github_actions(
     ]
 
 
-def test_install_links_the_site_suite_to_the_sites_packages(
-    monkeypatch : MonkeyPatch,
-    printed     : Callable[..., list[str]],
-    tmp_path    : Path
+def test_install_installs_from_the_lockfile_then_prunes(
+    printed: Callable[..., list[str]]
 ):
     """
-    Pins that `site:install`, run from `docs/`, installs from the lockfile,
-    prunes, and links `tests/site/node_modules` to `docs/node_modules`, so a
-    site test resolves each package from the site's own install.
+    Pins that `site:install` installs from the lockfile and then prunes each
+    package the lockfile no longer names.
     """
-    link = tmp_path / "tests/site/node_modules"
-
-    link.parent.mkdir(parents=True)
-    monkeypatch.chdir(tmp_path / "docs")
-
     assert printed("site/install") == ["install", "--frozen-lockfile", "prune"]
-    assert (link.readlink(), link.resolve()) == (
-        Path("../../docs/node_modules"),
-        (tmp_path / "docs/node_modules").resolve()
-    )
 
 
 def test_lint_exits_1_when_the_line_check_fails_after_oxlint_passes(
@@ -137,7 +120,7 @@ def test_lint_runs_the_line_check_after_oxlint_fails_and_exits_1(
     Asserts that `site:lint` still starts the line check once Oxlint exits
     1, and exits 1 itself though the check passes.
     """
-    oxlint = tmp_path / "docs/node_modules/.bin/oxlint"
+    oxlint = tmp_path / "node_modules/.bin/oxlint"
 
     oxlint.unlink()
     oxlint.symlink_to("/usr/bin/false")
@@ -161,7 +144,7 @@ def test_typecheck_hands_tsc_its_project_and_arguments(
     the project.
     """
     assert printed("site/typecheck", "--noEmit") == [
-        "-p", ".vitepress/tsconfig.json", "--noEmit"
+        "-p", "docs/.vitepress/tsconfig.json", "--noEmit"
     ]
 
 

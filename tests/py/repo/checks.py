@@ -910,7 +910,7 @@ def test_installs_hold_each_toml_task_to_the_lockfile(scan: Scan):
             ".mise/config.toml",
             5,
             "`bunx` in the task `site:x` can run a copy of a tool from outside "
-            "`docs/node_modules`"
+            "`node_modules`"
         )
     ]
 
@@ -2128,11 +2128,11 @@ def test_scripts_skip_a_task_file_mise_would_not_run(
 
 def test_site_copies_are_unreadable_where_the_lockfile_lists_no_packages(scan: Scan):
     """
-    Pins that a `docs/bun.lock` leaving out its `packages` fails the read on
-    that file, naming the missing key.
+    Pins that a `bun.lock` leaving out its `packages` fails the read on that
+    file, naming the missing key.
     """
     with raises(Unreadable, match="at `packages`"):
-        scan(SiteCopies, {"docs/bun.lock": '{"lockfileVersion": 1,}'})
+        scan(SiteCopies, {"bun.lock": '{"lockfileVersion": 1,}'})
 
 
 def test_site_copies_report_a_shared_package_the_manifest_leaves_out_on_no_line(
@@ -2140,22 +2140,22 @@ def test_site_copies_report_a_shared_package_the_manifest_leaves_out_on_no_line(
 ):
     """
     Pins that the site's copies check still reports a shared package the
-    lockfile installs at more than one path where `docs/package.json` pins
-    no version of it, on that file with no line.
+    lockfile installs at more than one path where `package.json` pins no
+    version of it, on that file with no line.
     """
     findings = scan(
         SiteCopies,
         {
-            "docs/bun.lock"     : '{"packages": {"vue": [], "vitepress/vue": [],},}',
-            "docs/package.json" : '{"devDependencies": {}}'
+            "bun.lock"     : '{"packages": {"vue": [], "vitepress/vue": [],},}',
+            "package.json" : '{"devDependencies": {}}'
         }
     )
 
     assert findings == [
         (
-            "docs/package.json",
+            "package.json",
             None,
-            "`docs/bun.lock` resolves `vue` more than once, nesting a copy at "
+            "`bun.lock` resolves `vue` more than once, nesting a copy at "
             "`vitepress/vue`"
         )
     ]
@@ -2163,7 +2163,7 @@ def test_site_copies_report_a_shared_package_the_manifest_leaves_out_on_no_line(
 
 def test_site_pins_are_unreadable_where_a_pin_is_missing(mise_config: str, scan: Scan):
     """
-    Pins that a `docs/package.json` leaving out a pin the site's pins check
+    Pins that a `package.json` leaving out a pin the site's pins check
     compares fails the read on that file, naming the missing key.
     """
     with raises(Unreadable, match="at `devDependencies.@types/node`"):
@@ -2171,7 +2171,7 @@ def test_site_pins_are_unreadable_where_a_pin_is_missing(mise_config: str, scan:
             SitePins,
             {
                 ".mise/config.toml" : mise_config,
-                "docs/package.json" : '{"devDependencies": {"vitest": "5.0.5"}}'
+                "package.json"      : '{"devDependencies": {"vitest": "5.0.5"}}'
             }
         )
 
@@ -2181,16 +2181,16 @@ def test_site_pins_are_unreadable_where_the_node_types_pin_a_range(
     scan        : Scan
 ):
     """
-    Pins that a `docs/package.json` pinning the Node.js types to a range
-    fails the read on that file at their key, ahead of the finding the
-    site's pins check yields on a range.
+    Pins that a `package.json` pinning the Node.js types to a range fails
+    the read on that file at their key, ahead of the finding the site's pins
+    check yields on a range.
     """
     with raises(Unreadable, match="at `devDependencies.@types/node`"):
         scan(
             SitePins,
             {
                 ".mise/config.toml" : mise_config,
-                "docs/package.json" : '{"devDependencies": {"@types/node": "^26.6.5"}}'
+                "package.json"      : '{"devDependencies": {"@types/node": "^26.6.5"}}'
             }
         )
 
@@ -2201,8 +2201,8 @@ def test_site_pins_report_a_run_time_dependency_pinned_to_a_range(
 ):
     """
     Pins that the site's pins check reads the `dependencies` of
-    `docs/package.json` beside its `devDependencies`, reporting a package
-    pinned there to a range on the line declaring it.
+    `package.json` beside its `devDependencies`, reporting a package pinned
+    there to a range on the line declaring it.
     """
     package = dumps(
         {
@@ -2213,12 +2213,12 @@ def test_site_pins_report_a_run_time_dependency_pinned_to_a_range(
     )
     findings = scan(
         SitePins,
-        {".mise/config.toml": mise_config, "docs/package.json": package}
+        {".mise/config.toml": mise_config, "package.json": package}
     )
 
     assert findings == [
         (
-            "docs/package.json", 3,
+            "package.json", 3,
             "`vue` pins the range `^3.5.45` rather than an exact version"
         )
     ]
@@ -2279,9 +2279,9 @@ def test_subsets_report_each_subset_one_side_lacks(
     ("command", "found"),
     [
         param("bun install --frozen-lockfile", [], id="frozen"),
-        param("bun install --cwd docs --lockfile-only", [], id="lockfile-only"),
+        param("bun install --lockfile-only", [], id="lockfile-only"),
         param(
-            "bun install --cwd docs",
+            "bun install",
             [
                 "`bun install` in `.mise/tasks/site/install` carries neither "
                 "`--frozen-lockfile` nor `--lockfile-only`"
@@ -2289,7 +2289,7 @@ def test_subsets_report_each_subset_one_side_lacks(
             id = "unlocked"
         ),
         param(
-            "bun i --cwd docs",
+            "bun i",
             [
                 "`bun i` in `.mise/tasks/site/install` carries neither "
                 "`--frozen-lockfile` nor `--lockfile-only`"
@@ -2300,7 +2300,7 @@ def test_subsets_report_each_subset_one_side_lacks(
             "bunx vitest run",
             [
                 "`bunx` in `.mise/tasks/site/install` can run a copy of a tool from "
-                "outside `docs/node_modules`"
+                "outside `node_modules`"
             ],
             id = "bunx"
         ),
@@ -2308,7 +2308,7 @@ def test_subsets_report_each_subset_one_side_lacks(
             "bun x vitest run",
             [
                 "`bun x` in `.mise/tasks/site/install` can run a copy of a tool from "
-                "outside `docs/node_modules`"
+                "outside `node_modules`"
             ],
             id = "bun-x"
         )
@@ -2396,7 +2396,7 @@ def test_summaries_report_each_writer_besides_the_gate(scan: Scan, workflow: str
             [(
                 4,
                 (
-                    "`docs/bun.lock` resolves `vue` more than once, nesting a copy at "
+                    "`bun.lock` resolves `vue` more than once, nesting a copy at "
                     "`vitepress/vue`"
                 )
             )],
@@ -2407,7 +2407,7 @@ def test_summaries_report_each_writer_besides_the_gate(scan: Scan, workflow: str
             [
                 (
                     3,
-                    "`docs/bun.lock` resolves `@vueuse/core` more than once, nesting a "
+                    "`bun.lock` resolves `@vueuse/core` more than once, nesting a "
                     "copy at `vitepress/@vueuse/core`, "
                     "`vitepress/@vueuse/integrations/@vueuse/core`"
                 )
@@ -2425,8 +2425,8 @@ def test_site_copies_report_each_shared_package_the_lockfile_resolves_twice(
     Pins that the site's copies check passes a lockfile installing each
     shared package at one path and a nested copy of any other package, and
     reports each shared package installed at more than one path on the line
-    of `docs/package.json` pinning it, naming every path but the top-level
-    one in sorted order, with the trailing commas Bun writes accepted.
+    of `package.json` pinning it, naming every path but the top-level one in
+    sorted order, with the trailing commas Bun writes accepted.
     """
     entries = "".join(
         f'    "{path}": ["name@1.0.0", "", {{}}, "sha512-a"],\n'
@@ -2435,8 +2435,8 @@ def test_site_copies_report_each_shared_package_the_lockfile_resolves_twice(
     findings = scan(
         SiteCopies,
         {
-            "docs/bun.lock"     : f'{{\n  "packages": {{\n{entries}  }},\n}}\n',
-            "docs/package.json" : dumps(
+            "bun.lock"     : f'{{\n  "packages": {{\n{entries}  }},\n}}\n',
+            "package.json" : dumps(
                 {
                     "devDependencies": {
                         "@vueuse/core" : "15.0.0",
@@ -2448,7 +2448,7 @@ def test_site_copies_report_each_shared_package_the_lockfile_resolves_twice(
         }
     )
 
-    assert findings == [("docs/package.json", line, message) for line, message in found]
+    assert findings == [("package.json", line, message) for line, message in found]
 
 
 def test_task_check_reports_each_defect_mise_finds_at_its_weight(scan: Scan):
@@ -2560,7 +2560,7 @@ def test_site_pins_hold_the_pins_that_move_together(
     Pins that the site's pins check passes a manifest pinning each package
     alike with the one it is paired with and the Node.js types at the major
     mise pins, passes a pair the manifest leaves out, and reports each pin
-    that departs, on the line of `docs/package.json` declaring it.
+    that departs, on the line of `package.json` declaring it.
     """
     package = dumps(
         {
@@ -2582,11 +2582,11 @@ def test_site_pins_hold_the_pins_that_move_together(
         SitePins,
         {
             ".mise/config.toml" : mise_config,
-            "docs/package.json" : package.replace(*rewrite)
+            "package.json"      : package.replace(*rewrite)
         }
     )
 
-    assert findings == [("docs/package.json", line, message) for line, message in found]
+    assert findings == [("package.json", line, message) for line, message in found]
 
 
 @mark.parametrize(
@@ -2624,11 +2624,11 @@ def test_site_pins_report_each_pin_to_a_range(
     )
     findings = scan(
         SitePins,
-        {".mise/config.toml": mise_config, "docs/package.json": package}
+        {".mise/config.toml": mise_config, "package.json": package}
     )
     found = [
         (
-            "docs/package.json", 4,
+            "package.json", 4,
             f"`knip` pins the range `{pin}` rather than an exact version"
         )
     ]
@@ -2663,8 +2663,8 @@ def test_the_audit_reports_each_unreadable_file_once(
         "CITATION.cff",
         "a.py",
         "b.py",
-        "docs/bun.lock",
-        "docs/package.json",
+        "bun.lock",
+        "package.json",
         "pyproject.toml",
         "src/squirtl/docs/references.bib",
         "uv.lock",

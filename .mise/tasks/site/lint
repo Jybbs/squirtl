@@ -6,7 +6,7 @@ format=default
 [[ -z "${GITHUB_ACTIONS:-}" ]] || format=github
 status=0
 
-docs/node_modules/.bin/oxlint \
+node_modules/.bin/oxlint \
   --config docs/.vitepress/config/.oxlintrc.json \
   --format "$format" \
   "$@" \

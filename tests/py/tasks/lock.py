@@ -18,7 +18,7 @@ from pathlib         import Path
 from pytest          import Config, MonkeyPatch, fixture, mark, param
 from subprocess      import CompletedProcess, run
 
-BUN     = "bun install --cwd docs --dry-run --frozen-lockfile"
+BUN     = "bun install --dry-run --frozen-lockfile"
 INSTALL = "mise install --dry-run --force"
 
 
@@ -153,9 +153,9 @@ def test_a_failing_step_fails_the_task_running_no_step_after_it(
     """
     Pins that the task exits 1 once a step exits 1, as `uv lock --check`
     does on a `uv.lock` lagging `pyproject.toml`, the locked dry-run install
-    does on a pinned tool with no entry the running platform installs
-    from, and Bun's frozen dry-run install, the last step, does on a
-    `docs/bun.lock` lagging `docs/package.json`, and runs no step after it.
+    does on a pinned tool with no entry the running platform installs from,
+    and Bun's frozen dry-run install, the last step, does on a `bun.lock`
+    lagging `package.json`, and runs no step after it.
     """
     monkeypatch.setenv("FAILING", failing)
 
@@ -239,9 +239,9 @@ def test_a_lockfile_in_step_with_its_pins_passes(
     """
     Pins that the task exits 0 once `uv lock --check` passes, `mise lock`
     leaves `.mise/mise.lock` as it found it, the dry-run install finds every
-    tool the project pins in it, and Bun finds `docs/bun.lock` current,
-    running the four in that order, leaving the file in place with its
-    contents and inode unchanged, and leaving no snapshot behind.
+    tool the project pins in it, and Bun finds `bun.lock` current, running
+    the four in that order, leaving the file in place with its contents and
+    inode unchanged, and leaving no snapshot behind.
     """
     contents, inode = lockfile.read_bytes(), lockfile.stat().st_ino
 
@@ -326,12 +326,12 @@ def test_relock_re_resolves_every_lockfile(
     Pins that `lock:sync` re-resolves `.mise/mise.lock`, then `uv.lock`,
     then the lockfile beside each task script declaring its own
     dependencies, the two uv calls lifting the `UV_LOCKED` the `[env]` block
-    sets, then `docs/bun.lock`, which Bun writes without installing.
+    sets, then `bun.lock`, which Bun writes without installing.
     """
     run([pytestconfig.rootpath / ".mise/tasks/lock/sync"], check=True, cwd=tmp_path)
 
     assert calls() == [
         "mise lock", "uv lock --no-locked",
         f"uv lock --no-locked --script {scripts}",
-        "bun install --cwd docs --lockfile-only"
+        "bun install --lockfile-only"
     ]

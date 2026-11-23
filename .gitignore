@@ -2,8 +2,7 @@
 /.venv/
 /dist/
 /docs/.vitepress/dist/
-/docs/node_modules/
-/tests/site/node_modules
+/node_modules/
 *.pyc
 __pycache__/
 

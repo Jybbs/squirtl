@@ -27,15 +27,14 @@ export const LINE_LIMIT = 110
 const WHOLE = /^\s*(?:\/(?![*/]).*\/[dgimsuvy]*|(['"`])[^'"`]*\*[^'"`]*\1)[),]*$/u
 
 /**
- * Reads every TypeScript and TSX file under `docs/`, outside the packages Bun
- * installs, and under `tests/site/`, and returns each line running past
- * `LINE_LIMIT` that `WHOLE` does not match, in the order of its path and then
- * its number.
+ * Reads every TypeScript and TSX file under `docs/` and `tests/site/`, and
+ * returns each line running past `LINE_LIMIT` that `WHOLE` does not match, in
+ * the order of its path and then its number.
  */
 export function longLines(metaUrl: string): LongLine[] {
   const root    = repoRoot(metaUrl)
   const pattern = '{docs,docs/.vitepress,tests/site}/**/*.{ts,tsx}'
-  return fs.globSync(pattern, { cwd: root, exclude: ['docs/node_modules/**'] })
+  return fs.globSync(pattern, { cwd: root })
     .toSorted()
     .flatMap(file => fs.readFileSync(path.join(root, file), 'utf8')
       .split('\n')
