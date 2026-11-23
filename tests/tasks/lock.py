@@ -10,14 +10,17 @@ scripts wherever the case reaches their lockfiles. The stand-in under
 `fixtures/` answers for `bun`, `mise`, and `uv` in every case, writing each
 call it receives to a file and printing the `[]` the dry run of `mise lock`
 prints on a lockfile naming no tool the config dropped, unless the case sets
-another answer, so no case reaches the network.
+another answer, and pytest-subprocess's `fp` fixture answers `mise audit`
+for `lock:advisories`, so no case reaches the network.
 """
 
-from collections.abc import Callable
-from json            import dumps
-from pathlib         import Path
-from pytest          import Config, MonkeyPatch, fixture, mark, param
-from subprocess      import CompletedProcess, run
+from collections.abc   import Callable
+from json              import dumps
+from pathlib           import Path
+from pytest            import CaptureFixture, Config, MonkeyPatch, fixture, mark, param, raises
+from pytest_subprocess import FakeProcess
+from runpy             import run_path
+from subprocess        import CompletedProcess, run
 
 ADVISORIES = "mise run lock:advisories"
 BUN        = "bun install --cwd docs --dry-run --frozen-lockfile"
@@ -83,7 +86,7 @@ def stand_ins(
     `MISE_PROJECT_ROOT` both tasks source `.mise/lib/lock.sh` through.
 
     The stand-in exits 1 where its call matches the shell pattern `FAILING`
-    holds, and prints `ERROR_ANSWER` to standard error where a case sets it.
+    holds.
 
     Returns:
         The file the stand-in writes each call it receives to.
@@ -169,21 +172,12 @@ def advisory(*fixed: str) -> dict[str, object]:
     }
 
 
-def test_a_failed_audit_stops_the_task(
-    audited     : Callable[..., CompletedProcess[str]],
-    monkeypatch : MonkeyPatch
-):
+def test_a_failed_audit_stops_the_task(audited: Callable[..., tuple[int | str, str]]):
     """
-    Pins that the task exits 1 where `mise audit` fails printing no report,
-    as it does without the network, rather than reading an empty report as
-    a pass.
+    Pins that the task stops where `mise audit` fails printing no report,
+    rather than reading an empty report as a pass.
     """
-    monkeypatch.setenv("FAILING", "mise audit*")
-
-    result = audited()
-
-    assert result.returncode == 1
-    assert result.stderr == "mise audit printed no report\n"
+    assert audited(reported=False) == ("mise audit printed no report", "")
 
 
 def test_a_locked_tool_the_config_dropped_fails_the_task(
@@ -263,20 +257,23 @@ def test_a_lockfile_in_step_with_its_pins_passes(
 
 @fixture
 def audited(
+    capsys       : CaptureFixture[str],
+    fp           : FakeProcess,
     monkeypatch  : MonkeyPatch,
     pytestconfig : Config,
     tmp_path     : Path
-) -> Callable[..., CompletedProcess[str]]:
+) -> Callable[..., tuple[int | str, str]]:
     """
     Builds a runner of the worktree's `lock:advisories` task over a project
-    under `tmp_path` pinning `node` and `python`, whose stand-in `mise
-    audit` reports each advisory the runner receives.
+    under `tmp_path` pinning `node` and `python`, whose `mise audit` exits 1
+    where the runner receives an advisory or an error, as `mise audit` does.
 
     Returns:
         A function taking the advisories as the mappings `mise audit
-        --json` lists, and the ids `AUDIT_IGNORE` lists, separated by
-        spaces, as the keyword `ignored`, which returns what the task
-        printed.
+        --json` lists, and as keywords the ids `AUDIT_IGNORE` lists,
+        separated by spaces, the error the audit prints, and whether it
+        prints a report, which returns what the task exits with and what
+        it printed to standard error.
     """
     config = tmp_path / ".mise/config.toml"
 
@@ -289,68 +286,74 @@ def audited(
 
     def audit(
         *advisories : dict[str, object],
-        ignored     : str = ""
-    ) -> CompletedProcess[str]:
+        error       : str  = "",
+        ignored     : str  = "",
+        reported    : bool = True
+    ) -> tuple[int | str, str]:
         """
-        Starts the task with `advisories` as the audit's report and
-        `ignored` as `AUDIT_IGNORE`.
+        Starts the task with `advisories` as the audit's report, `error` as
+        what it prints to standard error, and `ignored` as `AUDIT_IGNORE`.
         """
-        monkeypatch.setenv(
-            "ANSWER",
-            dumps({"vulnerabilities": advisories, "unchecked": []})
+        report = dumps({"vulnerabilities": advisories, "unchecked": []})
+
+        fp.register(
+            ["mise", "audit", fp.any()],
+            returncode = int(bool(advisories or error or not reported)),
+            stderr     = error,
+            stdout     = report if reported else ""
         )
         monkeypatch.setenv("AUDIT_IGNORE", ignored)
 
-        return run(
-            [pytestconfig.rootpath / ".mise/tasks/lock/advisories.py"],
-            capture_output = True,
-            cwd            = tmp_path,
-            text           = True
-        )
+        with raises(SystemExit) as stopped:
+            run_path(
+                str(pytestconfig.rootpath / ".mise/tasks/lock/advisories.py"),
+                run_name = "__main__"
+            )
+
+        return stopped.value.code, capsys.readouterr().err
 
     return audit
 
 
 def test_an_audit_error_beside_a_report_stops_the_task(
-    audited     : Callable[..., CompletedProcess[str]],
-    monkeypatch : MonkeyPatch
+    audited: Callable[..., tuple[int | str, str]]
 ):
     """
-    Pins that the task exits 1 and prints the error where `mise audit`
-    writes one beside a report naming no advisory, as it does on a pin that
-    resolves to no version, rather than reading that report as a pass.
+    Pins that the task stops on the error where `mise audit` writes one
+    beside a report naming no advisory, as it does on a pin that resolves to
+    no version, rather than reading that report as a pass.
     """
     error = "mise ERROR not checked, the version did not resolve: python@0.0.0"
 
-    monkeypatch.setenv("ERROR_ANSWER", error)
-
-    result = audited()
-
-    assert result.returncode == 1
-    assert result.stderr == f"{error}\n"
+    assert audited(error=f"{error}\n") == (error, "")
 
 
 def test_each_advisory_in_one_report_is_judged_on_its_own(
-    audited: Callable[..., CompletedProcess[str]]
+    audited: Callable[..., tuple[int | str, str]]
 ):
     """
-    Pins that the task prints only the advisory `AUDIT_IGNORE` leaves out
-    where the report also holds one the list passes, and still exits 1.
+    Pins that the task prints each advisory `AUDIT_IGNORE` leaves out where
+    the report also holds one the list passes, and exits 1 whatever their
+    order and number.
     """
-    result = audited(
-        advisory(),
-        {
-            **advisory(),
-            "id"      : "CVE-2026-0002",
-            "tool"    : "node",
-            "version" : "26.13.1",
-            "aliases" : []
-        },
-        ignored = "CVE-2026-0001"
-    )
+    unlisted = {
+        **advisory(),
+        "id"      : "CVE-2026-0002",
+        "tool"    : "node",
+        "version" : "26.13.1",
+        "aliases" : []
+    }
 
-    assert result.returncode == 1
-    assert result.stderr == "CVE-2026-0002 affects node 26.13.1: A stand-in advisory\n"
+    assert audited(
+        unlisted,
+        {**unlisted, "id": "CVE-2026-0003"},
+        advisory(),
+        ignored = "CVE-2026-0001"
+    ) == (
+        1,
+        "CVE-2026-0002 affects node 26.13.1: A stand-in advisory\n"
+        "CVE-2026-0003 affects node 26.13.1: A stand-in advisory\n"
+    )
 
 
 @mark.parametrize(
@@ -394,6 +397,17 @@ def test_each_advisory_in_one_report_is_judged_on_its_own(
             id = "ignored-by-alias-with-a-fix"
         ),
         param(
+            advisory("3.15.3"),
+            "GHSA-0000-0000-0001 CVE-2026-0001",
+            1,
+            (
+                "CVE-2026-0001 is fixed in 3.15.3, so delete CVE-2026-0001 "
+                "GHSA-0000-0000-0001 from AUDIT_IGNORE in .mise/config.toml and "
+                "lift python 3.15.2 to a fixed version\n"
+            ),
+            id = "ignored-by-id-and-alias-with-a-fix"
+        ),
+        param(
             advisory(),
             "CVE-2026-0002",
             1,
@@ -413,7 +427,7 @@ def test_each_advisory_in_one_report_is_judged_on_its_own(
     ]
 )
 def test_an_ignored_advisory_passes_only_while_no_release_fixes_it(
-    audited : Callable[..., CompletedProcess[str]],
+    audited : Callable[..., tuple[int | str, str]],
     code    : int,
     found   : dict[str, object],
     ignored : str,
@@ -425,10 +439,7 @@ def test_an_ignored_advisory_passes_only_while_no_release_fixes_it(
     naming a fix, saying which advisory, tool, and versions, and on any
     advisory the list leaves out.
     """
-    result = audited(found, ignored=ignored)
-
-    assert result.returncode == code
-    assert result.stderr == printed
+    assert audited(found, ignored=ignored) == (code, printed)
 
 
 def test_relock_re_resolves_every_lockfile(
@@ -453,16 +464,37 @@ def test_relock_re_resolves_every_lockfile(
 
 
 def test_the_audit_reads_only_the_tools_the_project_pins(
-    audited : Callable[..., CompletedProcess[str]],
-    calls   : Callable[[], list[str]]
+    audited : Callable[..., tuple[int | str, str]],
+    fp      : FakeProcess
 ):
     """
     Pins that the task names each tool `[tools]` in `.mise/config.toml` pins
     to `mise audit`, so a tool a global mise config adds stays out of the
     report, and passes where the audit reports no advisory.
     """
-    result = audited()
+    assert audited() == (0, "")
+    assert list(fp.calls) == [["mise", "audit", "--json", "--quiet", "node", "python"]]
 
-    assert result.returncode == 0
-    assert result.stderr == ""
-    assert calls() == ["mise audit --json --quiet node python"]
+
+def test_the_audit_reads_past_a_reader_s_logging_settings(
+    audited     : Callable[..., tuple[int | str, str]],
+    fp          : FakeProcess,
+    monkeypatch : MonkeyPatch
+):
+    """
+    Pins that the task sets `MISE_QUIET` and `MISE_VERBOSE` for `mise
+    audit`, so a reader's debug logging puts no line on the standard error
+    the task reads an error from.
+    """
+    monkeypatch.setenv("MISE_VERBOSE", "1")
+
+    process = fp.register(
+        ["mise", "audit", fp.any()],
+        stdout = dumps({"unchecked": [], "vulnerabilities": []})
+    )
+
+    assert audited() == (0, "")
+    assert process.first_call.kwargs["env"].items() >= {
+        "MISE_QUIET"   : "1",
+        "MISE_VERBOSE" : "0"
+    }.items()

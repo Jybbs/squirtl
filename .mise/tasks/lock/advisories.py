@@ -77,13 +77,15 @@ class Audit:
         Runs `mise audit` over each tool `[tools]` in `.mise/config.toml`
         names, and stops the task where it fails for any reason but an
         advisory, which `--quiet` tells apart by leaving only errors on
-        standard error.
+        standard error, as `MISE_QUIET` and `MISE_VERBOSE` hold it to under
+        a reader's debug logging.
         """
         config = Path(environ["MISE_PROJECT_ROOT"], ".mise/config.toml")
         tools  = read_toml(config.read_text(encoding="utf-8"))["tools"]
         audit  = run(
             ["mise", "audit", "--json", "--quiet", *tools],
             capture_output = True,
+            env            = {**environ, "MISE_QUIET": "1", "MISE_VERBOSE": "0"},
             text           = True
         )
 
