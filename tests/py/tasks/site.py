@@ -95,9 +95,9 @@ def test_install_stops_on_an_install_left_under_docs(
     tmp_path     : Path
 ):
     """
-    Asserts that `site:install` exits 1 before Bun starts where `docs/`
-    still holds the `node_modules` the site installed before its packages
-    moved to the root.
+    Asserts that `site:install` exits 1, naming what to do with the folder,
+    before Bun starts where `docs/` still holds the `node_modules` the site
+    installed before its packages moved to the root.
     """
     (tmp_path / "docs/node_modules").mkdir(parents=True)
 
@@ -107,7 +107,12 @@ def test_install_stops_on_an_install_left_under_docs(
         text           = True
     )
 
-    assert (result.returncode, result.stdout) == (1, "")
+    assert (result.returncode, result.stdout, result.stderr) == (
+        1,
+        "",
+        "docs/node_modules predates the install at the repository root, so move it "
+        "out of the checkout\n"
+    )
 
 
 def test_lint_exits_1_when_the_line_check_fails_after_oxlint_passes(

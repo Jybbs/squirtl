@@ -2,6 +2,6 @@
 #MISE description = "Install the site's packages into `node_modules` from `bun.lock`, pruning any package the lockfile no longer names"
 
 [[ ! -e docs/node_modules ]] \
-  || { echo "Move aside the stale install in docs/node_modules" >&2; exit 1; }
+  || { echo "docs/node_modules predates the install at the repository root, so move it out of the checkout" >&2; exit 1; }
 bun install --frozen-lockfile
 bun prune
