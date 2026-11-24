@@ -90,6 +90,26 @@ def test_install_installs_from_the_lockfile_then_prunes(
     assert printed("site/install") == ["install", "--frozen-lockfile", "prune"]
 
 
+def test_install_stops_on_an_install_left_under_docs(
+    pytestconfig : Config,
+    tmp_path     : Path
+):
+    """
+    Asserts that `site:install` exits 1 before Bun starts where `docs/`
+    still holds the `node_modules` the site installed before its packages
+    moved to the root.
+    """
+    (tmp_path / "docs/node_modules").mkdir(parents=True)
+
+    result = run(
+        [pytestconfig.rootpath / ".mise/tasks/site/install"],
+        capture_output = True,
+        text           = True
+    )
+
+    assert (result.returncode, result.stdout) == (1, "")
+
+
 def test_lint_exits_1_when_the_line_check_fails_after_oxlint_passes(
     pytestconfig : Config,
     tmp_path     : Path
