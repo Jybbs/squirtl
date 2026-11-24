@@ -369,7 +369,7 @@ def test_each_advisory_in_one_report_is_judged_on_its_own(
         ),
         param(
             advisory(),
-            "CVE-2026-0002 CVE-2026-0001",
+            "CVE-2026-0002\nCVE-2026-0001",
             0,
             "",
             id = "ignored-among-several-with-no-fix"
