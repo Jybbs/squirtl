@@ -91,7 +91,8 @@ class Advisory:
 
         if (
             newest     == self.version
-            or self.id in Audit.from_mise(f"{self.tool}@{newest}")
+            # From `/`, as `[tool_config] locked` resolves only a locked version
+            or self.id in Audit.from_mise("--cd", "/", f"{self.tool}@{newest}")
         ):
             return None
 
@@ -119,8 +120,9 @@ class Audit:
     @classmethod
     def from_mise(cls, *tools: str) -> Self:
         """
-        Runs `mise audit` over each of `tools`, or each tool `[tools]` in
-        `.mise/config.toml` names where `tools` is empty.
+        Runs `mise audit` over `tools`, the tools to check and any flag
+        before them, or over each tool `[tools]` in `.mise/config.toml`
+        names where `tools` is empty.
         """
         config = Path(environ["MISE_PROJECT_ROOT"], ".mise/config.toml")
         tools  = tools or tuple(read_toml(config.read_text(encoding="utf-8"))["tools"])

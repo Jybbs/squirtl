@@ -451,7 +451,7 @@ def test_an_ignored_advisory_passes_only_while_no_release_fixes_it(
             ({**advisory(), "version": "3.15.3"},),
             0,
             "",
-            [["mise", "audit", "--json", "python@3.15.3"]],
+            [["mise", "audit", "--json", "--cd", "/", "python@3.15.3"]],
             id = "the-newest-still-carries-it"
         ),
         param(
@@ -463,7 +463,7 @@ def test_an_ignored_advisory_passes_only_while_no_release_fixes_it(
                 "GHSA-0000-0000-0001 from AUDIT_IGNORE in .mise/config.toml and "
                 "lift python 3.15.2 to 3.15.3\n"
             ),
-            [["mise", "audit", "--json", "python@3.15.3"]],
+            [["mise", "audit", "--json", "--cd", "/", "python@3.15.3"]],
             id = "the-newest-no-longer-carries-it"
         ),
         param(
@@ -475,7 +475,7 @@ def test_an_ignored_advisory_passes_only_while_no_release_fixes_it(
                 "GHSA-0000-0000-0001 from AUDIT_IGNORE in .mise/config.toml and "
                 "lift python 3.15.2 to 3.15.3\n"
             ),
-            [["mise", "audit", "--json", "python@3.15.3"]],
+            [["mise", "audit", "--json", "--cd", "/", "python@3.15.3"]],
             id = "the-newest-carries-another-advisory"
         )
     ]
