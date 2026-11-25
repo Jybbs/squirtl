@@ -70,7 +70,7 @@ Every pull request that is not a draft runs the checks below in the `🕹️ CI`
 | **Check** | **Local Command** | **Fails When** |
 |---|---|---|
 | `🪧 Audit` | `mise audit` | A pin, a label, a workflow, a heading of the pull request template, or the package's layout departs from a rule `squirtl.repo.checks` holds it to, a file `mise write` writes into `docs/` drifts from the declaration it is written from, a footnote's definition drifts from `src/squirtl/docs/references.bib`, or a file the audit reads fails to parse, each one an annotation on the file and line it concerns |
-| `📦 Lockfile` | `mise lockfile` | `uv.lock`, a task script's lockfile, `.mise/mise.lock`, or `docs/bun.lock` drifts from its manifest, or a tool the project pins has no entry in `.mise/mise.lock` to install from |
+| `📦 Lockfile` | `mise lockfile` | `uv.lock`, a task script's lockfile, `.mise/mise.lock`, or `bun.lock` drifts from its manifest, or a tool the project pins has no entry in `.mise/mise.lock` to install from |
 | `🪻 Prose` | `mise lint` | The formatter reports a rewrite it would make or a lint finding, each one an annotation on the pull request |
 | `🏟️ Suite · <n>` | `mise run py:split --group <n> --randomly-seed <seed> --splits <machines>` | A test in the machine's share fails, where `--randomly-seed`, printed in every machine's log, sets one order of the suite, `--splits` cuts that order into one share per machine, and `--group` picks the share |
 | `🏟️ Suite` | `mise run py:combine` | The coverage of `src/squirtl/`, combined from every machine's data, falls below the **95%** that `fail_under` sets in `pyproject.toml` |
