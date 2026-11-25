@@ -43,12 +43,14 @@ git clone https://github.com/Jybbs/squirtl.git
 mise trust squirtl
 mise -C squirtl install
 cd squirtl
-mise doctor project
 ```
 
-*SquiRtL* ships no part of the game, so it runs on your own copy of the English Pokémon Blue ROM at `data/rom.gb`, which `.gitignore` keeps out of `git status` and a run refuses unless its SHA-1 is the one [pret/pokered](https://github.com/pret/pokered) lists. Then train an agent and evaluate it against random presses:
+*SquiRtL* ships no part of the game, so it runs on your own copy of the English Pokémon Blue ROM at `data/rom.gb`, which `.gitignore` keeps out of `git status` and a run refuses unless its SHA-1 is the one [pret/pokered](https://github.com/pret/pokered) lists. Copy your ROM there, then check the setup, train an agent, and evaluate it against random presses:
 
 ```bash
+mkdir -p data
+cp <rom> data/rom.gb
+mise doctor project
 squirtl train
 squirtl evaluate data/runs/<run>
 ```

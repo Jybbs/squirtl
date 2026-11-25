@@ -246,7 +246,7 @@ describe('the search’s figures', () => {
   })
 
   it('moves a group whose copies all die to the parent of the node they began on', () => {
-    const small = search.searchOf({ ...search.SIZES, particles: 2, seed: 1 }, 400)
+    const small = search.searchOf({ ...search.SIZES, particles: 2, seed: 97 })
     const fell  = small.iterations.filter(each => !each.synced)
       .flatMap(each => each.groups)
       .filter(group => group.winner === null)
@@ -267,7 +267,7 @@ describe('the search’s figures', () => {
   })
 
   it('keeps a group whose copies all die on the bedroom’s node there', () => {
-    const small = search.searchOf({ ...search.SIZES, particles: 2, seed: 3 }, 400)
+    const small = search.searchOf({ ...search.SIZES, particles: 2, seed: 272 })
     const fell  = small.iterations[0]!.groups.filter(group => group.winner === null)
 
     expect(fell.length).toBeGreaterThan(0)

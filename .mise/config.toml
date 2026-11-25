@@ -1,4 +1,4 @@
-min_version = "2026.11.9"
+min_version = "2026.11.10"
 
 [doctor.checks.cartridge]
 description = "A file sits at `data/rom.gb`, the place a run reads the user's own ROM of Pokémon Blue from"
@@ -14,14 +14,14 @@ timeout     = "10s"
 
 [doctor.checks.lockfile]
 description = "`uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `bun.lock` resolve what their manifests declare, and every tool the project pins installs from `.mise/mise.lock`"
-hint        = "Run `mise lockfile` to print what drifted, or the platform `mise lock` could not resolve without a connection, then `mise relock` to re-resolve every lockfile against its manifest."
+hint        = "Run `mise lockfile` to print what drifted, then `mise relock` to re-resolve every lockfile against its manifest."
 run         = "mise run lock:check"
 timeout     = "60s"
 
 [doctor.checks.venv]
-description = "`.venv` was built on the interpreter `.mise/config.toml` pins"
-hint        = "Run `uv venv --clear` and then `uv sync`, which rebuild `.venv` from `uv.lock` on the interpreter mise pins."
-run         = 'test .venv/bin/python -ef "$(mise which python)"'
+description = "`.venv` is absent until the first `squirtl` builds it, or sits on the interpreter `.mise/config.toml` pins"
+hint        = "Run `mise install`, and remove `.venv` where it is a link or a file, then run `uv venv --clear` and `uv sync`, which rebuild `.venv` from `uv.lock` on the interpreter mise pins."
+run         = 'test ! -L .venv && test ! -e .venv || test .venv/bin/python -ef "$(mise which python)"'
 timeout     = "10s"
 
 [env]

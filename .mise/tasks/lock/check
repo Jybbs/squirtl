@@ -4,20 +4,10 @@
 
 source "$MISE_PROJECT_ROOT/.mise/lib/lock.sh"
 
-restore() {
-  cmp -s "$snapshot" .mise/mise.lock || mv "$snapshot" .mise/mise.lock
-  rm -f "$snapshot"
-}
-
 uv lock --check
 lock_scripts --check
-snapshot=$(mktemp "${TMPDIR:-/tmp}/mise.lock.XXXXXX")
-trap 'rm -f "$snapshot"' EXIT
-cp -p .mise/mise.lock "$snapshot"
-trap restore EXIT
-report=$(MISE_LOG_LEVEL=warn MISE_QUIET=0 mise lock 2>&1) \
-  && [[ "$report" != *"failed to resolve"* ]] \
-  || { echo "$report" >&2; exit 1; }
-diff -u "$snapshot" .mise/mise.lock >&2
+mise lock --check > /dev/null
+stale=$(mise lock --dry-run --json --quiet)
+[[ "$stale" == "[]" ]] || { echo "$stale" >&2; exit 1; }
 mise install --dry-run --force
 bun install --dry-run --frozen-lockfile
