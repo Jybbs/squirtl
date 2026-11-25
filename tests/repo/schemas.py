@@ -842,6 +842,58 @@ def test_the_settings_turn_immutable_releases_on_or_off_as_declared(
     ] == [Command.api("immutable-releases", method=method)]
 
 
+def test_the_tasks_read_each_command_and_alias_mise_s_help_lists(fp: FakeProcess):
+    """
+    Pins that the tasks read each command the `Commands:` section of
+    `mise --help` lists and each alias its brackets name, an alias list
+    wrapped onto the next line among them, while a summary's wrapped
+    line, a task argument, and a flag add no word, and are unreadable on
+    `.mise/config.toml` where the help lists no command.
+    """
+    listing = dedent(
+        """\
+        Dev tools, env vars, and tasks in one CLI
+
+        Usage: mise [OPTIONS] [TASK] [COMMAND]
+
+        Commands:
+          audit     Check tool versions for known vulnerabilities
+          backends  Manage backends [aliases: b, backend,
+                    backend-list]
+          doctor    Check your mise setup for problems
+                    across every config [aliases: dr]
+
+        Arguments:
+          [TASK]  Task to run
+
+        Flags:
+          -C, --cd <DIR>  Run as if mise were started in DIR
+        """
+    )
+
+    fp.register(["mise", "tasks", "ls", fp.any()], stdout="[]")
+    fp.register(["mise", "tasks", "validate", fp.any()], stdout='{"issues": []}')
+    fp.register(["mise", "--help"], stdout=listing)
+
+    assert Tasks.read().commands == {
+        "audit", "b", "backend", "backend-list", "backends", "doctor", "dr"
+    }
+
+    fp.register(["mise", "tasks", "ls", fp.any()], stdout="[]")
+    fp.register(["mise", "tasks", "validate", fp.any()], stdout='{"issues": []}')
+    fp.register(["mise", "--help"], stdout="Usage: mise\n")
+
+    with raises(Unreadable) as raised:
+        Tasks.read()
+
+    assert [(str(finding.file), finding.message) for finding in raised.value.args] == [
+        (
+            ".mise/config.toml",
+            "Reading `.mise/config.toml` fails with '`mise --help` lists no command'"
+        )
+    ]
+
+
 def test_the_tasks_read_mise_s_report_even_where_validation_fails(
     checkout : Callable[[Mapping[str, str]], None],
     fp       : FakeProcess
@@ -873,6 +925,7 @@ def test_the_tasks_read_mise_s_report_even_where_validation_fails(
             }
         )
     )
+    fp.register(["mise", "--help"], stdout="Usage: mise\n\nCommands:\n  run  Run\n\n")
     tasks = Tasks.read()
 
     assert [issue.text for issue in tasks.issues] == ["'Empty'"]
@@ -899,6 +952,7 @@ def test_the_tasks_split_the_scripts_a_toml_task_runs(fp: FakeProcess):
     }]
 
     fp.register(["mise", "tasks", "validate", fp.any()], stdout='{"issues": []}')
+    fp.register(["mise", "--help"], stdout="Usage: mise\n\nCommands:\n  run  Run\n\n")
     fp.register(
         ["mise", "tasks", "ls", fp.any()],
         stdout = dumps([listing[0] | {"run": ["uv run a", {"task": "py:y"}]}])

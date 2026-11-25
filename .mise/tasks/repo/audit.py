@@ -1,5 +1,5 @@
 #!/usr/bin/env -S uv run --exact --locked
-# MISE alias       = "audit"
+# MISE alias       = "vet"
 # MISE description = "Fail on each pin, registry, or layout rule a file departs from"
 """
 Runs every check `squirtl.repo.checks` declares over the checkout, as the

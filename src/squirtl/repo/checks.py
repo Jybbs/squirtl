@@ -1386,7 +1386,8 @@ class Summaries(Check):
 class TaskCheck(Check):
     """
     Reports each defect `mise tasks validate` finds in a task's definition,
-    a warning as a warning.
+    a warning as a warning, and each task alias one of mise's own commands
+    takes, which `mise tasks validate` leaves unreported.
     """
 
     tasks: Tasks
@@ -1394,8 +1395,23 @@ class TaskCheck(Check):
     def scan(self) -> Iterator[Finding]:
         """
         Yields a finding on the file declaring the task each defect sits in,
-        or on `.mise/config.toml` where mise lists no such task.
+        or on `.mise/config.toml` where mise lists no such task, and one on
+        the line of a task's file declaring each alias that names a command
+        or a command alias `mise --help` lists.
         """
+        for task in self.tasks.tasks:
+            for alias in sorted(self.tasks.commands.intersection(task.aliases)):
+                yield Finding.locate(
+                    task.file,
+                    "alias",
+                    alias,
+                    message = (
+                        f"`{task.file}` gives `{task.name}` the alias "
+                        f"`{alias}`, whereas `mise {alias}` runs mise's own "
+                        "command"
+                    )
+                )
+
         for issue in self.tasks.issues:
             yield Finding(
                 file    = self.tasks.declaring(issue.task),

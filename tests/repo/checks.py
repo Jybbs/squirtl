@@ -2450,6 +2450,43 @@ def test_site_copies_report_each_shared_package_the_lockfile_resolves_twice(
     assert findings == [("docs/package.json", line, message) for line, message in found]
 
 
+def test_task_check_reports_each_alias_a_command_of_mise_takes(scan: Scan):
+    """
+    Pins that the task check reports each alias of a task that names a
+    command or a command alias `mise --help` lists, in alphabetical order,
+    on the line of the task's file declaring its aliases, while an alias no
+    command takes and a command no alias names pass.
+    """
+    task = Task(
+        aliases = ["vet", "r", "audit"],
+        depends = [],
+        name    = "repo:audit",
+        source  = Path(".mise/tasks/repo/audit.py").absolute()
+    )
+
+    assert scan(
+        TaskCheck,
+        {
+            ".mise/tasks/repo/audit.py":
+                '#!/bin/sh\n# MISE alias = ["vet", "r", "audit"]\n'
+        },
+        Tasks(
+            commands = frozenset({"audit", "r", "run", "tasks"}),
+            issues   = [],
+            tasks    = [task]
+        )
+    ) == [
+        (
+            ".mise/tasks/repo/audit.py", 2,
+            (
+                "`.mise/tasks/repo/audit.py` gives `repo:audit` the alias "
+                f"`{alias}`, whereas `mise {alias}` runs mise's own command"
+            )
+        )
+        for alias in ("audit", "r")
+    ]
+
+
 def test_task_check_reports_each_defect_mise_finds_at_its_weight(scan: Scan):
     """
     Pins that the task check reports each defect `mise tasks validate`
@@ -2651,6 +2688,7 @@ def test_the_audit_reports_each_unreadable_file_once(
     fp.register(["git", "ls-files", fp.any()], stdout="a.py\0b.py\0")
     fp.register(["mise", "tasks", "ls", fp.any()], stdout="[]")
     fp.register(["mise", "tasks", "validate", fp.any()], stdout='{"issues": []}')
+    fp.register(["mise", "--help"], stdout="Usage: mise\n\nCommands:\n  run  Run\n\n")
 
     audit = Audit.read()
 
