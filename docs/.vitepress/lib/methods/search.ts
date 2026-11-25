@@ -266,23 +266,30 @@ export function pathOf(nodes: readonly Node[], node: number): Button[] {
 
 /**
  * Plays a seeded search from the bedroom on the model of the first rooms, an
- * iteration at a time until a copy sets the starter's flag, whose presses from
- * the bedroom are the demonstration.
+ * iteration at a time without end, yielding each beside the tree's nodes once
+ * it ends.
+ */
+export function* iterationsOf(sizes: Sizes = SIZES): Generator<[Iteration, readonly Node[]], never> {
+  const run = new Run(sizes)
+  for (let n = 1; ; n += 1) yield [run.iterate(n), run.nodes]
+}
+
+/**
+ * Plays the iterations of `iterationsOf` until a copy sets the starter's flag,
+ * whose presses from the bedroom are the demonstration.
  *
  * Raises:
  *   Error: Where no copy sets the flag within `cap` iterations.
  */
 export function searchOf(sizes: Sizes = SIZES, cap = 200): Search {
-  const run        = new Run(sizes)
   const iterations = [] as Iteration[]
 
-  while (iterations.length < cap) {
-    const iteration = run.iterate(iterations.length + 1)
-    const found     = foundIn(iteration)
+  for (const [iteration, nodes] of iterationsOf(sizes).take(cap)) {
+    const found = foundIn(iteration)
     iterations.push(iteration)
     if (found) {
       const { node } = iteration.groups[found.group]!.copies[found.slot]!
-      return { demonstration: pathOf(run.nodes, node!), found, iterations, nodes: run.nodes }
+      return { demonstration: pathOf(nodes, node!), found, iterations, nodes }
     }
   }
   throw new Error(`The search sets no starter's flag within ${count(cap)} iterations`)

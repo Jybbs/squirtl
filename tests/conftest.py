@@ -30,7 +30,8 @@ from io                import StringIO
 from numpy             import ndarray
 from os                import devnull
 from pathlib           import Path
-from pytest            import Config, FixtureRequest, Item, MonkeyPatch, TempPathFactory, fixture, hookimpl, mark
+from pytest            import Config, FixtureRequest, Function, Item, MonkeyPatch, TempPathFactory, fixture, hookimpl
+from pytest            import mark
 from pytest_subprocess import FakeProcess
 from shutil            import copytree
 from subprocess        import check_call
@@ -168,19 +169,31 @@ def pytest_collection_modifyitems(config: Config, items: Iterable[Item]):
     test from opening a connection, and a test carrying `enable_socket` can
     reach a live service again.
 
-    Under `--dist=loadgroup`, it also appends the name of a test's
-    `xdist_group` mark to its node id, from which the scheduler sends every
-    test of one group to one worker. pytest-xdist 3.8.0 writes that name to
-    `_nodeid`, which pytest 9.2 no longer reads, and the release after it
-    carries the fix, pytest-dev/pytest-xdist#1388.
+    Under `--dist=loadgroup`, it gives every test requesting `played` and
+    carrying no `xdist_group` mark the group `played`, so each run plays
+    once a session rather than once a worker, then appends the name of
+    a test's `xdist_group` mark to its node id, from which the scheduler
+    sends every test of one group to one worker. pytest-xdist 3.8.0 writes
+    that name to `_nodeid`, which pytest 9.2 no longer reads, and the fix,
+    pytest-dev/pytest-xdist#1388, has merged into no release yet.
     """
+    grouping = config.getoption("loadgroup", False)
+
     for item in items:
         if item.get_closest_marker("network"):
             item.add_marker(mark.enable_socket)
 
-        if config.getoption("loadgroup", False) and (
-            group := item.get_closest_marker("xdist_group")
+        if not grouping:
+            continue
+
+        if (
+            isinstance(item, Function)
+            and "played" in item.fixturenames
+            and not item.get_closest_marker("xdist_group")
         ):
+            item.add_marker(mark.xdist_group("played"))
+
+        if group := item.get_closest_marker("xdist_group"):
             item._id = NodeId.parse(f"{item.nodeid}@{group.args[0]}")
 
 

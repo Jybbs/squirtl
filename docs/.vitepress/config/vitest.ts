@@ -17,7 +17,7 @@ export default defineConfig({
     resolveSnapshotPath : (testPath, extension) => testPath + extension,
     restoreMocks        : true,
     sequence            : { shuffle: true },
-    // Vitest's own default under `browser.enabled`, which the slowest cases need on a loaded machine.
+    // Vitest 5.1's default under `browser.enabled`, three times the 5,000 ms it sets otherwise.
     testTimeout         : 15_000,
     unstubEnvs          : true,
     unstubGlobals       : true,
