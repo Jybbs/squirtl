@@ -27,7 +27,7 @@ from squirtl.identity.schemas import Identity
 from squirtl.repo.schemas import (
     Actions, Citation, Finding, Labels, License, Lockfile, Manifest, MiseConfig,
     Project, PullRequestTemplate, ReleaseNotes, Rulesets, Scripts, Severity,
-    SiteLockfile, SiteManifest, Tasks, Templates, Tree, Unreadable, WorkflowJob,
+    SiteLockfile, SiteManifest, SiteTsconfig, Tasks, Templates, Tree, Unreadable, WorkflowJob,
     Workflows
 )
 from squirtl.runs.schemas import Run
@@ -1305,6 +1305,84 @@ class SitePins(Check):
             )
 
 
+class SitePushes(Check):
+    """
+    Holds the push filter of the workflow publishing the site to the root
+    manifest and lockfile of the site's packages and to every file under
+    `tests/`, so a change to either suite or to the packages they run on
+    rebuilds the site.
+    """
+
+    pages: ClassVar[Path] = Path(".github/workflows/pages.yml")
+
+    watched: ClassVar[tuple[str, ...]] = ("package.json", "bun.lock", "tests/**")
+
+    tree      : Tree
+    workflows : Workflows
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding on the line of the push filter of `pages` for each
+        pattern of `watched` matching a file of the checkout that a push can
+        touch without running the workflow, naming the first such file and
+        counting the rest.
+        """
+        for workflow in self.workflows.workflows:
+            for glob in self.watched if workflow.path == self.pages else ():
+                left = [
+                    file
+                    for file in self.tree.files
+                    if file.full_match(glob) and not workflow.pushes(file)
+                ]
+                more = f" and {len(left) - 1} more" if len(left) > 1 else ""
+
+                if left:
+                    yield Finding(
+                        file    = workflow.path,
+                        line    = workflow.filter_line,
+                        message = (
+                            f"The push filter of `{workflow.path}` leaves out "
+                            f"`{left[0]}`{more}, so it needs an entry matching `{glob}`"
+                        )
+                    )
+
+
+class SiteTypes(Check):
+    """
+    Holds the site's type check to every TypeScript file of the site's
+    suite, so the suite is checked beside the code it covers.
+    """
+
+    suite: ClassVar[Path] = Path("tests/site")
+
+    tree     : Tree
+    tsconfig : SiteTsconfig
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding on the line of `include` in the site's
+        `tsconfig.json` where it leaves out a `.ts` or `.tsx` file under
+        `suite`, the extensions the type check reads by default, naming the
+        first such file and counting the rest.
+        """
+        left = [
+            file
+            for file in self.tree.under(self.suite)
+            if file.suffix in {".ts", ".tsx"} and not self.tsconfig.reads(file)
+        ]
+        more = f" and {len(left) - 1} more" if len(left) > 1 else ""
+
+        if left:
+            yield Finding.locate(
+                SiteTsconfig.file,
+                '"include"',
+                message = (
+                    f"`{SiteTsconfig.file}` leaves out `{left[0]}`{more}, so its "
+                    f"`include` needs an entry matching the files under `{self.suite}/`"
+                )
+            )
+
+
 class Subsets(Check):
     """
     Holds the tool subsets the jobs restoring a cache install to the
@@ -1453,7 +1531,6 @@ class Warming(Check):
 
         for workflow in self.workflows.workflows:
             saving = [job for job in workflow.jobs if job.cache_mode == "write"]
-            on     = workflow.root.at("on") or workflow.root
             run    = [
                 manifests[step.local]
                 for job in saving
@@ -1477,13 +1554,8 @@ class Warming(Check):
             for file in sorted(built) if saving else []:
                 if not workflow.pushes(file):
                     yield Finding(
-                        file = workflow.path,
-                        line = (
-                            on.at("push", "paths") or on.at(
-                                "push",
-                                "paths-ignore"
-                            ) or on
-                        ).line,
+                        file    = workflow.path,
+                        line    = workflow.filter_line,
                         message = (
                             f"`{workflow.path}` saves a cache keyed on `{file}`, "
                             "which its push filter leaves out"
