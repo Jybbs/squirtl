@@ -1,0 +1,39 @@
+{
+  "name": "squirtl",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "@tailwindcss/node": "4.3.5",
+    "@tailwindcss/oxide": "4.3.5",
+    "@tailwindcss/vite": "4.3.5",
+    "@types/node": "26.6.6",
+    "@vitejs/plugin-vue-jsx": "5.1.6",
+    "@vitest/coverage-v8": "5.1.0",
+    "@vue/test-utils": "2.6.0",
+    "@vue/tsconfig": "0.9.1",
+    "@vueuse/core": "15.0.0",
+    "@zag-js/slider": "1.48.0",
+    "@zag-js/toggle-group": "1.48.0",
+    "@zag-js/vue": "1.48.0",
+    "gifenc": "1.0.3",
+    "happy-dom": "21.0.4",
+    "knip": "6.45.1",
+    "markdown-it-mathjax3": "4.3.2",
+    "oxlint": "1.94.0",
+    "smol-toml": "1.9.1",
+    "tailwindcss": "4.3.5",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vitepress": "2.0.0-alpha.21",
+    "vitest": "5.1.0",
+    "vue": "3.5.45"
+  },
+  "knip": {
+    "ignoreDependencies": ["oxlint"],
+    "oxlint": { "config": ["docs/.vitepress/config/.oxlintrc.json"] },
+    "typescript": { "config": ["docs/.vitepress/tsconfig.json"] },
+    "vitepress": { "entry": ["docs/.vitepress/config/index.ts", "docs/.vitepress/theme/index.ts"] },
+    "vitest": { "config": ["docs/.vitepress/config/vitest.ts"] }
+  }
+}

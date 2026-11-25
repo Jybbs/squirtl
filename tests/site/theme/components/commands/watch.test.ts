@@ -1,0 +1,132 @@
+// @vitest-environment happy-dom
+import { type VueWrapper, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { afterEach, describe, expect, vi }                          from 'vitest'
+import { nextTick }                                                 from 'vue'
+
+import * as watching          from '../../../../../docs/.vitepress/lib/commands/watch.ts'
+import * as browser           from '../../../common/browser.ts'
+import { Recorder, drawInto } from '../../../common/canvas.ts'
+import { stopped }            from '../../../common/clock.ts'
+import * as input             from '../../../common/input.ts'
+
+const { CommandsWatch } = await import('../../../../../docs/.vitepress/theme/components/commands/watch.tsx')
+
+enableAutoUnmount(afterEach)
+
+/**
+ * Reads each check's chip as it reads.
+ */
+const checks = (wrapper: VueWrapper): string[] => wrapper.findAll('.watch-status').map(each => each.text())
+
+/**
+ * Mounts the widget drawing into `recorder` and lets the rooms load.
+ */
+async function mounted(recorder: Recorder | null = new Recorder()) {
+  drawInto(recorder)
+  const sight   = browser.stubSight()
+  const wrapper = mount(CommandsWatch, { attachTo: document.body })
+  await flushPromises()
+  return { sight, wrapper }
+}
+
+describe('CommandsWatch', () => {
+  stopped('waits with the window closed until it shows', async () => {
+    const { wrapper } = await mounted()
+
+    expect([checks(wrapper), input.sliderState(wrapper)]).toStrictEqual([
+      ['Digestwaiting', 'Returnwaiting'], ['1', 'Press 1 of 181, Right']
+    ])
+    expect(wrapper.text()).toBePublishedProse()
+  })
+
+  stopped('checks the digest, plays every press, and checks the return once it shows', async () => {
+    const recorder          = new Recorder()
+    const { sight, wrapper } = await mounted(recorder)
+
+    sight.show(true)
+    vi.advanceTimersByTime(watching.PHASES.digest)
+    await nextTick()
+    const before = checks(wrapper)
+    vi.advanceTimersByTime(watching.PHASES.play + 600 - watching.PHASES.digest)
+    await nextTick()
+
+    expect([before, checks(wrapper), input.sliderState(wrapper)[0]]).toStrictEqual([
+      ['Digestmatches', 'Returnwaiting'], ['Digestmatches', 'Returnmatches'], '181'
+    ])
+    expect(recorder.images.length).toBeGreaterThan(0)
+  })
+})
+
+describe('CommandsWatch at a hold', () => {
+  stopped('stands at the hold under reduced motion, and leaves the screen blank without a '
+        + 'context', async () => {
+    browser.preference.value = 'reduce'
+    const { sight, wrapper } = await mounted(null)
+
+    sight.show(true)
+    await nextTick()
+
+    expect(checks(wrapper)).toStrictEqual(['Digestmatches', 'Returnmatches'])
+  })
+
+  stopped('keeps the byte the reader picks as the window leaves the screen and returns, motion '
+        + 'reduced', async () => {
+    browser.preference.value = 'reduce'
+    const { sight, wrapper } = await mounted()
+    const thumb              = wrapper.get('[role="slider"]')
+
+    await input.pressKeys(thumb, 'Home')
+    sight.show(true)
+    sight.show(false)
+    sight.show(true)
+    await nextTick()
+
+    expect(input.sliderState(wrapper)[0]).toBe('1')
+  })
+
+  stopped('holds the playback on the byte a press lands on', async () => {
+    const { wrapper } = await mounted()
+    const control     = wrapper.get("[data-part='control']")
+    vi.spyOn(control.element, 'getBoundingClientRect')
+      .mockReturnValue({ height: 50, left: 0, top: 0, width: 130 } as DOMRect)
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+      gridTemplateColumns: Array.from({ length: 13 }, () => '10px').join(' ')
+    } as CSSStyleDeclaration)
+    control.element.setPointerCapture = () => {}
+
+    await control.trigger('pointerdown', { clientX: 25, clientY: 1, pointerId: 1, pointerType: 'mouse' })
+    await control.trigger('pointermove', { buttons: 1, clientX: 35, clientY: 1, pointerType: 'mouse' })
+    await control.trigger('pointermove', { buttons: 0, clientX: 125, clientY: 45, pointerType: 'mouse' })
+
+    expect(input.sliderState(wrapper)[0]).toBe('4')
+  })
+})
+
+describe('CommandsWatch’s slider', () => {
+  stopped('holds on the first press at Home, the reset before it never shown', async () => {
+    const { wrapper } = await mounted()
+    const thumb       = wrapper.get('[role="slider"]')
+
+    await input.pressKeys(thumb, 'End', 'Home')
+    await nextTick()
+
+    expect(input.sliderState(wrapper)).toStrictEqual(['1', 'Press 1 of 181, Right'])
+  })
+
+  stopped('replays from the reset when the slider moves back once the window shows', async () => {
+    const recorder           = new Recorder()
+    const { sight, wrapper } = await mounted(recorder)
+    const thumb              = wrapper.get('[role="slider"]')
+
+    sight.show(true)
+    vi.advanceTimersByTime(watching.PHASES.play)
+    await nextTick()
+    await input.pressKeys(thumb, 'End')
+    await nextTick()
+    const drawn = recorder.images.length
+    await input.pressKeys(thumb, 'Home')
+    await nextTick()
+
+    expect([input.sliderState(wrapper)[0], recorder.images.length > drawn]).toStrictEqual(['1', true])
+  })
+})
