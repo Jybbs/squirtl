@@ -43,7 +43,6 @@ def test_an_episode_plays_back_in_the_window_to_the_return_the_run_recorded(
     names, boots the emulator in its SDL2 window and exits zero on reaching
     the return the run recorded, which it logs.
     """
-    windows.clear()
     invocation = invoke(["watch", str(trained), *flags])
 
     assert (invocation.code, windows) == (0, ["SDL2"])
@@ -171,7 +170,6 @@ def test_a_playback_with_nothing_to_play_exits_1_before_the_window_opens(
     Asserts that naming an episode past the two the run recorded, or a
     directory holding no run, exits 1 before any emulator boots.
     """
-    windows.clear()
     invocation = invoke(["watch", str(trained if argv else trained.parent), *argv])
 
     assert (invocation.code, windows) == (1, [])
@@ -252,7 +250,6 @@ def test_a_selection_naming_no_one_run_exits_1_before_the_window_opens(
     beside a directory, or a selection matching no run of the release exits
     1, logging the reason, before any emulator boots.
     """
-    windows.clear()
     invocation = invoke(["watch", *argv])
 
     assert (invocation.code, reason in invocation.log, windows) == (1, True, [])

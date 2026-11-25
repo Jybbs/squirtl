@@ -17,6 +17,8 @@ Pins what each check `repo:audit` runs reports, covering:
   footnotes of each Markdown file against `src/squirtl/docs/references.bib`, the
   docs site's pins to one exact version and the pins that move together, and
   the flags of each `bun install`
+- The push filter of `🕹️ Pages` and the site's type check against the
+  root manifest, the root lockfile, and both suites
 - How `Audit` reads every check and reports what they find
 
 Each case writes the files it reads under `tmp_path` through the `checkout`
@@ -40,7 +42,7 @@ from squirtl.emulator.schemas import Record
 from squirtl.repo.checks  import (
     Anchors, Attribution, Audit, Check, Commits, Docstrings, Drafts, Footnotes,
     Gates, Imports, Inputs, Installs, LabelCheck, Layout, Marks, Pins, Rendered,
-    Rows, Runners, ScriptCheck, SiteCopies, SitePins, Subsets, Summaries, TaskCheck, Warming
+    Rows, Runners, ScriptCheck, SiteCopies, SitePins, SitePushes, SiteTypes, Subsets, Summaries, TaskCheck, Warming
 )
 from squirtl.repo.schemas import (
     Finding, Severity, Task, TaskIssue, Tasks, Tree, Unreadable, WorkflowJob
@@ -2224,6 +2226,225 @@ def test_site_pins_report_a_run_time_dependency_pinned_to_a_range(
     ]
 
 
+@mark.parametrize(
+    ("on", "found"),
+    [
+        param(
+            "on:\n  push:\n    paths-ignore: [tests/**]\n",
+            [(3, "tests/**", "`tests/py/a.py` and 1 more")],
+            id = "ignored"
+        ),
+        param(
+            "on: workflow_dispatch\n",
+            [
+                (1, "package.json", "`package.json`"),
+                (1, "bun.lock", "`bun.lock`"),
+                (1, "tests/**", "`tests/py/a.py` and 1 more")
+            ],
+            id = "no-push"
+        )
+    ]
+)
+def test_site_pushes_read_a_pages_workflow_with_no_paths_filter(
+    found : list[tuple[int, str, str]],
+    on    : str,
+    scan  : Scan
+):
+    """
+    Pins that the site's pushes check reports each pattern a `paths-ignore`
+    filter of `🕹️ Pages` skips on the line of that filter, and every pattern
+    on the line of `on` where no push runs the workflow.
+    """
+    findings = scan(
+        SitePushes,
+        {".github/workflows/pages.yml": on},
+        Tree(
+            files = [
+                Path("bun.lock"),
+                Path("package.json"),
+                Path("tests/py/a.py"),
+                Path("tests/site/a.test.ts")
+            ]
+        )
+    )
+
+    assert findings == [
+        (
+            ".github/workflows/pages.yml", line,
+            f"The push filter of `.github/workflows/pages.yml` leaves out {files}, "
+            f"so it needs an entry matching `{glob}`"
+        )
+        for line, glob, files in found
+    ]
+
+
+@mark.parametrize(
+    ("paths", "found"),
+    [
+        param("[bun.lock, package.json, tests/**]", [], id="clean"),
+        param(
+            "[bun.lock, tests/**]",
+            [("package.json", "`package.json`")],
+            id = "manifest"
+        ),
+        param("[package.json, tests/**]", [("bun.lock", "`bun.lock`")], id="lockfile"),
+        param(
+            "[bun.lock, package.json]",
+            [("tests/**", "`tests/py/a.py` and 1 more")],
+            id = "suites"
+        ),
+        param(
+            "[bun.lock, package.json, tests/**, '!tests/site/**']",
+            [("tests/**", "`tests/site/a.test.ts`")],
+            id = "negated"
+        ),
+        param(
+            "[bun.lock, package.json, tests/py/**, tests/site/**]",
+            [],
+            id = "each-suite"
+        )
+    ]
+)
+def test_site_pushes_report_each_pattern_the_pages_filter_leaves_out(
+    found : list[tuple[str, str]],
+    paths : str,
+    scan  : Scan
+):
+    """
+    Pins that the site's pushes check reports each of the root manifest,
+    the root lockfile, and the files under `tests/` that a push can touch
+    without running `🕹️ Pages`, on the line of its push filter, naming the
+    first file left out and counting the rest, whereas `docs/package.json`
+    and another workflow's filter are not held to it.
+    """
+    findings = scan(
+        SitePushes,
+        {
+            ".github/workflows/ci.yml"    : "on:\n  push:\n    paths: [src/**]\n",
+            ".github/workflows/pages.yml" : f"\non:\n  push:\n    paths: {paths}\n"
+        },
+        Tree(
+            files = [
+                Path("bun.lock"),
+                Path("docs/package.json"),
+                Path("package.json"),
+                Path("tests/py/a.py"),
+                Path("tests/site/a.test.ts")
+            ]
+        )
+    )
+
+    assert findings == [
+        (
+            ".github/workflows/pages.yml", 4,
+            f"The push filter of `.github/workflows/pages.yml` leaves out {files}, "
+            f"so it needs an entry matching `{glob}`"
+        )
+        for glob, files in found
+    ]
+
+
+def test_site_pushes_hold_the_filter_to_no_root_file_the_checkout_lacks(scan: Scan):
+    """
+    Pins that the site's pushes check reports nothing where the checkout
+    holds neither a root manifest nor a root lockfile, so a filter naming
+    neither passes, and nothing where no workflow publishes the site.
+    """
+    pages = {".github/workflows/pages.yml": "on:\n  push:\n    paths: [tests/**]\n"}
+    tree  = Tree(files=[Path("docs/bun.lock"), Path("tests/py/a.py")])
+
+    assert scan(SitePushes, pages, tree) == []
+    assert scan(SitePushes, {".github/workflows/ci.yml": "on: push\n"}, tree) == []
+
+
+@mark.parametrize(
+    ("tsconfig", "found"),
+    [
+        param(
+            {
+                "include": [
+                    "**/*.ts", "../../tests/site/**/*.ts", "../../tests/site/**/*.tsx",
+                    "../../tests/site/**/*.mts", "../../tests/site/**/*.cts"
+                ]
+            },
+            [],
+            id = "clean"
+        ),
+        param(
+            {"include": ["**/*.ts", "**/*.tsx", "../../tests/site/**/*.ts"]},
+            [(2, "`tests/site/b.test.tsx` and 2 more")],
+            id = "extension"
+        ),
+        param({"include": ["**/*.ts", "../../tests/site"]}, [], id="folder"),
+        param({"include": ["../../tests/**/*"]}, [], id="wider"),
+        param(
+            {"include": ["**/*.ts", "**/*.tsx"]},
+            [(2, "`tests/site/a.test.ts` and 4 more")],
+            id = "left-out"
+        ),
+        param(
+            {
+                "exclude" : ["../../tests/site/common"],
+                "include" : ["../../tests/site/**/*"]
+            },
+            [(5, "`tests/site/common/clock.ts`")],
+            id = "excluded"
+        ),
+        param(
+            {
+                "include": [
+                    "../../tests/site/a.test.ts", "../../tests/site/b.test.tsx",
+                    "../../tests/site/c.test.mts", "../../tests/site/common/clock.ts",
+                    "../../tests/site/d.test.cts"
+                ]
+            },
+            [],
+            id = "named"
+        ),
+        param({}, [(None, "`tests/site/a.test.ts` and 4 more")], id="default")
+    ]
+)
+def test_site_types_report_a_tsconfig_leaving_out_the_site_suite(
+    found    : list[tuple[int | None, str]],
+    scan     : Scan,
+    tsconfig : dict[str, list[str]]
+):
+    """
+    Pins that the site's types check reports a `tsconfig.json` whose
+    `include`, resolved against its own folder, matches no file of the
+    site suite's TypeScript or whose `exclude` skips one, on the line of
+    `include`, naming the first file left out and counting the rest, and
+    reads a pattern naming a folder as every file under it and one naming a
+    file as that file alone, whereas a file of an extension the type check
+    skips under the suite is not held to it.
+    """
+    findings = scan(
+        SiteTypes,
+        {"docs/.vitepress/tsconfig.json": dumps(tsconfig, indent=2)},
+        Tree(
+            files = [
+                Path("docs/.vitepress/config/index.ts"),
+                Path("tests/site/a.test.ts"),
+                Path("tests/site/b.test.tsx"),
+                Path("tests/site/c.test.mts"),
+                Path("tests/site/common/clock.ts"),
+                Path("tests/site/d.test.cts"),
+                Path("tests/site/package.json")
+            ]
+        )
+    )
+
+    assert findings == [
+        (
+            "docs/.vitepress/tsconfig.json", line,
+            f"`docs/.vitepress/tsconfig.json` leaves out {files}, so it needs an "
+            "`include` entry matching the files under `tests/site/` and no `exclude` "
+            "entry skipping them"
+        )
+        for line, files in found
+    ]
+
+
 def test_subsets_report_each_subset_one_side_lacks(
     provision : str,
     scan      : Scan,
@@ -2705,6 +2926,7 @@ def test_the_audit_reports_each_unreadable_file_once(
         "a.py",
         "b.py",
         "bun.lock",
+        "docs/.vitepress/tsconfig.json",
         "package.json",
         "pyproject.toml",
         "src/squirtl/docs/references.bib",
