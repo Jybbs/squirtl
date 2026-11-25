@@ -161,24 +161,15 @@ def test_a_mix_past_the_srgb_gamut_clips_each_channel():
     assert colored("#ff0000").mix(0.5, colored("#ffffff")) == "#ffa191"
 
 
-def test_body_text_holds_four_and_a_half_to_one_on_every_surface():
+def test_a_project_mark_declaring_what_its_glyph_depicts_fails_the_read(declared: dict):
     """
-    Pins that each tone the site sets body text in reaches the 4.5:1 WCAG
-    2.2 sets for body text on each surface a page lays text on, its ground
-    and the lift a panel or a code block takes, in each color scheme.
+    Pins that a project mark declaring `depicts`, a key `ProjectMark` has no
+    field for, fails validation rather than passing unread.
     """
-    identity = Identity.read()
-    palette  = identity.palette
+    declared["project_marks"][0]["depicts"] = "The joystick"
 
-    assert [
-        (scheme, text, surface)
-        for scheme, roles in identity.schemes
-        for text in ("hover", "ink", "link", "quiet")
-        for surface in ("ground", "lift")
-        if palette[getattr(roles, text)].contrast(
-            palette[getattr(roles, surface)]
-        ) < 4.5
-    ] == []
+    with raises(ValidationError, match=r"project_marks\.0\.depicts\n  Extra inputs"):
+        Identity.model_validate(declared)
 
 
 @mark.parametrize(
@@ -203,6 +194,26 @@ def test_a_swatch_writes_light_dark_only_where_the_schemes_differ(
     assert swatch.value == value
 
 
+def test_body_text_holds_four_and_a_half_to_one_on_every_surface():
+    """
+    Pins that each tone the site sets body text in reaches the 4.5:1 WCAG
+    2.2 sets for body text on each surface a page lays text on, its ground
+    and the lift a panel or a code block takes, in each color scheme.
+    """
+    identity = Identity.read()
+    palette  = identity.palette
+
+    assert [
+        (scheme, text, surface)
+        for scheme, roles in identity.schemes
+        for text in ("hover", "ink", "link", "quiet")
+        for surface in ("ground", "lift")
+        if palette[getattr(roles, text)].contrast(
+            palette[getattr(roles, surface)]
+        ) < 4.5
+    ] == []
+
+
 def test_code_sets_at_the_size_putting_its_x_height_at_the_bodys():
     """
     Pins that code sets at the share of the text around it that stands its
@@ -223,22 +234,6 @@ def test_contrast_is_the_same_whichever_color_comes_first():
     black, white = colored("#000000"), colored("#ffffff")
 
     assert (black.contrast(white), white.contrast(black)) == (21.0, 21.0)
-
-
-def test_motion_writes_its_curves_as_css_functions():
-    """
-    Asserts that the timing's curve and its travel curve each read as the
-    `cubic-bezier()` a transition takes, each control point at its shortest.
-    """
-    motion = Motion(
-        curve    = (0.32, 0.72, 0.0, 1.0),
-        duration = 150,
-        travel   = (0.42, 0.0, 0.58, 1.0)
-    )
-
-    assert (motion.easing, motion.traveling) == (
-        "cubic-bezier(0.32, 0.72, 0, 1)", "cubic-bezier(0.42, 0, 0.58, 1)"
-    )
 
 
 @mark.parametrize(
@@ -283,22 +278,19 @@ def test_a_face_quotes_every_family_but_the_generic_ones(
     assert (face.stack, face.query) == (stack, query)
 
 
-def test_the_project_marks_place_one_glyph_on_each_section_the_workflows_and_the_gate():
+def test_motion_writes_its_curves_as_css_functions():
     """
-    Pins the glyph the declared project marks place on each section of a
-    pull request's body, on every workflow's name, and on the name of the
-    gate each workflow ends on.
+    Asserts that the timing's curve and its travel curve each read as the
+    `cubic-bezier()` a transition takes, each control point at its shortest.
     """
-    identity = Identity.read()
+    motion = Motion(
+        curve    = (0.32, 0.72, 0.0, 1.0),
+        duration = 150,
+        travel   = (0.42, 0.0, 0.58, 1.0)
+    )
 
-    assert (identity.headings, identity.workflow_mark, identity.gate_mark) == (
-        {
-            "Implementation Notes" : "👟",
-            "Key Changes"          : "🎒",
-            "Quick Summary"        : "🕹️",
-            "Related Issues"       : "🧵"
-        },
-        "🕹️", "🎒"
+    assert (motion.easing, motion.traveling) == (
+        "cubic-bezier(0.32, 0.72, 0, 1)", "cubic-bezier(0.42, 0, 0.58, 1)"
     )
 
 
@@ -397,6 +389,25 @@ def test_a_declaration_leaving_out_a_key_fails_the_read(
         Identity.model_validate(declared)
 
 
+def test_the_project_marks_place_one_glyph_on_each_section_the_workflows_and_the_gate():
+    """
+    Pins the glyph the declared project marks place on each section of a
+    pull request's body, on every workflow's name, and on the name of the
+    gate each workflow ends on.
+    """
+    identity = Identity.read()
+
+    assert (identity.headings, identity.workflow_mark, identity.gate_mark) == (
+        {
+            "Implementation Notes" : "👟",
+            "Key Changes"          : "🎒",
+            "Quick Summary"        : "🕹️",
+            "Related Issues"       : "🧵"
+        },
+        "🕹️", "🎒"
+    )
+
+
 def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
     """
     Pins that the `@theme` block opens on clearing Tailwind's own theme and
@@ -413,15 +424,6 @@ def test_the_sheet_clears_tailwinds_theme_and_declares_each_value_in_order():
         "  --text-code: 0.9218em;", "  --text-label: 0.6875rem;"
     } <= {*lines}
     assert "--color-citation-shell" in names
-
-
-def test_the_shipped_declaration_holds_every_field_the_record_declares(declared: dict):
-    """
-    Asserts that `identity.toml` declares a key for every field `Identity`
-    reads and no other, so no field falls back on a default the file never
-    states.
-    """
-    assert {*declared} == {*Identity.model_fields}
 
 
 @mark.parametrize(
@@ -448,20 +450,13 @@ def test_a_mix_matches_the_one_css_color_mix_draws_in_oklab(
     assert colored(start).mix(share, colored(toward)) == mixed
 
 
-def test_tones_read_each_role_from_the_name_its_scheme_gives():
+def test_the_shipped_declaration_holds_every_field_the_record_declares(declared: dict):
     """
-    Pins the color each role takes on each scheme to the color the scheme's
-    name for it reads.
+    Asserts that `identity.toml` declares a key for every field `Identity`
+    reads and no other, so no field falls back on a default the file never
+    states.
     """
-    tones = Identity.read().tones
-
-    assert (
-        tones["light"]["ground"],
-        tones["dark"]["ground"],
-        tones["light"]["link"]
-    ) == (
-        "#f3f4f7", "#121722", "#294e95"
-    )
+    assert {*declared} == {*Identity.model_fields}
 
 
 @mark.parametrize(
@@ -566,16 +561,20 @@ def test_a_step_or_a_shade_other_than_its_mix_fails_the_read(
         Identity.model_validate(declared)
 
 
-def test_two_theme_colors_sharing_a_name_fail_the_read(declared: dict):
+def test_tones_read_each_role_from_the_name_its_scheme_gives():
     """
-    Pins that a role named as one of the logo's colors fails validation,
-    naming the variable both would write, rather than one color of the
-    site's theme silently replacing the other.
+    Pins the color each role takes on each scheme to the color the scheme's
+    name for it reads.
     """
-    declared["roles"]["ahead"] = "fern"
+    tones = Identity.read().tones
 
-    with raises(ValidationError, match="two theme colors share a name: ahead"):
-        Identity.model_validate(declared)
+    assert (
+        tones["light"]["ground"],
+        tones["dark"]["ground"],
+        tones["light"]["link"]
+    ) == (
+        "#f3f4f7", "#121722", "#294e95"
+    )
 
 
 @mark.parametrize(
@@ -609,4 +608,16 @@ def test_a_placement_two_project_marks_share_or_none_takes_fails_the_read(
     declared["project_marks"][index][key] = value
 
     with raises(ValidationError, match=message):
+        Identity.model_validate(declared)
+
+
+def test_two_theme_colors_sharing_a_name_fail_the_read(declared: dict):
+    """
+    Pins that a role named as one of the logo's colors fails validation,
+    naming the variable both would write, rather than one color of the
+    site's theme silently replacing the other.
+    """
+    declared["roles"]["ahead"] = "fern"
+
+    with raises(ValidationError, match="two theme colors share a name: ahead"):
         Identity.model_validate(declared)

@@ -446,8 +446,9 @@ class Motion(Declared):
 
 class ProjectMark(Declared):
     """
-    One project mark, the glyph opening a part of what the repository
-    publishes, and the places it opens.
+    One project mark, the glyph opening a section of a pull request's body
+    and, where `workflows` or `gate` is set, every workflow's name or the
+    gate each workflow ends on.
     """
 
     glyph: str
