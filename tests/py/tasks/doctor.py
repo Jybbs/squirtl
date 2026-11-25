@@ -96,7 +96,7 @@ STATES = [
         "cartridge",
         {"data/rom.gb": None},
         None,
-        False,
+        "",
         True,
         id = "cartridge-rom-in-data"
     ),
@@ -104,16 +104,16 @@ STATES = [
         "cartridge",
         {"data/rom.gb": "rom/PokemonBlue.gb", "rom/PokemonBlue.gb": None},
         None,
-        False,
+        "",
         True,
         id = "cartridge-rom-linked-into-data"
     ),
-    param("cartridge", {}, None, False, False, id="cartridge-fresh-clone"),
+    param("cartridge", {}, None, "", False, id="cartridge-fresh-clone"),
     param(
         "cartridge",
         {"data/other.gb": None},
         None,
-        False,
+        "",
         False,
         id = "cartridge-data-without-rom"
     ),
@@ -121,7 +121,7 @@ STATES = [
         "cartridge",
         {"data/rom.gb": "rom/PokemonBlue.gb"},
         None,
-        False,
+        "",
         False,
         id = "cartridge-dangling-link"
     ),
@@ -129,21 +129,21 @@ STATES = [
         "cartridge",
         {"data/rom.gb/": None},
         None,
-        False,
+        "",
         False,
         id = "cartridge-folder-at-rom"
     ),
-    param("compiler", {}, "cc", False, True, id="compiler-runs"),
-    param("compiler", {}, None, False, False, id="compiler-missing"),
-    param("compiler", {}, "cc", True, False, id="compiler-failing"),
-    param("lockfile", {}, "mise", False, True, id="lockfile-current"),
-    param("lockfile", {}, "mise", True, False, id="lockfile-drifted"),
-    param("venv", {}, "mise", False, True, id="venv-absent"),
+    param("compiler", {}, "cc", "", True, id="compiler-runs"),
+    param("compiler", {}, None, "", False, id="compiler-missing"),
+    param("compiler", {}, "cc", "cc --version", False, id="compiler-failing"),
+    param("lockfile", {}, "mise", "", True, id="lockfile-current"),
+    param("lockfile", {}, "mise", "mise run lock:check", False, id="lockfile-drifted"),
+    param("venv", {}, "mise", "", True, id="venv-absent"),
     param(
         "venv",
         {".venv/bin/python": PINNED, PINNED: None},
         "mise",
-        False,
+        "",
         True,
         id = "venv-folder-on-the-pin"
     ),
@@ -151,7 +151,7 @@ STATES = [
         "venv",
         {".venv": "env", "env/bin/python": PINNED, PINNED: None},
         "mise",
-        False,
+        "",
         True,
         id = "venv-link-on-the-pin"
     ),
@@ -159,7 +159,7 @@ STATES = [
         "venv",
         {".venv/bin/python": PINNED, PINNED: None},
         "mise",
-        True,
+        "mise which python",
         False,
         id = "venv-pin-not-installed"
     ),
@@ -167,7 +167,7 @@ STATES = [
         "venv",
         {".venv/bin/python": OTHER, OTHER: None, PINNED: None},
         "mise",
-        False,
+        "",
         False,
         id = "venv-folder-on-another-interpreter"
     ),
@@ -180,7 +180,7 @@ STATES = [
             PINNED           : None
         },
         "mise",
-        False,
+        "",
         False,
         id = "venv-link-on-another-interpreter"
     ),
@@ -188,16 +188,16 @@ STATES = [
         "venv",
         {".venv/": None, PINNED: None},
         "mise",
-        False,
+        "",
         False,
         id = "venv-folder-without-python"
     ),
-    param("venv", {".venv": None, PINNED: None}, "mise", False, False, id="venv-file"),
+    param("venv", {".venv": None, PINNED: None}, "mise", "", False, id="venv-file"),
     param(
         "venv",
         {".venv": "env", PINNED: None},
         "mise",
-        False,
+        "",
         False,
         id = "venv-dangling-link"
     )
@@ -215,7 +215,7 @@ def test_every_declared_check_has_states(checks: dict[str, dict[str, str]]):
 @mark.parametrize(("check", "tree", "program", "failing", "passing"), STATES)
 def test_each_check_passes_only_on_the_state_its_description_names(
     check             : str,
-    failing           : bool,
+    failing           : str,
     install_stand_ins : Callable[..., Path],
     lay_out           : Callable[[Tree], None],
     monkeypatch       : MonkeyPatch,
@@ -228,34 +228,41 @@ def test_each_check_passes_only_on_the_state_its_description_names(
     """
     Pins that each check passes on the state its `description` names and
     fails on each state its `hint` repairs, with only the stand-in the row
-    names on the path, every call to it exiting 1 where `failing` holds, and
-    the stand-in `mise` answering `mise which python` with the interpreter
-    at `interpreters/pinned`.
+    names on the path, the call `failing` names exiting 1 and every other
+    call exiting 0, and the stand-in `mise` answering `mise which python`
+    with the interpreter at `interpreters/pinned`.
     """
     stand_ins = install_stand_ins("stand-in.sh", *filter(None, [program]))
 
     monkeypatch.setenv("PATH", str(stand_ins))
     monkeypatch.setenv("ANSWER", str(tmp_path / PINNED))
-    monkeypatch.setenv("FAILING", "*" if failing else "")
+    monkeypatch.setenv("FAILING", failing)
     lay_out(tree)
 
     assert passes(check) is passing
 
 
-def test_the_cartridge_hint_followed_as_written_passes_on_a_fresh_clone(
+@mark.parametrize(
+    "tree",
+    [param({}, id="fresh-clone"), param({"data/other.gb": None}, id="data-without-rom")]
+)
+def test_the_cartridge_hint_followed_as_written_passes_on_each_state_it_repairs(
     checks           : dict[str, dict[str, str]],
+    lay_out          : Callable[[Tree], None],
     passes           : Callable[[str], bool],
     tmp_path         : Path,
-    tmp_path_factory : TempPathFactory
+    tmp_path_factory : TempPathFactory,
+    tree             : Tree
 ):
     """
     Pins that the command the `cartridge` hint gives, run from a clone
-    holding no `data/` folder with `<rom>` naming a ROM outside it, leaves
-    the check passing.
+    holding no `data/` folder or a `data/` folder without the ROM, with
+    `<rom>` naming a ROM outside it, leaves the check passing.
     """
     rom     = tmp_path_factory.mktemp("rom") / "PokemonBlue.gb"
     command = search(r"`([^`]*<rom>[^`]*)`", checks["cartridge"]["hint"])[1]
 
+    lay_out(tree)
     rom.touch()
     run(
         ["sh", "-c", command.replace("<rom>", quote(str(rom)))],
