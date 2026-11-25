@@ -845,11 +845,12 @@ def test_the_settings_turn_immutable_releases_on_or_off_as_declared(
 def test_the_tasks_read_each_command_and_alias_mise_s_help_lists(fp: FakeProcess):
     """
     Pins that the tasks read each command the `Commands:` section of `mise
-    --help` lists and each alias its brackets name, an alias list wrapped
-    onto the next line after its first alias or straight after `aliases:`
-    among them, while a summary's wrapped line, a task argument, and a flag
-    add no word, and are unreadable on `.mise/config.toml` where the help
-    lists no command.
+    --help` lists, past whatever its heading's line holds after the heading,
+    and each alias its brackets name, an alias list wrapped onto the next
+    line after its first alias or straight after `aliases:` among them,
+    while a summary's wrapped line, a task argument, and a flag add no
+    word, and are unreadable on `.mise/config.toml` where the help lists
+    no command.
     """
     printed = dedent(
         """\
@@ -857,7 +858,7 @@ def test_the_tasks_read_each_command_and_alias_mise_s_help_lists(fp: FakeProcess
 
         Usage: mise [OPTIONS] [TASK] [COMMAND]
 
-        Commands:
+        Commands:                                  ▝▄ ▀▄▀ ▄▘
           audit     Check tool versions for known vulnerabilities
           backends  Manage backends [aliases: b, backend,
                     backend-list]

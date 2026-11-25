@@ -1986,8 +1986,8 @@ class Tasks(Record):
                 encoding       = "utf-8"
             )
             listing = check_output(["mise", "--help"], encoding="utf-8").partition(
-                "\nCommands:\n"
-            )[2].partition("\n\n")[0]
+                "\nCommands:"
+            )[2].partition("\n")[2].partition("\n\n")[0]
 
             if not (commands := findall(r"(?m)^  ([\w-]+)", listing)):
                 raise ValueError("`mise --help` lists no command")
