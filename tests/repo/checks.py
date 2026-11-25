@@ -2226,6 +2226,58 @@ def test_site_pins_report_a_run_time_dependency_pinned_to_a_range(
 
 
 @mark.parametrize(
+    ("on", "found"),
+    [
+        param(
+            "on:\n  push:\n    paths-ignore: [tests/**]\n",
+            [(3, "tests/**", "`tests/py/a.py` and 1 more")],
+            id = "ignored"
+        ),
+        param(
+            "on: workflow_dispatch\n",
+            [
+                (1, "package.json", "`package.json`"),
+                (1, "bun.lock", "`bun.lock`"),
+                (1, "tests/**", "`tests/py/a.py` and 1 more")
+            ],
+            id = "no-push"
+        )
+    ]
+)
+def test_site_pushes_read_a_pages_workflow_with_no_paths_filter(
+    found : list[tuple[int, str, str]],
+    on    : str,
+    scan  : Scan
+):
+    """
+    Pins that the site's pushes check reports each pattern a `paths-ignore`
+    filter of `🕹️ Pages` skips on the line of that filter, and every pattern
+    on the line of `on` where no push runs the workflow.
+    """
+    findings = scan(
+        SitePushes,
+        {".github/workflows/pages.yml": on},
+        Tree(
+            files = [
+                Path("bun.lock"),
+                Path("package.json"),
+                Path("tests/py/a.py"),
+                Path("tests/site/a.test.ts")
+            ]
+        )
+    )
+
+    assert findings == [
+        (
+            ".github/workflows/pages.yml", line,
+            f"The push filter of `.github/workflows/pages.yml` leaves out {files}, "
+            f"so it needs an entry matching `{glob}`"
+        )
+        for line, glob, files in found
+    ]
+
+
+@mark.parametrize(
     ("paths", "found"),
     [
         param("[bun.lock, package.json, tests/**]", [], id="clean"),
@@ -2369,8 +2421,9 @@ def test_site_types_report_a_tsconfig_leaving_out_the_site_suite(
     assert findings == [
         (
             "docs/.vitepress/tsconfig.json", line,
-            f"`docs/.vitepress/tsconfig.json` leaves out {files}, so its `include` "
-            "needs an entry matching the files under `tests/site/`"
+            f"`docs/.vitepress/tsconfig.json` leaves out {files}, so it needs an "
+            "`include` entry matching the files under `tests/site/` and no `exclude` "
+            "entry skipping them"
         )
         for line, files in found
     ]

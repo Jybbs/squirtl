@@ -9,7 +9,7 @@ from ast             import AsyncFunctionDef, ClassDef, FunctionDef, Import, Imp
 from collections     import Counter, defaultdict
 from collections.abc import Callable, Iterator
 from functools       import cache
-from itertools       import chain, compress
+from itertools       import chain, compress, product
 from json            import dumps
 from operator        import methodcaller
 from packaging.specifiers import SpecifierSet
@@ -27,8 +27,8 @@ from squirtl.identity.schemas import Identity
 from squirtl.repo.schemas import (
     Actions, Citation, Finding, Labels, License, Lockfile, Manifest, MiseConfig,
     Project, PullRequestTemplate, ReleaseNotes, Rulesets, Scripts, Severity,
-    SiteLockfile, SiteManifest, SiteTsconfig, Tasks, Templates, Tree, Unreadable, WorkflowJob,
-    Workflows
+    SiteLockfile, SiteManifest, SiteTsconfig, Tasks, Templates, Tree, Unreadable, Workflow,
+    WorkflowJob, Workflows
 )
 from squirtl.runs.schemas import Run
 
@@ -1313,7 +1313,7 @@ class SitePushes(Check):
     rebuilds the site.
     """
 
-    pages: ClassVar[Path] = Path(".github/workflows/pages.yml")
+    pages: ClassVar[Path] = Workflow.directory / "pages.yml"
 
     watched: ClassVar[tuple[str, ...]] = ("package.json", "bun.lock", "tests/**")
 
@@ -1327,24 +1327,26 @@ class SitePushes(Check):
         touch without running the workflow, naming the first such file and
         counting the rest.
         """
-        for workflow in self.workflows.workflows:
-            for glob in self.watched if workflow.path == self.pages else ():
-                left = [
-                    file
-                    for file in self.tree.files
-                    if file.full_match(glob) and not workflow.pushes(file)
-                ]
-                more = f" and {len(left) - 1} more" if len(left) > 1 else ""
+        publishing = [
+            workflow
+            for workflow in self.workflows.workflows
+            if workflow.path == self.pages
+        ]
 
-                if left:
-                    yield Finding(
-                        file    = workflow.path,
-                        line    = workflow.filter_line,
-                        message = (
-                            f"The push filter of `{workflow.path}` leaves out "
-                            f"`{left[0]}`{more}, so it needs an entry matching `{glob}`"
-                        )
+        for workflow, glob in product(publishing, self.watched):
+            if left := [
+                file
+                for file in self.tree.files
+                if file.full_match(glob) and not workflow.pushes(file)
+            ]:
+                yield Finding(
+                    file    = workflow.path,
+                    line    = workflow.filter_line,
+                    message = (
+                        f"The push filter of `{workflow.path}` leaves out "
+                        f"{naming(left)}, so it needs an entry matching `{glob}`"
                     )
+                )
 
 
 class SiteTypes(Check):
@@ -1365,20 +1367,18 @@ class SiteTypes(Check):
         `suite`, the extensions the type check reads by default, naming the
         first such file and counting the rest.
         """
-        left = [
+        if left := [
             file
             for file in self.tree.under(self.suite)
             if file.suffix in {".ts", ".tsx"} and not self.tsconfig.reads(file)
-        ]
-        more = f" and {len(left) - 1} more" if len(left) > 1 else ""
-
-        if left:
+        ]:
             yield Finding.locate(
                 SiteTsconfig.file,
                 '"include"',
                 message = (
-                    f"`{SiteTsconfig.file}` leaves out `{left[0]}`{more}, so its "
-                    f"`include` needs an entry matching the files under `{self.suite}/`"
+                    f"`{SiteTsconfig.file}` leaves out {naming(left)}, so it needs "
+                    f"an `include` entry matching the files under `{self.suite}/` and "
+                    "no `exclude` entry skipping them"
                 )
             )
 
@@ -1561,3 +1561,11 @@ class Warming(Check):
                             "which its push filter leaves out"
                         )
                     )
+
+
+def naming(files: list[Path]) -> str:
+    """
+    Names the first of `files` in backticks and counts the rest, so one
+    finding stands for every file a check leaves out.
+    """
+    return f"`{files[0]}`" + (f" and {len(files) - 1} more" if len(files) > 1 else "")
