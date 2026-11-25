@@ -1,6 +1,8 @@
 #!/usr/bin/env -S bash -euo pipefail
 #MISE depends     = ["site:install"]
 #MISE description = "Run the site's test files a file changed since the merge base with `main` reaches, uncommitted and untracked files included, or every file where a changed file matches a pattern `forceRerunTriggers` names, passing any further arguments to Vitest"
-#MISE dir         = "docs"
 
-node_modules/.bin/vitest run --changed origin/main --config .vitepress/config/vitest.ts "$@"
+node_modules/.bin/vitest run \
+  --changed origin/main \
+  --config docs/.vitepress/config/vitest.ts \
+  "$@"

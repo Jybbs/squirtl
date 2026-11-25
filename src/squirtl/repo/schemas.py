@@ -793,7 +793,7 @@ class SiteManifest(JsonFile, extra="ignore"):
     key its alias names.
     """
 
-    file: ClassVar[Path] = Path("docs/package.json")
+    file: ClassVar[Path] = Path("package.json")
 
     node_types: VersionNumber = Field(
         validation_alias = AliasPath("devDependencies", "@types/node")
@@ -841,7 +841,7 @@ class SiteLockfile(JsonFile, extra="ignore"):
     collections of YAML accept.
     """
 
-    file: ClassVar[Path] = Path("docs/bun.lock")
+    file: ClassVar[Path] = Path("bun.lock")
 
     packages: dict[str, JsonValue]
     """

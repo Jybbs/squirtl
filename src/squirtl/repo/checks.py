@@ -553,10 +553,10 @@ class Inputs(Check):
 
 class Installs(Check):
     """
-    Holds every `bun install` a script or a task declared in TOML runs to
-    the lockfile, so no install resolves a version `docs/bun.lock` does not
+    Holds every `bun install` a script or a task declared in TOML runs
+    to the lockfile, so no install resolves a version `bun.lock` does not
     record, and refuses `bunx`, which can run a copy of a tool from outside
-    `docs/node_modules`.
+    `node_modules`.
     """
 
     # `bun --help` lists `bun i` as the short form of `bun install` and `bun x`
@@ -579,7 +579,7 @@ class Installs(Check):
             nothing.
         """
         if command in self.running:
-            return "can run a copy of a tool from outside `docs/node_modules`"
+            return "can run a copy of a tool from outside `node_modules`"
 
         if {"--frozen-lockfile", "--lockfile-only"}.isdisjoint(options):
             return "carries neither `--frozen-lockfile` nor `--lockfile-only`"
@@ -709,7 +709,7 @@ class Layout(Check):
     # meaning the task tests, the command line's smoke test, and the
     # isolation tests.
     unmirrored: ClassVar[tuple[str, ...]] = (
-        "tests/cli/app.py", "tests/isolation.py", "tests/tasks/**"
+        "tests/py/cli/app.py", "tests/py/isolation.py", "tests/py/tasks/**"
     )
 
     manifest : Manifest
@@ -1201,7 +1201,7 @@ class ScriptCheck(Check):
 
 class SiteCopies(Check):
     """
-    Holds each package `shared` lists to the one copy of it `docs/bun.lock`
+    Holds each package `shared` lists to the one copy of it `bun.lock`
     resolves, since the manifest of `vitepress` declares each as a range,
     which a lift moving `vitepress` can move past the version the site pins.
     """
@@ -1212,9 +1212,9 @@ class SiteCopies(Check):
 
     def scan(self) -> Iterator[Finding]:
         """
-        Yields a finding on the line of `docs/package.json` pinning each
-        package `shared` lists that the lockfile resolves more than once,
-        naming each path a further copy is installed at.
+        Yields a finding on the line of `package.json` pinning each package
+        `shared` lists that the lockfile resolves more than once, naming
+        each path a further copy is installed at.
         """
         for name in self.shared:
             if paths := self.lockfile.nested(name):
@@ -1262,11 +1262,11 @@ class SitePins(Check):
 
     def scan(self) -> Iterator[Finding]:
         """
-        Yields a finding on the line of `docs/package.json` pinning each
-        package to a range rather than an exact version, on the line pinning
-        each package `paired` lists where its version differs from the
-        version of the package it is paired with, a pair the manifest leaves
-        out passing, and on the line pinning `@types/node` where its major
+        Yields a finding on the line of `package.json` pinning each package
+        to a range rather than an exact version, on the line pinning each
+        package `paired` lists where its version differs from the version
+        of the package it is paired with, a pair the manifest leaves out
+        passing, and on the line pinning `@types/node` where its major
         differs from the major of the `node` mise pins.
         """
         node = self.mise.node
