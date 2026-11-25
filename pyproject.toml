@@ -109,9 +109,9 @@ markers                  = [
 ]
 norecursedirs            = ["common", "fixtures"]
 python_files             = ["*.py"]
-pythonpath               = ["tests"]
+pythonpath               = ["tests/py"]
 strict                   = true
-testpaths                = ["tests"]
+testpaths                = ["tests/py"]
 
 [tool.uv]
 build-constraint-dependencies = [

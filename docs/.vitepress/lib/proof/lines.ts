@@ -1,7 +1,7 @@
 import fs   from 'node:fs'
 import path from 'node:path'
 
-import { docsDir } from '../config/paths.ts'
+import { repoRoot } from '../config/paths.ts'
 
 /**
  * A line of the site's TypeScript running past `LINE_LIMIT`, under its path
@@ -27,21 +27,21 @@ export const LINE_LIMIT = 110
 const WHOLE = /^\s*(?:\/(?![*/]).*\/[dgimsuvy]*|(['"`])[^'"`]*\*[^'"`]*\1)[),]*$/u
 
 /**
- * Reads every TypeScript and TSX file under `docs/`, outside the packages Bun
- * installs, and returns each line running past `LINE_LIMIT` that `WHOLE` does
- * not match, in the order of its path and then its number.
+ * Reads every TypeScript and TSX file under `docs/` and `tests/site/`, and
+ * returns each line running past `LINE_LIMIT` that `WHOLE` does not match, in
+ * the order of its path and then its number.
  */
 export function longLines(metaUrl: string): LongLine[] {
-  const docs    = docsDir(metaUrl)
-  const pattern = ['**/*.{ts,tsx}', '.vitepress/**/*.{ts,tsx}']
-  return fs.globSync(pattern, { cwd: docs, exclude: ['node_modules/**'] })
+  const root    = repoRoot(metaUrl)
+  const pattern = '{docs,docs/.vitepress,tests/site}/**/*.{ts,tsx}'
+  return fs.globSync(pattern, { cwd: root })
     .toSorted()
-    .flatMap(file => fs.readFileSync(path.join(docs, file), 'utf8')
+    .flatMap(file => fs.readFileSync(path.join(root, file), 'utf8')
       .split('\n')
       .flatMap((text, index) => {
         const length = [...text].length
         return length > LINE_LIMIT && !WHOLE.test(text)
-          ? [{ file: `docs/${file}`, length, line: index + 1 }]
+          ? [{ file, length, line: index + 1 }]
           : []
       }))
 }

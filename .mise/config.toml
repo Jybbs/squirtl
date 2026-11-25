@@ -13,7 +13,7 @@ run         = "cc --version"
 timeout     = "10s"
 
 [doctor.checks.lockfile]
-description = "`uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` resolve what their manifests declare, and every tool the project pins installs from `.mise/mise.lock`"
+description = "`uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `bun.lock` resolve what their manifests declare, and every tool the project pins installs from `.mise/mise.lock`"
 hint        = "Run `mise lockfile` to print what drifted, then `mise relock` to re-resolve every lockfile against its manifest."
 run         = "mise run lock:check"
 timeout     = "60s"
