@@ -9,7 +9,7 @@ from ast             import AsyncFunctionDef, ClassDef, FunctionDef, Import, Imp
 from collections     import Counter, defaultdict
 from collections.abc import Callable, Iterator
 from functools       import cache
-from itertools       import chain, compress
+from itertools       import chain, compress, product
 from json            import dumps
 from operator        import methodcaller
 from packaging.specifiers import SpecifierSet
@@ -27,8 +27,8 @@ from squirtl.identity.schemas import Identity
 from squirtl.repo.schemas import (
     Actions, Citation, Finding, Labels, License, Lockfile, Manifest, MiseConfig,
     Project, PullRequestTemplate, ReleaseNotes, Rulesets, Scripts, Severity,
-    SiteLockfile, SiteManifest, Tasks, Templates, Tree, Unreadable, WorkflowJob,
-    Workflows
+    SiteLockfile, SiteManifest, SiteTsconfig, Tasks, Templates, Tree, Unreadable, Workflow,
+    WorkflowJob, Workflows
 )
 from squirtl.runs.schemas import Run
 
@@ -1305,6 +1305,88 @@ class SitePins(Check):
             )
 
 
+class SitePushes(Check):
+    """
+    Holds the push filter of the workflow publishing the site to the root
+    manifest and lockfile of the site's packages and to every file under
+    `tests/`, so a change to either suite or to the packages they run on
+    rebuilds the site.
+    """
+
+    pages: ClassVar[Path] = Workflow.directory / "pages.yml"
+
+    watched: ClassVar[tuple[str, ...]] = ("package.json", "bun.lock", "tests/**")
+
+    tree      : Tree
+    workflows : Workflows
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding on the line of the push filter of `pages` for each
+        pattern of `watched` matching a file of the checkout that a push can
+        touch without running the workflow, naming the first such file and
+        counting the rest.
+        """
+        publishing = [
+            workflow
+            for workflow in self.workflows.workflows
+            if workflow.path == self.pages
+        ]
+
+        for workflow, glob in product(publishing, self.watched):
+            if left := [
+                file
+                for file in self.tree.files
+                if file.full_match(glob) and not workflow.pushes(file)
+            ]:
+                yield Finding(
+                    file    = workflow.path,
+                    line    = workflow.filter_line,
+                    message = (
+                        f"The push filter of `{workflow.path}` leaves out "
+                        f"{naming(left)}, so it needs an entry matching `{glob}`"
+                    )
+                )
+
+
+class SiteTypes(Check):
+    """
+    Holds the site's type check to every TypeScript file of the site's
+    suite, so the suite is checked beside the code it covers.
+    """
+
+    suite: ClassVar[Path] = Path("tests/site")
+
+    tree     : Tree
+    tsconfig : SiteTsconfig
+
+    def scan(self) -> Iterator[Finding]:
+        """
+        Yields a finding on the line of `include` in the site's
+        `tsconfig.json` where it leaves out a `.ts`, `.tsx`, `.mts`, or
+        `.cts` file under `suite`, the extensions the type check reads by
+        default, naming the first such file and counting the rest.
+        """
+        if left := [
+            file
+            for file in self.tree.under(self.suite)
+            if file.suffix in {
+                ".cts", ".mts", ".ts", ".tsx"
+            } and not self.tsconfig.reads(
+                file
+            )
+        ]:
+            yield Finding.locate(
+                SiteTsconfig.file,
+                '"include"',
+                message = (
+                    f"`{SiteTsconfig.file}` leaves out {naming(left)}, so it needs "
+                    f"an `include` entry matching the files under `{self.suite}/` and "
+                    "no `exclude` entry skipping them"
+                )
+            )
+
+
 class Subsets(Check):
     """
     Holds the tool subsets the jobs restoring a cache install to the
@@ -1453,7 +1535,6 @@ class Warming(Check):
 
         for workflow in self.workflows.workflows:
             saving = [job for job in workflow.jobs if job.cache_mode == "write"]
-            on     = workflow.root.at("on") or workflow.root
             run    = [
                 manifests[step.local]
                 for job in saving
@@ -1477,15 +1558,18 @@ class Warming(Check):
             for file in sorted(built) if saving else []:
                 if not workflow.pushes(file):
                     yield Finding(
-                        file = workflow.path,
-                        line = (
-                            on.at("push", "paths") or on.at(
-                                "push",
-                                "paths-ignore"
-                            ) or on
-                        ).line,
+                        file    = workflow.path,
+                        line    = workflow.filter_line,
                         message = (
                             f"`{workflow.path}` saves a cache keyed on `{file}`, "
                             "which its push filter leaves out"
                         )
                     )
+
+
+def naming(files: list[Path]) -> str:
+    """
+    Names the first of `files` in backticks and counts the rest, so one
+    finding stands for every file a check leaves out.
+    """
+    return f"`{files[0]}`" + (f" and {len(files) - 1} more" if len(files) > 1 else "")
