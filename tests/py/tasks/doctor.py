@@ -7,7 +7,7 @@ clone, and that `git status` stays clean over a `.venv` folder and a `.venv`
 link alike.
 
 Each case runs a check's `run` command through `sh -o errexit -c`, the
-inline shell mise starts a check under where it declares no `shell`, from
+inline shell mise runs a check in when the check declares no `shell`, from
 a tree under `tmp_path` holding only the files the case lays out, with
 only the stand-ins it installs on the path, so no case reads the worktree's
 `data/` or `.venv` or reaches a real `cc` or `mise`.
@@ -16,7 +16,7 @@ only the stand-ins it installs on the path, so no case reads the worktree's
 from collections.abc import Callable, Mapping
 from pathlib         import Path
 from pytest          import Config, MonkeyPatch, TempPathFactory, fixture, mark, param
-from re              import findall
+from re              import search
 from shlex           import quote
 from shutil          import which
 from subprocess      import check_output, run
@@ -96,7 +96,7 @@ STATES = [
         "cartridge",
         {"data/rom.gb": None},
         None,
-        "",
+        False,
         True,
         id = "cartridge-rom-in-data"
     ),
@@ -104,16 +104,16 @@ STATES = [
         "cartridge",
         {"data/rom.gb": "rom/PokemonBlue.gb", "rom/PokemonBlue.gb": None},
         None,
-        "",
+        False,
         True,
         id = "cartridge-rom-linked-into-data"
     ),
-    param("cartridge", {}, None, "", False, id="cartridge-fresh-clone"),
+    param("cartridge", {}, None, False, False, id="cartridge-fresh-clone"),
     param(
         "cartridge",
         {"data/other.gb": None},
         None,
-        "",
+        False,
         False,
         id = "cartridge-data-without-rom"
     ),
@@ -121,21 +121,29 @@ STATES = [
         "cartridge",
         {"data/rom.gb": "rom/PokemonBlue.gb"},
         None,
-        "",
+        False,
         False,
         id = "cartridge-dangling-link"
     ),
-    param("compiler", {}, "cc", "", True, id="compiler-runs"),
-    param("compiler", {}, None, "", False, id="compiler-missing"),
-    param("compiler", {}, "cc", "cc --version", False, id="compiler-failing"),
-    param("lockfile", {}, "mise", "", True, id="lockfile-current"),
-    param("lockfile", {}, "mise", "mise run lock:check", False, id="lockfile-drifted"),
-    param("venv", {}, "mise", "", True, id="venv-absent"),
+    param(
+        "cartridge",
+        {"data/rom.gb/": None},
+        None,
+        False,
+        False,
+        id = "cartridge-folder-at-rom"
+    ),
+    param("compiler", {}, "cc", False, True, id="compiler-runs"),
+    param("compiler", {}, None, False, False, id="compiler-missing"),
+    param("compiler", {}, "cc", True, False, id="compiler-failing"),
+    param("lockfile", {}, "mise", False, True, id="lockfile-current"),
+    param("lockfile", {}, "mise", True, False, id="lockfile-drifted"),
+    param("venv", {}, "mise", False, True, id="venv-absent"),
     param(
         "venv",
         {".venv/bin/python": PINNED, PINNED: None},
         "mise",
-        "",
+        False,
         True,
         id = "venv-folder-on-the-pin"
     ),
@@ -143,15 +151,23 @@ STATES = [
         "venv",
         {".venv": "env", "env/bin/python": PINNED, PINNED: None},
         "mise",
-        "",
+        False,
         True,
         id = "venv-link-on-the-pin"
     ),
     param(
         "venv",
+        {".venv/bin/python": PINNED, PINNED: None},
+        "mise",
+        True,
+        False,
+        id = "venv-pin-not-installed"
+    ),
+    param(
+        "venv",
         {".venv/bin/python": OTHER, OTHER: None, PINNED: None},
         "mise",
-        "",
+        False,
         False,
         id = "venv-folder-on-another-interpreter"
     ),
@@ -164,7 +180,7 @@ STATES = [
             PINNED           : None
         },
         "mise",
-        "",
+        False,
         False,
         id = "venv-link-on-another-interpreter"
     ),
@@ -172,16 +188,16 @@ STATES = [
         "venv",
         {".venv/": None, PINNED: None},
         "mise",
-        "",
+        False,
         False,
         id = "venv-folder-without-python"
     ),
-    param("venv", {".venv": None, PINNED: None}, "mise", "", False, id="venv-file"),
+    param("venv", {".venv": None, PINNED: None}, "mise", False, False, id="venv-file"),
     param(
         "venv",
         {".venv": "env", PINNED: None},
         "mise",
-        "",
+        False,
         False,
         id = "venv-dangling-link"
     )
@@ -190,7 +206,7 @@ STATES = [
 
 def test_every_declared_check_has_states(checks: dict[str, dict[str, str]]):
     """
-    Pins that the states below cover each check `.mise/config.toml`
+    Pins that the rows of `STATES` cover each check `.mise/config.toml`
     declares, so a check added there fails this case until its states land.
     """
     assert {state.values[0] for state in STATES} == set(checks)
@@ -199,7 +215,7 @@ def test_every_declared_check_has_states(checks: dict[str, dict[str, str]]):
 @mark.parametrize(("check", "tree", "program", "failing", "passing"), STATES)
 def test_each_check_passes_only_on_the_state_its_description_names(
     check             : str,
-    failing           : str,
+    failing           : bool,
     install_stand_ins : Callable[..., Path],
     lay_out           : Callable[[Tree], None],
     monkeypatch       : MonkeyPatch,
@@ -211,16 +227,16 @@ def test_each_check_passes_only_on_the_state_its_description_names(
 ):
     """
     Pins that each check passes on the state its `description` names and
-    fails on each state its `hint` repairs, with only the stand-in the
-    row names on the path, failing on the call `failing` matches, and the
-    stand-in `mise` answering `mise which python` with the interpreter at
-    `interpreters/pinned`.
+    fails on each state its `hint` repairs, with only the stand-in the row
+    names on the path, every call to it exiting 1 where `failing` holds, and
+    the stand-in `mise` answering `mise which python` with the interpreter
+    at `interpreters/pinned`.
     """
     stand_ins = install_stand_ins("stand-in.sh", *filter(None, [program]))
 
     monkeypatch.setenv("PATH", str(stand_ins))
     monkeypatch.setenv("ANSWER", str(tmp_path / PINNED))
-    monkeypatch.setenv("FAILING", failing)
+    monkeypatch.setenv("FAILING", "*" if failing else "")
     lay_out(tree)
 
     assert passes(check) is passing
@@ -238,12 +254,7 @@ def test_the_cartridge_hint_followed_as_written_passes_on_a_fresh_clone(
     the check passing.
     """
     rom     = tmp_path_factory.mktemp("rom") / "PokemonBlue.gb"
-    command = next(
-        span for span in findall(
-            r"`([^`]+)`",
-            checks["cartridge"]["hint"]
-        ) if "<rom>" in span
-    )
+    command = search(r"`([^`]*<rom>[^`]*)`", checks["cartridge"]["hint"])[1]
 
     rom.touch()
     run(
