@@ -270,6 +270,7 @@ def stop_at_eight(step: int, trainer: Trainer):
         trainer.run.stop.touch()
 
 
+@mark.slow
 def test_a_checkpoint_and_an_evaluation_land_where_an_update_reaches_each_interval(
     evaluators  : list[EvaluatorStandIn],
     monkeypatch : MonkeyPatch,
@@ -332,6 +333,7 @@ def test_a_signal_ends_the_run_at_the_end_of_its_episode(
     assert ReplayCheckpoint.from_path(run.checkpoint).step == 6
 
 
+@mark.slow
 def test_a_resume_copies_the_evaluations_up_to_its_checkpoint_and_the_baseline(
     evaluators : list[EvaluatorStandIn],
     trainer    : Callable[..., Trainer]
@@ -470,6 +472,7 @@ def test_a_resume_whose_demonstration_ends_elsewhere_is_refused_before_any_direc
     assert sorted(stopped.directory.parent.iterdir()) == runs
 
 
+@mark.slow
 def test_a_resumed_run_writes_its_checkpoints_where_a_run_that_never_stopped_does(
     monkeypatch : MonkeyPatch,
     trainer     : Callable[..., Trainer]
@@ -617,6 +620,7 @@ def test_a_rollout_run_makes_the_environments_its_settings_name(
         ) == (0.9, AutoresetMode.SAME_STEP, 1, 2)
 
 
+@mark.slow
 def test_a_rollout_run_of_one_environment_writes_a_line_for_each_episode(
     rolling: Callable[..., Trainer]
 ):
@@ -746,6 +750,7 @@ def test_a_run_remembers_the_value_of_a_final_observation_at_the_step_truncating
     )] + [idle] * 2
 
 
+@mark.slow
 @each_agent
 def test_each_environments_episode_writes_a_line_as_its_last_step_returns(
     algorithm : Algorithm,
@@ -771,7 +776,13 @@ def test_each_environments_episode_writes_a_line_as_its_last_step_returns(
     ("limit", "means", "steps"),
     [
         param(3,  [None, 1.0], 16, id="an-episode-ending-before-the-first-update"),
-        param(10, [1.5, 3.5],  40, id="an-episode-spanning-two-updates")
+        param(
+            10,
+            [1.5, 3.5],
+            40,
+            id    = "an-episode-spanning-two-updates",
+            marks = mark.slow
+        )
     ]
 )
 def test_an_episodes_line_averages_the_updates_taken_while_it_played(
@@ -798,6 +809,7 @@ def test_an_episodes_line_averages_the_updates_taken_while_it_played(
     assert [line.update and line.update.loss for line in lines[::2]] == means
 
 
+@mark.slow
 def test_a_run_stopped_halfway_and_resumed_ends_as_a_run_that_never_stopped(
     trainer: Callable[..., Trainer]
 ):
@@ -1186,13 +1198,14 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
     ] == ["0.00000", "0.06250", "0.35000", *["0.00000"] * 17]
 
 
+@mark.slow
 def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
     trainer: Callable[..., Trainer]
 ):
     """
     Asserts that a run evaluating at steps 12 and 20 over two episodes in
-    two worker processes writes the agent's evaluations and the baseline's,
-    and ends with the networks, Adam's state, replay memory, generators, and
+    two environments writes the agent's evaluations and the baseline's, and
+    ends with the networks, Adam's state, replay memory, generators, and
     episodes of the same run evaluating nothing.
     """
     evaluated = finish(
@@ -1285,6 +1298,7 @@ def test_each_environment_starts_from_a_reset_of_its_own(
     assert first.timer_div != second.timer_div
 
 
+@mark.slow
 def test_ppos_episode_logs_no_epsilon_beside_its_measures(
     logged      : list[str],
     monkeypatch : MonkeyPatch,
