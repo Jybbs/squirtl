@@ -2362,8 +2362,8 @@ def test_site_pushes_hold_the_filter_to_no_root_file_the_checkout_lacks(scan: Sc
         param(
             {
                 "include": [
-                    "**/*.ts", "../../tests/site/**/*.ts",
-                    "../../tests/site/**/*.tsx", "../../tests/site/**/*.mts"
+                    "**/*.ts", "../../tests/site/**/*.ts", "../../tests/site/**/*.tsx",
+                    "../../tests/site/**/*.mts", "../../tests/site/**/*.cts"
                 ]
             },
             [],
@@ -2371,14 +2371,14 @@ def test_site_pushes_hold_the_filter_to_no_root_file_the_checkout_lacks(scan: Sc
         ),
         param(
             {"include": ["**/*.ts", "**/*.tsx", "../../tests/site/**/*.ts"]},
-            [(2, "`tests/site/b.test.tsx` and 1 more")],
+            [(2, "`tests/site/b.test.tsx` and 2 more")],
             id = "extension"
         ),
         param({"include": ["**/*.ts", "../../tests/site"]}, [], id="folder"),
         param({"include": ["../../tests/**/*"]}, [], id="wider"),
         param(
             {"include": ["**/*.ts", "**/*.tsx"]},
-            [(2, "`tests/site/a.test.ts` and 3 more")],
+            [(2, "`tests/site/a.test.ts` and 4 more")],
             id = "left-out"
         ),
         param(
@@ -2393,13 +2393,14 @@ def test_site_pushes_hold_the_filter_to_no_root_file_the_checkout_lacks(scan: Sc
             {
                 "include": [
                     "../../tests/site/a.test.ts", "../../tests/site/b.test.tsx",
-                    "../../tests/site/c.test.mts", "../../tests/site/common/clock.ts"
+                    "../../tests/site/c.test.mts", "../../tests/site/common/clock.ts",
+                    "../../tests/site/d.test.cts"
                 ]
             },
             [],
             id = "named"
         ),
-        param({}, [(None, "`tests/site/a.test.ts` and 3 more")], id="default")
+        param({}, [(None, "`tests/site/a.test.ts` and 4 more")], id="default")
     ]
 )
 def test_site_types_report_a_tsconfig_leaving_out_the_site_suite(
@@ -2426,6 +2427,7 @@ def test_site_types_report_a_tsconfig_leaving_out_the_site_suite(
                 Path("tests/site/b.test.tsx"),
                 Path("tests/site/c.test.mts"),
                 Path("tests/site/common/clock.ts"),
+                Path("tests/site/d.test.cts"),
                 Path("tests/site/package.json")
             ]
         )
