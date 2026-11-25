@@ -2362,7 +2362,8 @@ def test_site_pushes_hold_the_filter_to_no_root_file_the_checkout_lacks(scan: Sc
         param(
             {
                 "include": [
-                    "**/*.ts", "../../tests/site/**/*.ts", "../../tests/site/**/*.tsx"
+                    "**/*.ts", "../../tests/site/**/*.ts",
+                    "../../tests/site/**/*.tsx", "../../tests/site/**/*.mts"
                 ]
             },
             [],
@@ -2370,14 +2371,14 @@ def test_site_pushes_hold_the_filter_to_no_root_file_the_checkout_lacks(scan: Sc
         ),
         param(
             {"include": ["**/*.ts", "**/*.tsx", "../../tests/site/**/*.ts"]},
-            [(2, "`tests/site/b.test.tsx`")],
+            [(2, "`tests/site/b.test.tsx` and 1 more")],
             id = "extension"
         ),
         param({"include": ["**/*.ts", "../../tests/site"]}, [], id="folder"),
         param({"include": ["../../tests/**/*"]}, [], id="wider"),
         param(
             {"include": ["**/*.ts", "**/*.tsx"]},
-            [(2, "`tests/site/a.test.ts` and 2 more")],
+            [(2, "`tests/site/a.test.ts` and 3 more")],
             id = "left-out"
         ),
         param(
@@ -2388,7 +2389,17 @@ def test_site_pushes_hold_the_filter_to_no_root_file_the_checkout_lacks(scan: Sc
             [(5, "`tests/site/common/clock.ts`")],
             id = "excluded"
         ),
-        param({}, [(None, "`tests/site/a.test.ts` and 2 more")], id="default")
+        param(
+            {
+                "include": [
+                    "../../tests/site/a.test.ts", "../../tests/site/b.test.tsx",
+                    "../../tests/site/c.test.mts", "../../tests/site/common/clock.ts"
+                ]
+            },
+            [],
+            id = "named"
+        ),
+        param({}, [(None, "`tests/site/a.test.ts` and 3 more")], id="default")
     ]
 )
 def test_site_types_report_a_tsconfig_leaving_out_the_site_suite(
@@ -2401,8 +2412,9 @@ def test_site_types_report_a_tsconfig_leaving_out_the_site_suite(
     `include`, resolved against its own folder, matches no file of the
     site suite's TypeScript or whose `exclude` skips one, on the line of
     `include`, naming the first file left out and counting the rest, and
-    reads a pattern naming a folder as every file under it, whereas a file
-    of another extension under the suite is not held to it.
+    reads a pattern naming a folder as every file under it and one naming a
+    file as that file alone, whereas a file of an extension the type check
+    skips under the suite is not held to it.
     """
     findings = scan(
         SiteTypes,
@@ -2412,6 +2424,7 @@ def test_site_types_report_a_tsconfig_leaving_out_the_site_suite(
                 Path("docs/.vitepress/config/index.ts"),
                 Path("tests/site/a.test.ts"),
                 Path("tests/site/b.test.tsx"),
+                Path("tests/site/c.test.mts"),
                 Path("tests/site/common/clock.ts"),
                 Path("tests/site/package.json")
             ]

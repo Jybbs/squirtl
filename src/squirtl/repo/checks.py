@@ -1363,14 +1363,18 @@ class SiteTypes(Check):
     def scan(self) -> Iterator[Finding]:
         """
         Yields a finding on the line of `include` in the site's
-        `tsconfig.json` where it leaves out a `.ts` or `.tsx` file under
-        `suite`, the extensions the type check reads by default, naming the
-        first such file and counting the rest.
+        `tsconfig.json` where it leaves out a `.ts`, `.tsx`, `.mts`, or
+        `.cts` file under `suite`, the extensions the type check reads by
+        default, naming the first such file and counting the rest.
         """
         if left := [
             file
             for file in self.tree.under(self.suite)
-            if file.suffix in {".ts", ".tsx"} and not self.tsconfig.reads(file)
+            if file.suffix in {
+                ".cts", ".mts", ".ts", ".tsx"
+            } and not self.tsconfig.reads(
+                file
+            )
         ]:
             yield Finding.locate(
                 SiteTsconfig.file,
