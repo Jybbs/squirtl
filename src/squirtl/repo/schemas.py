@@ -737,7 +737,8 @@ class Task(Record, extra="ignore"):
 
     aliases: list[str] = []
     """
-    Each word `mise <alias>` runs the task under.
+    Each word the task declares as its alias, which `mise <alias>` runs
+    unless one of mise's own commands takes the word.
     """
 
     run: list[Lines] = []
@@ -1988,10 +1989,10 @@ class Tasks(Record):
                 "\nCommands:\n"
             )[2].partition("\n\n")[0]
 
-            aliases = " ".join(findall(r"\[aliases: ([^\]]+)\]", listing))
-
             if not (commands := findall(r"(?m)^  ([\w-]+)", listing)):
                 raise ValueError("`mise --help` lists no command")
+
+            aliases = " ".join(findall(r"\[aliases: ([^\]]+)\]", listing))
 
             return cls(
                 commands = frozenset(commands + findall(r"[\w-]+", aliases)),

@@ -850,7 +850,7 @@ def test_the_tasks_read_each_command_and_alias_mise_s_help_lists(fp: FakeProcess
     line, a task argument, and a flag add no word, and are unreadable on
     `.mise/config.toml` where the help lists no command.
     """
-    listing = dedent(
+    printed = dedent(
         """\
         Dev tools, env vars, and tasks in one CLI
 
@@ -873,7 +873,7 @@ def test_the_tasks_read_each_command_and_alias_mise_s_help_lists(fp: FakeProcess
 
     fp.register(["mise", "tasks", "ls", fp.any()], stdout="[]")
     fp.register(["mise", "tasks", "validate", fp.any()], stdout='{"issues": []}')
-    fp.register(["mise", "--help"], stdout=listing)
+    fp.register(["mise", "--help"], stdout=printed)
 
     assert Tasks.read().commands == {
         "audit", "b", "backend", "backend-list", "backends", "doctor", "dr"
