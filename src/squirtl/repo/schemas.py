@@ -27,6 +27,7 @@ from http            import HTTPMethod
 from itertools       import chain, groupby, pairwise, takewhile
 from json            import load
 from markdown_it     import MarkdownIt
+from os.path         import normpath
 from packaging.requirements import Requirement
 from packaging.specifiers   import SpecifierSet
 from packaging.utils        import canonicalize_name
@@ -786,7 +787,7 @@ class SiteManifest(JsonFile, extra="ignore"):
     key its alias names.
     """
 
-    file: ClassVar[Path] = Path("docs/package.json")
+    file: ClassVar[Path] = Path("package.json")
 
     node_types: VersionNumber = Field(
         validation_alias = AliasPath("devDependencies", "@types/node")
@@ -834,7 +835,7 @@ class SiteLockfile(JsonFile, extra="ignore"):
     collections of YAML accept.
     """
 
-    file: ClassVar[Path] = Path("docs/bun.lock")
+    file: ClassVar[Path] = Path("bun.lock")
 
     packages: dict[str, JsonValue]
     """
@@ -873,6 +874,55 @@ class SiteLockfile(JsonFile, extra="ignore"):
         }
 
         return sorted(paths - {name}) if len(paths) > 1 else []
+
+
+class SiteTsconfig(JsonFile, extra="ignore"):
+    """
+    The files `file` sets the site's type check to read, each pattern
+    resolved against the folder holding `file`, as the TypeScript reference
+    for [`include`](https://www.typescriptlang.org/tsconfig/#include) sets
+    out.
+    """
+
+    file: ClassVar[Path] = Path("docs/.vitepress/tsconfig.json")
+
+    exclude: list[str] = []
+    """
+    The patterns naming files the type check skips among those `include`
+    matches.
+    """
+
+    include: list[str] = ["**/*"]
+    """
+    The patterns naming the files the type check reads, every file under
+    the folder holding `file` where the key is unset.
+    """
+
+    def reads(self, file: Path) -> bool:
+        """
+        Tells whether the type check reads `file`, a path relative to the
+        root of the checkout, meaning a pattern of `include` matches it and
+        none of `exclude` does, where `*` and `?` match within one folder
+        and `**` any number of folders.
+        """
+        included, excluded = (
+            any(file.full_match(self.resolve(pattern)) for pattern in patterns)
+            for patterns in (self.include, self.exclude)
+        )
+
+        return included and not excluded
+
+    @classmethod
+    def resolve(cls, pattern: str) -> str:
+        """
+        Resolves `pattern` against the folder holding `file` into a pattern
+        relative to the root of the checkout, reading one whose last segment
+        holds no extension or wildcard as a folder and matching every file
+        under it.
+        """
+        glob = normpath(cls.file.parent / pattern)
+
+        return glob if set(Path(glob).name) & set(".*?") else f"{glob}/**"
 
 
 class Tree(Record):
@@ -2320,6 +2370,17 @@ class Workflow(StepFile):
     """
 
     directory: ClassVar[Path] = Path(".github/workflows")
+
+    @property
+    def filter_line(self) -> int:
+        """
+        Numbers the line a finding on the push filter opens on, meaning the
+        line of `on.push.paths`, else of `on.push.paths-ignore`, else of
+        `on`, else of the root where the workflow sets no `on`.
+        """
+        on = self.root.at("on") or self.root
+
+        return (on.at("push", "paths") or on.at("push", "paths-ignore") or on).line
 
     @cached_property
     def jobs(self) -> list[WorkflowJob]:

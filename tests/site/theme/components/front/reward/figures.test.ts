@@ -1,0 +1,37 @@
+// @vitest-environment happy-dom
+import { enableAutoUnmount, mount }        from '@vue/test-utils'
+import { afterEach, describe, expect, it } from 'vitest'
+import { defineComponent }                 from 'vue'
+
+import { figuresAt, traceOf } from '../../../../../../docs/.vitepress/lib/front/reward.ts'
+import { CLIMB }    from '../../../../../../docs/.vitepress/lib/front/reward/climb.ts'
+import { IDENTITY } from '../../../../../../docs/.vitepress/lib/identity/identity.ts'
+import * as figures from '../../../../../../docs/.vitepress/theme/components/front/reward/figures.tsx'
+import rewardSheet  from '../../../../../../docs/.vitepress/theme/styles/front/reward.css?raw'
+
+/**
+ * Draws the figures at the episode's first step.
+ */
+const Figures = defineComponent({ setup: () => () => figures.drawFigures(figuresAt(traceOf(), 0)) })
+
+enableAutoUnmount(afterEach)
+
+describe('drawFigures', () => {
+  it('lays the figures over the climb only from the width the climb stands beside the screen', () => {
+    const classes = mount(Figures).classes()
+    const split   = Number(/@container \(width >= ([\d.]+)rem\)/u.exec(rewardSheet)![1]) * 16
+    const right   = classes.find(each => each.startsWith('@lg:pr-'))!.slice('@lg:pr-'.length)
+    const gap     = IDENTITY.lengths.spacing[right as keyof typeof IDENTITY.lengths.spacing]
+
+    expect(split).toBe(IDENTITY.lengths.breakpoints.lg)
+    expect(classes.filter(each => /^@(?!lg:)/u.test(each))).toStrictEqual([])
+    expect([classes.filter(each => each.endsWith(':absolute')), gap])
+      .toStrictEqual([['@lg:absolute'], CLIMB.tile.gap])
+  })
+})
+
+describe('RewardKey', () => {
+  it('takes the widget’s own columns, setting its two keys under the screen and the climb', () => {
+    expect(mount(figures.RewardKey).classes()).toContain('reward-pair')
+  })
+})

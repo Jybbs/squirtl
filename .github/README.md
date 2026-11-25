@@ -78,8 +78,8 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 | `mise serve` | *Serves the docs site under `docs/` and reloads a page as it is edited* |
 | `mise write` | *Writes each file the package declares into `docs/`, the identity's JSON and the theme's sheet among them, and each cited source's footnote definition from `src/squirtl/docs/references.bib` into every Markdown file git tracks, all of which `mise audit` holds to what it writes* |
 | `mise draw` | *Redraws the logo, the favicon, the navigation bar's mark, and the README's cards from the drawings that set them in the identity, then the README's preview of the front page's walks* |
-| `mise lockfile` | *Verifies `uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` against their manifests, and that every pinned tool installs from `.mise/mise.lock`* |
-| `mise relock` | *Re-resolves every lockfile after a change to `pyproject.toml`, `.mise/config.toml`, `docs/package.json`, or a task script's inline metadata* |
+| `mise lockfile` | *Verifies `uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `bun.lock` against their manifests, and that every pinned tool installs from `.mise/mise.lock`* |
+| `mise relock` | *Re-resolves every lockfile after a change to `pyproject.toml`, `.mise/config.toml`, `package.json`, or a task script's inline metadata* |
 | `mise run gha:lint` | *Audits the workflows and the composite action under `.github/` through zizmor* |
 | `mise audit` | *Fails on each pin, label, workflow, heading of the pull request template, and layout rule a file departs from, printing each finding as an annotation on the file and line it concerns* |
 | `mise labels` | *Writes each label `.github/labels.toml` declares that GitHub lacks or carries under another color or description once you confirm it, and lists each live label the registry leaves out* |
