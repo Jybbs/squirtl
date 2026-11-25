@@ -1992,7 +1992,7 @@ class Tasks(Record):
             if not (commands := findall(r"(?m)^  ([\w-]+)", listing)):
                 raise ValueError("`mise --help` lists no command")
 
-            aliases = " ".join(findall(r"\[aliases: ([^\]]+)\]", listing))
+            aliases = " ".join(findall(r"\[aliases:\s+([^\]]+)\]", listing))
 
             return cls(
                 commands = frozenset(commands + findall(r"[\w-]+", aliases)),

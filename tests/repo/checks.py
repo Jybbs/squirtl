@@ -2454,8 +2454,9 @@ def test_task_check_reports_each_alias_a_command_of_mise_takes(scan: Scan):
     """
     Pins that the task check reports each alias of a task that names a
     command or a command alias `mise --help` lists, in alphabetical order,
-    on the line of the task's file declaring its aliases, while an alias no
-    command takes and a command no alias names pass.
+    on the line of the task's file declaring its aliases even where an
+    earlier line holds the alias word, while an alias no command takes and a
+    command no alias names pass.
     """
     task = Task(
         aliases = ["vet", "r", "audit"],
@@ -2463,13 +2464,15 @@ def test_task_check_reports_each_alias_a_command_of_mise_takes(scan: Scan):
         name    = "repo:audit",
         source  = Path(".mise/tasks/repo/audit.py").absolute()
     )
+    header = (
+        "#!/bin/sh\n"
+        '# MISE description = "Run the audit"\n'
+        '# MISE alias       = ["vet", "r", "audit"]\n'
+    )
 
     assert scan(
         TaskCheck,
-        {
-            ".mise/tasks/repo/audit.py":
-                '#!/bin/sh\n# MISE alias = ["vet", "r", "audit"]\n'
-        },
+        {".mise/tasks/repo/audit.py": header},
         Tasks(
             commands = frozenset({"audit", "r", "run", "tasks"}),
             issues   = [],
@@ -2477,7 +2480,7 @@ def test_task_check_reports_each_alias_a_command_of_mise_takes(scan: Scan):
         )
     ) == [
         (
-            ".mise/tasks/repo/audit.py", 2,
+            ".mise/tasks/repo/audit.py", 3,
             (
                 "`.mise/tasks/repo/audit.py` gives `repo:audit` the alias "
                 f"`{alias}`, whereas `mise {alias}` runs mise's own command"

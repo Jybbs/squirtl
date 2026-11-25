@@ -844,11 +844,12 @@ def test_the_settings_turn_immutable_releases_on_or_off_as_declared(
 
 def test_the_tasks_read_each_command_and_alias_mise_s_help_lists(fp: FakeProcess):
     """
-    Pins that the tasks read each command the `Commands:` section of
-    `mise --help` lists and each alias its brackets name, an alias list
-    wrapped onto the next line among them, while a summary's wrapped
-    line, a task argument, and a flag add no word, and are unreadable on
-    `.mise/config.toml` where the help lists no command.
+    Pins that the tasks read each command the `Commands:` section of `mise
+    --help` lists and each alias its brackets name, an alias list wrapped
+    onto the next line after its first alias or straight after `aliases:`
+    among them, while a summary's wrapped line, a task argument, and a flag
+    add no word, and are unreadable on `.mise/config.toml` where the help
+    lists no command.
     """
     printed = dedent(
         """\
@@ -862,6 +863,8 @@ def test_the_tasks_read_each_command_and_alias_mise_s_help_lists(fp: FakeProcess
                     backend-list]
           doctor    Check your mise setup for problems
                     across every config [aliases: dr]
+          run       Run tasks and their dependencies [aliases:
+                    r]
 
         Arguments:
           [TASK]  Task to run
@@ -876,7 +879,8 @@ def test_the_tasks_read_each_command_and_alias_mise_s_help_lists(fp: FakeProcess
     fp.register(["mise", "--help"], stdout=printed)
 
     assert Tasks.read().commands == {
-        "audit", "b", "backend", "backend-list", "backends", "doctor", "dr"
+        "audit", "b", "backend", "backend-list", "backends",
+        "doctor", "dr", "r", "run"
     }
 
     fp.register(["mise", "tasks", "ls", fp.any()], stdout="[]")
