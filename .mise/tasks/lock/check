@@ -1,6 +1,6 @@
 #!/usr/bin/env -S bash -euo pipefail
 #MISE alias       = "lockfile"
-#MISE description = "Verify `uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` against their manifests, that every tool the project pins installs from `.mise/mise.lock`, and that no advisory names a pinned tool beyond one `AUDIT_IGNORE` lists while no release fixes it"
+#MISE description = "Verify `uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` against their manifests, that every tool the project pins installs from `.mise/mise.lock`, and that no advisory names a pinned tool beyond one `AUDIT_IGNORE` lists while `mise audit` names no fix for it and still finds it in the newest release of the pin's line"
 
 source "$MISE_PROJECT_ROOT/.mise/lib/lock.sh"
 

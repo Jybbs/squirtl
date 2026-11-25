@@ -13,8 +13,8 @@ run         = "cc --version"
 timeout     = "10s"
 
 [doctor.checks.lockfile]
-description = "`uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` resolve what their manifests declare, every tool the project pins installs from `.mise/mise.lock`, and no advisory names a pinned tool beyond one `AUDIT_IGNORE` lists while no release fixes it"
-hint        = "Run `mise lockfile` to print what drifted, then `mise relock` to re-resolve every lockfile against its manifest. Where it names an advisory and a fixed version, lift the tool in `[tools]` to one, deleting from `AUDIT_IGNORE` each id the line names there. Where it names no fixed version, add the advisory's id to `AUDIT_IGNORE`, which passes it until a release fixes it."
+description = "`uv.lock`, each task script's lockfile, `.mise/mise.lock`, and `docs/bun.lock` resolve what their manifests declare, every tool the project pins installs from `.mise/mise.lock`, and no advisory names a pinned tool beyond one `AUDIT_IGNORE` lists while `mise audit` names no fix for it and still finds it in the newest release of the pin's line"
+hint        = "Run `mise lockfile` to print what drifted, then `mise relock` to re-resolve every lockfile against its manifest. Where it names an advisory and a release to lift to, lift the tool in `[tools]` to it, deleting from `AUDIT_IGNORE` each id the line names there. Where it names an advisory alone, add its id to `AUDIT_IGNORE`, which passes it until `mise audit` names a fix for it or no longer finds it in the newest release of the pin's line, its first two parts."
 run         = "mise run lock:check"
 timeout     = "60s"
 
