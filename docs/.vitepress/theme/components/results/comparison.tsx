@@ -1,9 +1,10 @@
-import { defineComponent, ref, useId } from 'vue'
+import { type PropType, defineComponent, ref, useId } from 'vue'
 
 import { useComparison }                             from '../../../lib/results/fold.ts'
 import { LANES }                                     from '../../../lib/results/lanes.ts'
 import type { Lane, Lanes, OddsLine, SeedRow, Side } from '../../../lib/results/lanes.ts'
 import { SILHOUETTES }                               from '../../../lib/results/marks.ts'
+import { COMMITTED, type Results }                   from '../../../lib/results/results.ts'
 import { HUES, ROLES }                               from '../kit/hues.ts'
 import * as plots                                    from '../kit/plots.tsx'
 import { ResultsLegend }                             from './legend.tsx'
@@ -205,14 +206,16 @@ function drawFigure(drawn: Lanes, motion: Motion) {
  * the curriculum, against the bedroom. Pointing at or focusing either side
  * widens it and folds the other to its tab, and under the figure a legend
  * decodes each mark under what it marks. It draws nothing until a run is
- * committed under `docs/runs/`.
+ * committed under `docs/runs/`, unless given the runs `results` holds.
  */
 export const ResultsComparison = defineComponent({
   name  : 'ResultsComparison',
-  setup : () => {
+  props : { results: { default: () => COMMITTED, type: Object as PropType<Results> } },
+  setup : props => {
     const box = ref<HTMLElement>()
     const id  = useId()
-    const { drawn, entrance, groups, legend, listeners, width } = useComparison(box, `${id}-key`)
+    const { drawn, entrance, groups, legend, listeners, width }
+      = useComparison(box, `${id}-key`, props.results)
 
     return () => groups.length === 0 ? null : (
       <div class="@container grid gap-4">

@@ -1,0 +1,38 @@
+.identity-results-card {
+  background    : var(--color-lift);
+  border        : var(--border-width-hairline) solid var(--color-rule);
+  border-radius : var(--radius-2);
+
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.identity-results-card .identity-results-mark { grid-row: span 2; }
+
+.identity-results-mark { min-inline-size: calc(var(--spacing-7) * 2); }
+
+.identity-results-mark svg {
+  block-size  : var(--spacing-5);
+  flex        : none;
+  inline-size : auto;
+}
+
+@container (width >= 40rem) {
+  .identity-results-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+  .identity-results-card { grid-template-columns: minmax(0, 1fr); }
+
+  .identity-results-card .identity-results-mark { grid-row: auto; }
+}
+
+@media (width >= 64rem) {
+  .identity-results { grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); }
+
+  .identity-results-cards {
+    align-self            : start;
+    grid-template-columns : minmax(0, 1fr);
+  }
+
+  .identity-results-card { grid-template-columns: minmax(0, 1fr); }
+
+  .identity-results-card .identity-results-mark { grid-row: auto; }
+}
