@@ -2,6 +2,5 @@
 #MISE alias       = "serve"
 #MISE depends     = ["site:install"]
 #MISE description = "Serve the site and reload a page as it is edited"
-#MISE dir         = "docs"
 
-node_modules/.bin/vitepress dev "$@"
+node_modules/.bin/vitepress dev docs "$@"

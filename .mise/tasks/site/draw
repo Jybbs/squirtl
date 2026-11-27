@@ -2,14 +2,13 @@
 #MISE alias       = "draw"
 #MISE depends     = ["site:install"]
 #MISE description = "Rewrite every mark the site's `MARKS` registry lists from the drawing it names, then the README's preview of the front page's walks"
-#MISE dir         = "docs"
 
 node_modules/.bin/vitest run \
-  --config .vitepress/config/vitest.ts \
+  --config docs/.vitepress/config/vitest.ts \
   --update=all \
-  .vitepress/tests/lib/config/marks.test.ts
+  tests/site/lib/config/marks.test.ts
 
 node --input-type=module <<'NODE'
-import { writePreviews } from "./.vitepress/lib/readme/preview.ts"
+import { writePreviews } from "./docs/.vitepress/lib/readme/preview.ts"
 writePreviews(import.meta.url)
 NODE

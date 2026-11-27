@@ -15,7 +15,9 @@ on:
       - .mise/mise.lock
       - .mise/tasks/py/coverage
       - .mise/tasks/site/**
+      - bun.lock
       - docs/**
+      - package.json
       - pyproject.toml
       - src/**
       - tests/**

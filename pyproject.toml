@@ -25,7 +25,7 @@ license-files   = ["LICENSE.md"]
 name            = "squirtl"
 readme          = ".github/README.md"
 requires-python = ">=3.15"
-version         = "0.2.0"
+version         = "0.3.0"
 
 [project.scripts]
 squirtl = "squirtl.cli:app"
@@ -108,10 +108,10 @@ markers                  = [
     "slow: runs longer than a few seconds, so a fast local run deselects it"
 ]
 norecursedirs            = ["common", "fixtures"]
-python_files             = ["tests/*.py"]
-pythonpath               = ["tests"]
+python_files             = ["tests/py/*.py"]
+pythonpath               = ["tests/py"]
 strict                   = true
-testpaths                = ["tests"]
+testpaths                = ["tests/py"]
 
 [tool.uv]
 build-constraint-dependencies = [
