@@ -309,25 +309,37 @@ def test_the_settings_refuse_an_assignment_once_read(
         assign(settings())
 
 
+@mark.parametrize(
+    ("pattern", "collected"),
+    [
+        param("tests/*.py", [True, False, False, False, False, True], id="a-path"),
+        param("repo/*.py", [True, False, False, False, False, False], id="a-folder"),
+        param("check*.py", [True, False, False, False, False, False], id="a-name")
+    ]
+)
 def test_a_test_module_is_collected_as_pytest_collects_it(
-    checkout : Callable[[Mapping[str, str]], None],
-    manifest : str
+    checkout  : Callable[[Mapping[str, str]], None],
+    collected : list[bool],
+    manifest  : str,
+    pattern   : str
 ):
     """
     Pins that the manifest collects a file under a test path matching a
-    pattern `python_files` holds, other than a `conftest.py` or a file under
-    a directory `norecursedirs` names, and mirrors it under each package.
+    pattern `python_files` holds, by its whole path where the pattern holds
+    a `/` and by its name otherwise, other than a `conftest.py` or a file
+    under a directory `norecursedirs` names, and mirrors it under each
+    package.
     """
-    checkout({"pyproject.toml": manifest})
+    checkout({"pyproject.toml": manifest.replace("tests/*.py", pattern)})
     read = Manifest.read()
 
     assert [
         read.collects(Path(path))
         for path in (
             "tests/repo/checks.py", "tests/conftest.py", "tests/common/x.py",
-            "tests/a.txt", "src/x.py"
+            "tests/a.txt", "src/x.py", "tests/x.py"
         )
-    ] == [True, False, False, False, False]
+    ] == collected
     assert read.mirrors(Path("tests/repo/checks.py")) == [Path(
         "src/squirtl/repo/checks.py"
     )]

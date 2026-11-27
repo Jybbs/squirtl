@@ -1668,8 +1668,8 @@ class Manifest(TomlFile, extra="ignore"):
         validation_alias = AliasPath("tool", "pytest", "python_files")
     )
     """
-    The patterns a file's name matches for pytest to collect it as a test
-    module.
+    The patterns a file matches for pytest to collect it as a test module,
+    by its name, or by its whole path where the pattern holds a `/`.
     """
 
     test_paths: list[Path] = Field(
@@ -1697,14 +1697,19 @@ class Manifest(TomlFile, extra="ignore"):
     def collects(self, path: Path) -> bool:
         """
         Tells whether pytest collects the file at `path` as a test module,
-        which holds for a file under a test path whose name matches a
-        pattern `test_files` holds, other than a `conftest.py`, and that no
-        directory matching a pattern `test_skips` holds.
+        which holds for a file under a test path matching a pattern
+        `test_files` holds as pytest matches it, other than a `conftest.py`,
+        and that no directory matching a pattern `test_skips` holds.
         """
         return (
             any(path.is_relative_to(root) for root in self.test_paths)
             and path.name != "conftest.py"
-            and any(path.match(pattern) for pattern in self.test_files)
+            and any(
+                fnmatch(f"/{path.as_posix()}", f"*/{pattern}")
+                if "/" in pattern
+                else fnmatch(path.name, pattern)
+                for pattern in self.test_files
+            )
             and not any(
                 fnmatch(
                     part,
