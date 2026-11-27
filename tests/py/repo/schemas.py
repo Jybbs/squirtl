@@ -336,9 +336,8 @@ def test_a_test_module_is_collected_as_pytest_collects_it(
     assert [
         read.collects(Path(path))
         for path in (
-            "tests/py/repo/checks.py", "tests/py/conftest.py",
-            "tests/py/common/x.py", "tests/py/a.txt", "src/x.py",
-            "tests/py/x.py"
+            "tests/py/repo/checks.py", "tests/py/conftest.py", "tests/py/common/x.py",
+            "tests/py/a.txt", "src/x.py", "tests/py/x.py"
         )
     ] == collected
     assert read.mirrors(Path("tests/py/repo/checks.py")) == [Path(

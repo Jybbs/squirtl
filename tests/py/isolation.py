@@ -27,14 +27,14 @@ def regrouped(
 ) -> Function:
     """
     Collects the test `request` runs afresh and passes it through the
-    collection hook in `tests/conftest.py`, under `--dist=loadgroup` unless
+    collection hook in `tests/py/conftest.py`, under `--dist=loadgroup` unless
     `loadgroup` is false.
 
     Returns:
         The fresh test, as the hook leaves it.
     """
     conftest = request.config.pluginmanager.get_plugin(
-        str(request.config.rootpath / "tests/conftest.py")
+        str(Path(__file__).with_name("conftest.py"))
     )
     fresh = Function.from_parent(
         request.node.parent,
