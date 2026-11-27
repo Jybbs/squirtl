@@ -137,6 +137,56 @@ def test_an_interval_leaves_out_one_run_and_closes_onto_runs_scoring_the_same(
     )
 
 
+@mark.parametrize(
+    ("shares", "interval"),
+    [
+        param([1.0, 1.0, 1.0], (0.025 ** (1 / 90), 1.0), id="every-episode"),
+        param([0.0, 0.0, 0.0], (0.0, 1 - 0.025 ** (1 / 90)), id="no-episode"),
+        param([1.0, 0.0, 1.0], None, id="runs-differing")
+    ]
+)
+def test_runs_holding_a_share_alike_take_the_binomial_interval_over_their_episodes(
+    interval : tuple[float, float] | None,
+    shares   : list[float]
+):
+    """
+    Asserts that runs reaching a goal in every episode or in none carry the
+    exact binomial interval over their pooled 90 episodes, which closes at
+    one bound, whereas runs differing keep the bootstrap's interval.
+    """
+    estimate = Estimate.reaching(array(shares), 90, generator=default_rng(0))
+
+    if interval is None:
+        assert estimate == Estimate.interquartile(array(shares), generator=default_rng(0))
+    else:
+        assert estimate.interval == approx(interval)
+
+
+def test_the_binomial_interval_of_150_episodes_reaches_down_to_97_6_percent():
+    """
+    Asserts that every episode of five runs of 30 bounds the share below at
+    97.6%, the figure Clopper and Pearson's interval gives for 150 of 150.
+    """
+    estimate = Estimate.reaching(array([1.0] * 5), 150, generator=default_rng(0))
+
+    assert estimate.interval == approx((0.9757, 1.0), abs=1e-4)
+
+
+def test_seeds_counted_to_clear_even_odds_grow_as_the_probability_nears_them():
+    """
+    Asserts that two runs of each agent suffice where every run of one
+    beats every run of the other, that no count clears probability one half,
+    and that a probability nearer to one half takes more.
+    """
+    far    = array([4.0, 5.0, 6.0])
+    near   = array([1.0, 2.0, 3.0, 4.5, 6.5])
+    middle = array([2.0, 4.0, 6.0])
+
+    assert Estimate.seeds(far, array([1.0, 2.0, 3.0])) == 2
+    assert Estimate.seeds(middle, middle) is None
+    assert Estimate.seeds(near, middle) > 2
+
+
 def test_the_interquartile_mean_of_four_runs_averages_the_middle_two():
     """
     Asserts that the interquartile mean of four runs averages the middle two

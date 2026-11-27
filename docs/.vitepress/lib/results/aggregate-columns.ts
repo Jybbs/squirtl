@@ -114,21 +114,29 @@ export function useColumns(
   columns : ComputedRef<Column[]>
   random  : ComputedRef<Estimate>
 } {
-  const baselines = new Map(COMMITTED.runs.map(run => [run.seed, run.baseline.reached]))
+  const baselines = new Map(COMMITTED.runs.map(run => [run.seed, run.baseline]))
   const whole     = computed(() => seeds.value.length === aggregateSwitches.committedSeeds.length)
   const keptOf    = (each: aggregate.Aggregate) =>
     aggregate.pairedOf(each).filter(run => seeds.value.includes(run.seed))
-  const shownOf   = (shares: readonly number[], reported: Estimate) =>
-    whole.value ? reported : aggregate.estimateOf(shares)
+  const shownOf   = (shares: readonly number[], episodes: number, reported: Estimate) =>
+    whole.value ? reported : aggregate.estimateOf(shares, episodes)
   const randoms   = computed(() => seeds.value.map(seed => baselines.get(seed)!))
+  const total     = (episodes: readonly number[]) => episodes.reduce((sum, count) => sum + count, 0)
 
   return {
-    columns : computed(() => aggregates.map(each => ({
-      each     : each,
-      estimate : shownOf(keptOf(each).map(run => run.share), each.reached),
-      runs     : aggregate.pairedOf(each)
-    }))),
-    random  : computed(() => shownOf(randoms.value, COMMITTED.random!))
+    columns : computed(() => aggregates.map(each => {
+      const kept = keptOf(each)
+      return {
+        each     : each,
+        estimate : shownOf(kept.map(run => run.share), total(kept.map(run => run.episodes)), each.reached),
+        runs     : aggregate.pairedOf(each)
+      }
+    })),
+    random  : computed(() => shownOf(
+      randoms.value.map(score => score.reached),
+      total(randoms.value.map(score => score.episodes)),
+      COMMITTED.random!
+    ))
   }
 }
 

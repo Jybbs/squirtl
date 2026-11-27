@@ -38,8 +38,8 @@ describe('aggregatesOf', () => {
 describe('pairedOf', () => {
   it('reads each run in the order of its seed beside random presses’ share under it', () => {
     expect(aggregate.pairedOf(aggregates[1]!)).toStrictEqual([
-      { random: 0.25, seed: 2, share: 1 },
-      { random: 0, seed: 3, share: 1 }
+      { episodes: 8, random: 0.25, seed: 2, share: 1 },
+      { episodes: 8, random: 0, seed: 3, share: 1 }
     ])
   })
 })
@@ -68,9 +68,24 @@ describe('the bootstrap', () => {
 
   it.each([
     ['one share', [0.4], { interval: null, runs: [1], value: 0.4 }],
-    ['equal shares', [1, 1, 1], { interval: [1, 1], runs: [3], value: 1 }]
+    ['equal shares', [0.25, 0.25, 0.25], { interval: [0.25, 0.25], runs: [3], value: 0.25 }]
   ])('estimates %s itself', (_, shares, estimate) => {
-    expect(aggregate.estimateOf(shares)).toStrictEqual(estimate)
+    expect(aggregate.estimateOf(shares, 90)).toStrictEqual(estimate)
+  })
+
+  it.each([
+    ['every episode', [1, 1, 1], [0.025 ** (1 / 90), 1]],
+    ['no episode', [0, 0], [0, 1 - 0.025 ** (1 / 60)]]
+  ])('bounds a share reaching the goal in %s by the exact binomial interval', (_, shares, interval) => {
+    expect(aggregate.exactOf(shares, shares.length * 30)).toStrictEqual(interval)
+  })
+
+  it.each([[[1, 0.9, 1]], [[0.5, 0.5]], [[]]])('leaves %j to the bootstrap', shares => {
+    expect(aggregate.exactOf(shares, 90)).toBeNull()
+  })
+
+  it('bounds 150 episodes of every run reaching the goal from 97.6% as SciPy’s binomial test does', () => {
+    expect(aggregate.exactOf(Array.from({ length: 5 }, () => 1), 150)![0]).toBeCloseTo(0.97571, 5)
   })
 
   it('draws random presses’ interval over every committed seed within two points of SciPy’s', () => {

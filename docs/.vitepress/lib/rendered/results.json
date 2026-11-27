@@ -28,13 +28,14 @@
       "reached": {
         "interval": [
           0.0,
-          0.0
+          0.02429259716610854
         ],
         "runs": [
           5
         ],
         "value": 0.0
-      }
+      },
+      "seeds": null
     },
     {
       "agent": "ppo",
@@ -63,14 +64,15 @@
       "curriculum": false,
       "reached": {
         "interval": [
-          1.0,
+          0.9757074028338915,
           1.0
         ],
         "runs": [
           5
         ],
         "value": 1.0
-      }
+      },
+      "seeds": null
     },
     {
       "agent": "ppo",
@@ -116,7 +118,8 @@
           5
         ],
         "value": 1.0
-      }
+      },
+      "seeds": 231
     },
     {
       "agent": "pqn",
@@ -146,13 +149,14 @@
       "reached": {
         "interval": [
           0.0,
-          0.0
+          0.02429259716610854
         ],
         "runs": [
           5
         ],
         "value": 0.0
-      }
+      },
+      "seeds": null
     },
     {
       "agent": "pqn",
@@ -192,13 +196,14 @@
       "reached": {
         "interval": [
           0.0,
-          0.0
+          0.02429259716610854
         ],
         "runs": [
           5
         ],
         "value": 0.0
-      }
+      },
+      "seeds": 51
     }
   ],
   "random": {
@@ -219,6 +224,7 @@
       "seed": 4,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.36666666666666664,
         "reward": 0.29354166666666653,
         "step": null
@@ -227,60 +233,70 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0005083333333333334,
           "step": 253952
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.23333333333333334,
           "reward": 0.251475,
           "step": 503808
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.43333333333333335,
           "reward": 0.4356083333333333,
           "step": 753664
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.3333333333333333,
           "reward": 0.25698333333333334,
           "step": 1003520
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.006091666666666671,
           "step": 1253376
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005125000000000003,
           "step": 1503232
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005125000000000003,
           "step": 1753088
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005125000000000003,
           "step": 2002944
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005125000000000003,
           "step": 2252800
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005125000000000003,
           "step": 2502656
@@ -294,6 +310,7 @@
       "seed": 4,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.36666666666666664,
         "reward": 0.29354166666666653,
         "step": null
@@ -302,60 +319,70 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0036250000000000015,
           "step": 253952
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.001091666666666667,
           "step": 503808
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0038916666666666687,
           "step": 753664
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0018083333333333332,
           "step": 1003520
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.006308333333333337,
           "step": 1253376
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0025000000000000005,
           "step": 1503232
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.001533333333333334,
           "step": 1753088
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0005083333333333334,
           "step": 2002944
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0064500000000000035,
           "step": 2252800
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.006533333333333337,
           "step": 2502656
@@ -369,6 +396,7 @@
       "seed": 5,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.2,
         "reward": 0.17651666666666666,
         "step": null
@@ -377,60 +405,70 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.001575,
           "step": 253952
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0024000000000000007,
           "step": 503808
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.43333333333333335,
           "reward": 0.3730666666666666,
           "step": 753664
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.26666666666666666,
           "reward": 0.28355833333333336,
           "step": 1003520
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005408333333333336,
           "step": 1253376
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005408333333333336,
           "step": 1503232
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005408333333333336,
           "step": 1753088
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005408333333333336,
           "step": 2002944
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005408333333333336,
           "step": 2252800
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.000325,
           "step": 2502656
@@ -444,6 +482,7 @@
       "seed": 1,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.16666666666666666,
         "reward": 0.17040833333333333,
         "step": null
@@ -452,18 +491,21 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0007083333333333334,
           "step": 251743
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0008333333333333334,
           "step": 507743
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.00010833333333333334,
           "step": 753503
@@ -477,6 +519,7 @@
       "seed": 5,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.2,
         "reward": 0.17651666666666666,
         "step": null
@@ -485,60 +528,70 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.00125,
           "step": 253952
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.003033333333333334,
           "step": 503808
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0007500000000000002,
           "step": 753664
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.003225000000000001,
           "step": 1003520
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.002016666666666667,
           "step": 1253376
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0011666666666666668,
           "step": 1503232
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0006083333333333333,
           "step": 1753088
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.00534166666666667,
           "step": 2002944
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.006608333333333338,
           "step": 2252800
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0007333333333333334,
           "step": 2502656
@@ -552,6 +605,7 @@
       "seed": 2,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.13333333333333333,
         "reward": 0.13859166666666667,
         "step": null
@@ -560,18 +614,21 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0027000000000000006,
           "step": 254906
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.003008333333333334,
           "step": 500666
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0010833333333333335,
           "step": 756666
@@ -585,6 +642,7 @@
       "seed": 3,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.26666666666666666,
         "reward": 0.23399999999999993,
         "step": null
@@ -593,18 +651,21 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.000775,
           "step": 256531
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.004100000000000002,
           "step": 501490
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0006916666666666667,
           "step": 752566
@@ -618,6 +679,7 @@
       "seed": 4,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.36666666666666664,
         "reward": 0.29354166666666653,
         "step": null
@@ -626,18 +688,21 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.00045,
           "step": 258208
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0035333333333333345,
           "step": 503968
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0006833333333333333,
           "step": 759968
@@ -651,6 +716,7 @@
       "seed": 5,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.2,
         "reward": 0.17651666666666666,
         "step": null
@@ -659,18 +725,21 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0008500000000000001,
           "step": 259048
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.000325,
           "step": 500529
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0004916666666666667,
           "step": 755609
@@ -684,6 +753,7 @@
       "seed": 1,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.16666666666666666,
         "reward": 0.17040833333333333,
         "step": null
@@ -692,60 +762,70 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0015,
           "step": 253952
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0020250000000000003,
           "step": 503808
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.5,
           "reward": 0.48825833333333335,
           "step": 753664
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.003833333333333335,
           "step": 1003520
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.003833333333333335,
           "step": 1253376
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.003833333333333335,
           "step": 1503232
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.003833333333333335,
           "step": 1753088
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.003833333333333335,
           "step": 2002944
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.003833333333333335,
           "step": 2252800
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.003833333333333335,
           "step": 2502656
@@ -759,6 +839,7 @@
       "seed": 1,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.16666666666666666,
         "reward": 0.17040833333333333,
         "step": null
@@ -767,60 +848,70 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0033083333333333346,
           "step": 253952
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0005833333333333334,
           "step": 503808
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0009750000000000001,
           "step": 753664
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0005833333333333334,
           "step": 1003520
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0008416666666666667,
           "step": 1253376
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.006966666666666671,
           "step": 1503232
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.003233333333333334,
           "step": 1753088
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.004225000000000002,
           "step": 2002944
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0009083333333333334,
           "step": 2252800
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0007333333333333333,
           "step": 2502656
@@ -834,6 +925,7 @@
       "seed": 2,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.13333333333333333,
         "reward": 0.13859166666666667,
         "step": null
@@ -842,60 +934,70 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.00048333333333333334,
           "step": 253952
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0028416666666666673,
           "step": 503808
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0010916666666666668,
           "step": 753664
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.31628333333333314,
           "step": 1003520
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.2542583333333333,
           "step": 1253376
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.004875000000000003,
           "step": 1503232
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.004875000000000003,
           "step": 1753088
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.004875000000000003,
           "step": 2002944
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005183333333333336,
           "step": 2252800
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.004875000000000003,
           "step": 2502656
@@ -909,6 +1011,7 @@
       "seed": 3,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.26666666666666666,
         "reward": 0.23399999999999993,
         "step": null
@@ -917,60 +1020,70 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0009333333333333333,
           "step": 253952
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005375000000000003,
           "step": 503808
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.36666666666666664,
           "reward": 0.4449749999999998,
           "step": 753664
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.1,
           "reward": 0.35116666666666657,
           "step": 1003520
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.13333333333333333,
           "reward": 0.17503333333333326,
           "step": 1253376
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.01705,
           "step": 1503232
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005883333333333337,
           "step": 1753088
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.00571666666666667,
           "step": 2002944
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005458333333333337,
           "step": 2252800
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005525000000000003,
           "step": 2502656
@@ -984,6 +1097,7 @@
       "seed": 2,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.13333333333333333,
         "reward": 0.13859166666666667,
         "step": null
@@ -992,60 +1106,70 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0021333333333333343,
           "step": 253952
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.00075,
           "step": 503808
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0018166666666666667,
           "step": 753664
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0013583333333333334,
           "step": 1003520
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0016750000000000005,
           "step": 1253376
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.000875,
           "step": 1503232
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.006900000000000004,
           "step": 1753088
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.00589166666666667,
           "step": 2002944
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.004583333333333336,
           "step": 2252800
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0013,
           "step": 2502656
@@ -1059,6 +1183,7 @@
       "seed": 3,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.26666666666666666,
         "reward": 0.23399999999999993,
         "step": null
@@ -1067,60 +1192,70 @@
       "scores": [
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.01615,
           "step": 253952
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.004850000000000003,
           "step": 503808
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.00551666666666667,
           "step": 753664
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0045083333333333355,
           "step": 1003520
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.001708333333333334,
           "step": 1253376
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.000825,
           "step": 1503232
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0011916666666666668,
           "step": 1753088
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0012083333333333334,
           "step": 2002944
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.006308333333333337,
           "step": 2252800
         },
         {
           "argmax": null,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.000775,
           "step": 2502656
@@ -1134,6 +1269,7 @@
       "seed": 1,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.16666666666666666,
         "reward": 0.17040833333333333,
         "step": null
@@ -1142,60 +1278,70 @@
       "scores": [
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.4,
           "reward": 0.29100000000000004,
           "step": 262144
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.23333333333333334,
           "reward": 0.16244166666666668,
           "step": 507904
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6638666666666667,
           "step": 753664
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.66325,
           "step": 1015808
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6632666666666667,
           "step": 1261568
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6632416666666666,
           "step": 1507328
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6632916666666666,
           "step": 1753088
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.66325,
           "step": 2015232
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.66325,
           "step": 2260992
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6632666666666667,
           "step": 2506752
@@ -1209,6 +1355,7 @@
       "seed": 4,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.36666666666666664,
         "reward": 0.29354166666666653,
         "step": null
@@ -1217,60 +1364,70 @@
       "scores": [
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.010733333333333341,
           "step": 262144
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0053250000000000025,
           "step": 507904
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.006283333333333337,
           "step": 753664
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0030666666666666676,
           "step": 1015808
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6636583333333334,
           "step": 1261568
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6640333333333334,
           "step": 1507328
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6635333333333333,
           "step": 1753088
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6635083333333333,
           "step": 2015232
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6635000000000001,
           "step": 2260992
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 0.9666666666666667,
           "reward": 0.6413333333333334,
           "step": 2506752
@@ -1284,6 +1441,7 @@
       "seed": 3,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.26666666666666666,
         "reward": 0.23399999999999993,
         "step": null
@@ -1292,60 +1450,70 @@
       "scores": [
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.006683333333333337,
           "step": 262144
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.004766666666666669,
           "step": 507904
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.004925000000000002,
           "step": 753664
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0067583333333333375,
           "step": 1015808
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.9666666666666667,
           "reward": 0.6434833333333334,
           "step": 1261568
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6645333333333333,
           "step": 1507328
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6646416666666667,
           "step": 1753088
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6641166666666667,
           "step": 2015232
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6638083333333334,
           "step": 2260992
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.66395,
           "step": 2506752
@@ -1359,6 +1527,7 @@
       "seed": 5,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.2,
         "reward": 0.17651666666666666,
         "step": null
@@ -1367,60 +1536,70 @@
       "scores": [
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.7333333333333333,
           "reward": 0.5142333333333333,
           "step": 262144
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6658083333333333,
           "step": 507904
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6639750000000001,
           "step": 753664
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6640333333333334,
           "step": 1015808
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6642333333333333,
           "step": 1261568
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.8666666666666667,
           "reward": 0.5774416666666666,
           "step": 1507328
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6642500000000001,
           "step": 1753088
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6642500000000001,
           "step": 2015232
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6642666666666667,
           "step": 2260992
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6642500000000001,
           "step": 2506752
@@ -1434,6 +1613,7 @@
       "seed": 2,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.13333333333333333,
         "reward": 0.13859166666666667,
         "step": null
@@ -1442,60 +1622,70 @@
       "scores": [
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.011458333333333343,
           "step": 262144
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.005191666666666669,
           "step": 507904
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.0060250000000000034,
           "step": 753664
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 0.9666666666666667,
           "reward": 0.6416916666666667,
           "step": 1015808
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6635583333333334,
           "step": 1261568
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6632416666666666,
           "step": 1507328
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.663,
           "step": 1753088
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.663,
           "step": 2015232
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.663,
           "step": 2260992
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6631833333333333,
           "step": 2506752
@@ -1509,6 +1699,7 @@
       "seed": 1,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.16666666666666666,
         "reward": 0.17040833333333333,
         "step": null
@@ -1517,60 +1708,70 @@
       "scores": [
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.7666666666666667,
           "reward": 0.5214249999999999,
           "step": 262144
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6642583333333333,
           "step": 507904
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6633666666666667,
           "step": 753664
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6630083333333334,
           "step": 1015808
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.663,
           "step": 1261568
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.663,
           "step": 1507328
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.663,
           "step": 1753088
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 0.7,
           "reward": 0.4654666666666667,
           "step": 2015232
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.663,
           "step": 2260992
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6630083333333334,
           "step": 2506752
@@ -1584,6 +1785,7 @@
       "seed": 2,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.13333333333333333,
         "reward": 0.13859166666666667,
         "step": null
@@ -1592,60 +1794,70 @@
       "scores": [
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6714583333333334,
           "step": 262144
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.16666666666666666,
           "reward": 0.11794166666666667,
           "step": 507904
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6656166666666666,
           "step": 753664
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6650916666666667,
           "step": 1015808
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.66465,
           "step": 1261568
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6646833333333333,
           "step": 1507328
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6638083333333334,
           "step": 1753088
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6637666666666667,
           "step": 2015232
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6649666666666666,
           "step": 2260992
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6637500000000001,
           "step": 2506752
@@ -1659,6 +1871,7 @@
       "seed": 4,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.36666666666666664,
         "reward": 0.29354166666666653,
         "step": null
@@ -1667,60 +1880,70 @@
       "scores": [
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.1,
           "reward": 0.0833,
           "step": 262144
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6677166666666666,
           "step": 507904
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6638249999999999,
           "step": 753664
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.66325,
           "step": 1015808
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.66325,
           "step": 1261568
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6633,
           "step": 1507328
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6633083333333333,
           "step": 1753088
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.663725,
           "step": 2015232
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6630083333333334,
           "step": 2260992
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6632083333333334,
           "step": 2506752
@@ -1734,6 +1957,7 @@
       "seed": 3,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.26666666666666666,
         "reward": 0.23399999999999993,
         "step": null
@@ -1742,60 +1966,70 @@
       "scores": [
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.8333333333333334,
           "reward": 0.5974583333333332,
           "step": 262144
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6643583333333333,
           "step": 507904
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6631583333333334,
           "step": 753664
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6632666666666667,
           "step": 1015808
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.66325,
           "step": 1261568
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6631333333333334,
           "step": 1507328
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6630166666666667,
           "step": 1753088
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.663,
           "step": 2015232
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.663,
           "step": 2260992
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.663,
           "step": 2506752
@@ -1809,6 +2043,7 @@
       "seed": 5,
       "baseline": {
         "argmax": null,
+        "episodes": 30,
         "reached": 0.2,
         "reward": 0.17651666666666666,
         "step": null
@@ -1817,60 +2052,70 @@
       "scores": [
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.0,
           "reward": 0.008383333333333338,
           "step": 262144
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.06666666666666667,
           "reward": 0.05218333333333334,
           "step": 507904
         },
         {
           "argmax": 0.0,
+          "episodes": 30,
           "reached": 0.03333333333333333,
           "reward": 0.028850000000000004,
           "step": 753664
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.665675,
           "step": 1015808
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.66525,
           "step": 1261568
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6652833333333333,
           "step": 1507328
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6652666666666668,
           "step": 1753088
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 0.9666666666666667,
           "reward": 0.6433333333333333,
           "step": 2015232
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6651083333333333,
           "step": 2260992
         },
         {
           "argmax": 1.0,
+          "episodes": 30,
           "reached": 1.0,
           "reward": 0.6650000000000001,
           "step": 2506752

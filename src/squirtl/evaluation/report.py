@@ -6,9 +6,10 @@ behind it.
 """
 
 from collections.abc import Callable, Iterable
+from math            import ceil
 from numpy           import array, ndarray
 from numpy.random    import Generator
-from scipy.stats     import bootstrap, mannwhitneyu, trim_mean
+from scipy.stats     import binomtest, bootstrap, mannwhitneyu, norm, trim_mean
 from typing          import Self
 
 from squirtl.emulator.schemas   import Record
@@ -20,15 +21,17 @@ type Pairs = dict[str, tuple[Evaluation, Evaluation]]
 
 class Estimate(Record):
     """
-    A statistic over runs beside its 95% percentile bootstrap interval,
-    which SciPy's `bootstrap` gives where every sample holds two runs or
-    more, and the count of runs in each sample it reads.
+    A statistic over runs beside its 95% interval, the percentile bootstrap
+    interval SciPy's `bootstrap` gives where every sample holds two runs or
+    more, or the exact binomial interval where `reaching` pools the episodes
+    of runs that all reached a goal or none did, and the count of runs in
+    each sample it reads.
     """
 
     interval: tuple[float, float] | None
     """
-    The bounds of the 95% percentile bootstrap interval, or `None` where a
-    sample holds a single run.
+    The bounds of the 95% interval, or `None` where a sample holds a single
+    run.
     """
 
     runs: tuple[int, ...]
@@ -102,6 +105,27 @@ class Estimate(Record):
         )
 
     @classmethod
+    def reaching(cls, shares: ndarray, episodes: int, *, generator: Generator) -> Self:
+        """
+        Estimates the interquartile mean of `shares`, one per run, of the
+        `episodes` the runs played in all. Where every run reached the goal
+        in every episode or in none, the interval is the exact binomial
+        interval over the pooled episodes, which Clopper and Pearson define,
+        since the bootstrap of runs scoring the same closes onto the score.
+        """
+        estimate = cls.interquartile(shares, generator=generator)
+
+        if estimate.runs[0] < 2 or shares.min() != shares.max() or shares[0] not in (0, 1):
+            return estimate
+
+        return estimate.model_copy(update={
+            "interval": tuple(
+                binomtest(int(shares[0]) * episodes, episodes)
+                    .proportion_ci(method="exact")
+            )
+        })
+
+    @classmethod
     def resampled(
         cls,
         statistic : Callable[..., float | ndarray],
@@ -123,6 +147,31 @@ class Estimate(Record):
             ),
             runs  = runs,
             value = statistic(*samples, axis=-1)
+        )
+
+    @staticmethod
+    def seeds(first: ndarray, second: ndarray) -> int | None:
+        """
+        Counts the runs of each agent, at least two, that would carry the
+        95% interval of the probability that a run scoring `first` beats a
+        run scoring `second` clear of even odds, were the measured
+        probability the true one, or `None` where it is even odds or either
+        agent holds fewer than two runs, which spread no variance. The
+        interval is the normal one around the Mann-Whitney statistic, whose
+        variance over `n` runs of each is the sum of the sample variances of
+        each run's share of the other agent's runs it beats, a tie counting
+        half, over `n`.
+        """
+        if min(len(first), len(second)) < 2:
+            return None
+
+        wins   = (first[:, None] > second) + 0.5 * (first[:, None] == second)
+        excess = abs(wins.mean() - 0.5)
+        spread = wins.mean(axis=1).var(ddof=1) + wins.mean(axis=0).var(ddof=1)
+
+        return None if excess == 0 else max(
+            2,
+            ceil((norm.ppf(0.975) / excess) ** 2 * spread)
         )
 
 

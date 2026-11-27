@@ -375,6 +375,24 @@ def test_results_compare_each_agent_and_curriculum_across_its_runs(
     assert (results.random.value, results.random.runs) == (approx(0.0), (3,))
 
 
+def test_shares_every_run_holds_alike_take_the_exact_binomial_interval_of_their_episodes(
+    checkout: Callable[[Mapping[str, str]], None]
+):
+    """
+    Pins that runs reaching their goal in every episode, and the baseline
+    reaching it in none, carry the exact binomial interval over the pooled
+    episodes, here three, in place of a zero-width bootstrap interval.
+    """
+    for second in (1, 2, 3):
+        recorded(checkout, [0.75], second)
+
+    comparison, *_ = (results := Results.read()).comparisons
+
+    assert comparison.reached.interval == approx((0.025 ** (1 / 3), 1.0))
+    assert comparison.baseline.interval == approx((0.0, 1 - 0.025 ** (1 / 3)))
+    assert results.random.interval == comparison.baseline.interval
+
+
 def test_runs_ending_at_more_than_one_goal_are_refused(
     checkout: Callable[[Mapping[str, str]], None]
 ):
@@ -428,13 +446,14 @@ def test_the_curriculum_compares_against_the_same_agents_runs_from_the_bedroom(
     assert [
         (
             comparison.agent, comparison.curriculum,
-            None if comparison.bedroom is None else comparison.bedroom.value
+            None if comparison.bedroom is None else comparison.bedroom.value,
+            comparison.seeds
         )
         for comparison in Results.read().comparisons
     ] == [
-        (Algorithm.PPO, True, None),
-        (Algorithm.PQN, False, None),
-        (Algorithm.PQN, True, approx(1.0))
+        (Algorithm.PPO, True, None, None),
+        (Algorithm.PQN, False, None, None),
+        (Algorithm.PQN, True, approx(1.0), 2)
     ]
 
 
@@ -491,7 +510,8 @@ def test_the_summary_spells_each_agents_share_from_each_start(
     """
     Pins that the sentence names the seeds and the goal, then each agent's
     share from the bedroom before along the curriculum, the agents reaching
-    more first, and random presses' share last.
+    more first, each share every run holds alike beside the exact binomial
+    interval of the two episodes pooled, and random presses' share last.
     """
     for second, (algorithm, curriculum, reward) in enumerate(
         (
@@ -516,8 +536,8 @@ def test_the_summary_spells_each_agents_share_from_each_start(
 
     assert Results.read().summary == (
         "measures each agent under the same 2 seeds, "
-        "where PPO reaches `EVENT_GOT_STARTER` in every evaluation episode from "
-        "the bedroom, PQN in no evaluation episode from the bedroom and in every "
-        "evaluation episode along the curriculum, DQN in no evaluation episode "
-        "from the bedroom, and random presses in 50% [50, 50]."
+        "where PPO reaches `EVENT_GOT_STARTER` in 100% [16, 100] from the "
+        "bedroom, PQN in 0% [0, 84] from the bedroom and in 100% [16, 100] along "
+        "the curriculum, DQN in 0% [0, 84] from the bedroom, and random presses "
+        "in 50% [50, 50]."
     )
