@@ -8,8 +8,8 @@ import { LABEL, LIST }       from '../kit/widget.ts'
 import { ResultsComparison } from '../results/comparison.tsx'
 
 /**
- * The chart's own marks the cards draw large, read from its legend: a seed
- * risen from its random share, and each shade a cell takes.
+ * The chart's own marks the cards draw large, read from its legend, a seed
+ * risen from its random share and each shade a cell takes.
  */
 const KEY    = legendOf([{ agent: 'ppo' }], MADE_UP.random!, 'identity-results-hatch')
 const SEED   = KEY.find(row => row.head === 'Last evaluation')!.entries[0]!.mark!
@@ -22,6 +22,11 @@ const RUN = '<svg viewBox="0 0 64 18">'
           + [0, 0, 1, 1, 2, 2, 3, 3].map((shade, n) =>
             `<rect class="results-cell-${shade}" x="${n * 8}" y="4" width="7" height="10"/>`).join('')
           + '</svg>'
+
+/**
+ * The classes of a card's mark, drawn in the first agent's hue as the legend draws it.
+ */
+const MARK = `${HUES[hueOf('ppo')].ink} identity-results-mark flex items-center gap-1`
 
 /**
  * The cards, each a part of the chart, its mark as the chart draws it, and
@@ -62,7 +67,7 @@ export const IdentityResults = defineComponent({
             <li class="identity-results-card m-0 grid content-start items-center gap-x-4 gap-y-1 p-4">
               <span
                 aria-hidden="true"
-                class={`${HUES[hueOf('ppo')].ink} identity-results-mark flex items-center gap-1`}
+                class={MARK}
                 innerHTML={card.mark}
               />
               <span class={LABEL}>{card.name}</span>

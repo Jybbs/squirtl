@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { legendOf } from '../../../../docs/.vitepress/lib/results/legend.ts'
+import { legendOf }                         from '../../../../docs/.vitepress/lib/results/legend.ts'
 import * as results                         from '../../../../docs/.vitepress/lib/results/results.ts'
 import FIXTURE                              from './fixtures/results.json' with { type: 'json' }
 

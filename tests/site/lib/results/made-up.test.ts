@@ -16,4 +16,9 @@ describe('MADE_UP', () => {
     expect(MADE_UP.runs.every(run => run.baseline.reached * EPISODES % 1 === 0)).toBe(true)
     expect(MADE_UP.random!.interval![0]).toBeLessThan(MADE_UP.random!.value)
   })
+
+  it('gives each agent the odds of beating random presses its reached share sets', () => {
+    expect(MADE_UP.comparisons.map(comparison => [comparison.agent, comparison.beats.value]))
+      .toStrictEqual([['ppo', 0.96], ['pqn', 0.88], ['dqn', 0.04]])
+  })
 })

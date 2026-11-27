@@ -31,8 +31,4 @@
     align-self            : start;
     grid-template-columns : minmax(0, 1fr);
   }
-
-  .identity-results-card { grid-template-columns: minmax(0, 1fr); }
-
-  .identity-results-card .identity-results-mark { grid-row: auto; }
 }

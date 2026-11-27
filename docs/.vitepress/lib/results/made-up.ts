@@ -65,8 +65,8 @@ const random = estimate(RANDOM.map(count => share(count)), 0.05)
  */
 export const MADE_UP: Results = {
   comparisons : agents.map(agent => {
-    const finals = FINALS[agent].counts.map(count => share(count))
-    const odds   = interquartile(finals) > 0.7 ? 0.96 : interquartile(finals) > 0.4 ? 0.88 : 0.04
+    const reached = estimate(FINALS[agent].counts.map(count => share(count)), 0.06)
+    const odds    = reached.value > 0.7 ? 0.96 : reached.value > 0.4 ? 0.88 : 0.04
     return {
       agent      : agent,
       baseline   : random,
@@ -77,7 +77,7 @@ export const MADE_UP: Results = {
       },
       bedroom    : null,
       curriculum : false,
-      reached    : estimate(finals, 0.06)
+      reached    : reached
     }
   }),
   random : random,
