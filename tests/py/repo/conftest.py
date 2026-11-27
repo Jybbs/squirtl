@@ -41,7 +41,7 @@ def manifest() -> str:
 
         [tool.pytest]
         norecursedirs = ["common", "fixtures"]
-        python_files  = ["*.py"]
+        python_files  = ["tests/py/*.py"]
         testpaths     = ["tests/py"]
 
         [tool.uv]

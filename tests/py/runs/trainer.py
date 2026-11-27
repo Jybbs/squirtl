@@ -44,6 +44,7 @@ from collections.abc   import Callable
 from common.agents     import each_agent
 from common.console    import set_event, stand
 from common.evaluation import EvaluatorStandIn, played
+from common.processes  import starts_processes
 from common.runs       import Played, Unbroken
 from datetime          import UTC, datetime
 from functools         import partial
@@ -269,6 +270,7 @@ def stop_at_eight(step: int, trainer: Trainer):
         trainer.run.stop.touch()
 
 
+@mark.slow
 def test_a_checkpoint_and_an_evaluation_land_where_an_update_reaches_each_interval(
     evaluators  : list[EvaluatorStandIn],
     monkeypatch : MonkeyPatch,
@@ -331,6 +333,7 @@ def test_a_signal_ends_the_run_at_the_end_of_its_episode(
     assert ReplayCheckpoint.from_path(run.checkpoint).step == 6
 
 
+@mark.slow
 def test_a_resume_copies_the_evaluations_up_to_its_checkpoint_and_the_baseline(
     evaluators : list[EvaluatorStandIn],
     trainer    : Callable[..., Trainer]
@@ -418,6 +421,7 @@ def test_each_finished_episode_writes_a_line_and_the_cut_one_none(
     ] == [(6, False, 6)] * 3
 
 
+@mark.slow
 def test_a_resume_whose_demonstration_ends_elsewhere_is_refused_before_any_directory(
     demonstrated : Path,
     played       : Played,
@@ -468,6 +472,7 @@ def test_a_resume_whose_demonstration_ends_elsewhere_is_refused_before_any_direc
     assert sorted(stopped.directory.parent.iterdir()) == runs
 
 
+@mark.slow
 def test_a_resumed_run_writes_its_checkpoints_where_a_run_that_never_stopped_does(
     monkeypatch : MonkeyPatch,
     trainer     : Callable[..., Trainer]
@@ -514,15 +519,16 @@ def test_a_rollout_takes_the_steps_of_the_settings_of_its_own_agent(
         assert run.tally.counts.tolist() == [1, 1]
 
 
+@starts_processes
 def test_a_rollout_run_ending_unraised_lets_each_worker_close_its_environment(
-    rolling: Callable[..., Trainer]
+    forked: Callable[..., Trainer]
 ):
     """
     Asserts that a run ending with nothing raised closes the environments
     through their workers, each of which exits 0 rather than being
     terminated.
     """
-    with rolling(Algorithm.PQN, steps=8) as trainer:
+    with forked(Algorithm.PQN, steps=8) as trainer:
         list(trainer)
 
     assert {process.exitcode for process in trainer.env.unwrapped.processes} == {0}
@@ -594,8 +600,9 @@ def test_an_evaluation_logs_how_often_each_policy_reached_the_goal(
     } <= set(logged)
 
 
+@starts_processes
 def test_a_rollout_run_makes_the_environments_its_settings_name(
-    rolling: Callable[..., Trainer]
+    forked: Callable[..., Trainer]
 ):
     """
     Asserts that a run of PQN or PPO makes as many environments as
@@ -604,7 +611,7 @@ def test_a_rollout_run_makes_the_environments_its_settings_name(
     step, and normalizes rewards at the run's discount rather than at
     `NormalizeReward`'s own.
     """
-    with rolling(Algorithm.PPO, agent={"discount": 0.9, "max_concurrency": 1}) as run:
+    with forked(Algorithm.PPO, agent={"discount": 0.9, "max_concurrency": 1}) as run:
         vector = run.env.unwrapped
 
         assert (
@@ -613,6 +620,7 @@ def test_a_rollout_run_makes_the_environments_its_settings_name(
         ) == (0.9, AutoresetMode.SAME_STEP, 1, 2)
 
 
+@mark.slow
 def test_a_rollout_run_of_one_environment_writes_a_line_for_each_episode(
     rolling: Callable[..., Trainer]
 ):
@@ -652,9 +660,10 @@ def test_a_rollout_run_resuming_a_checkpoint_of_another_agent_is_refused(
         )
 
 
+@starts_processes
 @mark.filterwarnings("ignore:.*pending call to .step")
 def test_a_second_interrupt_partway_through_a_step_ends_each_worker(
-    rolling: Callable[..., Trainer]
+    forked: Callable[..., Trainer]
 ):
     """
     Asserts that an interrupt raised once a step has read some of the
@@ -664,7 +673,7 @@ def test_a_second_interrupt_partway_through_a_step_ends_each_worker(
     """
     handler = signal(SIGALRM, lambda *_: fail("Closing blocked on a pipe already read"))
 
-    with raises(KeyboardInterrupt), rolling(Algorithm.PQN) as trainer:
+    with raises(KeyboardInterrupt), forked(Algorithm.PQN) as trainer:
         vector = trainer.env.unwrapped
 
         raise_signal(SIGINT)
@@ -741,6 +750,7 @@ def test_a_run_remembers_the_value_of_a_final_observation_at_the_step_truncating
     )] + [idle] * 2
 
 
+@mark.slow
 @each_agent
 def test_each_environments_episode_writes_a_line_as_its_last_step_returns(
     algorithm : Algorithm,
@@ -766,7 +776,13 @@ def test_each_environments_episode_writes_a_line_as_its_last_step_returns(
     ("limit", "means", "steps"),
     [
         param(3,  [None, 1.0], 16, id="an-episode-ending-before-the-first-update"),
-        param(10, [1.5, 3.5],  40, id="an-episode-spanning-two-updates")
+        param(
+            10,
+            [1.5, 3.5],
+            40,
+            id    = "an-episode-spanning-two-updates",
+            marks = mark.slow
+        )
     ]
 )
 def test_an_episodes_line_averages_the_updates_taken_while_it_played(
@@ -793,6 +809,7 @@ def test_an_episodes_line_averages_the_updates_taken_while_it_played(
     assert [line.update and line.update.loss for line in lines[::2]] == means
 
 
+@mark.slow
 def test_a_run_stopped_halfway_and_resumed_ends_as_a_run_that_never_stopped(
     trainer: Callable[..., Trainer]
 ):
@@ -970,6 +987,7 @@ def test_a_rollout_checkpoint_holds_where_each_environment_stands(
     ] == [(2, 1, len(algorithm.measures.model_fields))] * 2
 
 
+@mark.slow
 @each_agent
 @mark.parametrize(
     ("limit", "played", "stopped_at"),
@@ -1017,6 +1035,7 @@ def test_a_rollout_run_stopped_and_resumed_ends_as_a_run_that_never_stopped(
     )
 
 
+@mark.slow
 @each_agent
 def test_a_rollout_run_stopped_before_its_first_step_resumes_as_one_never_stopped(
     algorithm : Algorithm,
@@ -1179,13 +1198,14 @@ def test_an_episodes_line_records_its_return_positions_epsilon_and_update_means(
     ] == ["0.00000", "0.06250", "0.35000", *["0.00000"] * 17]
 
 
+@mark.slow
 def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
     trainer: Callable[..., Trainer]
 ):
     """
     Asserts that a run evaluating at steps 12 and 20 over two episodes in
-    two worker processes writes the agent's evaluations and the baseline's,
-    and ends with the networks, Adam's state, replay memory, generators, and
+    two environments writes the agent's evaluations and the baseline's, and
+    ends with the networks, Adam's state, replay memory, generators, and
     episodes of the same run evaluating nothing.
     """
     evaluated = finish(
@@ -1222,15 +1242,16 @@ def test_an_evaluation_writes_its_episodes_and_leaves_the_training_as_it_was(
     ).step is None
 
 
+@starts_processes
 def test_an_interrupt_reaching_each_worker_leaves_the_rollout_stepping(
-    rolling: Callable[..., Trainer]
+    forked: Callable[..., Trainer]
 ):
     """
     Asserts that each environment's worker ignores the interrupt a terminal
     sends the whole process group, so the rollout runs on to the step where
     the trainer decides whether to stop.
     """
-    with rolling(Algorithm.PQN, steps=8) as trainer:
+    with forked(Algorithm.PQN, steps=8) as trainer:
         for process in trainer.env.unwrapped.processes:
             kill(process.pid, SIGINT)
 
@@ -1277,6 +1298,7 @@ def test_each_environment_starts_from_a_reset_of_its_own(
     assert first.timer_div != second.timer_div
 
 
+@mark.slow
 def test_ppos_episode_logs_no_epsilon_beside_its_measures(
     logged      : list[str],
     monkeypatch : MonkeyPatch,
@@ -1308,6 +1330,7 @@ def test_ppos_episode_logs_no_epsilon_beside_its_measures(
     assert measures in [message[-len(measures):] for message in logged]
 
 
+@mark.slow
 @each_agent
 def test_a_rollout_run_along_a_demonstration_starts_each_episode_from_a_window(
     algorithm    : Algorithm,
@@ -1359,6 +1382,7 @@ def test_a_rollout_run_along_a_demonstration_starts_each_episode_from_a_window(
         ]
 
 
+@mark.slow
 @each_agent
 def test_a_rollout_run_follows_a_demonstration_past_max_episode_steps(
     algorithm    : Algorithm,
@@ -1394,6 +1418,7 @@ def test_a_rollout_run_follows_a_demonstration_past_max_episode_steps(
     ]
 
 
+@mark.slow
 @each_agent
 def test_a_rollout_run_has_its_curriculum_take_in_each_episode_it_records(
     algorithm    : Algorithm,

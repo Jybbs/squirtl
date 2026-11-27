@@ -21,6 +21,8 @@ export default defineConfig({
     restoreMocks        : true,
     root                : docsDir(import.meta.url),
     sequence            : { shuffle: true },
+    // Vitest 5.1's default under `browser.enabled`, three times the 5,000 ms it sets otherwise.
+    testTimeout         : 15_000,
     unstubEnvs          : true,
     unstubGlobals       : true,
 
