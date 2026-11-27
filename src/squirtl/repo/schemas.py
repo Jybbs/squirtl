@@ -716,8 +716,9 @@ class Repository(Record):
 
 class Task(Record, extra="ignore"):
     """
-    One task `mise tasks ls` lists, read for its name, the tasks it depends
-    on, the file declaring it, and the scripts a task declared in TOML runs.
+    One task `mise tasks ls` lists, read for its name, its aliases, the
+    tasks it depends on, the file declaring it, and the scripts a task
+    declared in TOML runs.
     """
 
     depends: list[str]
@@ -733,6 +734,12 @@ class Task(Record, extra="ignore"):
     source: Path
     """
     The absolute path of the file declaring the task.
+    """
+
+    aliases: list[str] = []
+    """
+    Each word the task declares as its alias, which `mise <alias>` runs
+    unless one of mise's own commands takes the word.
     """
 
     run: list[Lines] = []
@@ -1980,7 +1987,8 @@ class Settings(TomlFile):
 class Tasks(Record):
     """
     The tasks mise lists for the checkout, beside each defect `mise tasks
-    validate` reports in their definitions.
+    validate` reports in their definitions and the words mise's own commands
+    take.
     """
 
     issues: list[TaskIssue]
@@ -1992,6 +2000,12 @@ class Tasks(Record):
     """
     Every task the checkout declares, leaving out the global ones a
     developer's own configuration adds.
+    """
+
+    commands: frozenset[str] = frozenset()
+    """
+    Each command and command alias `mise --help` lists, any of which `mise
+    <word>` runs ahead of a task alias of the same word.
     """
 
     @property
@@ -2011,10 +2025,13 @@ class Tasks(Record):
     @classmethod
     def read(cls) -> Self:
         """
-        Lists every task the checkout declares through `mise tasks ls` and
-        validates each through `mise tasks validate`, which exits 1 where it
-        reports an error, raising `Unreadable` on `.mise/config.toml` where
-        mise cannot list the tasks or prints a report that fails to parse.
+        Lists every task the checkout declares through `mise tasks ls`,
+        validates each through `mise tasks validate`, which exits 1 where
+        it reports an error, and reads each command name and each alias in
+        the brackets after a command's summary from the `Commands:` section
+        of `mise --help`, raising `Unreadable` on `.mise/config.toml` where
+        mise cannot list the tasks, prints a report that fails to parse, or
+        lists no command.
         """
         with Finding.reading(MiseConfig.file):
             tasks = TypeAdapter(list[Task]).validate_json(
@@ -2025,10 +2042,19 @@ class Tasks(Record):
                 capture_output = True,
                 encoding       = "utf-8"
             )
+            listing = check_output(["mise", "--help"], encoding="utf-8").partition(
+                "\nCommands:"
+            )[2].partition("\n")[2].partition("\n\n")[0]
+
+            if not (commands := findall(r"(?m)^  ([\w-]+)", listing)):
+                raise ValueError("`mise --help` lists no command")
+
+            aliases = " ".join(findall(r"\[aliases:\s+([^\]]+)\]", listing))
 
             return cls(
-                issues = TaskValidation.model_validate_json(report.stdout).issues,
-                tasks  = tasks
+                commands = frozenset(commands + findall(r"[\w-]+", aliases)),
+                issues   = TaskValidation.model_validate_json(report.stdout).issues,
+                tasks    = tasks
             )
 
 
