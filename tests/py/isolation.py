@@ -27,8 +27,8 @@ def regrouped(
 ) -> Function:
     """
     Collects the test `request` runs afresh and passes it through the
-    collection hook in `tests/py/conftest.py`, under `--dist=loadgroup` unless
-    `loadgroup` is false.
+    collection hook in `tests/py/conftest.py`, under `--dist=loadgroup`
+    unless `loadgroup` is false.
 
     Returns:
         The fresh test, as the hook leaves it.
