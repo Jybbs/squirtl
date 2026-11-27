@@ -66,6 +66,11 @@ class Score(Record):
     PQN, and the random baseline.
     """
 
+    episodes: int
+    """
+    The episodes the evaluation played.
+    """
+
     reached: float
     """
     The share of the episodes reaching the run's goal.
@@ -87,10 +92,11 @@ class Score(Record):
         Reads the score of `evaluation`.
         """
         return cls(
-            argmax  = None if (greedy := evaluation.greedy) is None else greedy.reached,
-            reached = evaluation.reached,
-            reward  = evaluation.reward,
-            step    = evaluation.step
+            argmax   = None if (greedy := evaluation.greedy) is None else greedy.reached,
+            episodes = len(evaluation.outcomes),
+            reached  = evaluation.reached,
+            reward   = evaluation.reward,
+            step     = evaluation.step
         )
 
 
@@ -205,7 +211,8 @@ class Comparison(Record):
     baseline: Estimate
     """
     The interquartile mean across the runs of the baseline's share reaching
-    their goal.
+    their goal, over the exact binomial interval of the pooled episodes where
+    every run reached it in every episode or none did.
     """
 
     beats: Estimate
@@ -229,7 +236,15 @@ class Comparison(Record):
     reached: Estimate
     """
     The interquartile mean across the runs of the agent's share reaching
-    their goal.
+    their goal, over the exact binomial interval of the pooled episodes where
+    every run reached it in every episode or none did.
+    """
+
+    seeds: int | None
+    """
+    The runs of each start that would carry the 95% interval of the
+    probability of beating the runs from the bedroom clear of even odds were
+    the measured probability the true one, or `None` where `bedroom` is.
     """
 
     @property
@@ -254,8 +269,9 @@ class Comparison(Record):
 
         return cls(
             agent    = runs[0].agent,
-            baseline = Estimate.interquartile(
+            baseline = Estimate.reaching(
                 array([run.baseline.reached for run in runs]),
+                sum(run.baseline.episodes for run in runs),
                 generator = generator
             ),
             bedroom = Estimate.improvement(
@@ -269,10 +285,13 @@ class Comparison(Record):
                 generator = generator
             ),
             curriculum = runs[0].curriculum,
-            reached    = Estimate.interquartile(
+            reached = Estimate.reaching(
                 array([run.last.reached for run in runs]),
+                sum(run.last.episodes for run in runs),
                 generator = generator
-            )
+            ),
+            seeds = Estimate.seeds(rewards, array([run.last.reward for run in bedroom]))
+                if runs[0].curriculum and bedroom else None
         )
 
 
@@ -360,7 +379,7 @@ class Results(Record):
         runs = tuple(filter(None, map(Trained.read, cls.directories(folder))))
         Event.check_shared((run.goal for run in runs), f"the runs under {folder}")
 
-        baselines = {run.seed: run.baseline.reached for run in Trained.seeded(runs)}
+        baselines = {run.seed: run.baseline for run in Trained.seeded(runs)}
         group     = attrgetter("agent", "curriculum")
         groups    = {
             key: tuple(members)
@@ -372,8 +391,9 @@ class Results(Record):
                 Comparison.across(members, groups.get((agent, False), ()))
                 for (agent, _), members in groups.items()
             ),
-            random = Estimate.interquartile(
-                array(list(baselines.values())),
+            random = Estimate.reaching(
+                array([score.reached for score in baselines.values()]),
+                sum(score.episodes for score in baselines.values()),
                 generator = default_rng(list(baselines))
             ) if runs else None,
             runs = runs

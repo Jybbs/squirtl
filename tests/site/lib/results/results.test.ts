@@ -1,3 +1,4 @@
+import fs                      from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import * as results from '../../../../docs/.vitepress/lib/results/results.ts'
@@ -108,5 +109,14 @@ describe('figuresOf', () => {
       ['Random presses', ['0.10 [0.00, 0.25] over 7', '']]
     ])
     expect(entries.map(entry => entry.hue)).toStrictEqual([null, 'denim', null, null, null, undefined])
+  })
+})
+
+describe('the seeds each curriculum verdict states', () => {
+  it('names on the comparison page the seeds per start the committed runs write for each curriculum lane', () => {
+    const page  = fs.readFileSync(new URL('../../../../docs/pages/results/comparison.md', import.meta.url), 'utf8')
+    const lanes = results.COMMITTED.comparisons.filter(comparison => comparison.bedroom)
+    expect(lanes.length).toBeGreaterThan(0)
+    for (const { seeds } of lanes) expect(page).toContain(`${seeds} seeds per start`)
   })
 })

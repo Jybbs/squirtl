@@ -8,7 +8,9 @@ Each evaluation plays 30 episodes of each player, the count Mnih et al.[^mnih201
 
 ## The Measures
 
-Each evaluation averages over each player's episodes the share reaching the run's goal, the steps the episodes reaching it took, the positions reached, the return, and each term's part of that return. Across runs, each measure is reported as its interquartile mean, the mean of the runs left once a quarter is cut from each end, with its 95% percentile bootstrap interval and the count of runs behind it, as Agarwal et al.[^agarwal2021] aggregate a handful of runs. The comparison of one agent against random presses, or against another agent, is the probability that a run of the first beats a run of the second on mean return, which the Mann-Whitney statistic over every pair of runs estimates.
+Each evaluation averages over each player's episodes the share reaching the run's goal, the steps the episodes reaching it took, the positions reached, the return, and each term's part of that return. Across runs, each measure is reported as its interquartile mean, the mean of the runs left once a quarter is cut from each end, with its 95% percentile bootstrap interval and the count of runs behind it, as Agarwal et al.[^agarwal2021] aggregate a handful of runs. A share that every run holds alike, every episode of every run or none, takes instead the exact binomial interval over the pooled episodes, which Clopper and Pearson[^clopper1934] define, since resampling runs that score the same draws a zero-width interval where 150 episodes bound a share of every episode no tighter than 97.6% to 100%. The comparison of one agent against random presses, or against another agent, is the probability that a run of the first beats a run of the second on mean return, which the Mann-Whitney statistic over every pair of runs estimates.
+
+The interval resamples the seeds alone, whereas the two-level bootstrap of Saravanan et al.[^saravanan2020] draws seeds and then episodes within each seed. The 30 episodes of a run hold at most 2% of the variance in its mean return across seeds in three lanes, PPO's and PQN's from the bedroom and PQN's along the curriculum, and 18% in the lane of DQN, so the seed resamples carry nearly all of the spread. In the lane of PPO along the curriculum, one episode missing the goal holds 93% of it, the one lane where drawing the episodes as well would widen the interval.
 
 ## The Released Runs
 
@@ -35,3 +37,7 @@ The table below is written from the help `squirtl train` prints for each `--eval
 [^mhammedi2026]: Mhammedi and Cohan 2026. "Decoupling Exploration and Policy Optimization: Uncertainty Guided Tree Search for Hard Exploration." arXiv:2603.22273v4. <https://arxiv.org/abs/2603.22273v4>
 
 [^agarwal2021]: Agarwal et al. 2021. "Deep Reinforcement Learning at the Edge of the Statistical Precipice." *Advances in Neural Information Processing Systems* 34: 29304–29320. <https://proceedings.neurips.cc/paper/2021/hash/f514cec81cb148559cf475e7426eed5e-Abstract.html>
+
+[^clopper1934]: Clopper and Pearson 1934. "The Use of Confidence or Fiducial Limits Illustrated in the Case of the Binomial." *Biometrika* 26(4): 404–413. <https://doi.org/10.1093/biomet/26.4.404>
+
+[^saravanan2020]: Saravanan et al. 2020. "Application of the hierarchical bootstrap to multi-level data in neuroscience." arXiv:2007.07797. <https://arxiv.org/abs/2007.07797>

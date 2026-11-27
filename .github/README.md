@@ -94,7 +94,7 @@ Each step of the development loop runs as a mise task, which `mise tasks` lists 
 
 <!-- results -->
 
-**[Against Random Presses](https://squirtl.fyi/results/comparison)** measures each agent under the same 5 seeds, where PPO reaches `EVENT_GOT_STARTER` in every evaluation episode from the bedroom and in 100% [98, 100] along the curriculum, DQN in no evaluation episode from the bedroom, PQN in no evaluation episode from the bedroom and along the curriculum, and random presses in 21% [14, 31].
+**[Against Random Presses](https://squirtl.fyi/results/comparison)** measures each agent under the same 5 seeds, where PPO reaches `EVENT_GOT_STARTER` in 100% [98, 100] from the bedroom and along the curriculum, DQN in 0% [0, 2] from the bedroom, PQN in 0% [0, 2] from the bedroom and along the curriculum, and random presses in 21% [14, 31].
 
 <!-- /results -->
 

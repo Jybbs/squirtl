@@ -22,11 +22,12 @@ interface Comparison {
   beats      : Estimate
   curriculum : boolean
   reached    : Estimate
+  seeds      : number | null
 }
 
 /**
- * A statistic over runs beside its 95% percentile bootstrap interval, `null`
- * where a sample holds one run, and the count of runs in each sample.
+ * A statistic over runs beside its 95% interval, `null` where a sample holds
+ * one run, and the count of runs in each sample.
  */
 export interface Estimate {
   interval : readonly [number, number] | null
@@ -65,13 +66,14 @@ export interface Results {
  * What one evaluation of the agent measured, the share of its episodes
  * reaching the goal and their mean return, beside the share reaching it at
  * PPO's most likely press, `null` for the deep Q-network and PQN, at the step
- * of the run it read.
+ * of the run it read, and the count of episodes it played.
  */
 export interface Score {
-  argmax  : number | null
-  reached : number
-  reward  : number
-  step    : number
+  argmax   : number | null
+  episodes : number
+  reached  : number
+  reward   : number
+  step     : number
 }
 
 /**

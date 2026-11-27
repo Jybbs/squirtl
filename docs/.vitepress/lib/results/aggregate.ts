@@ -15,13 +15,14 @@ export interface Aggregate {
 
 /**
  * One run of a group at its last evaluation beside random presses under its
- * seed: its seed, its share of episodes reaching the goal, and random
- * presses' share.
+ * seed: the episodes each played, its seed, its share of episodes reaching
+ * the goal, and random presses' share.
  */
 export interface Paired {
-  random : number
-  seed   : number
-  share  : number
+  episodes : number
+  random   : number
+  seed     : number
+  share    : number
 }
 
 /**
@@ -78,15 +79,31 @@ export function drawnOf(shares: readonly number[], draws: number = RESAMPLES, se
 }
 
 /**
- * Reads the estimate of `shares` the page draws itself: their interquartile
- * mean, the middle 95% of its bootstrap's draws where there are two shares or
- * more, and their count.
+ * Reads the estimate of `shares` the page draws itself, over the `episodes`
+ * their runs played in all: their interquartile mean, the exact binomial
+ * interval over the pooled episodes where every run reached the goal in every
+ * episode or in none and otherwise the middle 95% of its bootstrap's draws
+ * where there are two shares or more, and their count.
  */
-export const estimateOf = (shares: readonly number[]): Estimate => ({
-  interval : shares.length > 1 ? middleOf(drawnOf(shares)) : null,
+export const estimateOf = (shares: readonly number[], episodes: number): Estimate => ({
+  interval : shares.length > 1 ? exactOf(shares, episodes) ?? middleOf(drawnOf(shares)) : null,
   runs     : [shares.length],
   value    : interquartile(shares)
 })
+
+/**
+ * Reads the exact 95% binomial interval Clopper and Pearson define over
+ * `episodes` pooled, where `shares` all hold 1 or all hold 0, and `null`
+ * otherwise. Every episode reaching the goal bounds the share below at the
+ * `episodes`th root of 0.025, and none reaching it bounds it above at one
+ * minus that root.
+ */
+export function exactOf(shares: readonly number[], episodes: number): readonly [number, number] | null {
+  const [first] = shares
+  if (first === undefined || (first !== 0 && first !== 1) || shares.some(share => share !== first)) return null
+  const edge = 0.025 ** (1 / episodes)
+  return first ? [edge, 1] : [0, 1 - edge]
+}
 
 /**
  * Reads how far apart two intervals stand at their farther end, in whole
@@ -107,7 +124,10 @@ export const middleOf = (means: readonly number[]): readonly [number, number] =>
  * each beside random presses' share under its seed.
  */
 export const pairedOf = ({ group }: Aggregate): Paired[] => group.runs
-  .map(run => ({ random: run.baseline.reached, seed: run.seed, share: run.scores.at(-1)!.reached }))
+  .map(run => {
+    const last = run.scores.at(-1)!
+    return { episodes: last.episodes, random: run.baseline.reached, seed: run.seed, share: last.reached }
+  })
   .toSorted((a, b) => a.seed - b.seed)
 
 /**
