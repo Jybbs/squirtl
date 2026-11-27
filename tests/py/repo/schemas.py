@@ -325,10 +325,10 @@ def test_a_test_module_is_collected_as_pytest_collects_it(
 ):
     """
     Pins that the manifest collects a file under a test path matching a
-    pattern `python_files` holds, by its whole path where the pattern holds
-    a `/` and by its name otherwise, other than a `conftest.py` or a file
-    under a directory `norecursedirs` names, and mirrors it under each
-    package.
+    pattern `python_files` holds, by its path from the checkout's root
+    where the pattern holds a `/` and by its name otherwise, other than a
+    `conftest.py` or a file under a directory `norecursedirs` names, and
+    mirrors it under each package.
     """
     checkout({"pyproject.toml": manifest.replace("tests/py/*.py", pattern)})
     read = Manifest.read()

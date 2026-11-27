@@ -1719,7 +1719,8 @@ class Manifest(TomlFile, extra="ignore"):
     )
     """
     The patterns a file matches for pytest to collect it as a test module,
-    by its name, or by its whole path where the pattern holds a `/`.
+    by its name, or by its path from the checkout's root where the pattern
+    holds a `/`.
     """
 
     test_paths: list[Path] = Field(
@@ -1748,8 +1749,9 @@ class Manifest(TomlFile, extra="ignore"):
         """
         Tells whether pytest collects the file at `path` as a test module,
         which holds for a file under a test path matching a pattern
-        `test_files` holds as pytest matches it, other than a `conftest.py`,
-        and that no directory matching a pattern `test_skips` holds.
+        `test_files` holds, a pattern holding a `/` matched against the path
+        from the checkout's root, other than a `conftest.py`, and that no
+        directory matching a pattern `test_skips` holds.
         """
         return (
             any(path.is_relative_to(root) for root in self.test_paths)
