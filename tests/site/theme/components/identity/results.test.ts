@@ -34,7 +34,7 @@ describe('IdentityResults', () => {
   })
 
   it('draws a lane for each made-up comparison and none of the committed runs', async () => {
-    held.runs     = false
+    held.runs     = true
     const resize  = browser.stubSize()
     const wrapper = mount(IdentityResults, { attachTo: document.body })
     resize(688, 300)
