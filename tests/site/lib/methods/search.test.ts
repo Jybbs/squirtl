@@ -246,13 +246,13 @@ describe('the search’s figures', () => {
   })
 
   it('moves a group whose copies all die to the parent of the node they began on', () => {
-    const small = search.searchOf({ ...search.SIZES, particles: 2, seed: 97 })
-    const fell  = small.iterations.filter(each => !each.synced)
-      .flatMap(each => each.groups)
-      .filter(group => group.winner === null)
+    const [iteration, nodes] = search.iterationsOf({ ...search.SIZES, particles: 2, seed: 97 })
+      .take(search.LAST)
+      .filter(([each]) => !each.synced)
+      .find(([each]) => each.groups.some(group => group.winner === null))!
+    const fell               = iteration.groups.filter(group => group.winner === null)
 
-    expect(fell.length).toBeGreaterThan(0)
-    expect(fell.map(group => group.next)).toStrictEqual(fell.map(group => parentOf(group, small.nodes)))
+    expect(fell.map(group => group.next)).toStrictEqual(fell.map(group => parentOf(group, nodes)))
   })
 
   it('names on its page the defaults the settings declare and the drawing’s rollout length', () => {
@@ -267,8 +267,8 @@ describe('the search’s figures', () => {
   })
 
   it('keeps a group whose copies all die on the bedroom’s node there', () => {
-    const small = search.searchOf({ ...search.SIZES, particles: 2, seed: 272 })
-    const fell  = small.iterations[0]!.groups.filter(group => group.winner === null)
+    const [first] = search.iterationsOf({ ...search.SIZES, particles: 2, seed: 272 }).next().value
+    const fell    = first.groups.filter(group => group.winner === null)
 
     expect(fell.length).toBeGreaterThan(0)
     expect(fell.map(group => [group.copies[0]!.start, group.next])).toStrictEqual(fell.map(() => [0, 0]))

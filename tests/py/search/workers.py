@@ -18,6 +18,7 @@ Pins the worker each rollout runs in, covering:
 
 from collections.abc    import Callable
 from common.console     import set_event
+from common.processes   import starts_processes
 from concurrent.futures import ProcessPoolExecutor
 from gymnasium          import Env
 from gymnasium.envs.registration import EnvSpec
@@ -84,6 +85,7 @@ def test_a_boot_moves_into_a_group_of_its_own_and_makes_the_environment(
         assert started == [{"daemon": True, "target": workers.exit_with_parent}]
 
 
+@starts_processes
 def test_a_spawned_worker_ends_once_its_parent_is_killed(specification: EnvSpec):
     """
     Asserts that a spawned worker, which no signal to its parent's process
@@ -121,6 +123,7 @@ def test_a_spawned_worker_ends_once_its_parent_is_killed(specification: EnvSpec)
                 worker.recv()
 
 
+@starts_processes
 def test_a_spawned_worker_exits_printing_nothing(
     capfd         : CaptureFixture[str],
     specification : EnvSpec
@@ -143,6 +146,7 @@ def test_a_spawned_worker_exits_printing_nothing(
     assert "excepthook" not in capfd.readouterr().err
 
 
+@starts_processes
 def test_a_spawned_worker_leads_a_process_group_apart_from_the_main_process(
     specification: EnvSpec
 ):
@@ -432,6 +436,7 @@ def test_a_rollout_from_a_rollouts_end_matches_one_played_straight_through(
     assert part.frames + rest.frames == whole.frames
 
 
+@starts_processes
 @mark.parametrize("processes", [param(1, id="one"), param(2, id="two")])
 def test_a_pool_returns_each_ending_in_the_order_submitted(
     processes     : int,

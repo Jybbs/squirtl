@@ -108,7 +108,7 @@ markers                  = [
     "slow: runs longer than a few seconds, so a fast local run deselects it"
 ]
 norecursedirs            = ["common", "fixtures"]
-python_files             = ["*.py"]
+python_files             = ["tests/py/*.py"]
 pythonpath               = ["tests/py"]
 strict                   = true
 testpaths                = ["tests/py"]

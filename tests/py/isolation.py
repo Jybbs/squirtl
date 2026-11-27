@@ -7,15 +7,46 @@ Pins the isolation the suite keeps from the machine running it, covering:
 - The block that stops a test without the `network` mark from opening a
   network connection, and the Unix socket that block leaves open
 - The mark that lets a `network` test open a connection
+- The group each test reading a played run joins under `--dist=loadgroup`
 - The filter that raises every warning as an error
 """
 
-from os            import environ
-from pathlib       import Path
-from pytest        import FixtureRequest, mark, param, raises, warns
-from pytest_socket import SocketBlockedError
-from socket        import AF_UNIX, create_connection, socketpair
-from warnings      import warn
+from common.processes import starts_processes
+from os               import environ
+from pathlib          import Path
+from pytest           import FixtureRequest, Function, MonkeyPatch, mark, param, raises, warns
+from pytest_socket    import SocketBlockedError
+from socket           import AF_UNIX, create_connection, socketpair
+from warnings         import warn
+
+
+def regrouped(
+    monkeypatch : MonkeyPatch,
+    request     : FixtureRequest,
+    loadgroup   : bool = True
+) -> Function:
+    """
+    Collects the test `request` runs afresh and passes it through the
+    collection hook in `tests/py/conftest.py`, under `--dist=loadgroup`
+    unless `loadgroup` is false.
+
+    Returns:
+        The fresh test, as the hook leaves it.
+    """
+    conftest = request.config.pluginmanager.get_plugin(
+        str(Path(__file__).with_name("conftest.py"))
+    )
+    fresh = Function.from_parent(
+        request.node.parent,
+        callspec     = getattr(request.node, "callspec", None),
+        name         = request.node.name,
+        originalname = request.node.originalname
+    )
+
+    monkeypatch.setattr(request.config.option, "loadgroup", loadgroup, raising=False)
+    conftest.pytest_collection_modifyitems(request.config, [fresh])
+
+    return fresh
 
 
 def test_a_network_test_gets_the_mark_that_opens_the_socket(request: FixtureRequest):
@@ -29,9 +60,58 @@ def test_a_network_test_gets_the_mark_that_opens_the_socket(request: FixtureRequ
     )
 
     request.node.add_marker(mark.network)
-    conftest.pytest_collection_modifyitems([request.node])
+    conftest.pytest_collection_modifyitems(request.config, [request.node])
 
     assert request.node.get_closest_marker("enable_socket")
+
+
+@mark.parametrize(
+    "group",
+    [
+        param("played", id="ungrouped"),
+        param("processes", id="grouped", marks=starts_processes)
+    ]
+)
+@mark.usefixtures("played")
+def test_a_test_reading_a_played_run_joins_one_group_alone(
+    group       : str,
+    monkeypatch : MonkeyPatch,
+    request     : FixtureRequest
+):
+    """
+    Asserts that under `--dist=loadgroup` the collection hook gives a test
+    requesting `played` the `played` group where it carries no `xdist_group`
+    mark of its own and keeps the group its own mark names otherwise,
+    appending that one group alone to its node id, so every test of a group
+    runs on one worker.
+    """
+    fresh = regrouped(monkeypatch, request)
+
+    assert (
+        [marked.args for marked in fresh.iter_markers("xdist_group")],
+        fresh.nodeid
+    ) == (
+        [(group,)],
+        f"{request.node.nodeid.removesuffix(f'@{group}')}@{group}"
+    )
+
+
+@mark.usefixtures("played")
+def test_a_test_reading_a_played_run_joins_no_group_outside_loadgroup(
+    monkeypatch : MonkeyPatch,
+    request     : FixtureRequest
+):
+    """
+    Asserts that without `--dist=loadgroup` the collection hook gives a
+    test requesting `played` no `xdist_group` mark and leaves its node id as
+    pytest builds it.
+    """
+    fresh = regrouped(monkeypatch, request, loadgroup=False)
+
+    assert (fresh.get_closest_marker("xdist_group"), fresh.nodeid) == (
+        None,
+        request.node.nodeid.removesuffix("@played")
+    )
 
 
 def test_a_socket_stays_closed_outside_the_network_mark():
