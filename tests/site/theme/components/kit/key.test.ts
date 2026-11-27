@@ -48,6 +48,15 @@ describe('Key as a strip', () => {
       .toStrictEqual([[true, false], [false, true]])
   })
 
+  it('keeps each entry within its column and lets its name wrap below the sm breakpoint', () => {
+    const key = mount(Key, { props: { entries: ENTRIES } })
+
+    expect(key.findAll('ul > li').map(entry => entry.classes('max-w-full'))).toStrictEqual([true, true])
+    expect(key.findAll('ul > li > span:nth-child(2)').map(name => [
+      name.classes('whitespace-nowrap'), name.classes('@max-sm:whitespace-normal')
+    ])).toStrictEqual([[true, true], [true, true]])
+  })
+
   it('dims no entry while none is lit', () => {
     const key = mount(Key, { props: { entries: ENTRIES } })
 

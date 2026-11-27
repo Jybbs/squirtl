@@ -52,11 +52,12 @@ const PARTS = {
 const STRIP_PARTS = {
   art    : '*:size-key-mark',
   dim    : 'opacity-45',
-  entry  : 'inline-flex items-center gap-2 rounded-2 border-hairline border-transparent py-1 pr-2 pl-1 '
-         + 'text-left motion-safe:transition-opacity',
+  entry  : 'inline-flex max-w-full items-center gap-2 rounded-2 border-hairline border-transparent py-1 pr-2 '
+         + 'pl-1 text-left motion-safe:transition-opacity',
   list   : [LIST, 'flex flex-wrap gap-x-3 gap-y-1'],
   mark   : 'grid size-key-mark flex-none place-items-center',
-  name   : 'font-code text-label leading-snug font-semibold tracking-caps whitespace-nowrap uppercase',
+  name   : 'font-code text-label leading-snug font-semibold tracking-caps whitespace-nowrap uppercase '
+         + '@max-sm:whitespace-normal',
   swatch : SWATCH,
   told   : 'visually-hidden',
   value  : 'font-code text-small leading-snug font-medium whitespace-nowrap text-ink tabular-nums'
