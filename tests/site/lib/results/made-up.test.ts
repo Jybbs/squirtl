@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { EPISODES, MADE_UP } from '../../../../docs/.vitepress/lib/results/made-up.ts'
-import { AGENTS, groupsOf }  from '../../../../docs/.vitepress/lib/results/results.ts'
+import { EPISODES, MADE_UP }               from '../../../../docs/.vitepress/lib/results/made-up.ts'
+import { AGENTS, groupsOf, interquartile } from '../../../../docs/.vitepress/lib/results/results.ts'
 
 describe('MADE_UP', () => {
   it('holds a bedroom group for each agent in the order the charts declare them, each of five seeds', () => {
@@ -20,5 +20,10 @@ describe('MADE_UP', () => {
   it('gives each agent the odds of beating random presses its reached share sets', () => {
     expect(MADE_UP.comparisons.map(comparison => [comparison.agent, comparison.beats.value]))
       .toStrictEqual([['ppo', 0.96], ['pqn', 0.88], ['dqn', 0.04]])
+  })
+
+  it('ends each run on a share its comparison takes the interquartile mean of', () => {
+    expect(groupsOf(MADE_UP).map(group => group.comparison.reached.value)).toStrictEqual(groupsOf(MADE_UP)
+      .map(group => interquartile(group.runs.map(run => run.scores.at(-1)!.reached))))
   })
 })
